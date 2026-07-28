@@ -207,7 +207,8 @@ export function readPersistedShippingOrderListState() {
 /** sort_by / sort_order for GET /api/shipping/orders list. */
 export function buildShippingOrderListSortParams(listSortOption) {
   if (listSortOption === "next_action") {
-    return { sort_by: "next_action", sort_order: "desc" };
+    // Backend owns default order for next_action; do not send sort_order.
+    return { sort_by: "next_action" };
   }
   return { sort_by: "so_number", sort_order: "desc" };
 }

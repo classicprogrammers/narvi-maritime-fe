@@ -88,7 +88,11 @@ export const getShippingOrders = async (params = {}) => {
 
     if (params.sort_by != null && String(params.sort_by).trim() !== "") {
       requestParams.sort_by = String(params.sort_by).trim();
-      if (params.sort_order === "asc" || params.sort_order === "desc") {
+      // next_action uses backend default order — omit sort_order
+      if (
+        requestParams.sort_by !== "next_action" &&
+        (params.sort_order === "asc" || params.sort_order === "desc")
+      ) {
         requestParams.sort_order = params.sort_order;
       }
     }

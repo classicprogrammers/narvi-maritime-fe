@@ -128,8 +128,6 @@ import StockReportHistoryModal from "../../../components/stock-list/StockReportH
 import { useStockAttachmentsGallery } from "../../../hooks/useStockAttachmentsGallery";
 import { getInlineAttachmentDisplayNames } from "../../../utils/stockReportAttachmentsUi";
 import { formatVolumeCbm } from "../../../utils/stockVolume";
-import { useUser } from "../../../redux/hooks/useUser";
-import { canEditStockList } from "../../../utils/stockListAccess";
 
 const CLIENT_VIEW_TABLE_COLUMNS = {
     filter1: [
@@ -544,15 +542,6 @@ export default function Stocks() {
     const [editingRowData, setEditingRowData] = useState({});
 
     const toast = useToast();
-    const { user } = useUser();
-    const canEditStock = useMemo(() => canEditStockList(user), [user]);
-
-    useEffect(() => {
-        if (!canEditStock && editingRowIds.size > 0) {
-            setEditingRowIds(new Set());
-            setEditingRowData({});
-        }
-    }, [canEditStock, editingRowIds.size]);
 
     const {
         stockList,
@@ -701,6 +690,14 @@ export default function Stocks() {
     const borderColor = useColorModeValue("gray.200", "gray.700");
     const tableLoadingOverlayBg = useColorModeValue("whiteAlpha.850", "blackAlpha.650");
     const cardBg = useColorModeValue("white", "navy.800");
+    const sortInfoBg = useColorModeValue("blue.50", "blue.900");
+    const sortInfoBorder = useColorModeValue("blue.200", "blue.700");
+    const emptyPanelIconColor = useColorModeValue("gray.400", "gray.500");
+    const orangeBannerBg = useColorModeValue("orange.400", "orange.600");
+    const modalMutedIconColor = useColorModeValue("gray.400", "gray.600");
+    const dimFocusBorder = useColorModeValue("blue.300", "blue.500");
+    const dimSummaryTitleColor = useColorModeValue("blue.700", "blue.200");
+    const dimSummaryLabelColor = useColorModeValue("blue.600", "blue.300");
 
     const headerProps = {
         borderRight: "1px",
@@ -1003,7 +1000,6 @@ export default function Stocks() {
     };
 
     const handleEditItem = (item) => {
-        if (!canEditStock) return;
         // Pass current filter state so it can be restored when navigating back
         const filterState = {
             activeTab,
@@ -1044,7 +1040,6 @@ export default function Stocks() {
 
     // Handle navigate to edit page with selected items
     const handleNavigateToEdit = () => {
-        if (!canEditStock) return;
         const selectedIds = Array.from(selectedRows);
         if (selectedIds.length > 0) {
             // Filter the full data objects from filtered stock for selected items
@@ -2488,7 +2483,6 @@ export default function Stocks() {
 
     // Handle create new - navigate to form page
     const handleCreateNew = () => {
-        if (!canEditStock) return;
         history.push("/admin/stock-list/form");
     };
 
@@ -2638,7 +2632,6 @@ export default function Stocks() {
     };
 
     const handleEditStart = (item) => {
-        if (!canEditStock) return;
         const normalizedItem = normalizeItemForEditing(item);
         setEditingRowIds(new Set([item.id]));
         setEditingRowData({ [item.id]: normalizedItem });
@@ -2646,7 +2639,6 @@ export default function Stocks() {
 
     // Handle bulk edit - make all selected rows editable
     const handleBulkEdit = () => {
-        if (!canEditStock) return;
         const selectedIds = Array.from(selectedRows);
         if (selectedIds.length > 0) {
             const selectedItems = filteredAndSortedStock.filter(item => selectedIds.includes(item.id));
@@ -2890,7 +2882,6 @@ export default function Stocks() {
 
     // Handle inline edit save - for single row
     const handleEditSave = async (item) => {
-        if (!canEditStock) return;
         try {
             const editedData = editingRowData[item.id];
             const linePayload = buildPayload(item, editedData);
@@ -2938,7 +2929,6 @@ export default function Stocks() {
 
     // Handle bulk save - save all rows being edited in a single API call with lines array
     const handleBulkSave = async () => {
-        if (!canEditStock) return;
         const editingIds = Array.from(editingRowIds);
         if (editingIds.length === 0) return;
 
@@ -3113,23 +3103,7 @@ export default function Stocks() {
 
     // Note: Loading state is now shown inside the tables instead of blocking the entire page
 
-    // Show error state
-    if (error && stockList.length === 0) {
-        return (
-            <Box pt={{ base: "130px", md: "80px", xl: "80px" }} p="6">
-                <Alert status="error">
-                    <AlertIcon />
-                    <Box>
-                        <AlertTitle>Error loading stock list!</AlertTitle>
-                        <AlertDescription>{error}</AlertDescription>
-                    </Box>
-                </Alert>
-                <Button mt="4" onClick={() => getStockList({ page: 1, page_size: PAGE_SIZE })} leftIcon={<Icon as={MdRefresh} />}>
-                    Retry
-                </Button>
-            </Box>
-        );
-    }
+    const showFatalLoadError = Boolean(error && stockList.length === 0);
 
     // Get selected data for each view
     const vesselViewClientData = vesselViewClient ? clients.find(c => String(c.id) === String(vesselViewClient)) : null;
@@ -3160,7 +3134,7 @@ export default function Stocks() {
 
     // Helper function to render editable cell
     const renderEditableCell = (item, field, value, type = "text", options = null) => {
-        const isEditing = canEditStock && editingRowIds.has(item.id);
+        const isEditing = editingRowIds.has(item.id);
         const rowEditingData = editingRowData[item.id] || {};
         const currentValue = rowEditingData[field] !== undefined ? rowEditingData[field] : value;
 
@@ -3417,7 +3391,7 @@ export default function Stocks() {
         return stockItems.map((item, index) => {
             const statusStyle = getStatusStyle(item.stock_status);
             const rowBg = statusStyle.bgColor || tableRowBg;
-            const isEditing = canEditStock && editingRowIds.has(item.id);
+            const isEditing = editingRowIds.has(item.id);
 
             // Render cells based on active tab
             if (activeTab === 0) {
@@ -3590,7 +3564,7 @@ export default function Stocks() {
                                 setSelectedDimensions(item.dimensions || []);
                                 onDimensionsModalOpen();
                             } : undefined}
-                            _hover={!isEditing ? { bg: useColorModeValue("gray.100", "gray.700") } : {}}
+                            _hover={!isEditing ? { bg: tableRowHoverBg } : {}}
                         >
                             {isEditing ? (
                                 <Text {...cellText}>{formatVolumeCbm(item.total_volume_cbm)}</Text>
@@ -3612,7 +3586,7 @@ export default function Stocks() {
                                 setSelectedDimensions(item.dimensions || []);
                                 onDimensionsModalOpen();
                             } : undefined}
-                            _hover={!isEditing ? { bg: useColorModeValue("gray.100", "gray.700") } : {}}
+                            _hover={!isEditing ? { bg: tableRowHoverBg } : {}}
                         >
                             {isEditing ? (
                                 renderEditableCell(item, "total_cw_air_freight", item.total_cw_air_freight, "number")
@@ -3650,7 +3624,6 @@ export default function Stocks() {
                                 }
                             />
                         </Td>
-                        {canEditStock && (
                         <Td {...cellProps}>
                             {isEditing ? (
                                 <HStack spacing="2">
@@ -3684,7 +3657,6 @@ export default function Stocks() {
                                 </HStack>
                             )}
                         </Td>
-                        )}
                     </Tr>
                 );
             } else if (activeTab === 1) {
@@ -3864,7 +3836,6 @@ export default function Stocks() {
                                 }
                             />
                         </Td>
-                        {canEditStock && (
                         <Td {...cellProps}>
                             {isEditing ? (
                                 <HStack spacing="2">
@@ -3898,7 +3869,6 @@ export default function Stocks() {
                                 </HStack>
                             )}
                         </Td>
-                        )}
                     </Tr>
                 );
             }
@@ -3907,6 +3877,25 @@ export default function Stocks() {
 
     return (
         <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
+            {showFatalLoadError && (
+                <Box px="6" pb="4">
+                    <Alert status="error">
+                        <AlertIcon />
+                        <Box flex="1">
+                            <AlertTitle>Error loading stock list!</AlertTitle>
+                            <AlertDescription>{error}</AlertDescription>
+                        </Box>
+                        <Button
+                            onClick={() => getStockList({ page: 1, page_size: PAGE_SIZE })}
+                            leftIcon={<Icon as={MdRefresh} />}
+                            size="sm"
+                            ml="4"
+                        >
+                            Retry
+                        </Button>
+                    </Alert>
+                </Box>
+            )}
             <Card
                 direction="column"
                 w="100%"
@@ -4092,7 +4081,7 @@ export default function Stocks() {
 
                                         {/* Orange Bar - Vessel Name and Client Name */}
                                         {(vesselViewVesselData || vesselViewClientData) && (
-                                            <Box mb="20px" p="4" bg={useColorModeValue("orange.400", "orange.600")} borderRadius="md">
+                                            <Box mb="20px" p="4" bg={orangeBannerBg} borderRadius="md">
                                                 <VStack spacing="2" align="stretch">
                                                     {vesselViewVesselData && (
                                                         <HStack justify="space-between" align="center">
@@ -4892,7 +4881,7 @@ export default function Stocks() {
 
                                                 {/* Sorting Info Box */}
                                                 {sortOption !== 'none' && (
-                                                    <Box mt="2" p="3" bg={useColorModeValue("blue.50", "blue.900")} borderRadius="md" border="1px" borderColor={useColorModeValue("blue.200", "blue.700")}>
+                                                    <Box mt="2" p="3" bg={sortInfoBg} borderRadius="md" border="1px" borderColor={sortInfoBorder}>
                                                         <Text fontSize="xs" color={textColor} fontWeight="600" mb="1">Sorting Order:</Text>
                                                         <Text fontSize="xs" color={textColor} opacity={0.8} whiteSpace="pre-line">
                                                             {getStockSortDescription(sortOption)}
@@ -4963,7 +4952,6 @@ export default function Stocks() {
                                                 colorScheme="blue"
                                                 size="sm"
                                                 onClick={handleNavigateToEdit}
-                                                isDisabled={!canEditStock}
                                             >
                                                 Edit Selected
                                             </Button>
@@ -5039,8 +5027,8 @@ export default function Stocks() {
                                     )}
                                     {!isLoading && getFilteredStockByStatus().length === 0 ? (
                                         <Center py="60px" px="25px">
-                                            <VStack spacing="4" maxW="400px" p="6" bg={useColorModeValue("gray.50", "gray.800")} borderRadius="lg" border="1px" borderColor={borderColor}>
-                                                <Icon as={MdInventory2} boxSize="14" color={useColorModeValue("gray.400", "gray.500")} />
+                                            <VStack spacing="4" maxW="400px" p="6" bg={tableRowBgAlt} borderRadius="lg" border="1px" borderColor={borderColor}>
+                                                <Icon as={MdInventory2} boxSize="14" color={emptyPanelIconColor} />
                                                 <Text color={tableTextColor} fontWeight="600">{stockList.length === 0 ? "No stock items available." : "No stock items match your filter criteria."}</Text>
                                                 {stockList.length > 0 && (
                                                     <Text color={tableTextColorSecondary} fontSize="sm" textAlign="center">Try adjusting your filters to see more results.</Text>
@@ -5118,7 +5106,7 @@ export default function Stocks() {
                                                     <Th {...headerProps}>CLIENT</Th>
                                                     <Th {...headerProps}>INTERNAL REMARKS</Th>
                                                     <Th {...headerProps}>FILES</Th>
-                                                    {canEditStock && <Th {...headerProps}>ACTIONS</Th>}
+                                                    <Th {...headerProps}>ACTIONS</Th>
                                                 </Tr>
                                             </Thead>
                                             <Tbody>
@@ -5216,7 +5204,7 @@ export default function Stocks() {
                                                                         setSelectedDimensions(item.dimensions || []);
                                                                         onDimensionsModalOpen();
                                                                     }}
-                                                                    _hover={{ bg: useColorModeValue("gray.100", "gray.700") }}
+                                                                    _hover={{ bg: tableRowHoverBg }}
                                                                 >
                                                                     <HStack spacing={2} align="center" justify="flex-start">
                                                                         <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
@@ -5234,7 +5222,7 @@ export default function Stocks() {
                                                                         setSelectedDimensions(item.dimensions || []);
                                                                         onDimensionsModalOpen();
                                                                     }}
-                                                                    _hover={{ bg: useColorModeValue("gray.100", "gray.700") }}
+                                                                    _hover={{ bg: tableRowHoverBg }}
                                                                 >
                                                                     <HStack spacing={2} align="center" justify="flex-start">
                                                                         <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
@@ -5260,7 +5248,6 @@ export default function Stocks() {
                                                                         }
                                                                     />
                                                                 </Td>
-                                                                {canEditStock && (
                                                                 <Td {...cellProps}>
                                                                     <IconButton
                                                                         icon={<Icon as={MdEdit} />}
@@ -5271,7 +5258,6 @@ export default function Stocks() {
                                                                         aria-label="Edit"
                                                                     />
                                                                 </Td>
-                                                                )}
                                                             </Tr>
                                                         );
                                                     })}
@@ -5632,8 +5618,8 @@ export default function Stocks() {
                                     )}
                                     {!isLoading && filteredAndSortedStock.length === 0 ? (
                                         <Center py="60px" px="25px">
-                                            <VStack spacing="4" maxW="400px" p="6" bg={useColorModeValue("gray.50", "gray.800")} borderRadius="lg" border="1px" borderColor={borderColor}>
-                                                <Icon as={MdInventory2} boxSize="14" color={useColorModeValue("gray.400", "gray.500")} />
+                                            <VStack spacing="4" maxW="400px" p="6" bg={tableRowBgAlt} borderRadius="lg" border="1px" borderColor={borderColor}>
+                                                <Icon as={MdInventory2} boxSize="14" color={emptyPanelIconColor} />
                                                 <Text color={tableTextColor} fontWeight="600">{stockList.length === 0 ? "No stock items available." : "No stock items match your filter criteria."}</Text>
                                                 {stockList.length > 0 && (
                                                     <Text color={tableTextColorSecondary} fontSize="sm" textAlign="center">Try adjusting your filters to see more results.</Text>
@@ -5851,7 +5837,6 @@ export default function Stocks() {
                                                     colorScheme="blue"
                                                     size="sm"
                                                     onClick={handleBulkEdit}
-                                                    isDisabled={!canEditStock}
                                                 >
                                                     Edit Selected
                                                 </Button>
@@ -5895,12 +5880,12 @@ export default function Stocks() {
                                         spacing="5"
                                         maxW="400px"
                                         p="8"
-                                        bg={useColorModeValue("gray.50", "gray.800")}
+                                        bg={tableRowBgAlt}
                                         borderRadius="lg"
                                         border="1px"
                                         borderColor={borderColor}
                                     >
-                                        <Icon as={MdInventory2} boxSize="16" color={useColorModeValue("gray.400", "gray.500")} />
+                                        <Icon as={MdInventory2} boxSize="16" color={emptyPanelIconColor} />
                                         <VStack spacing="1">
                                             <Text color={tableTextColor} fontSize="lg" fontWeight="600">
                                                 No stock items found
@@ -5996,7 +5981,7 @@ export default function Stocks() {
                                                     <Th {...headerProps}>CLIENT</Th>
                                                     <Th {...headerProps}>INTERNAL REMARKS</Th>
                                                     <Th {...headerProps}>FILES</Th>
-                                                    {canEditStock && <Th {...headerProps}>ACTIONS</Th>}
+                                                    <Th {...headerProps}>ACTIONS</Th>
                                                 </>
                                             ) : (
                                                 <>
@@ -6032,7 +6017,7 @@ export default function Stocks() {
                                                     <Th {...headerProps}>SIC NUMBER</Th>
                                                     <Th {...headerProps}>DI NUMBER</Th>
                                                     <Th {...headerProps}>FILES</Th>
-                                                    {canEditStock && <Th {...headerProps}>ACTIONS</Th>}
+                                                    <Th {...headerProps}>ACTIONS</Th>
                                                 </>
                                             )}
                                         </Tr>
@@ -6158,7 +6143,7 @@ export default function Stocks() {
                         fontWeight="bold"
                         pb={3}
                         borderBottom="1px"
-                        borderColor={useColorModeValue("gray.200", "gray.700")}
+                        borderColor={borderColor}
                     >
                         <HStack spacing={2}>
                             <Icon as={MdVisibility} color="blue.500" />
@@ -6179,11 +6164,11 @@ export default function Stocks() {
                                         key={dim.id || index}
                                         p={4}
                                         border="1px"
-                                        borderColor={useColorModeValue("gray.200", "gray.700")}
+                                        borderColor={borderColor}
                                         borderRadius="lg"
-                                        bg={useColorModeValue("gray.50", "gray.800")}
+                                        bg={tableRowBgAlt}
                                         _hover={{
-                                            borderColor: useColorModeValue("blue.300", "blue.500"),
+                                            borderColor: dimFocusBorder,
                                             boxShadow: "md",
                                             transform: "translateY(-2px)",
                                             transition: "all 0.2s"
@@ -6214,33 +6199,33 @@ export default function Stocks() {
                                         {dim.calculation_method === "lwh" || !dim.calculation_method ? (
                                             <Grid templateColumns="repeat(3, 1fr)" gap={4} mb={3}>
                                                 <Box>
-                                                    <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                         Length
                                                     </Text>
                                                     <Text fontSize="lg" fontWeight="semibold" color={textColor}>
-                                                        {renderText(dim.length_cm)} <Text as="span" fontSize="sm" color={useColorModeValue("gray.500", "gray.400")}>cm</Text>
+                                                        {renderText(dim.length_cm)} <Text as="span" fontSize="sm" color={tableTextColorSecondary}>cm</Text>
                                                     </Text>
                                                 </Box>
                                                 <Box>
-                                                    <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                         Width
                                                     </Text>
                                                     <Text fontSize="lg" fontWeight="semibold" color={textColor}>
-                                                        {renderText(dim.width_cm)} <Text as="span" fontSize="sm" color={useColorModeValue("gray.500", "gray.400")}>cm</Text>
+                                                        {renderText(dim.width_cm)} <Text as="span" fontSize="sm" color={tableTextColorSecondary}>cm</Text>
                                                     </Text>
                                                 </Box>
                                                 <Box>
-                                                    <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                         Height
                                                     </Text>
                                                     <Text fontSize="lg" fontWeight="semibold" color={textColor}>
-                                                        {renderText(dim.height_cm)} <Text as="span" fontSize="sm" color={useColorModeValue("gray.500", "gray.400")}>cm</Text>
+                                                        {renderText(dim.height_cm)} <Text as="span" fontSize="sm" color={tableTextColorSecondary}>cm</Text>
                                                     </Text>
                                                 </Box>
                                             </Grid>
                                         ) : (
                                             <Box mb={3}>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     Volume Dimension
                                                 </Text>
                                                 <Text fontSize="lg" fontWeight="semibold" color={textColor}>
@@ -6251,7 +6236,7 @@ export default function Stocks() {
                                         <Divider my={3} />
                                         <Grid templateColumns="repeat(2, 1fr)" gap={4}>
                                             <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     Volume (CBM)
                                                 </Text>
                                                 <Text fontSize="md" fontWeight="semibold" color="blue.500">
@@ -6259,7 +6244,7 @@ export default function Stocks() {
                                                 </Text>
                                             </Box>
                                             <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     CW Air Freight
                                                 </Text>
                                                 <Text fontSize="md" fontWeight="semibold" color="green.500">
@@ -6267,7 +6252,7 @@ export default function Stocks() {
                                                 </Text>
                                             </Box>
                                             <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     Weight (kg)
                                                 </Text>
                                                 <Text fontSize="md" fontWeight="semibold" color="orange.500">
@@ -6283,36 +6268,36 @@ export default function Stocks() {
                                         <Divider />
                                         <Box
                                             p={4}
-                                            bg={useColorModeValue("blue.50", "blue.900")}
+                                            bg={sortInfoBg}
                                             borderRadius="lg"
                                             border="1px"
-                                            borderColor={useColorModeValue("blue.200", "blue.700")}
+                                            borderColor={sortInfoBorder}
                                         >
-                                            <Text fontSize="sm" fontWeight="bold" color={useColorModeValue("blue.700", "blue.200")} mb={3}>
+                                            <Text fontSize="sm" fontWeight="bold" color={dimSummaryTitleColor} mb={3}>
                                                 Total Summary
                                             </Text>
                                             <Grid templateColumns="repeat(3, 1fr)" gap={4}>
                                                 <Box>
-                                                    <Text fontSize="xs" color={useColorModeValue("blue.600", "blue.300")} mb={1}>
+                                                    <Text fontSize="xs" color={dimSummaryLabelColor} mb={1}>
                                                         Total Volume (CBM)
                                                     </Text>
-                                                    <Text fontSize="lg" fontWeight="bold" color={useColorModeValue("blue.700", "blue.200")}>
+                                                    <Text fontSize="lg" fontWeight="bold" color={dimSummaryTitleColor}>
                                                         {selectedDimensions.reduce((sum, dim) => sum + (parseFloat(dim.volume_cbm ?? dim.volume_dim) || 0), 0).toFixed(3)}
                                                     </Text>
                                                 </Box>
                                                 <Box>
-                                                    <Text fontSize="xs" color={useColorModeValue("blue.600", "blue.300")} mb={1}>
+                                                    <Text fontSize="xs" color={dimSummaryLabelColor} mb={1}>
                                                         Total CW Air Freight
                                                     </Text>
-                                                    <Text fontSize="lg" fontWeight="bold" color={useColorModeValue("blue.700", "blue.200")}>
+                                                    <Text fontSize="lg" fontWeight="bold" color={dimSummaryTitleColor}>
                                                         {selectedDimensions.reduce((sum, dim) => sum + (parseFloat(dim.cw_air_freight) || 0), 0).toFixed(1)}
                                                     </Text>
                                                 </Box>
                                                 <Box>
-                                                    <Text fontSize="xs" color={useColorModeValue("blue.600", "blue.300")} mb={1}>
+                                                    <Text fontSize="xs" color={dimSummaryLabelColor} mb={1}>
                                                         Total Weight (kg)
                                                     </Text>
-                                                    <Text fontSize="lg" fontWeight="bold" color={useColorModeValue("blue.700", "blue.200")}>
+                                                    <Text fontSize="lg" fontWeight="bold" color={dimSummaryTitleColor}>
                                                         {selectedDimensions.reduce((sum, dim) => sum + (parseFloat(dim.weight_kg) || 0), 0).toFixed(2)}
                                                     </Text>
                                                 </Box>
@@ -6323,17 +6308,17 @@ export default function Stocks() {
                             </VStack>
                         ) : (
                             <VStack spacing={4} py={8}>
-                                <Icon as={MdVisibility} boxSize={12} color={useColorModeValue("gray.400", "gray.600")} />
-                                <Text fontSize="lg" fontWeight="medium" color={useColorModeValue("gray.600", "gray.400")}>
+                                <Icon as={MdVisibility} boxSize={12} color={modalMutedIconColor} />
+                                <Text fontSize="lg" fontWeight="medium" color={tableTextColorSecondary}>
                                     No dimensions available
                                 </Text>
-                                <Text fontSize="sm" color={useColorModeValue("gray.500", "gray.500")} textAlign="center">
+                                <Text fontSize="sm" color={tableTextColorSecondary} textAlign="center">
                                     This stock item does not have any dimensions recorded.
                                 </Text>
                             </VStack>
                         )}
                     </ModalBody>
-                    <ModalFooter borderTop="1px" borderColor={useColorModeValue("gray.200", "gray.700")}>
+                    <ModalFooter borderTop="1px" borderColor={borderColor}>
                         <Button onClick={onDimensionsModalClose} colorScheme="blue">
                             Close
                         </Button>

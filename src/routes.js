@@ -209,7 +209,6 @@ const routes = [
         path: "/stock-list/add-stock",
         icon: <Icon as={MdAdd} width="20px" height="20px" color="inherit" />,
         component: NewStockItem,
-        adminOnly: true,
       },
       {
         name: "Stocklist View/Edit",
@@ -477,14 +476,12 @@ const hiddenRoutes = [
     layout: "/admin",
     path: "/stock-list/form/:id?",
     component: StockForm,
-    adminOnly: true,
   },
   {
     name: "Stock Items Edit",
     layout: "/admin",
     path: "/stock-list/edit-stock",
     component: StockDBMainEdit,
-    adminOnly: true,
   },
   {
     name: "Vessel Detail",

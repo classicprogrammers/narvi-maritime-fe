@@ -44,8 +44,6 @@ import { MdRefresh, MdEdit, MdFilterList, MdClose, MdVisibility, MdSearch, MdNum
 import { useStock } from "../../../redux/hooks/useStock";
 import { Checkbox, Input, Select, InputGroup, InputLeftElement, InputRightElement, Divider, Switch } from "@chakra-ui/react";
 import { useHistory, useLocation } from "react-router-dom";
-import { useUser } from "../../../redux/hooks/useUser";
-import { canEditStockList } from "../../../utils/stockListAccess";
 import { useMasterData } from "../../../hooks/useMasterData";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import { formatStockDestinationDisplay } from "../../../utils/stockDestinationOptions";
@@ -193,10 +191,8 @@ export default function StockList() {
         [stockList]
     );
 
-    const { user } = useUser();
-    const { clients, vessels, agents: vendors, countries, destinations, currencies } = useMasterData();
 
-    const canEditStock = useMemo(() => canEditStockList(user), [user]);
+    const { clients, vessels, agents: vendors, countries, destinations, currencies } = useMasterData();
 
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
@@ -295,6 +291,16 @@ export default function StockList() {
     const borderColor = useColorModeValue("gray.200", "gray.700");
     const tableLoadingOverlayBg = useColorModeValue("whiteAlpha.850", "blackAlpha.650");
     const cardBg = useColorModeValue("white", "navy.800");
+    const thHoverBg = useColorModeValue("gray.100", "gray.600");
+    const sortInfoBg = useColorModeValue("blue.50", "blue.900");
+    const sortInfoBorder = useColorModeValue("blue.200", "blue.700");
+    const emptyPanelBg = useColorModeValue("gray.50", "gray.800");
+    const emptyPanelBorder = useColorModeValue("gray.200", "gray.700");
+    const emptyPanelIconColor = useColorModeValue("gray.400", "gray.500");
+    const modalMutedIconColor = useColorModeValue("gray.400", "gray.600");
+    const dimFocusBorder = useColorModeValue("blue.300", "blue.500");
+    const dimSummaryTitleColor = useColorModeValue("blue.700", "blue.200");
+    const dimSummaryLabelColor = useColorModeValue("blue.600", "blue.300");
     const headerProps = {
         borderRight: "1px",
         borderColor: tableBorderColor,
@@ -790,7 +796,6 @@ export default function StockList() {
 
     // Handle bulk edit - navigate to StockDB Main edit page with selected items' full data
     const handleBulkEdit = () => {
-        if (!canEditStock) return;
         const selectedIds = Array.from(selectedRows);
         if (selectedIds.length > 0) {
             // Filter the full data objects from stockList for selected items
@@ -830,7 +835,6 @@ export default function StockList() {
 
     // Handle single item edit - navigate to StockDB Main edit page with item's full data
     const handleEditItem = (item) => {
-        if (!canEditStock) return;
         // Pass current filter state so it can be restored when navigating back
         const filterState = {
             selectedClient,
@@ -1097,26 +1101,24 @@ export default function StockList() {
 
     // Note: Loading state is now shown inside the table instead of blocking the entire page
 
-    // Show error state
-    if (error && stockList.length === 0) {
-        return (
-            <Box pt={{ base: "130px", md: "80px", xl: "80px" }} p="6">
-                <Alert status="error">
-                    <AlertIcon />
-                    <Box>
-                        <AlertTitle>Error loading stock list!</AlertTitle>
-                        <AlertDescription>{error}</AlertDescription>
-                    </Box>
-                </Alert>
-                <Button mt="4" onClick={() => fetchStockList()} leftIcon={<Icon as={MdRefresh} />}>
-                    Retry
-                </Button>
-            </Box>
-        );
-    }
+    const showFatalLoadError = Boolean(error && stockList.length === 0);
 
     return (
         <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
+            {showFatalLoadError && (
+                <Box px="6" pb="4">
+                    <Alert status="error">
+                        <AlertIcon />
+                        <Box flex="1">
+                            <AlertTitle>Error loading stock list!</AlertTitle>
+                            <AlertDescription>{error}</AlertDescription>
+                        </Box>
+                        <Button onClick={() => fetchStockList()} leftIcon={<Icon as={MdRefresh} />} size="sm" ml="4">
+                            Retry
+                        </Button>
+                    </Alert>
+                </Box>
+            )}
             <Card
                 direction="column"
                 w="100%"
@@ -1754,7 +1756,7 @@ export default function StockList() {
 
                                     {/* Sorting Info Box */}
                                     {sortOption !== 'none' && (
-                                        <Box mt="2" p="3" bg={useColorModeValue("blue.50", "blue.900")} borderRadius="md" border="1px" borderColor={useColorModeValue("blue.200", "blue.700")}>
+                                        <Box mt="2" p="3" bg={sortInfoBg} borderRadius="md" border="1px" borderColor={sortInfoBorder}>
                                             <Text fontSize="xs" color={textColor} fontWeight="600" mb="1">Sorting Order:</Text>
                                             <Text fontSize="xs" color={textColor} opacity={0.8} whiteSpace="pre-line">
                                                 {getStockSortDescription(sortOption)}
@@ -1792,7 +1794,6 @@ export default function StockList() {
                             colorScheme="blue"
                             size="sm"
                             onClick={handleBulkEdit}
-                            isDisabled={!canEditStock}
                         >
                             Edit Selected
                         </Button>
@@ -1840,8 +1841,8 @@ export default function StockList() {
                     )}
                     {!isLoading && filteredAndSortedStock.length === 0 ? (
                         <Center py="80px" px="25px">
-                            <VStack spacing="4" maxW="400px" p="6" bg={useColorModeValue("gray.50", "gray.800")} borderRadius="lg" border="1px" borderColor={useColorModeValue("gray.200", "gray.700")}>
-                                <Icon as={MdInventory2} boxSize="14" color={useColorModeValue("gray.400", "gray.500")} />
+                            <VStack spacing="4" maxW="400px" p="6" bg={emptyPanelBg} borderRadius="lg" border="1px" borderColor={emptyPanelBorder}>
+                                <Icon as={MdInventory2} boxSize="14" color={emptyPanelIconColor} />
                                 <Text color={tableTextColor} fontWeight="600">{stockList.length === 0 ? "No stock items available." : "No stock items match your filter criteria."}</Text>
                                 {stockList.length > 0 && (
                                     <Text color={tableTextColorSecondary} fontSize="sm" textAlign="center">Try adjusting your filters to see more results.</Text>
@@ -1863,51 +1864,50 @@ export default function StockList() {
                                             isIndeterminate={filteredAndSortedStock.some(item => selectedRows.has(item.id)) && !filteredAndSortedStock.every(item => selectedRows.has(item.id))}
                                             onChange={(e) => handleSelectAll(e.target.checked)}
                                             size="sm"
-                                            isDisabled={!canEditStock}
                                         />
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("stock_item_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("stock_item_id")} _hover={{ bg: thHoverBg }}>
                                         STOCKITEMID {sortField === "stock_item_id" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("client_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("client_id")} _hover={{ bg: thHoverBg }}>
                                         CLIENT {sortField === "client_id" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("vessel_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("vessel_id")} _hover={{ bg: thHoverBg }}>
                                         VESSEL {sortField === "vessel_id" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("so_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("so_id")} _hover={{ bg: thHoverBg }}>
                                         SO NUMBER {sortField === "so_id" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("si_number")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("si_number")} _hover={{ bg: thHoverBg }}>
                                         SI NUMBER {sortField === "si_number" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("si_combined")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("si_combined")} _hover={{ bg: thHoverBg }}>
                                         SI COMBINED {sortField === "si_combined" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("di_no")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("di_no")} _hover={{ bg: thHoverBg }}>
                                         DI NUMBER {sortField === "di_no" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("stock_status")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("stock_status")} _hover={{ bg: thHoverBg }}>
                                         STOCK STATUS {sortField === "stock_status" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("supplier_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("supplier_id")} _hover={{ bg: thHoverBg }}>
                                         SUPPLIER {sortField === "supplier_id" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("req_no")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("req_no")} _hover={{ bg: thHoverBg }}>
                                         REQ NO {sortField === "req_no" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("po_text")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("po_text")} _hover={{ bg: thHoverBg }}>
                                         PO NUMBER {sortField === "po_text" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
                                     <Th {...headerProps}>EXTRA 2</Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("origin_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("origin_id")} _hover={{ bg: thHoverBg }}>
                                         ORIGIN {sortField === "origin_id" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
                                     <Th {...headerProps}>HUB 1</Th>
                                     <Th {...headerProps}>HUB 2</Th>
                                     <Th {...headerProps}>AP DESTINATION</Th>
                                     <Th {...headerProps}>DESTINATION</Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("warehouse_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("warehouse_id")} _hover={{ bg: thHoverBg }}>
                                         WAREHOUSE ID {sortField === "warehouse_id" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
                                     <Th {...headerProps}>SHIPPING DOC</Th>
@@ -1915,44 +1915,44 @@ export default function StockList() {
                                     <Th {...headerProps}>EXPORT DOC 2</Th>
                                     <Th {...headerProps}>REMARKS</Th>
                                     <Th {...headerProps}>INTERNAL REMARK</Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("date_on_stock")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("date_on_stock")} _hover={{ bg: thHoverBg }}>
                                         DATE ON STOCK {sortField === "date_on_stock" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("days_on_stock")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }} textAlign="center">
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("days_on_stock")} _hover={{ bg: thHoverBg }} textAlign="center">
                                         DAYS ON STOCK {sortField === "days_on_stock" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("exp_ready_in_stock")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("exp_ready_in_stock")} _hover={{ bg: thHoverBg }}>
                                         EXP READY FROM SUPPLIER {sortField === "exp_ready_in_stock" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("shipped_date")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("shipped_date")} _hover={{ bg: thHoverBg }}>
                                         SHIPPED DATE {sortField === "shipped_date" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("delivered_date")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("delivered_date")} _hover={{ bg: thHoverBg }}>
                                         DELIVERED DATE {sortField === "delivered_date" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
                                     <Th {...headerProps}>DG/UN NUMBER</Th>
                                     <Th {...headerProps}>BOXES</Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("weight_kg")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("weight_kg")} _hover={{ bg: thHoverBg }}>
                                         WEIGHT KG {sortField === "weight_kg" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
                                     <Th {...headerProps}>LWH TEXT</Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("total_volume_cbm")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("total_volume_cbm")} _hover={{ bg: thHoverBg }}>
                                         TOTAL VOLUME CBM {sortField === "total_volume_cbm" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("total_cw_air_freight")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("total_cw_air_freight")} _hover={{ bg: thHoverBg }}>
                                         TOTAL CW AIR FREIGHT {sortField === "total_cw_air_freight" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("value")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("value")} _hover={{ bg: thHoverBg }}>
                                         VALUE {sortField === "value" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("currency_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("currency_id")} _hover={{ bg: thHoverBg }}>
                                         CURRENCY {sortField === "currency_id" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
                                     <Th {...headerProps}>CLIENT ACCESS</Th>
                                     <Th {...headerProps}>PIC</Th>
                                     <Th {...headerProps}>SO STATUS</Th>
                                     <Th {...headerProps}>VESSEL DEST</Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("vessel_eta")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("vessel_eta")} _hover={{ bg: thHoverBg }}>
                                         VESSEL ETA {sortField === "vessel_eta" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
                                     <Th {...headerProps}>FILES</Th>
@@ -1973,7 +1973,6 @@ export default function StockList() {
                                                     isChecked={selectedRows.has(item.id)}
                                                     onChange={(e) => handleRowSelect(item.id, e.target.checked)}
                                                     size="sm"
-                                                    isDisabled={!canEditStock}
                                                 />
                                             </Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
@@ -2034,7 +2033,7 @@ export default function StockList() {
                                                     setSelectedDimensions(item.dimensions || []);
                                                     onDimensionsModalOpen();
                                                 }}
-                                                _hover={{ bg: useColorModeValue("gray.100", "gray.700") }}
+                                                _hover={{ bg: tableRowHoverBg }}
                                             >
                                                 <HStack spacing={2} align="center" justify="flex-start">
                                                     <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
@@ -2052,7 +2051,7 @@ export default function StockList() {
                                                     setSelectedDimensions(item.dimensions || []);
                                                     onDimensionsModalOpen();
                                                 }}
-                                                _hover={{ bg: useColorModeValue("gray.100", "gray.700") }}
+                                                _hover={{ bg: tableRowHoverBg }}
                                             >
                                                 <HStack spacing={2} align="center" justify="flex-start">
                                                     <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
@@ -2090,8 +2089,7 @@ export default function StockList() {
                                                     colorScheme="blue"
                                                     aria-label="Edit"
                                                     onClick={() => handleEditItem(item)}
-                                                    isDisabled={!canEditStock}
-                                                    title={!canEditStock ? "Only admin users can edit stock" : "Edit item"}
+                                                    title="Edit item"
                                                 />
                                             </Td>
                                         </Tr>
@@ -2190,7 +2188,7 @@ export default function StockList() {
                         fontWeight="bold"
                         pb={3}
                         borderBottom="1px"
-                        borderColor={useColorModeValue("gray.200", "gray.700")}
+                        borderColor={borderColor}
                     >
                         <HStack spacing={2}>
                             <Icon as={MdVisibility} color="green.500" />
@@ -2211,11 +2209,11 @@ export default function StockList() {
                                         key={item.id || index}
                                         p={4}
                                         border="1px"
-                                        borderColor={useColorModeValue("gray.200", "gray.700")}
+                                        borderColor={borderColor}
                                         borderRadius="lg"
-                                        bg={useColorModeValue("gray.50", "gray.800")}
+                                        bg={tableRowBgAlt}
                                     >
-                                        <HStack justify="space-between" mb={3} pb={3} borderBottom="1px" borderColor={useColorModeValue("gray.200", "gray.700")}>
+                                        <HStack justify="space-between" mb={3} pb={3} borderBottom="1px" borderColor={borderColor}>
                                             <HStack spacing={2}>
                                                 <Badge colorScheme="blue" fontSize="sm" px={2} py={1}>
                                                     Item {index + 1}
@@ -2234,7 +2232,7 @@ export default function StockList() {
                                         </HStack>
                                         <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" }} gap={4}>
                                             <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     Client
                                                 </Text>
                                                 <Text fontSize="sm" fontWeight="medium" color={textColor}>
@@ -2242,7 +2240,7 @@ export default function StockList() {
                                                 </Text>
                                             </Box>
                                             <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     Vessel
                                                 </Text>
                                                 <Text fontSize="sm" fontWeight="medium" color={textColor}>
@@ -2250,7 +2248,7 @@ export default function StockList() {
                                                 </Text>
                                             </Box>
                                             <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     Supplier
                                                 </Text>
                                                 <Text fontSize="sm" fontWeight="medium" color={textColor}>
@@ -2258,7 +2256,7 @@ export default function StockList() {
                                                 </Text>
                                             </Box>
                                             <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     SO Number
                                                 </Text>
                                                 <StockSoNumberLink
@@ -2268,7 +2266,7 @@ export default function StockList() {
                                                 />
                                             </Box>
                                             <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     Req No
                                                 </Text>
                                                 <Box>
@@ -2276,7 +2274,7 @@ export default function StockList() {
                                                 </Box>
                                             </Box>
                                             <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     PO Number
                                                 </Text>
                                                 <Box>
@@ -2284,7 +2282,7 @@ export default function StockList() {
                                                 </Box>
                                             </Box>
                                             <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     Warehouse
                                                 </Text>
                                                 <Text fontSize="sm" fontWeight="medium" color={textColor}>
@@ -2292,7 +2290,7 @@ export default function StockList() {
                                                 </Text>
                                             </Box>
                                             <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     Items
                                                 </Text>
                                                 <Text fontSize="sm" fontWeight="medium" color={textColor}>
@@ -2300,7 +2298,7 @@ export default function StockList() {
                                                 </Text>
                                             </Box>
                                             <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     Weight (KG)
                                                 </Text>
                                                 <Text fontSize="sm" fontWeight="medium" color={textColor}>
@@ -2308,7 +2306,7 @@ export default function StockList() {
                                                 </Text>
                                             </Box>
                                             <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     Total Volume (CBM)
                                                 </Text>
                                                 <Text fontSize="sm" fontWeight="medium" color="blue.500">
@@ -2316,7 +2314,7 @@ export default function StockList() {
                                                 </Text>
                                             </Box>
                                             <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     Total CW Air Freight
                                                 </Text>
                                                 <Text fontSize="sm" fontWeight="medium" color="green.500">
@@ -2324,7 +2322,7 @@ export default function StockList() {
                                                 </Text>
                                             </Box>
                                             <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     Value
                                                 </Text>
                                                 <Text fontSize="sm" fontWeight="medium" color={textColor}>
@@ -2332,7 +2330,7 @@ export default function StockList() {
                                                 </Text>
                                             </Box>
                                             <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     Date on Stock
                                                 </Text>
                                                 <Text fontSize="sm" fontWeight="medium" color={textColor}>
@@ -2341,7 +2339,7 @@ export default function StockList() {
                                             </Box>
                                             {item.remarks && (
                                                 <Box gridColumn={{ base: "1", md: "1 / -1" }}>
-                                                    <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                         Remarks
                                                     </Text>
                                                     <Text fontSize="sm" color={textColor} whiteSpace="pre-wrap">
@@ -2355,14 +2353,14 @@ export default function StockList() {
                             </VStack>
                         ) : (
                             <VStack spacing={4} py={8}>
-                                <Icon as={MdVisibility} boxSize={12} color={useColorModeValue("gray.400", "gray.600")} />
-                                <Text fontSize="lg" fontWeight="medium" color={useColorModeValue("gray.600", "gray.400")}>
+                                <Icon as={MdVisibility} boxSize={12} color={modalMutedIconColor} />
+                                <Text fontSize="lg" fontWeight="medium" color={tableTextColorSecondary}>
                                     No items selected
                                 </Text>
                             </VStack>
                         )}
                     </ModalBody>
-                    <ModalFooter borderTop="1px" borderColor={useColorModeValue("gray.200", "gray.700")}>
+                    <ModalFooter borderTop="1px" borderColor={borderColor}>
                         <Button onClick={onViewModalClose} colorScheme="blue">
                             Close
                         </Button>
@@ -2447,7 +2445,7 @@ export default function StockList() {
                         fontWeight="bold"
                         pb={3}
                         borderBottom="1px"
-                        borderColor={useColorModeValue("gray.200", "gray.700")}
+                        borderColor={borderColor}
                     >
                         <HStack spacing={2}>
                             <Icon as={MdVisibility} color="blue.500" />
@@ -2468,11 +2466,11 @@ export default function StockList() {
                                         key={dim.id || index}
                                         p={4}
                                         border="1px"
-                                        borderColor={useColorModeValue("gray.200", "gray.700")}
+                                        borderColor={borderColor}
                                         borderRadius="lg"
-                                        bg={useColorModeValue("gray.50", "gray.800")}
+                                        bg={tableRowBgAlt}
                                         _hover={{
-                                            borderColor: useColorModeValue("blue.300", "blue.500"),
+                                            borderColor: dimFocusBorder,
                                             boxShadow: "md",
                                             transform: "translateY(-2px)",
                                             transition: "all 0.2s"
@@ -2492,34 +2490,34 @@ export default function StockList() {
                                         </Flex>
                                         <Grid templateColumns="repeat(3, 1fr)" gap={4} mb={3}>
                                             <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     Length
                                                 </Text>
                                                 <Text fontSize="lg" fontWeight="semibold" color={textColor}>
-                                                    {renderText(dim.length_cm)} <Text as="span" fontSize="sm" color={useColorModeValue("gray.500", "gray.400")}>cm</Text>
+                                                    {renderText(dim.length_cm)} <Text as="span" fontSize="sm" color={tableTextColorSecondary}>cm</Text>
                                                 </Text>
                                             </Box>
                                             <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     Width
                                                 </Text>
                                                 <Text fontSize="lg" fontWeight="semibold" color={textColor}>
-                                                    {renderText(dim.width_cm)} <Text as="span" fontSize="sm" color={useColorModeValue("gray.500", "gray.400")}>cm</Text>
+                                                    {renderText(dim.width_cm)} <Text as="span" fontSize="sm" color={tableTextColorSecondary}>cm</Text>
                                                 </Text>
                                             </Box>
                                             <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     Height
                                                 </Text>
                                                 <Text fontSize="lg" fontWeight="semibold" color={textColor}>
-                                                    {renderText(dim.height_cm)} <Text as="span" fontSize="sm" color={useColorModeValue("gray.500", "gray.400")}>cm</Text>
+                                                    {renderText(dim.height_cm)} <Text as="span" fontSize="sm" color={tableTextColorSecondary}>cm</Text>
                                                 </Text>
                                             </Box>
                                         </Grid>
                                         <Divider my={3} />
                                         <Grid templateColumns="repeat(2, 1fr)" gap={4}>
                                             <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     Volume (CBM)
                                                 </Text>
                                                 <Text fontSize="md" fontWeight="semibold" color="blue.500">
@@ -2527,7 +2525,7 @@ export default function StockList() {
                                                 </Text>
                                             </Box>
                                             <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     CW Air Freight
                                                 </Text>
                                                 <Text fontSize="md" fontWeight="semibold" color="green.500">
@@ -2543,28 +2541,28 @@ export default function StockList() {
                                         <Divider />
                                         <Box
                                             p={4}
-                                            bg={useColorModeValue("blue.50", "blue.900")}
+                                            bg={sortInfoBg}
                                             borderRadius="lg"
                                             border="1px"
-                                            borderColor={useColorModeValue("blue.200", "blue.700")}
+                                            borderColor={sortInfoBorder}
                                         >
-                                            <Text fontSize="sm" fontWeight="bold" color={useColorModeValue("blue.700", "blue.200")} mb={3}>
+                                            <Text fontSize="sm" fontWeight="bold" color={dimSummaryTitleColor} mb={3}>
                                                 Total Summary
                                             </Text>
                                             <Grid templateColumns="repeat(2, 1fr)" gap={4}>
                                                 <Box>
-                                                    <Text fontSize="xs" color={useColorModeValue("blue.600", "blue.300")} mb={1}>
+                                                    <Text fontSize="xs" color={dimSummaryLabelColor} mb={1}>
                                                         Total Volume (CBM)
                                                     </Text>
-                                                    <Text fontSize="lg" fontWeight="bold" color={useColorModeValue("blue.700", "blue.200")}>
+                                                    <Text fontSize="lg" fontWeight="bold" color={dimSummaryTitleColor}>
                                                         {selectedDimensions.reduce((sum, dim) => sum + (parseFloat(dim.volume_cbm) || 0), 0).toFixed(3)}
                                                     </Text>
                                                 </Box>
                                                 <Box>
-                                                    <Text fontSize="xs" color={useColorModeValue("blue.600", "blue.300")} mb={1}>
+                                                    <Text fontSize="xs" color={dimSummaryLabelColor} mb={1}>
                                                         Total CW Air Freight
                                                     </Text>
-                                                    <Text fontSize="lg" fontWeight="bold" color={useColorModeValue("blue.700", "blue.200")}>
+                                                    <Text fontSize="lg" fontWeight="bold" color={dimSummaryTitleColor}>
                                                         {selectedDimensions.reduce((sum, dim) => sum + (parseFloat(dim.cw_air_freight) || 0), 0).toFixed(1)}
                                                     </Text>
                                                 </Box>
@@ -2575,17 +2573,17 @@ export default function StockList() {
                             </VStack>
                         ) : (
                             <VStack spacing={4} py={8}>
-                                <Icon as={MdVisibility} boxSize={12} color={useColorModeValue("gray.400", "gray.600")} />
-                                <Text fontSize="lg" fontWeight="medium" color={useColorModeValue("gray.600", "gray.400")}>
+                                <Icon as={MdVisibility} boxSize={12} color={modalMutedIconColor} />
+                                <Text fontSize="lg" fontWeight="medium" color={tableTextColorSecondary}>
                                     No dimensions available
                                 </Text>
-                                <Text fontSize="sm" color={useColorModeValue("gray.500", "gray.500")} textAlign="center">
+                                <Text fontSize="sm" color={tableTextColorSecondary} textAlign="center">
                                     This stock item does not have any dimensions recorded.
                                 </Text>
                             </VStack>
                         )}
                     </ModalBody>
-                    <ModalFooter borderTop="1px" borderColor={useColorModeValue("gray.200", "gray.700")}>
+                    <ModalFooter borderTop="1px" borderColor={borderColor}>
                         <Button onClick={onDimensionsModalClose} colorScheme="blue">
                             Close
                         </Button>

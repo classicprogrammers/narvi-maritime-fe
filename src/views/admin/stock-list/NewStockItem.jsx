@@ -57,7 +57,6 @@ import {
 import { normalizeStockStatusKey, shouldGenerateStockReportForStatusChange } from "../../../constants/stockStatus";
 import { useStock } from "../../../redux/hooks/useStock";
 import { useUser } from "../../../redux/hooks/useUser";
-import { canEditStockList } from "../../../utils/stockListAccess";
 import { useMasterData } from "../../../hooks/useMasterData";
 import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
 import api from "../../../api/axios";
@@ -102,14 +101,6 @@ export default function StockForm() {
     const isEditing = !!id || isBulkEdit;
     const toast = useToast();
     const { user } = useUser();
-    const canEditStock = canEditStockList(user);
-
-    useEffect(() => {
-        if (user != null && !canEditStock) {
-            history.replace("/admin/stock-list/stocks");
-        }
-    }, [user, canEditStock, history]);
-
     const { updateStockItem, getStockList, updateLoading, stockList } = useStock();
     const { clients, vessels, suppliers, countries, pics, currencies, refreshClients, refreshVessels } = useMasterData();
     const {
@@ -1429,10 +1420,6 @@ export default function StockForm() {
         }
     };
 
-
-    if (user != null && !canEditStock) {
-        return null;
-    }
 
     if (isLoading) {
         return (

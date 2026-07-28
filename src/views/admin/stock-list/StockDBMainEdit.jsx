@@ -66,7 +66,6 @@ import { updateStockItemApi, deleteStockItemApi, downloadStockItemAttachmentApi 
 import { normalizeStockStatusKey, shouldGenerateStockReportForStatusChange } from "../../../constants/stockStatus";
 import { useStock } from "../../../redux/hooks/useStock";
 import { useUser } from "../../../redux/hooks/useUser";
-import { canEditStockList } from "../../../utils/stockListAccess";
 import vesselsAPI from "../../../api/vessels";
 import api from "../../../api/axios";
 import locationsAPI from "../../../api/locations";
@@ -108,14 +107,6 @@ export default function StockDBMainEdit() {
     const location = useLocation();
     const toast = useToast();
     const { user } = useUser();
-    const canEditStock = canEditStockList(user);
-
-    useEffect(() => {
-        if (user != null && !canEditStock) {
-            history.replace("/admin/stock-list/main-db");
-        }
-    }, [user, canEditStock, history]);
-
     const { getStockList, updateLoading } = useStock();
     const { clients, suppliers, countries, pics, currencies } = useMasterData();
     const {
@@ -1598,10 +1589,6 @@ export default function StockDBMainEdit() {
             setCurrentItemIndex(Math.max(0, formRows.length - 2));
         }
     };
-
-    if (user != null && !canEditStock) {
-        return null;
-    }
 
     if (isLoading && formRows.length === 0) {
         return (
