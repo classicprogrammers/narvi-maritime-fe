@@ -698,7 +698,7 @@ const SoNumberTab = () => {
 
   const nextActionSortLabel =
     nextActionSortOption === "next_action"
-      ? "Next Action (latest first)"
+      ? "Next Action"
       : "SO #";
 
   const getSoNumber = (order) => {
@@ -1410,7 +1410,7 @@ const SoNumberTab = () => {
               </MenuButton>
               <MenuList>
                 <MenuItem onClick={() => setNextActionSort("so_number")}>SO #</MenuItem>
-                <MenuItem onClick={() => setNextActionSort("next_action")}>Next Action (latest first)</MenuItem>
+                <MenuItem onClick={() => setNextActionSort("next_action")}>Next Action</MenuItem>
               </MenuList>
             </Menu>
           </Flex>
