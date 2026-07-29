@@ -120,7 +120,29 @@ const formatCurrency = (value) => {
   }).format(numberValue);
 };
 
-const SHIPPING_ORDER_TABLE_COLUMN_COUNT = 20;
+const SHIPPING_ORDER_TABLE_COLUMNS = [
+  { label: "Actions", field: null, sortable: false },
+  { label: "SO Number", field: "so_number", sortable: false },
+  { label: "Status", field: "done", sortable: false },
+  { label: "Next Action date", field: "next_action", sortable: true },
+  { label: "SO Delivery date", field: "so_delivery_date", sortable: false },
+  { label: "Vessel Name", field: "vessel_name", sortable: false },
+  { label: "Destination", field: "destination", sortable: false },
+  { label: "Internal remarks", field: "internal_remark", sortable: false },
+  { label: "Vessels Agent details", field: "vsls_agent_dtls", sortable: false },
+  { label: "Client Code", field: "client", sortable: false },
+  { label: "Person in Charge", field: "pic", sortable: false },
+  { label: "ETA", field: "eta_date", sortable: false },
+  { label: "ETB", field: "etb", sortable: false },
+  { label: "ETD", field: "etd", sortable: false },
+  { label: "Client case / Invoice Ref", field: "client_case_invoice_ref", sortable: false },
+  { label: "Files", field: "attachments", sortable: false },
+  { label: "Package Link", field: null, sortable: false },
+  { label: "Quotation", field: "quotation", sortable: false },
+  { label: "Date Created", field: "date_created", sortable: false },
+];
+
+const SHIPPING_ORDER_TABLE_COLUMN_COUNT = SHIPPING_ORDER_TABLE_COLUMNS.length;
 
 const SoNumberTab = () => {
   const textColor = useColorModeValue("gray.700", "white");
@@ -851,13 +873,6 @@ const SoNumberTab = () => {
         </Td>
         <Td {...tableCellProps}><Text {...cellText}>{getSoNumber(order)}</Text></Td>
         <Td {...tableCellProps}>
-          <Text {...cellText}>
-            {order.so_delivery_date ? formatDate(order.so_delivery_date) : "-"}
-          </Text>
-        </Td>
-        <Td {...tableCellProps}><Text {...cellText}>{order.next_action ? formatDate(order.next_action) : "-"}</Text></Td>
-        <Td {...tableCellProps}><Text {...cellText}>{formatDateTime(order.create_date || order.date_created || order.date_order)}</Text></Td>
-        <Td {...tableCellProps}>
           <Badge
             colorScheme={
               order.done === "active"
@@ -886,13 +901,14 @@ const SoNumberTab = () => {
                       : "Active"}
           </Badge>
         </Td>
-        <Td {...tableCellProps}><Text {...cellText}>{order.pic_name || "-"}</Text></Td>
-        <Td {...tableCellProps}><Text {...cellText}>{order.client_code != null && order.client_code !== false && order.client_code !== "" ? String(order.client_code) : (order.client || "-")}</Text></Td>
+        <Td {...tableCellProps}><Text {...cellText}>{order.next_action ? formatDate(order.next_action) : "-"}</Text></Td>
+        <Td {...tableCellProps}>
+          <Text {...cellText}>
+            {order.so_delivery_date ? formatDate(order.so_delivery_date) : "-"}
+          </Text>
+        </Td>
         <Td {...tableCellProps}><Text {...cellText}>{order.vessel_name || "-"}</Text></Td>
         <Td {...tableCellProps}><Text {...cellText}>{getDestinationDisplay(order)}</Text></Td>
-        <Td {...tableCellProps}><Text {...cellText}>{getEtaDisplay(order)}</Text></Td>
-        <Td {...tableCellProps}><Text {...cellText}>{order.etb && order.etb !== false ? formatDate(order.etb) : "-"}</Text></Td>
-        <Td {...tableCellProps}><Text {...cellText}>{order.etd && order.etd !== false ? formatDate(order.etd) : "-"}</Text></Td>
         <Td {...tableCellProps} maxW="240px">
           <Tooltip label={order.internal_remark || "-"} isDisabled={!order.internal_remark || order.internal_remark === "-"}>
             <Text
@@ -923,6 +939,11 @@ const SoNumberTab = () => {
             </Text>
           </Tooltip>
         </Td>
+        <Td {...tableCellProps}><Text {...cellText}>{order.client_code != null && order.client_code !== false && order.client_code !== "" ? String(order.client_code) : (order.client || "-")}</Text></Td>
+        <Td {...tableCellProps}><Text {...cellText}>{order.pic_name || "-"}</Text></Td>
+        <Td {...tableCellProps}><Text {...cellText}>{getEtaDisplay(order)}</Text></Td>
+        <Td {...tableCellProps}><Text {...cellText}>{order.etb && order.etb !== false ? formatDate(order.etb) : "-"}</Text></Td>
+        <Td {...tableCellProps}><Text {...cellText}>{order.etd && order.etd !== false ? formatDate(order.etd) : "-"}</Text></Td>
         <Td {...tableCellProps} maxW="240px">
           <Tooltip label={order.client_case_invoice_ref || "-"} isDisabled={!order.client_case_invoice_ref || order.client_case_invoice_ref === "-"}>
             <Text noOfLines={2} cursor={order.client_case_invoice_ref && order.client_case_invoice_ref !== "-" ? "help" : "default"}>
@@ -971,6 +992,7 @@ const SoNumberTab = () => {
           </Button>
         </Td>
         <Td {...tableCellProps}><Text {...cellText}>{order.quotation || "-"}</Text></Td>
+        <Td {...tableCellProps}><Text {...cellText}>{formatDateTime(order.create_date || order.date_created || order.date_order)}</Text></Td>
       </Tr>
     ));
   };
@@ -1467,27 +1489,7 @@ const SoNumberTab = () => {
         <Table size="sm" variant="simple" minW="1400px">
           <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
             <Tr>
-              {[
-                { label: "Actions", field: null, sortable: false },
-                { label: "SO Number", field: "so_number", sortable: false },
-                { label: "SO Delivery Date", field: "so_delivery_date", sortable: false },
-                { label: "Next Action", field: "next_action", sortable: true },
-                { label: "Date Created", field: "date_created", sortable: false },
-                { label: "Status", field: "done", sortable: false },
-                { label: "Person in Charge", field: "pic", sortable: false },
-                { label: "Client Code", field: "client", sortable: false },
-                { label: "Vessel Name", field: "vessel_name", sortable: false },
-                { label: "Destination", field: "destination", sortable: false },
-                { label: "ETA", field: "eta_date", sortable: false },
-                { label: "ETB", field: "etb", sortable: false },
-                { label: "ETD", field: "etd", sortable: false },
-                { label: "Internal Remark", field: "internal_remark", sortable: false },
-                { label: "VSLS Agent Details", field: "vsls_agent_dtls", sortable: false },
-                { label: "Client Case Invoice Ref", field: "client_case_invoice_ref", sortable: false },
-                { label: "Files", field: "attachments", sortable: false },
-                { label: "Package Link", field: null, sortable: false },
-                { label: "Quotation", field: "quotation", sortable: false },
-              ].map((col) => (
+              {SHIPPING_ORDER_TABLE_COLUMNS.map((col) => (
                 <Th
                   key={col.label}
                   borderRight="1px"
