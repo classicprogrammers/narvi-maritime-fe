@@ -63,7 +63,7 @@ import {
 import { partitionAttachmentsRow } from "../../../utils/stockReportAttachmentsUi";
 import { calculateVolumeCbmFromLwhCm, formatRowTotalVolumeCbm } from "../../../utils/stockVolume";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
-import { buildOriginCountrySelectOptions } from "../../../utils/stockOriginCountryOptions";
+import { isStockOriginHubFormField, normalizeStockOriginHubText } from "../../../utils/stockOriginHubText";
 
 export default function StockForm() {
     const history = useHistory();
@@ -161,11 +161,6 @@ export default function StockForm() {
     useEffect(() => {
         formRowsRef.current = formRows;
     }, [formRows]);
-
-    const originCountryOptions = useMemo(
-        () => buildOriginCountrySelectOptions(countries, formRows.map((r) => r.origin_text)),
-        [countries, formRows]
-    );
 
     const stockReportPdfHelpers = useMemo(
         () =>
@@ -353,7 +348,7 @@ export default function StockForm() {
                 const normalizedValue = String(row.origin_text);
                 if (!/^\d+$/.test(normalizedValue)) return row;
                 const country = countriesList.find((c) => String(c.id || c.country_id) === normalizedValue);
-                if (country) return { ...row, origin_text: country.name || country.code || normalizedValue };
+                if (country) return { ...row, origin_text: normalizeStockOriginHubText(country.name || country.code || normalizedValue) };
                 return row;
             })
         );
@@ -520,22 +515,22 @@ export default function StockForm() {
             origin_text: (() => {
                 // If origin_text is already text (from previous saves), use it directly
                 if (stock.origin_text && typeof stock.origin_text === 'string' && !/^\d+$/.test(stock.origin_text)) {
-                    return stock.origin_text;
+                    return normalizeStockOriginHubText(stock.origin_text);
                 }
                 // Backward compatibility: check origin field
                 if (stock.origin && typeof stock.origin === 'string' && !/^\d+$/.test(stock.origin)) {
-                    return stock.origin;
+                    return normalizeStockOriginHubText(stock.origin);
                 }
                 // Otherwise, keep as ID - will be converted to name in useEffect after countries load
                 return normalizeId(stock.origin_id) || normalizeId(stock.origin) || "";
             })(),
-            viaHub: getFieldValue(stock.via_hub, ""),
+            viaHub: normalizeStockOriginHubText(getFieldValue(stock.via_hub, "")),
             attachments: [], // New uploads will be added here
             attachmentsToDelete: [], // IDs of attachments to delete
             existingAttachments: Array.isArray(stock.attachments) ? stock.attachments : [], // Existing attachments from API // Free text field
             stockStatusChangedBy: "",
             stockStatusPreviousForPayload: "",
-            viaHub2: getFieldValue(stock.via_hub2, ""), // Free text field
+            viaHub2: normalizeStockOriginHubText(getFieldValue(stock.via_hub2, "")), // Free text field
             expReadyInStock: getFieldValue(stock.exp_ready_in_stock) || "",
             remarks: getFieldValue(stock.remarks),
             blank: getFieldValue(stock.blank, ""),
@@ -636,9 +631,13 @@ export default function StockForm() {
             const newRows = [...prev];
             const oldStatus = prev[rowIndex]?.stockStatus ?? "";
             const previousClient = prev[rowIndex]?.client == null ? "" : String(prev[rowIndex].client);
+            let processedValue = value;
+            if (isStockOriginHubFormField(field)) {
+                processedValue = normalizeStockOriginHubText(value);
+            }
             const updatedRow = {
                 ...newRows[rowIndex],
-                [field]: value
+                [field]: processedValue
             };
 
             if (field === "client") {
@@ -853,17 +852,17 @@ export default function StockForm() {
             item_id: rowData.itemId ? String(rowData.itemId) : "",
             item: rowData.item !== "" && rowData.item !== null && rowData.item !== undefined ? toNumber(rowData.item) || 0 : 0,
             currency_id: rowData.currency ? String(rowData.currency) : "",
-            origin_text: rowData.origin_text ? String(rowData.origin_text) : "",
+            origin_text: normalizeStockOriginHubText(rowData.origin_text),
             ap_destination_ids: buildStockDestinationIdsPayload(
                 rowData.apDestinationId,
                 rowData.apDestinationSelect,
                 apDestinationOptions
             ),
             ap_destination_new: "",
-            via_hub: rowData.viaHub || "", // Free text field
+            via_hub: normalizeStockOriginHubText(rowData.viaHub), // Free text field
             attachments: rowData.attachments || [], // Include attachments in payload
             attachment_to_delete: rowData.attachmentsToDelete || [], // Include attachment IDs to delete
-            via_hub2: rowData.viaHub2 || "", // Free text field
+            via_hub2: normalizeStockOriginHubText(rowData.viaHub2), // Free text field
             client_access: Boolean(rowData.clientAccess),
             remarks: rowData.remarks || "",
             weight_kg: toNumber(rowData.weightKgs) || 0,
@@ -1704,22 +1703,24 @@ export default function StockForm() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
-                                        <SimpleSearchableSelect
-                                            value={row.origin_text || ""}
-                                            onChange={(value) => handleInputChange(rowIndex, "origin_text", value ? String(value) : "")}
-                                            options={originCountryOptions}
-                                            placeholder="Select country..."
-                                            displayKey="name"
-                                            valueKey="name"
-                                            formatOption={(option) => option.name || ""}
-                                            isLoading={false}
-                                            prefillOnFocus={false}
-                                            clearOnEmptySearch={false}
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Box position="relative">
+                                            <Input
+                                                list={`origin-countries-${rowIndex}`}
+                                                value={row.origin_text || ""}
+                                                onChange={(e) => handleInputChange(rowIndex, "origin_text", e.target.value)}
+                                                placeholder="Type or select country..."
+                                                size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                            />
+                                            <datalist id={`origin-countries-${rowIndex}`}>
+                                                {countries.map((country) => (
+                                                    <option key={country.id || country.country_id} value={country.name || country.code || ""} />
+                                                ))}
+                                            </datalist>
+                                        </Box>
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
                                         <Input

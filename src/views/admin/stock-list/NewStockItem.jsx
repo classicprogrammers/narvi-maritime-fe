@@ -90,7 +90,7 @@ import {
   normalizeStockFormSoId,
   buildStockSoIdPayloadValue,
 } from "../../../utils/shippingOrderListState";
-import { buildOriginCountrySelectOptions } from "../../../utils/stockOriginCountryOptions";
+import { isStockOriginHubFormField, normalizeStockOriginHubText } from "../../../utils/stockOriginHubText";
 
 export default function StockForm() {
     const history = useHistory();
@@ -267,11 +267,6 @@ export default function StockForm() {
     const shippingOrderOptions = useMemo(
         () => buildShippingOrderSelectOptions(shippingOrders),
         [shippingOrders]
-    );
-
-    const originCountryOptions = useMemo(
-        () => buildOriginCountrySelectOptions(countries, formRows.map((r) => r.origin_text)),
-        [countries, formRows]
     );
 
     const stockReportPdfHelpers = useMemo(
@@ -511,7 +506,7 @@ export default function StockForm() {
                     return String(cId) === normalizedValue;
                 });
                 if (country) {
-                    return { ...row, origin_text: country.name || country.code || normalizedValue };
+                    return { ...row, origin_text: normalizeStockOriginHubText(country.name || country.code || normalizedValue) };
                 }
                 return row;
             })
@@ -752,17 +747,17 @@ export default function StockForm() {
             origin_text: (() => {
                 // If origin_text is already text (from previous saves), use it directly
                 if (stock.origin_text && typeof stock.origin_text === 'string' && !/^\d+$/.test(stock.origin_text)) {
-                    return stock.origin_text;
+                    return normalizeStockOriginHubText(stock.origin_text);
                 }
                 // Backward compatibility: check origin field
                 if (stock.origin && typeof stock.origin === 'string' && !/^\d+$/.test(stock.origin)) {
-                    return stock.origin;
+                    return normalizeStockOriginHubText(stock.origin);
                 }
                 // Otherwise, keep as ID - will be converted to name in useEffect
                 return normalizeId(stock.origin_id) || normalizeId(stock.origin) || "";
             })(),
-            viaHub: getFieldValue(stock.via_hub, ""),
-            viaHub2: getFieldValue(stock.via_hub2, ""),
+            viaHub: normalizeStockOriginHubText(getFieldValue(stock.via_hub, "")),
+            viaHub2: normalizeStockOriginHubText(getFieldValue(stock.via_hub2, "")),
             apDestination: getFieldValue(stock.ap_destination_new) || getFieldValue(stock.ap_destination) || "",
             apDestinationId: getStockM2OId(stock.ap_destination_ids),
             apDestinationSelect:
@@ -949,6 +944,8 @@ export default function StockForm() {
                 } else {
                     processedValue = "";
                 }
+            } else if (isStockOriginHubFormField(field)) {
+                processedValue = normalizeStockOriginHubText(value);
             }
 
             const updatedRow = {
@@ -1145,15 +1142,15 @@ export default function StockForm() {
             stock_items_quantity: rowData.itemId ? String(rowData.itemId) : "", // Also include stock_items_quantity
             item: rowData.item !== "" && rowData.item !== null && rowData.item !== undefined ? toNumber(rowData.item) || 0 : 0,
             currency_id: rowData.currency ? String(rowData.currency) : "",
-            origin_text: rowData.origin_text ? String(rowData.origin_text) : "",
+            origin_text: normalizeStockOriginHubText(rowData.origin_text),
             ap_destination_ids: buildStockDestinationIdsPayload(
                 rowData.apDestinationId,
                 rowData.apDestinationSelect,
                 apDestinationOptions
             ),
             ap_destination_new: "",
-            via_hub: rowData.viaHub || "", // Free text field
-            via_hub2: rowData.viaHub2 || "", // Free text field
+            via_hub: normalizeStockOriginHubText(rowData.viaHub), // Free text field
+            via_hub2: normalizeStockOriginHubText(rowData.viaHub2), // Free text field
             client_access: Boolean(rowData.clientAccess),
             remarks: rowData.remarks || "",
             internal_remark: rowData.internalRemark || "",
@@ -1898,27 +1895,26 @@ export default function StockForm() {
                                                 autoWidthMax={55}
                                             />
                                         </Td>
-                                        <Td {...cellProps} position="relative" overflow="visible" zIndex={1}>
+                                        <Td {...cellProps} position="relative">
                                             <Flex gap="1" align="center">
                                                 <Box position="relative" flex="0 0 auto">
-                                                    <SimpleSearchableSelect
+                                                    <Input
+                                                        list={`origin-countries-${rowIndex}`}
                                                         value={row.origin_text || ""}
-                                                        onChange={(val) => handleInputChange(rowIndex, "origin_text", val ? String(val) : "")}
-                                                        options={originCountryOptions}
-                                                        placeholder="Select country..."
-                                                        displayKey="name"
-                                                        valueKey="name"
-                                                        formatOption={(option) => option.name || ""}
-                                                        isLoading={false}
-                                                        prefillOnFocus={false}
-                                                        clearOnEmptySearch={false}
+                                                        onChange={(e) => handleInputChange(rowIndex, "origin_text", e.target.value)}
+                                                        placeholder="Type or select country..."
+                                                        size="sm"
+                                                        w="auto"
+                                                        htmlSize={getAutoHtmlSize(row.origin_text, "Type or select country...", { min: 18, max: 60 })}
                                                         bg={inputBg}
                                                         color={inputText}
                                                         borderColor={borderColor}
-                                                        autoWidth
-                                                        autoWidthMin={18}
-                                                        autoWidthMax={50}
                                                     />
+                                                    <datalist id={`origin-countries-${rowIndex}`}>
+                                                        {countries.map((country) => (
+                                                            <option key={country.id || country.country_id} value={country.name || country.code || ""} />
+                                                        ))}
+                                                    </datalist>
                                                 </Box>
                                                 {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                     <Menu>

@@ -93,6 +93,7 @@ import StockReportHistoryModal from "../../../components/stock-list/StockReportH
 import { useStockAttachmentsGallery } from "../../../hooks/useStockAttachmentsGallery";
 import { formatRowTotalVolumeCbm, resolveDisplayVolumeCbm } from "../../../utils/stockVolume";
 import { StockSoNumberOpenButton } from "../../../components/stock-list/StockSoNumberLink";
+import { isStockOriginHubFormField, normalizeStockOriginHubText } from "../../../utils/stockOriginHubText";
 import {
   resolveStockSoIdForForm,
   buildStockSoIdM2O,
@@ -101,7 +102,6 @@ import {
   buildStockSoIdPayloadValue,
   stockSoIdPayloadValuesEqual,
 } from "../../../utils/shippingOrderListState";
-import { buildOriginCountrySelectOptions } from "../../../utils/stockOriginCountryOptions";
 
 export default function StockDBMainEdit() {
     const history = useHistory();
@@ -423,11 +423,6 @@ export default function StockDBMainEdit() {
         [shippingOrders]
     );
 
-    const originCountryOptions = useMemo(
-        () => buildOriginCountrySelectOptions(countries, formRows.map((r) => r.origin_text)),
-        [countries, formRows]
-    );
-
     const stockReportPdfHelpers = useMemo(
         () =>
             createStockPdfRowHelpers({
@@ -482,13 +477,13 @@ export default function StockDBMainEdit() {
             poNumber: getFieldValue(stock.po_text) || "",
             reqNo: getFieldValue(stock.req_no) || "",
             origin_text: (() => {
-                if (stock.origin_text && typeof stock.origin_text === 'string') return stock.origin_text;
-                if (typeof stock.origin_id === "object" && stock.origin_id?.name != null) return String(stock.origin_id.name);
+                if (stock.origin_text && typeof stock.origin_text === 'string') return normalizeStockOriginHubText(stock.origin_text);
+                if (typeof stock.origin_id === "object" && stock.origin_id?.name != null) return normalizeStockOriginHubText(stock.origin_id.name);
                 if (typeof stock.origin_id === "object" && stock.origin_id?.id != null) return String(stock.origin_id.id);
                 return normalizeId(stock.origin_id) || "";
             })(),
-            viaHub1: getFieldValue(stock.via_hub, ""),
-            viaHub2: getFieldValue(stock.via_hub2, ""),
+            viaHub1: normalizeStockOriginHubText(getFieldValue(stock.via_hub, "")),
+            viaHub2: normalizeStockOriginHubText(getFieldValue(stock.via_hub2, "")),
             apDestination: getFieldValue(stock.ap_destination_new) || getFieldValue(stock.ap_destination) || "",
             apDestinationId: getStockM2OId(stock.ap_destination_ids),
             apDestinationSelect:
@@ -683,7 +678,7 @@ export default function StockDBMainEdit() {
                     return String(cId) === normalizedValue;
                 });
                 if (country) {
-                    return { ...row, origin_text: country.name || country.code || normalizedValue };
+                    return { ...row, origin_text: normalizeStockOriginHubText(country.name || country.code || normalizedValue) };
                 }
                 return row;
             })
@@ -892,6 +887,8 @@ export default function StockDBMainEdit() {
                 } else {
                     processedValue = "";
                 }
+            } else if (isStockOriginHubFormField(field)) {
+                processedValue = normalizeStockOriginHubText(value);
             }
 
             newRows[rowIndex] = {
@@ -1053,9 +1050,9 @@ export default function StockDBMainEdit() {
             ["itemId", "item_id", (v) => v ? String(v) : ""],
             ["itemId", "stock_items_quantity", (v) => v ? String(v) : ""],
             ["currency", "currency_id", (v) => v ? String(v) : ""],
-            ["origin_text", "origin_text", (v) => v ? String(v) : ""],
-            ["viaHub1", "via_hub", (v) => v || ""],
-            ["viaHub2", "via_hub2", (v) => v || ""],
+            ["origin_text", "origin_text", (v) => normalizeStockOriginHubText(v)],
+            ["viaHub1", "via_hub", (v) => normalizeStockOriginHubText(v)],
+            ["viaHub2", "via_hub2", (v) => normalizeStockOriginHubText(v)],
             ["clientAccess", "client_access", (v) => Boolean(v)],
             ["remarks", "remarks", (v) => v || ""],
             ["internalRemark", "internal_remark", (v) => v || ""],
@@ -2012,27 +2009,26 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td {...cellProps} position="relative" overflow="visible" zIndex={1}>
+                                    <Td {...cellProps} position="relative">
                                         <Flex gap="1" align="center">
                                             <Box position="relative" flex="0 0 auto">
-                                                <SimpleSearchableSelect
+                                                <Input
+                                                    list={`origin-countries-${rowIndex}`}
                                                     value={row.origin_text || ""}
-                                                    onChange={(val) => handleInputChange(rowIndex, "origin_text", val ? String(val) : "")}
-                                                    options={originCountryOptions}
-                                                    placeholder="Select country..."
-                                                    displayKey="name"
-                                                    valueKey="name"
-                                                    formatOption={(option) => option.name || ""}
-                                                    isLoading={false}
-                                                    prefillOnFocus={false}
-                                                    clearOnEmptySearch={false}
+                                                    onChange={(e) => handleInputChange(rowIndex, "origin_text", e.target.value)}
+                                                    placeholder="Type or select country..."
+                                                    size="sm"
+                                                    w="auto"
+                                                    htmlSize={getAutoHtmlSize(row.origin_text, "Type or select country...", { min: 18, max: 60 })}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                    autoWidth
-                                                    autoWidthMin={18}
-                                                    autoWidthMax={50}
                                                 />
+                                                <datalist id={`origin-countries-${rowIndex}`}>
+                                                    {countries.map((country) => (
+                                                        <option key={country.id || country.country_id} value={country.name || country.code || ""} />
+                                                    ))}
+                                                </datalist>
                                             </Box>
                                             {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                 <Menu>

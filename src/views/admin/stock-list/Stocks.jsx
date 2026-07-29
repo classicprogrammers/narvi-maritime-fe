@@ -69,6 +69,7 @@ import {
     stockSoIdPayloadValuesEqual,
     normalizeStockFormSoId,
 } from "../../../utils/shippingOrderListState";
+import { isStockOriginHubBackendField, normalizeStockOriginHubText } from "../../../utils/stockOriginHubText";
 import StockHubSortMenuItems from "../../../components/stock-list/StockHubSortMenuItems";
 import { isStockHubSortOption, normalizeStockHubSortOption } from "../../../constants/stockHubSort";
 import {
@@ -2728,7 +2729,7 @@ export default function Stocks() {
             so_id: normalizeStockFormSoId(resolveStockSoIdForForm(item, shippingOrdersFromStock)) || "",
             si_number: getFieldValue("si_number") || "",
             di_no: getFieldValue("di_no") || "",
-            origin_id: item.origin_text || getDisplayName(item.origin_id) || "",
+            origin_id: normalizeStockOriginHubText(item.origin_text || getDisplayName(item.origin_id) || ""),
             ap_destination_id: getFieldValue("ap_destination_id", "ap_destination"),
             ap_destination_ids_id: getStockM2OId(item.ap_destination_ids),
             ap_destination_select:
@@ -2760,8 +2761,8 @@ export default function Stocks() {
             details: item.details || item.item_desc || "",
             dg_un: item.dg_un || "",
             remarks: item.remarks || "",
-            via_hub: item.via_hub || "",
-            via_hub2: item.via_hub2 || "",
+            via_hub: normalizeStockOriginHubText(item.via_hub || ""),
+            via_hub2: normalizeStockOriginHubText(item.via_hub2 || ""),
             shipping_doc: item.shipping_doc || "",
             export_doc: item.export_doc || "",
             export_doc_2: item.export_doc_2 || "",
@@ -2898,9 +2899,9 @@ export default function Stocks() {
             { backend: "item_id", original: ["item_id", "stock_items_quantity", "items"], edited: ["item_id", "stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) }, // Keep item_id for lines format
             { backend: "stock_items_quantity", original: ["stock_items_quantity", "items", "item_id"], edited: ["stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) },
             { backend: "currency_id", original: ["currency_id", "currency"], edited: ["currency_id"], transform: (v) => toValue(toId(v), false) },
-            { backend: "origin_text", original: ["origin_id", "origin_text"], edited: ["origin_id", "origin_text"], transform: (v) => v ? String(v) : "" },
-            { backend: "via_hub", original: ["via_hub"], edited: ["via_hub"], transform: (v) => v || "" },
-            { backend: "via_hub2", original: ["via_hub2"], edited: ["via_hub2"], transform: (v) => v || "" },
+            { backend: "origin_text", original: ["origin_id", "origin_text"], edited: ["origin_id", "origin_text"], transform: (v) => normalizeStockOriginHubText(v) },
+            { backend: "via_hub", original: ["via_hub"], edited: ["via_hub"], transform: (v) => normalizeStockOriginHubText(v) },
+            { backend: "via_hub2", original: ["via_hub2"], edited: ["via_hub2"], transform: (v) => normalizeStockOriginHubText(v) },
             { backend: "client_access", original: ["client_access"], edited: ["client_access"], transform: (v) => Boolean(v !== undefined ? v : false) },
             { backend: "remarks", original: ["remarks"], edited: ["remarks"], transform: (v) => v || "" },
             { backend: "internal_remark", original: ["internal_remark"], edited: ["internal_remark"], transform: (v) => v || "" },
@@ -3282,13 +3283,16 @@ export default function Stocks() {
         }
 
         const handleChange = (newValue) => {
+            const nextValue = isStockOriginHubBackendField(field)
+                ? normalizeStockOriginHubText(newValue)
+                : newValue;
             setEditingRowData(prev => {
                 const currentRowData = prev[item.id] || normalizeItemForEditing(item);
                 return {
                     ...prev,
                     [item.id]: {
                         ...currentRowData,
-                        [field]: newValue
+                        [field]: nextValue
                     }
                 };
             });

@@ -5,6 +5,7 @@
 
 import { buildStockSoIdPayloadValue } from "./shippingOrderListState";
 import { buildStockDestinationNewPayload } from "./stockDestinationOptions";
+import { normalizeStockOriginHubText } from "./stockOriginHubText";
 
 /** Keys accepted by the stock create API (line object). */
 export const STOCK_CREATE_LINE_KEYS = new Set([
@@ -286,9 +287,9 @@ export const buildStockCreateLinePayload = (rowData, context = {}) => {
     currency_id: buildStockM2OField(rowData.currency, null, currencies),
     item: itemQty,
     stock_items_quantity: itemQty,
-    origin_text: rowData.origin_text ? String(rowData.origin_text) : "",
-    via_hub: rowData.viaHub || "",
-    via_hub2: rowData.viaHub2 || "",
+    origin_text: normalizeStockOriginHubText(rowData.origin_text),
+    via_hub: normalizeStockOriginHubText(rowData.viaHub),
+    via_hub2: normalizeStockOriginHubText(rowData.viaHub2),
     client_access: Boolean(rowData.clientAccess),
     remarks: rowData.remarks || "",
     internal_remark: rowData.internalRemark || "",
