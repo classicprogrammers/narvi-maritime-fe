@@ -1911,6 +1911,34 @@ export default function Stocks() {
         return { headers: [], rows: [] };
     };
 
+    const COST_REQUEST_COPY_HEADERS = [
+        "WAREHOUSE ID",
+        "SUPPLIER",
+        "PO#",
+        "STATUS",
+        "BOX",
+        "KG",
+        "LWH",
+        "DG",
+    ];
+
+    const buildCostRequestCopyData = (items) => {
+        if (!Array.isArray(items) || items.length === 0) {
+            return { headers: [], rows: [] };
+        }
+        const rows = items.map((item) => [
+            getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || item.warehouse_id || "-",
+            getDisplayName(item.supplier_id || item.supplier) || "-",
+            (item.po_text || "-").replace(/\n/g, " "),
+            getStatusLabel(item.stock_status) || "-",
+            item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
+            item.weight_kg ?? item.weight_kgs ?? "-",
+            (item.lwh_text || "-").replace(/\n/g, " "),
+            item.dg_un || "-",
+        ]);
+        return { headers: COST_REQUEST_COPY_HEADERS, rows };
+    };
+
     const copyItemsToClipboard = async (selectedItems, buildData) => {
         if (!Array.isArray(selectedItems) || selectedItems.length === 0 || !buildData) return;
 
@@ -2105,6 +2133,28 @@ export default function Stocks() {
     };
 
     const handleCopySelectedRows = handleCopyClientViewSelectedRows;
+
+    const handleCopyCostRequestStockView = async () => {
+        if (selectedRows.size === 0) return;
+        const selectedItems = allFilteredItems.filter((item) => selectedRows.has(item.id));
+        if (selectedItems.length === 0) {
+            toast({ title: "No matching rows", description: "Please refresh selection and try again.", status: "warning", duration: 2200, isClosable: true });
+            return;
+        }
+        await copyItemsToClipboard(selectedItems, buildCostRequestCopyData);
+    };
+
+    const handleCopyCostRequestClientView = async () => {
+        if (clientViewSelectedRows.size === 0) return;
+        const selectedItems = filteredAndSortedStock.filter((item) =>
+            clientViewSelectedRows.has(item.id || item.stock_item_id)
+        );
+        if (selectedItems.length === 0) {
+            toast({ title: "No matching rows", description: "Please refresh selection and try again.", status: "warning", duration: 2200, isClosable: true });
+            return;
+        }
+        await copyItemsToClipboard(selectedItems, buildCostRequestCopyData);
+    };
 
     const downloadExcelCsv = (items, filePrefix, viewType = clientViewFilterType, buildDataOverride) => {
         const { headers, rows } = buildDataOverride
@@ -4533,6 +4583,7 @@ export default function Stocks() {
                                         Filter 3
                                     </Button>
                                     {clientViewSelectedRows.size > 0 && (
+                                        <>
                                         <Button
                                             size="md"
                                             leftIcon={<Icon as={MdContentCopy} />}
@@ -4548,6 +4599,22 @@ export default function Stocks() {
                                         >
                                             Copy Selected ({clientViewSelectedRows.size})
                                         </Button>
+                                        <Button
+                                            size="md"
+                                            leftIcon={<Icon as={MdContentCopy} />}
+                                            colorScheme="purple"
+                                            variant="solid"
+                                            onClick={handleCopyCostRequestClientView}
+                                            fontWeight="600"
+                                            _hover={{
+                                                transform: 'translateY(-2px)',
+                                                boxShadow: 'md'
+                                            }}
+                                            transition="all 0.2s"
+                                        >
+                                            Copy for request of cost
+                                        </Button>
+                                        </>
                                     )}
                                 </HStack>
                             )}
@@ -5052,6 +5119,15 @@ export default function Stocks() {
                                                 onClick={handleCopyStockViewSelectedRows}
                                             >
                                                 Copy Selected
+                                            </Button>
+                                            <Button
+                                                leftIcon={<Icon as={MdContentCopy} />}
+                                                colorScheme="purple"
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={handleCopyCostRequestStockView}
+                                            >
+                                                Copy for request of cost
                                             </Button>
                                             <Button
                                                 leftIcon={<Icon as={MdPrint} />}
@@ -5676,6 +5752,15 @@ export default function Stocks() {
                                                         onClick={handleExportClientViewSelectedExcel}
                                                     >
                                                         Export Excel
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        leftIcon={<Icon as={MdContentCopy} />}
+                                                        colorScheme="purple"
+                                                        variant="outline"
+                                                        onClick={handleCopyCostRequestClientView}
+                                                    >
+                                                        Copy for request of cost
                                                     </Button>
                                                 </>
                                             )}
