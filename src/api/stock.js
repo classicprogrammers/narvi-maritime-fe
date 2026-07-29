@@ -152,13 +152,20 @@ export const getStockListApi = async (params = {}) => {
       active, // no default; only include if caller explicitly passes it
       create_date_from = "",
       create_date_to = "",
+      date_on_stock_from = "",
+      date_on_stock_to = "",
+      fetch_all = false,
     } = params;
 
-    // Semantic sorts use backend default sort_order; column sorts may pass sort_order explicitly.
-    const requestParams = {
-      page,
-      page_size,
-    };
+    const requestParams = {};
+
+    const useFetchAll = fetch_all === true || fetch_all === "true";
+    if (useFetchAll) {
+      requestParams.fetch_all = true;
+    } else {
+      requestParams.page = page;
+      requestParams.page_size = page_size;
+    }
 
     const resolvedSortBy = params.sort_by != null && String(params.sort_by).trim() !== ""
       ? String(params.sort_by).trim()
@@ -208,6 +215,12 @@ export const getStockListApi = async (params = {}) => {
     }
     if (create_date_to != null && String(create_date_to).trim() !== "") {
       requestParams.create_date_to = String(create_date_to).trim();
+    }
+    if (date_on_stock_from != null && String(date_on_stock_from).trim() !== "") {
+      requestParams.date_on_stock_from = String(date_on_stock_from).trim();
+    }
+    if (date_on_stock_to != null && String(date_on_stock_to).trim() !== "") {
+      requestParams.date_on_stock_to = String(date_on_stock_to).trim();
     }
     // Backend expects days_on_stock_min / days_on_stock_max for "days on stock" range filter.
     // Single-value "days_on_stock" is treated as the minimum (from) value.

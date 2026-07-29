@@ -67,6 +67,10 @@ import {
     normalizeStockStatusKey,
     resolveStockListActiveParam,
 } from "../../../constants/stockStatus";
+import {
+    stockListHasSearchFilters,
+    withStockListFetchMode,
+} from "../../../utils/stockListFetchParams";
 
 function mapStockSoFieldToOrder(soField) {
     if (!soField || typeof soField !== "object" || soField.id == null) return null;
@@ -361,34 +365,81 @@ export default function StockList() {
             apiSortBy = mappedSortBy;
         }
 
-        return getStockList({
-            page,
-            page_size: PAGE_SIZE,
-            sort_by: apiSortBy,
-            sort_order: sortOrder,
-            search: searchFilter?.trim() || undefined,
-            client_id: getIdParam(selectedClient),
-            vessel_id: getIdParam(selectedVessel),
-            stock_status: selectedStatus?.trim() || undefined,
-            // SO Number filter: pass numeric so_id (e.g. "SO-123" -> "123")
-            so_id: normalizeSoNumber(filterSO) || undefined,
-            si_number: filterSI?.trim() || undefined,
-            si_combined: filterSICombined?.trim() || undefined,
-            di_no: filterDI?.trim() || undefined,
-            po_text: filterPO?.trim() || undefined,
-            req_no: filterReqNo?.trim() || undefined,
-            remarks: filterRemarks?.trim() || undefined,
-            days_on_stock_min: filterDaysOnStock?.trim() || undefined,
-            // Date on Stock range filter
-            date_on_stock_from: filterCreateDateFrom?.trim() || undefined,
-            date_on_stock_to: filterCreateDateTo?.trim() || undefined,
-            effective_hub: hubParam != null ? String(hubParam).trim() : undefined,
-            supplier_id: getIdParam(selectedSupplier),
-            warehouse_id: getIdParam(selectedWarehouse),
-            currency_id: getIdParam(selectedCurrency),
-            active: resolveStockListActiveParam(activeFilter),
-        });
+        return getStockList(
+            withStockListFetchMode(
+                {
+                    sort_by: apiSortBy,
+                    sort_order: sortOrder,
+                    search: searchFilter?.trim() || undefined,
+                    client_id: getIdParam(selectedClient),
+                    vessel_id: getIdParam(selectedVessel),
+                    stock_status: selectedStatus?.trim() || undefined,
+                    so_id: normalizeSoNumber(filterSO) || undefined,
+                    si_number: filterSI?.trim() || undefined,
+                    si_combined: filterSICombined?.trim() || undefined,
+                    di_no: filterDI?.trim() || undefined,
+                    po_text: filterPO?.trim() || undefined,
+                    req_no: filterReqNo?.trim() || undefined,
+                    remarks: filterRemarks?.trim() || undefined,
+                    days_on_stock_min: filterDaysOnStock?.trim() || undefined,
+                    date_on_stock_from: filterCreateDateFrom?.trim() || undefined,
+                    date_on_stock_to: filterCreateDateTo?.trim() || undefined,
+                    effective_hub: hubParam != null ? String(hubParam).trim() : undefined,
+                    supplier_id: getIdParam(selectedSupplier),
+                    warehouse_id: getIdParam(selectedWarehouse),
+                    currency_id: getIdParam(selectedCurrency),
+                    active: resolveStockListActiveParam(activeFilter),
+                },
+                { page, page_size: PAGE_SIZE }
+            )
+        );
     }, [getStockList, page, sortBy, sortOrder, sortOption, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterReqNo, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, selectedHub, selectedSupplier, selectedWarehouse, selectedCurrency, activeFilter]);
+
+    const stockListUsesFetchAll = useMemo(
+        () =>
+            stockListHasSearchFilters({
+                search: searchFilter?.trim() || undefined,
+                client_id: getIdParam(selectedClient),
+                vessel_id: getIdParam(selectedVessel),
+                stock_status: selectedStatus?.trim() || undefined,
+                so_id: normalizeSoNumber(filterSO) || undefined,
+                si_number: filterSI?.trim() || undefined,
+                si_combined: filterSICombined?.trim() || undefined,
+                di_no: filterDI?.trim() || undefined,
+                po_text: filterPO?.trim() || undefined,
+                req_no: filterReqNo?.trim() || undefined,
+                remarks: filterRemarks?.trim() || undefined,
+                days_on_stock_min: filterDaysOnStock?.trim() || undefined,
+                date_on_stock_from: filterCreateDateFrom?.trim() || undefined,
+                date_on_stock_to: filterCreateDateTo?.trim() || undefined,
+                effective_hub: hubParam != null ? String(hubParam).trim() : undefined,
+                supplier_id: getIdParam(selectedSupplier),
+                warehouse_id: getIdParam(selectedWarehouse),
+                currency_id: getIdParam(selectedCurrency),
+                active: resolveStockListActiveParam(activeFilter),
+            }),
+        [
+            searchFilter,
+            selectedClient,
+            selectedVessel,
+            selectedStatus,
+            filterSO,
+            filterSI,
+            filterSICombined,
+            filterDI,
+            filterPO,
+            filterReqNo,
+            filterRemarks,
+            filterDaysOnStock,
+            filterCreateDateFrom,
+            filterCreateDateTo,
+            hubParam,
+            selectedSupplier,
+            selectedWarehouse,
+            selectedCurrency,
+            activeFilter,
+        ]
+    );
 
     const statusFilterOptions = useMemo(
         () => getStatusOptionsForActiveFilter(stockStatusOptions, activeFilter),
@@ -413,7 +464,7 @@ export default function StockList() {
         return () => { if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current); };
     }, [searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterReqNo, filterRemarks, filterDaysOnStock]);
 
-    // Fetch stock list on mount and when page or fetchTrigger changes
+    // Fetch stock list on mount and when page or fetchTrigger changes (skip page when fetch_all)
     useEffect(() => {
         fetchStockList().then((result) => {
             if (result?.success && result?.data) {
@@ -424,12 +475,12 @@ export default function StockList() {
                 setHasNext(result.data.has_next || false);
                 setHasPrevious(result.data.has_previous || false);
                 const apiPage = result.data.page;
-                if (typeof apiPage === "number" && apiPage >= 1 && pages >= 1) {
+                if (!stockListUsesFetchAll && typeof apiPage === "number" && apiPage >= 1 && pages >= 1) {
                     setPage((prev) => (prev > pages ? pages : prev));
                 }
             }
         });
-    }, [fetchStockList, page, fetchTrigger]);
+    }, stockListUsesFetchAll ? [fetchStockList, fetchTrigger] : [fetchStockList, fetchTrigger, page]);
 
     // Sync pagination state from Redux (as fallback)
     useEffect(() => {
@@ -2101,6 +2152,11 @@ export default function StockList() {
 
                 {/* Pagination Controls - outside table scroll so always visible */}
                 <Box px="25px" mt={4} mb={4}>
+                    {stockListUsesFetchAll ? (
+                        <Text fontSize="sm" color="gray.600">
+                            Showing all {filteredAndSortedStock.length} matching records (filters active)
+                        </Text>
+                    ) : (
                     <Flex justify="space-between" align="center" py={4} flexWrap="wrap" gap={4}>
                         <HStack spacing={4}>
                             <Text fontSize="sm" color="gray.600">
@@ -2175,6 +2231,7 @@ export default function StockList() {
                             </Button>
                         </HStack>
                     </Flex>
+                    )}
                 </Box>
 
             </Card>

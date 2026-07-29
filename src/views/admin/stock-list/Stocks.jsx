@@ -122,6 +122,10 @@ import {
     normalizeStockStatusKey,
     resolveStockListActiveParam,
 } from "../../../constants/stockStatus";
+import {
+    stockListHasSearchFilters,
+    withStockListFetchMode,
+} from "../../../utils/stockListFetchParams";
 import StockListAttachmentsCell from "../../../components/stock-list/StockListAttachmentsCell";
 import StockSoNumberLink from "../../../components/stock-list/StockSoNumberLink";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
@@ -745,6 +749,85 @@ export default function Stocks() {
         return digits;
     };
 
+    const stockViewUsesFetchAll = useMemo(() => {
+        const vesselStatusSet = vesselViewStatuses || new Set();
+        const statusParam = vesselStatusSet.size > 0
+            ? Array.from(vesselStatusSet)
+            : (stockViewStatus?.trim() || undefined);
+        const hubVal = stockViewHub != null
+            ? (typeof stockViewHub === "object" ? (stockViewHub?.id ?? stockViewHub?.name ?? "") : String(stockViewHub))
+            : "";
+        const clientId = stockViewClient != null
+            ? (typeof stockViewClient === "object" ? (stockViewClient?.id ?? stockViewClient?.value) : stockViewClient)
+            : undefined;
+        const vesselId = stockViewVessel != null
+            ? (typeof stockViewVessel === "object" ? (stockViewVessel?.id ?? stockViewVessel?.value) : stockViewVessel)
+            : undefined;
+        return stockListHasSearchFilters({
+            client_id: clientId ?? undefined,
+            vessel_id: vesselId ?? undefined,
+            stock_status: statusParam,
+            active: resolveStockListActiveParam(stockViewActiveFilter),
+            search: stockViewSearchFilter?.trim() || undefined,
+            so_id: normalizeSoNumber(stockViewFilterSO) || undefined,
+            si_number: stockViewFilterSI?.trim() || undefined,
+            si_combined: stockViewFilterSICombined?.trim() || undefined,
+            di_no: stockViewFilterDI?.trim() || undefined,
+            po_text: stockViewFilterPO?.trim() || undefined,
+            req_no: stockViewFilterReqNo?.trim() || undefined,
+            stock_item_id: stockViewStockItemId?.trim() || undefined,
+            date_on_stock: stockViewDateOnStock?.trim() || undefined,
+            days_on_stock: stockViewDaysOnStock?.trim() || undefined,
+            days_on_stock_min: daysRangeFrom?.trim() || undefined,
+            days_on_stock_max: daysRangeTo?.trim() || undefined,
+            date_on_stock_from: createDateFrom?.trim() || undefined,
+            date_on_stock_to: createDateTo?.trim() || undefined,
+            effective_hub: hubVal?.trim() || undefined,
+        });
+    }, [
+        vesselViewStatuses,
+        stockViewStatus,
+        stockViewHub,
+        stockViewClient,
+        stockViewVessel,
+        stockViewActiveFilter,
+        stockViewSearchFilter,
+        stockViewFilterSO,
+        stockViewFilterSI,
+        stockViewFilterSICombined,
+        stockViewFilterDI,
+        stockViewFilterPO,
+        stockViewFilterReqNo,
+        stockViewStockItemId,
+        stockViewDateOnStock,
+        stockViewDaysOnStock,
+        daysRangeFrom,
+        daysRangeTo,
+        createDateFrom,
+        createDateTo,
+    ]);
+
+    const clientViewUsesFetchAll = useMemo(() => {
+        const statusSet = clientViewStatuses || new Set();
+        const statusParam = statusSet.size > 0 ? Array.from(statusSet) : undefined;
+        const searchText = [clientViewSearchClient, clientViewSearchVessel].filter(Boolean).join(" ") || undefined;
+        return stockListHasSearchFilters({
+            client_id: clientViewClient ?? undefined,
+            vessel_id: clientViewVesselFilter ?? undefined,
+            stock_status: statusParam,
+            search: searchText,
+            name: searchText,
+        });
+    }, [
+        clientViewStatuses,
+        clientViewClient,
+        clientViewVesselFilter,
+        clientViewSearchClient,
+        clientViewSearchVessel,
+    ]);
+
+    const listUsesFetchAll = activeTab === 0 ? stockViewUsesFetchAll : clientViewUsesFetchAll;
+
     const filterRef = useRef({});
     filterRef.current = {
         activeTab,
@@ -836,7 +919,6 @@ export default function Stocks() {
     useEffect(() => {
         const f = filterRef.current;
         const page = activeTab === 0 ? stockViewPage : clientViewPage;
-        const base = { page, page_size: PAGE_SIZE };
 
         if (f.activeTab === 0) {
             const vesselStatusSet = f.vesselViewStatuses || new Set();
@@ -851,49 +933,56 @@ export default function Stocks() {
             // Map Stock View / Edit sortOption to backend sort_by
             const sort_by = mapStockSortOptionToApiSortBy(sortOption);
 
-            getStockList({
-                ...base,
-                client_id: clientId ?? undefined,
-                vessel_id: vesselId ?? undefined,
-                stock_status: statusParam,
-                active: resolveStockListActiveParam(f.stockViewActiveFilter),
-                search: f.stockViewSearchFilter?.trim() || undefined,
-                // SO Number filter: pass numeric so_id (e.g. "SO-123" -> "123")
-                so_id: normalizeSoNumber(f.stockViewFilterSO) || undefined,
-                si_number: f.stockViewFilterSI?.trim() || undefined,
-                si_combined: f.stockViewFilterSICombined?.trim() || undefined,
-                di_no: f.stockViewFilterDI?.trim() || undefined,
-                po_text: f.stockViewFilterPO?.trim() || undefined,
-                req_no: f.stockViewFilterReqNo?.trim() || undefined,
-                stock_item_id: f.stockViewStockItemId?.trim() || undefined,
-                date_on_stock: f.stockViewDateOnStock?.trim() || undefined,
-                days_on_stock: f.stockViewDaysOnStock?.trim() || undefined,
-                days_on_stock_min: f.daysRangeFrom?.trim() || undefined,
-                days_on_stock_max: f.daysRangeTo?.trim() || undefined,
-                date_on_stock_from: f.createDateFrom?.trim() || undefined,
-                date_on_stock_to: f.createDateTo?.trim() || undefined,
-                effective_hub: hubVal?.trim() || undefined,
-                sort_by,
-            });
+            getStockList(
+                withStockListFetchMode(
+                    {
+                        client_id: clientId ?? undefined,
+                        vessel_id: vesselId ?? undefined,
+                        stock_status: statusParam,
+                        active: resolveStockListActiveParam(f.stockViewActiveFilter),
+                        search: f.stockViewSearchFilter?.trim() || undefined,
+                        so_id: normalizeSoNumber(f.stockViewFilterSO) || undefined,
+                        si_number: f.stockViewFilterSI?.trim() || undefined,
+                        si_combined: f.stockViewFilterSICombined?.trim() || undefined,
+                        di_no: f.stockViewFilterDI?.trim() || undefined,
+                        po_text: f.stockViewFilterPO?.trim() || undefined,
+                        req_no: f.stockViewFilterReqNo?.trim() || undefined,
+                        stock_item_id: f.stockViewStockItemId?.trim() || undefined,
+                        date_on_stock: f.stockViewDateOnStock?.trim() || undefined,
+                        days_on_stock: f.stockViewDaysOnStock?.trim() || undefined,
+                        days_on_stock_min: f.daysRangeFrom?.trim() || undefined,
+                        days_on_stock_max: f.daysRangeTo?.trim() || undefined,
+                        date_on_stock_from: f.createDateFrom?.trim() || undefined,
+                        date_on_stock_to: f.createDateTo?.trim() || undefined,
+                        effective_hub: hubVal?.trim() || undefined,
+                        sort_by,
+                    },
+                    { page, page_size: PAGE_SIZE }
+                )
+            );
         } else {
             const statusSet = f.clientViewStatuses || new Set();
-            // Pass multiple statuses as array so API gets &stock_status=pending&stock_status=stock (repeated param)
             const statusParam = statusSet.size > 0 ? Array.from(statusSet) : undefined;
-
-            // Map clientSortOption to backend sort_by
             const sort_by = mapStockSortOptionToApiSortBy(clientSortOption);
+            const searchText = [f.clientViewSearchClient, f.clientViewSearchVessel].filter(Boolean).join(" ") || undefined;
 
-            getStockList({
-                ...base,
-                client_id: f.clientViewClient ?? undefined,
-                vessel_id: f.clientViewVesselFilter ?? undefined,
-                stock_status: statusParam,
-                search: [f.clientViewSearchClient, f.clientViewSearchVessel].filter(Boolean).join(" ") || undefined,
-                name: [f.clientViewSearchClient, f.clientViewSearchVessel].filter(Boolean).join(" ") || undefined,
-                sort_by,
-            });
+            getStockList(
+                withStockListFetchMode(
+                    {
+                        client_id: f.clientViewClient ?? undefined,
+                        vessel_id: f.clientViewVesselFilter ?? undefined,
+                        stock_status: statusParam,
+                        search: searchText,
+                        name: searchText,
+                        sort_by,
+                    },
+                    { page, page_size: PAGE_SIZE }
+                )
+            );
         }
-    }, [currentApiPage, apiFetchTrigger, getStockList, activeTab, stockViewPage, clientViewPage, sortOption, clientSortOption]);
+    }, listUsesFetchAll
+        ? [apiFetchTrigger, getStockList, activeTab, sortOption, clientSortOption, listUsesFetchAll]
+        : [apiFetchTrigger, getStockList, activeTab, sortOption, clientSortOption, currentApiPage]);
 
     // Restore filter state from location.state when returning from edit mode
     useEffect(() => {
@@ -5267,7 +5356,14 @@ export default function Stocks() {
                                 </Box>
 
                                 {/* Pagination Controls for Stock View / Edit */}
-                                {allFilteredItems.length > 0 && (() => {
+                                {allFilteredItems.length > 0 && stockViewUsesFetchAll && (
+                                    <Box px="25px" py={4}>
+                                        <Text fontSize="sm" color={textColor}>
+                                            Showing all {allFilteredItems.length} matching records (filters active)
+                                        </Text>
+                                    </Box>
+                                )}
+                                {allFilteredItems.length > 0 && !stockViewUsesFetchAll && (() => {
                                     const totalDisplay = total_count > 0 ? total_count : allFilteredItems.length;
                                     const apiTotalPages = total_pages > 0 ? total_pages : Math.ceil((total_count || 0) / PAGE_SIZE);
                                     const startRow = total_count > 0 ? (stockViewPage - 1) * PAGE_SIZE + 1 : 1;
@@ -5686,7 +5782,14 @@ export default function Stocks() {
                                 </Box>
 
                                 {/* Pagination Controls for Client View */}
-                                {allFilteredItems.length > 0 && (() => {
+                                {allFilteredItems.length > 0 && clientViewUsesFetchAll && (
+                                    <Box px="25px" py={4}>
+                                        <Text fontSize="sm" color={textColor}>
+                                            Showing all {allFilteredItems.length} matching records (filters active)
+                                        </Text>
+                                    </Box>
+                                )}
+                                {allFilteredItems.length > 0 && !clientViewUsesFetchAll && (() => {
                                     const totalDisplay = total_count > 0 ? total_count : allFilteredItems.length;
                                     const apiTotalPages = total_pages > 0 ? total_pages : Math.ceil((total_count || 0) / PAGE_SIZE);
                                     const startRow = total_count > 0 ? (clientViewPage - 1) * PAGE_SIZE + 1 : 1;
