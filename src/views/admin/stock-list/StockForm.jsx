@@ -63,6 +63,7 @@ import {
 import { partitionAttachmentsRow } from "../../../utils/stockReportAttachmentsUi";
 import { calculateVolumeCbmFromLwhCm, formatRowTotalVolumeCbm } from "../../../utils/stockVolume";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
+import { buildOriginCountrySelectOptions } from "../../../utils/stockOriginCountryOptions";
 
 export default function StockForm() {
     const history = useHistory();
@@ -160,6 +161,11 @@ export default function StockForm() {
     useEffect(() => {
         formRowsRef.current = formRows;
     }, [formRows]);
+
+    const originCountryOptions = useMemo(
+        () => buildOriginCountrySelectOptions(countries, formRows.map((r) => r.origin_text)),
+        [countries, formRows]
+    );
 
     const stockReportPdfHelpers = useMemo(
         () =>
@@ -1698,24 +1704,22 @@ export default function StockForm() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Box position="relative">
-                                            <Input
-                                                list={`origin-countries-${rowIndex}`}
-                                                value={row.origin_text || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "origin_text", e.target.value)}
-                                                placeholder="Type or select country..."
-                                                size="sm"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
-                                            <datalist id={`origin-countries-${rowIndex}`}>
-                                                {countries.map((country) => (
-                                                    <option key={country.id || country.country_id} value={country.name || country.code || ""} />
-                                                ))}
-                                            </datalist>
-                                        </Box>
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
+                                        <SimpleSearchableSelect
+                                            value={row.origin_text || ""}
+                                            onChange={(value) => handleInputChange(rowIndex, "origin_text", value ? String(value) : "")}
+                                            options={originCountryOptions}
+                                            placeholder="Select country..."
+                                            displayKey="name"
+                                            valueKey="name"
+                                            formatOption={(option) => option.name || ""}
+                                            isLoading={false}
+                                            prefillOnFocus={false}
+                                            clearOnEmptySearch={false}
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
                                         <Input

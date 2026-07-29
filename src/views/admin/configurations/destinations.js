@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Flex,
@@ -40,18 +40,17 @@ import {
   MdDelete,
   MdLocationOn,
 } from "react-icons/md";
-import destinationsAPI from "../../../api/destinations";
-import { useMasterData } from "../../../hooks/useMasterData";
-import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
+import stockListDestinationsAPI from "../../../api/stockListDestinations";
 
 export default function Destinations() {
-  const { refreshDestinations } = useMasterData();
-  const [destinations, setDestinations] = useState(() => getCached(MASTER_KEYS.DESTINATIONS) ?? []);
+  const [destinations, setDestinations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [editingDestination, setEditingDestination] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(100);
+  const [totalCount, setTotalCount] = useState(0);
+  const [apiTotalPages, setApiTotalPages] = useState(1);
 
   const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
 
@@ -68,13 +67,18 @@ export default function Destinations() {
     name: "",
   });
 
-  // Load from cache then refresh (API data stored in cache so we don't call again and again elsewhere)
   const loadDestinations = async () => {
     try {
       setIsLoading(true);
-      setDestinations(getCached(MASTER_KEYS.DESTINATIONS) ?? []);
-      const list = await refreshDestinations();
-      setDestinations(Array.isArray(list) ? list : []);
+      const { items, total_count, total_pages } = await stockListDestinationsAPI.listDestinations({
+        search: searchValue,
+        page: currentPage,
+        page_size: itemsPerPage,
+      });
+      setDestinations(items);
+      setTotalCount(total_count ?? items.length);
+      const pages = total_pages > 0 ? total_pages : Math.max(1, Math.ceil((total_count || items.length) / itemsPerPage));
+      setApiTotalPages(pages);
     } catch (error) {
       toast({
         title: "Error",
@@ -84,34 +88,25 @@ export default function Destinations() {
         isClosable: true,
       });
       setDestinations([]);
+      setTotalCount(0);
+      setApiTotalPages(1);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadDestinations();
-  }, [refreshDestinations]);
+    const t = setTimeout(() => {
+      loadDestinations();
+    }, searchValue ? 400 : 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchValue, currentPage, itemsPerPage]);
 
-  // Filter destinations based on search
-  const filteredDestinations = useMemo(() => {
-    let filtered = destinations;
-
-    // Filter by search
-    if (searchValue) {
-      filtered = filtered.filter(destination =>
-        destination.name?.toLowerCase().includes(searchValue.toLowerCase())
-      );
-    }
-
-    return filtered;
-  }, [destinations, searchValue]);
-
-  // Pagination logic
-  const totalPages = Math.ceil(filteredDestinations.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedDestinations = filteredDestinations.slice(startIndex, endIndex);
+  const totalPages = apiTotalPages;
+  const startIndex = totalCount > 0 ? (currentPage - 1) * itemsPerPage : 0;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalCount);
+  const paginatedDestinations = destinations;
 
   // Reset to first page when search, status filter, or items per page changes
   useEffect(() => {
@@ -156,7 +151,7 @@ export default function Destinations() {
 
       if (editingDestination) {
         // Update existing destination
-        const response = await destinationsAPI.updateDestination(editingDestination.id, formData);
+        const response = await stockListDestinationsAPI.updateDestination(editingDestination.id, formData);
 
         // Extract success message from API response
         let successMessage = "Destination updated successfully";
@@ -181,7 +176,7 @@ export default function Destinations() {
         });
       } else {
         // Create new destination
-        const response = await destinationsAPI.createDestination(formData);
+        const response = await stockListDestinationsAPI.createDestination(formData);
 
         // Extract success message from API response
         let successMessage = "Destination created successfully";
@@ -208,7 +203,7 @@ export default function Destinations() {
 
       onModalClose();
       resetForm();
-      refreshDestinations().then((list) => setDestinations(Array.isArray(list) ? list : []));
+      loadDestinations();
     } catch (error) {
       // Extract error message from API response
       let errorMessage = `Failed to ${editingDestination ? 'update' : 'create'} destination`;
@@ -244,7 +239,7 @@ export default function Destinations() {
     if (window.confirm(`Are you sure you want to delete "${destination.name}"?`)) {
       try {
         setIsLoading(true);
-        const response = await destinationsAPI.deleteDestination(destination.id);
+        const response = await stockListDestinationsAPI.deleteDestination(destination.id);
 
         let successMessage = "Destination deleted successfully";
         let status = "success";
@@ -267,7 +262,7 @@ export default function Destinations() {
         isClosable: true,
       });
 
-        refreshDestinations().then((list) => setDestinations(Array.isArray(list) ? list : []));
+        loadDestinations();
       } catch (error) {
         let errorMessage = "Failed to delete destination";
         let status = "error";
@@ -463,7 +458,7 @@ export default function Destinations() {
         </Box>
 
         {/* Pagination Controls */}
-        {filteredDestinations.length > 0 && (
+        {totalCount > 0 && (
           <Box px="25px">
             <Flex justify="space-between" align="center" py={4}>
               {/* Records per page selector */}
@@ -481,9 +476,10 @@ export default function Destinations() {
                   <option value={10}>10</option>
                   <option value={20}>20</option>
                   <option value={50}>50</option>
+                  <option value={100}>100</option>
                 </Select>
                 <Text fontSize="sm" color="gray.600">
-                  Showing {startIndex + 1}-{Math.min(endIndex, filteredDestinations.length)} of {filteredDestinations.length} records
+                  Showing {startIndex + 1}-{endIndex} of {totalCount} records
                 </Text>
               </HStack>
 

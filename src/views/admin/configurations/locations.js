@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Flex,
@@ -44,7 +44,7 @@ import {
   MdEdit,
   MdDelete,
 } from "react-icons/md";
-import locationsAPI from "../../../api/locations";
+import stockListLocationsAPI from "../../../api/stockListLocations";
 
 export default function Locations() {
   const [locations, setLocations] = useState([]);
@@ -53,7 +53,9 @@ export default function Locations() {
   const [editingLocation, setEditingLocation] = useState(null);
   const [deleteLocationId, setDeleteLocationId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(100);
+  const [totalCount, setTotalCount] = useState(0);
+  const [apiTotalPages, setApiTotalPages] = useState(1);
 
   const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
@@ -71,16 +73,19 @@ export default function Locations() {
     name: "",
   });
 
-  // Fetch locations
+  // Fetch locations (stock list API — server search + pagination)
   const fetchLocations = async () => {
     try {
       setIsLoading(true);
-      const response = await locationsAPI.getLocations();
-      if (response.locations && Array.isArray(response.locations)) {
-        setLocations(response.locations);
-      } else {
-        setLocations([]);
-      }
+      const { items, total_count, total_pages } = await stockListLocationsAPI.listLocations({
+        search: searchValue,
+        page: currentPage,
+        page_size: itemsPerPage,
+      });
+      setLocations(items);
+      setTotalCount(total_count ?? items.length);
+      const pages = total_pages > 0 ? total_pages : Math.max(1, Math.ceil((total_count || items.length) / itemsPerPage));
+      setApiTotalPages(pages);
     } catch (error) {
       toast({
         title: "Error",
@@ -90,30 +95,25 @@ export default function Locations() {
         isClosable: true,
       });
       setLocations([]);
+      setTotalCount(0);
+      setApiTotalPages(1);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Load locations on component mount
   useEffect(() => {
-    fetchLocations();
+    const t = setTimeout(() => {
+      fetchLocations();
+    }, searchValue ? 400 : 0);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchValue, currentPage, itemsPerPage]);
 
-  // Filter locations based on search
-  const filteredLocations = useMemo(() => {
-    if (!searchValue) return locations;
-    return locations.filter(location =>
-      location.name?.toLowerCase().includes(searchValue.toLowerCase())
-    );
-  }, [locations, searchValue]);
-
-  // Pagination logic
-  const totalPages = Math.ceil(filteredLocations.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedLocations = filteredLocations.slice(startIndex, endIndex);
+  const totalPages = apiTotalPages;
+  const startIndex = totalCount > 0 ? (currentPage - 1) * itemsPerPage : 0;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalCount);
+  const paginatedLocations = locations;
 
   // Reset to first page when search or items per page changes
   useEffect(() => {
@@ -158,7 +158,7 @@ export default function Locations() {
 
       if (editingLocation) {
         // Update existing location
-        const response = await locationsAPI.updateLocation(editingLocation.id, formData);
+        const response = await stockListLocationsAPI.updateLocation(editingLocation.id, formData);
         
         // Extract success message from API response
         let successMessage = "Location updated successfully";
@@ -183,7 +183,7 @@ export default function Locations() {
         });
       } else {
         // Create new location
-        const response = await locationsAPI.createLocation(formData);
+        const response = await stockListLocationsAPI.createLocation(formData);
         
         // Extract success message from API response
         let successMessage = "Location created successfully";
@@ -251,7 +251,7 @@ export default function Locations() {
   const confirmDelete = async () => {
     try {
       setIsLoading(true);
-      const response = await locationsAPI.deleteLocation(deleteLocationId);
+      const response = await stockListLocationsAPI.deleteLocation(deleteLocationId);
 
       // Extract success message from API response
       let successMessage = "Location deleted successfully";
@@ -455,9 +455,10 @@ export default function Locations() {
                         <option value={10}>10</option>
                         <option value={20}>20</option>
                         <option value={50}>50</option>
+                        <option value={100}>100</option>
                       </Select>
                       <Text fontSize="sm" color="gray.600">
-                        Showing {startIndex + 1}-{Math.min(endIndex, filteredLocations.length)} of {filteredLocations.length} records
+                        Showing {totalCount === 0 ? 0 : startIndex + 1}-{endIndex} of {totalCount} records
                       </Text>
                     </HStack>
 

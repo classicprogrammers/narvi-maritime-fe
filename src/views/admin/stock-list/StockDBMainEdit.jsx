@@ -101,6 +101,7 @@ import {
   buildStockSoIdPayloadValue,
   stockSoIdPayloadValuesEqual,
 } from "../../../utils/shippingOrderListState";
+import { buildOriginCountrySelectOptions } from "../../../utils/stockOriginCountryOptions";
 
 export default function StockDBMainEdit() {
     const history = useHistory();
@@ -420,6 +421,11 @@ export default function StockDBMainEdit() {
     const shippingOrderOptions = useMemo(
         () => buildShippingOrderSelectOptions(shippingOrders),
         [shippingOrders]
+    );
+
+    const originCountryOptions = useMemo(
+        () => buildOriginCountrySelectOptions(countries, formRows.map((r) => r.origin_text)),
+        [countries, formRows]
     );
 
     const stockReportPdfHelpers = useMemo(
@@ -2006,26 +2012,27 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td {...cellProps} position="relative">
+                                    <Td {...cellProps} position="relative" overflow="visible" zIndex={1}>
                                         <Flex gap="1" align="center">
                                             <Box position="relative" flex="0 0 auto">
-                                                <Input
-                                                    list={`origin-countries-${rowIndex}`}
+                                                <SimpleSearchableSelect
                                                     value={row.origin_text || ""}
-                                                    onChange={(e) => handleInputChange(rowIndex, "origin_text", e.target.value)}
-                                                    placeholder="Type or select country..."
-                                                    size="sm"
-                                                    w="auto"
-                                                    htmlSize={getAutoHtmlSize(row.origin_text, "Type or select country...", { min: 18, max: 60 })}
+                                                    onChange={(val) => handleInputChange(rowIndex, "origin_text", val ? String(val) : "")}
+                                                    options={originCountryOptions}
+                                                    placeholder="Select country..."
+                                                    displayKey="name"
+                                                    valueKey="name"
+                                                    formatOption={(option) => option.name || ""}
+                                                    isLoading={false}
+                                                    prefillOnFocus={false}
+                                                    clearOnEmptySearch={false}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
+                                                    autoWidth
+                                                    autoWidthMin={18}
+                                                    autoWidthMax={50}
                                                 />
-                                                <datalist id={`origin-countries-${rowIndex}`}>
-                                                    {countries.map((country) => (
-                                                        <option key={country.id || country.country_id} value={country.name || country.code || ""} />
-                                                    ))}
-                                                </datalist>
                                             </Box>
                                             {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                 <Menu>
