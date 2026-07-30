@@ -23,8 +23,10 @@ async function loadLetterheadOnPdf(doc) {
 
 import { formatStockStatusLabel, normalizeStockStatusKey } from "../constants/stockStatus";
 import { formatStockDestinationDisplay } from "./stockDestinationOptions";
+import { getStockViaHub1Display, getStockViaHub2Display } from "./stockLocationOptions";
 import { getDimensionVolumeCbm, sumDimensionsVolumeCbm } from "./stockVolume";
 import { applyStockReportAttachmentOnStatusChange } from "./stockReportAttachmentsUi";
+import { formatStockValueDisplay } from "./stockValue";
 
 export function formatStatusForPdf(status) {
     const key = normalizeStockStatusKey(status);
@@ -173,14 +175,14 @@ export function mapAdminStockItemToPdfRow(item, helpers) {
         origin: clean(firstEntryLocation),
         location: clean(firstEntryLocation),
         firstEntryLocation: clean(firstEntryLocation),
-        viaHub1: clean(item.via_hub ?? item.via_hub_1),
-        viaHub2: clean(item.via_hub2 ?? item.via_hub_2),
+        viaHub1: clean(getStockViaHub1Display(item)),
+        viaHub2: clean(getStockViaHub2Display(item)),
         apDestination: clean(formatStockDestinationDisplay(item, "ap")),
         destination: clean(destination),
         stockStatus: clean(stockStatusLabel),
         soNumber: clean(soDisplay),
         currency: clean(getDisplayName(item.currency_id || item.currency)),
-        value: clean(item.value),
+        value: formatStockValueDisplay(item.value),
         deliveryIrregularities: clean(item.delivery_irregularities),
         poRemarks: clean(item.po_remarks),
         createDate: clean(item.create_date),
@@ -531,9 +533,9 @@ export function mapFormRowToAdminItemForPdf(row, helpers = {}) {
         origin_text: row.origin_text,
         origin_id: row.origin_id ?? row.origin,
         first_entry_location: pickFormRowValue(row, "firstEntryLocation", "origin_text"),
-        via_hub: pickFormRowValue(row, "viaHub", "viaHub1"),
-        via_hub2: pickFormRowValue(row, "viaHub2"),
-        ap_destination_new: row.apDestination,
+        narvi_stock_via_hub1: row.narviStockViaHub1,
+        narvi_stock_via_hub2: row.narviStockViaHub2,
+        narvi_stock_ap_destination: row.narviStockApDestination,
         destination_new: row.destination,
         warehouse_new: row.warehouseId,
         date_on_stock: pickFormRowValue(row, "dateOnStock"),
@@ -547,7 +549,7 @@ export function mapFormRowToAdminItemForPdf(row, helpers = {}) {
         items: pickFormRowValue(row, "items", "item"),
         stock_items_quantity: pickFormRowValue(row, "item", "items", "stock_items_quantity"),
         currency_id: row.currency,
-        value: row.value,
+        value: formatStockValueDisplay(row.value),
         dg_un: pickFormRowValue(row, "dgUn", "dg_un"),
         so_id: soM2O,
         so_number: soDisplay || undefined,

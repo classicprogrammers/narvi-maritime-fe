@@ -34,8 +34,12 @@ export function stockListHasSearchFilters(params = {}) {
     effective_hub,
     hub,
     via_hub,
+    narvi_stock_via_hub1,
+    narvi_stock_via_hub2,
+    narvi_stock_ap_destination,
     supplier_id,
     warehouse_id,
+    warehouse_new,
     currency_id,
     active,
   } = params;
@@ -51,7 +55,10 @@ export function stockListHasSearchFilters(params = {}) {
   if (isNonEmpty(date_on_stock_from) || isNonEmpty(date_on_stock_to)) return true;
   if (isNonEmpty(create_date_from) || isNonEmpty(create_date_to)) return true;
   if (isNonEmpty(effective_hub) || isNonEmpty(hub) || isNonEmpty(via_hub)) return true;
-  if (isNonEmpty(supplier_id) || isNonEmpty(warehouse_id) || isNonEmpty(currency_id)) return true;
+  if (isNonEmpty(narvi_stock_via_hub1) || isNonEmpty(narvi_stock_via_hub2) || isNonEmpty(narvi_stock_ap_destination)) {
+    return true;
+  }
+  if (isNonEmpty(supplier_id) || isNonEmpty(warehouse_id) || isNonEmpty(warehouse_new) || isNonEmpty(currency_id)) return true;
   if (active != null && String(active).trim() !== "" && String(active) !== "true") return true;
   return false;
 }

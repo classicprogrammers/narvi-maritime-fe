@@ -1,5 +1,10 @@
 /** Helpers for stock list destination_ids / ap_destination_ids M2O fields */
 
+import {
+  getStockLocationOptionName,
+  resolveStockLocationOptionId,
+} from "./stockLocationOptions";
+
 export const normalizeStockDestinationOptions = (raw) => {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -105,6 +110,10 @@ export const buildStockDestinationNewPayload = (optionId, selectName, options = 
 export const formatStockDestinationDisplay = (item, kind = "destination") => {
   if (!item) return "-";
   if (kind === "ap") {
+    const narviName = getStockLocationOptionName(item.narvi_stock_ap_destination);
+    if (narviName) return narviName;
+    const narviId = resolveStockLocationOptionId(item.narvi_stock_ap_destination);
+    if (narviId != null) return String(narviId);
     const m2oName = getStockM2OName(item.ap_destination_ids);
     if (m2oName) return m2oName;
     const m2oId = getStockM2OId(item.ap_destination_ids);

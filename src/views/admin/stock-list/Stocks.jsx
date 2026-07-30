@@ -60,6 +60,10 @@ import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
 import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdFilterList, MdSearch, MdNumbers, MdSort, MdCheckBox, MdCheckBoxOutlineBlank, MdDownload, MdViewModule, MdViewList, MdContentCopy, MdPrint, MdPictureAsPdf, MdInventory2, MdDateRange } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
 import { updateStockItemApi, downloadStockItemAttachmentApi } from "../../../api/stock";
+import {
+    getStockBulkSaveResultData,
+    showStockBulkSaveToasts,
+} from "../../../utils/stockBulkSaveResult";
 import { useHistory, useLocation } from "react-router-dom";
 import api from "../../../api/axios";
 import {
@@ -102,16 +106,32 @@ function collectShippingOrdersFromStockItems(items = []) {
 }
 import { useMasterData } from "../../../hooks/useMasterData";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
-import StockDestinationSelect from "../../../components/forms/StockDestinationSelect";
+import { CellWithAssignMenu } from "../../../components/forms/AssignToRowsBelowMenu";
+import StockValueInput from "../../../components/forms/StockValueInput";
 import useStockDestinationOptions from "../../../hooks/useStockDestinationOptions";
+import useStockListOptionPins from "../../../hooks/useStockListOptionPins";
 import {
-    buildStockDestinationIdsPayload,
     buildStockDestinationNewPayload,
     formatStockDestinationDisplay,
     getStockM2OId,
     getStockM2OName,
-    mergeStockDestinationOptions,
 } from "../../../utils/stockDestinationOptions";
+import {
+    getStockLocationOptionName,
+    getStockApDestinationSortValue,
+    getStockEffectiveHubSortValue,
+    getStockViaHub1Display,
+    getStockViaHub1SortValue,
+    getStockViaHub2Display,
+    getStockViaHub2SortValue,
+    resolveStockLocationOptionId,
+    toStockLocationPayloadId,
+} from "../../../utils/stockLocationOptions";
+import {
+    formatStockValueDisplay,
+    normalizeStockValueForForm,
+    normalizeStockValueForSave,
+} from "../../../utils/stockValue";
 import narviLetterheadPrint from "../../../assets/letterHead/NarviLetterhead.jpeg";
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
@@ -134,11 +154,17 @@ import { useStockAttachmentsGallery } from "../../../hooks/useStockAttachmentsGa
 import { getInlineAttachmentDisplayNames } from "../../../utils/stockReportAttachmentsUi";
 import { formatVolumeCbm } from "../../../utils/stockVolume";
 
+const STOCK_LIST_SELECT_PROPS = {
+    prefillOnFocus: false,
+    clearOnEmptySearch: false,
+    serverSideSearch: true,
+};
+
 const CLIENT_VIEW_TABLE_COLUMNS = {
     filter1: [
         { key: "client", label: "CLIENT", uiOnly: true },
         { key: "vessel", label: "VESSEL" },
-        { key: "via_hub_1", label: "HUB 1" },
+        { key: "narvi_stock_via_hub1", label: "HUB 1" },
         { key: "supplier", label: "SUPPLIER" },
         { key: "req_no", label: "REQ NO", type: "req_no" },
         { key: "po", label: "PO #", type: "po" },
@@ -178,9 +204,9 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
         { key: "kg", label: "KG" },
         { key: "lwh_text", label: "LWH TEXT", type: "multiline" },
         { key: "origin", label: "ORIGIN" },
-        { key: "hub1", label: "HUB1" },
-        { key: "hub2", label: "HUB2" },
-        { key: "ap_destination", label: "AP DESTINATION" },
+        { key: "narvi_stock_via_hub1", label: "HUB1" },
+        { key: "narvi_stock_via_hub2", label: "HUB2" },
+        { key: "narvi_stock_ap_destination", label: "AP DESTINATION" },
         { key: "destination", label: "DESTINATION" },
         { key: "dg_un", label: "DG/UN" },
         { key: "so_number", label: "SO NUMBER" },
@@ -464,8 +490,11 @@ function readPersistedStockViewEditState() {
             stockViewFilterDI: typeof p.stockViewFilterDI === "string" ? p.stockViewFilterDI : "",
             stockViewFilterPO: typeof p.stockViewFilterPO === "string" ? p.stockViewFilterPO : "",
             stockViewFilterReqNo: typeof p.stockViewFilterReqNo === "string" ? p.stockViewFilterReqNo : "",
+            stockViewFilterWarehouseNew: typeof p.stockViewFilterWarehouseNew === "string" ? p.stockViewFilterWarehouseNew : "",
             stockViewSearchFilter: typeof p.stockViewSearchFilter === "string" ? p.stockViewSearchFilter : "",
-            stockViewHub: p.stockViewHub != null ? p.stockViewHub : null,
+            stockViewViaHub1: p.stockViewViaHub1 != null ? p.stockViewViaHub1 : null,
+            stockViewViaHub2: p.stockViewViaHub2 != null ? p.stockViewViaHub2 : null,
+            stockViewApDestination: p.stockViewApDestination != null ? p.stockViewApDestination : null,
             stockViewActiveFilter: typeof p.stockViewActiveFilter === "string" ? p.stockViewActiveFilter : "true",
             sortOption: typeof p.sortOption === "string"
                 ? (normalizeStockHubSortOption(p.sortOption) ?? p.sortOption)
@@ -522,8 +551,11 @@ const defaultStockViewEditState = {
     stockViewFilterDI: "",
     stockViewFilterPO: "",
     stockViewFilterReqNo: "",
+    stockViewFilterWarehouseNew: "",
     stockViewSearchFilter: "",
-    stockViewHub: null,
+    stockViewViaHub1: null,
+    stockViewViaHub2: null,
+    stockViewApDestination: null,
     stockViewActiveFilter: "true",
     sortOption: "none",
     clientSortOption: "none",
@@ -614,8 +646,11 @@ export default function Stocks() {
     const [stockViewFilterDI, setStockViewFilterDI] = useState(savedState.stockViewFilterDI);
     const [stockViewFilterPO, setStockViewFilterPO] = useState(savedState.stockViewFilterPO);
     const [stockViewFilterReqNo, setStockViewFilterReqNo] = useState(savedState.stockViewFilterReqNo);
+    const [stockViewFilterWarehouseNew, setStockViewFilterWarehouseNew] = useState(savedState.stockViewFilterWarehouseNew);
     const [stockViewSearchFilter, setStockViewSearchFilter] = useState(savedState.stockViewSearchFilter);
-    const [stockViewHub, setStockViewHub] = useState(savedState.stockViewHub);
+    const [stockViewViaHub1, setStockViewViaHub1] = useState(savedState.stockViewViaHub1);
+    const [stockViewViaHub2, setStockViewViaHub2] = useState(savedState.stockViewViaHub2);
+    const [stockViewApDestination, setStockViewApDestination] = useState(savedState.stockViewApDestination);
     const [stockViewActiveFilter, setStockViewActiveFilter] = useState(savedState.stockViewActiveFilter);
     const stockViewStatusFilterOptions = useMemo(
         () => getStatusOptionsForActiveFilter(stockStatusOptions, stockViewActiveFilter),
@@ -651,13 +686,16 @@ export default function Stocks() {
             stockViewFilterDI,
             stockViewFilterPO,
             stockViewFilterReqNo,
+            stockViewFilterWarehouseNew,
             stockViewSearchFilter,
-            stockViewHub,
+            stockViewViaHub1,
+            stockViewViaHub2,
+            stockViewApDestination,
             stockViewActiveFilter,
             sortOption,
             clientSortOption,
         });
-    }, [activeTab, stockViewPage, clientViewPage, vesselViewClient, vesselViewVessel, vesselViewStatuses, clientViewClient, clientViewStatuses, clientViewFilterType, clientViewSearchClient, clientViewSearchVessel, clientViewVesselFilter, stockViewClient, stockViewVessel, stockViewStatus, stockViewStockItemId, stockViewDateOnStock, stockViewDaysOnStock, stockViewFilterSO, stockViewFilterSI, stockViewFilterSICombined, stockViewFilterDI, stockViewFilterPO, stockViewFilterReqNo, stockViewSearchFilter, stockViewHub, stockViewActiveFilter, sortOption, clientSortOption]);
+    }, [activeTab, stockViewPage, clientViewPage, vesselViewClient, vesselViewVessel, vesselViewStatuses, clientViewClient, clientViewStatuses, clientViewFilterType, clientViewSearchClient, clientViewSearchVessel, clientViewVesselFilter, stockViewClient, stockViewVessel, stockViewStatus, stockViewStockItemId, stockViewDateOnStock, stockViewDaysOnStock, stockViewFilterSO, stockViewFilterSI, stockViewFilterSICombined, stockViewFilterDI, stockViewFilterPO, stockViewFilterReqNo, stockViewFilterWarehouseNew, stockViewSearchFilter, stockViewViaHub1, stockViewViaHub2, stockViewApDestination, stockViewActiveFilter, sortOption, clientSortOption]);
 
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
@@ -677,10 +715,61 @@ export default function Stocks() {
         useClientVesselFilterOptions(vesselViewClient, vesselViewVessel, vessels);
     const {
         destinationOptions: stockDestinationOptions,
-        apDestinationOptions: stockApDestinationOptions,
+        viaHub1Options: stockViaHub1Options,
+        viaHub2Options: stockViaHub2Options,
+        narviApDestinationOptions: stockNarviApDestinationOptions,
+        isLoading: isLoadingDestinationOptions,
         setQDestination,
-        setQApDestination,
+        setQViaHub1,
+        setQViaHub2,
+        setQNarviApDestination,
     } = useStockDestinationOptions();
+    const { pinOption, seedOption, getOptionsForValue, findOptionById } = useStockListOptionPins();
+
+    const resolveOriginCountryId = useCallback((stock) => {
+        const raw = stock?.origin_text ?? stock?.origin ?? stock?.origin_id ?? "";
+        const text = normalizeStockOriginHubText(
+            raw === null || raw === undefined || raw === false ? "" : String(raw)
+        );
+        if (!text) return null;
+        if (/^\d+$/.test(text)) {
+            const byId = countries.find((c) => String(c.id || c.country_id) === text);
+            if (byId) return byId.id || byId.country_id;
+        }
+        const match = countries.find((c) => {
+            const name = normalizeStockOriginHubText(c.name || "");
+            const code = normalizeStockOriginHubText(c.code || "");
+            return name === text || code === text;
+        });
+        return match ? (match.id || match.country_id) : null;
+    }, [countries]);
+
+    const seedLocationPinsFromItem = useCallback((item, rowData) => {
+        const pick = (val, fallback = "") =>
+            val === null || val === undefined || val === false ? fallback : String(val || fallback);
+        seedOption(
+            "viaHub1",
+            rowData.narvi_stock_via_hub1_id,
+            getStockViaHub1Display(item)
+        );
+        seedOption(
+            "viaHub2",
+            rowData.narvi_stock_via_hub2_id,
+            getStockViaHub2Display(item)
+        );
+        seedOption(
+            "apDestination",
+            rowData.narvi_stock_ap_destination_id,
+            formatStockDestinationDisplay(item, "ap")
+        );
+        seedOption(
+            "destination",
+            rowData.destination_ids_id,
+            getStockM2OName(item.destination_ids) ||
+            pick(item.destination_new, pick(item.destination))
+        );
+        seedOption("origin", rowData.origin_id, rowData.origin_text);
+    }, [seedOption]);
 
     const textColor = useColorModeValue("gray.700", "white");
     const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
@@ -755,9 +844,9 @@ export default function Stocks() {
         const statusParam = vesselStatusSet.size > 0
             ? Array.from(vesselStatusSet)
             : (stockViewStatus?.trim() || undefined);
-        const hubVal = stockViewHub != null
-            ? (typeof stockViewHub === "object" ? (stockViewHub?.id ?? stockViewHub?.name ?? "") : String(stockViewHub))
-            : "";
+        const viaHub1Id = resolveStockLocationOptionId(stockViewViaHub1);
+        const viaHub2Id = resolveStockLocationOptionId(stockViewViaHub2);
+        const apDestId = resolveStockLocationOptionId(stockViewApDestination);
         const clientId = stockViewClient != null
             ? (typeof stockViewClient === "object" ? (stockViewClient?.id ?? stockViewClient?.value) : stockViewClient)
             : undefined;
@@ -776,6 +865,7 @@ export default function Stocks() {
             di_no: stockViewFilterDI?.trim() || undefined,
             po_text: stockViewFilterPO?.trim() || undefined,
             req_no: stockViewFilterReqNo?.trim() || undefined,
+            warehouse_new: stockViewFilterWarehouseNew?.trim() || undefined,
             stock_item_id: stockViewStockItemId?.trim() || undefined,
             date_on_stock: stockViewDateOnStock?.trim() || undefined,
             days_on_stock: stockViewDaysOnStock?.trim() || undefined,
@@ -783,12 +873,16 @@ export default function Stocks() {
             days_on_stock_max: daysRangeTo?.trim() || undefined,
             date_on_stock_from: createDateFrom?.trim() || undefined,
             date_on_stock_to: createDateTo?.trim() || undefined,
-            effective_hub: hubVal?.trim() || undefined,
+            narvi_stock_via_hub1: viaHub1Id ?? undefined,
+            narvi_stock_via_hub2: viaHub2Id ?? undefined,
+            narvi_stock_ap_destination: apDestId ?? undefined,
         });
     }, [
         vesselViewStatuses,
         stockViewStatus,
-        stockViewHub,
+        stockViewViaHub1,
+        stockViewViaHub2,
+        stockViewApDestination,
         stockViewClient,
         stockViewVessel,
         stockViewActiveFilter,
@@ -799,6 +893,7 @@ export default function Stocks() {
         stockViewFilterDI,
         stockViewFilterPO,
         stockViewFilterReqNo,
+        stockViewFilterWarehouseNew,
         stockViewStockItemId,
         stockViewDateOnStock,
         stockViewDaysOnStock,
@@ -844,8 +939,11 @@ export default function Stocks() {
         stockViewFilterDI,
         stockViewFilterPO,
         stockViewFilterReqNo,
+        stockViewFilterWarehouseNew,
         stockViewSearchFilter,
-        stockViewHub,
+        stockViewViaHub1,
+        stockViewViaHub2,
+        stockViewApDestination,
         stockViewActiveFilter,
         vesselViewClient,
         vesselViewVessel,
@@ -903,8 +1001,11 @@ export default function Stocks() {
         stockViewFilterDI,
         stockViewFilterPO,
         stockViewFilterReqNo,
+        stockViewFilterWarehouseNew,
         stockViewSearchFilter,
-        stockViewHub,
+        stockViewViaHub1,
+        stockViewViaHub2,
+        stockViewApDestination,
         stockViewActiveFilter,
         vesselViewClient,
         vesselViewVessel,
@@ -927,7 +1028,9 @@ export default function Stocks() {
             const statusParam = vesselStatusSet.size > 0
                 ? Array.from(vesselStatusSet)
                 : (f.stockViewStatus?.trim() || undefined);
-            const hubVal = f.stockViewHub != null ? (typeof f.stockViewHub === "object" ? (f.stockViewHub?.id ?? f.stockViewHub?.name ?? "") : String(f.stockViewHub)) : "";
+            const viaHub1Id = resolveStockLocationOptionId(f.stockViewViaHub1);
+            const viaHub2Id = resolveStockLocationOptionId(f.stockViewViaHub2);
+            const apDestId = resolveStockLocationOptionId(f.stockViewApDestination);
             const clientId = f.stockViewClient != null ? (typeof f.stockViewClient === "object" ? (f.stockViewClient?.id ?? f.stockViewClient?.value) : f.stockViewClient) : undefined;
             const vesselId = f.stockViewVessel != null ? (typeof f.stockViewVessel === "object" ? (f.stockViewVessel?.id ?? f.stockViewVessel?.value) : f.stockViewVessel) : undefined;
 
@@ -948,6 +1051,7 @@ export default function Stocks() {
                         di_no: f.stockViewFilterDI?.trim() || undefined,
                         po_text: f.stockViewFilterPO?.trim() || undefined,
                         req_no: f.stockViewFilterReqNo?.trim() || undefined,
+                        warehouse_new: f.stockViewFilterWarehouseNew?.trim() || undefined,
                         stock_item_id: f.stockViewStockItemId?.trim() || undefined,
                         date_on_stock: f.stockViewDateOnStock?.trim() || undefined,
                         days_on_stock: f.stockViewDaysOnStock?.trim() || undefined,
@@ -955,7 +1059,9 @@ export default function Stocks() {
                         days_on_stock_max: f.daysRangeTo?.trim() || undefined,
                         date_on_stock_from: f.createDateFrom?.trim() || undefined,
                         date_on_stock_to: f.createDateTo?.trim() || undefined,
-                        effective_hub: hubVal?.trim() || undefined,
+                        narvi_stock_via_hub1: viaHub1Id ?? undefined,
+                        narvi_stock_via_hub2: viaHub2Id ?? undefined,
+                        narvi_stock_ap_destination: apDestId ?? undefined,
                         sort_by,
                     },
                     { page, page_size: PAGE_SIZE }
@@ -1011,6 +1117,7 @@ export default function Stocks() {
             if (filterState.stockViewFilterDI !== undefined) setStockViewFilterDI(filterState.stockViewFilterDI);
             if (filterState.stockViewFilterPO !== undefined) setStockViewFilterPO(filterState.stockViewFilterPO);
             if (filterState.stockViewFilterReqNo !== undefined) setStockViewFilterReqNo(filterState.stockViewFilterReqNo);
+            if (filterState.stockViewFilterWarehouseNew !== undefined) setStockViewFilterWarehouseNew(filterState.stockViewFilterWarehouseNew);
             if (filterState.stockViewSearchFilter !== undefined) setStockViewSearchFilter(filterState.stockViewSearchFilter);
             if (filterState.stockViewActiveFilter !== undefined) setStockViewActiveFilter(filterState.stockViewActiveFilter);
             // Clear location.state to prevent restoring on subsequent renders
@@ -1113,12 +1220,13 @@ export default function Stocks() {
             stockViewFilterDI,
             stockViewFilterPO,
             stockViewFilterReqNo,
+            stockViewFilterWarehouseNew,
             stockViewSearchFilter,
             stockViewActiveFilter,
         };
         const editState = { selectedItems: [item], isBulkEdit: false, filterState, sourcePage: 'stocks' };
         history.push({
-            pathname: '/admin/stock-list/edit-stock',
+            pathname: '/admin/stock-list/stock',
             state: editState
         });
     };
@@ -1152,7 +1260,7 @@ export default function Stocks() {
             };
             const editState = { selectedItems: selectedItemsData, isBulkEdit: selectedItemsData.length > 1, filterState, sourcePage: 'stocks' };
             history.push({
-                pathname: '/admin/stock-list/edit-stock',
+                pathname: '/admin/stock-list/stock',
                 state: editState
             });
         }
@@ -1304,15 +1412,15 @@ export default function Stocks() {
     const sortStockItems = (items) => {
         return [...items].sort((a, b) => {
             // 1. Sort by AP Destination
-            const apDestA = String(a.ap_destination_new || a.ap_destination_id || a.ap_destination || "").toLowerCase();
-            const apDestB = String(b.ap_destination_new || b.ap_destination_id || b.ap_destination || "").toLowerCase();
+            const apDestA = getStockApDestinationSortValue(a);
+            const apDestB = getStockApDestinationSortValue(b);
             if (apDestA !== apDestB) {
                 return apDestA.localeCompare(apDestB);
             }
 
             // 2. Sort by Via Hub
-            const viaHubA = String(a.via_hub || "").toLowerCase();
-            const viaHubB = String(b.via_hub || "").toLowerCase();
+            const viaHubA = getStockViaHub1SortValue(a);
+            const viaHubB = getStockViaHub1SortValue(b);
             if (viaHubA !== viaHubB) {
                 return viaHubA.localeCompare(viaHubB);
             }
@@ -1408,20 +1516,6 @@ export default function Stocks() {
         return str;
     };
 
-    // Get unique hub options from stock list
-    const hubOptions = useMemo(() => {
-        const hubSet = new Set();
-        stockList.forEach(item => {
-            if (item.effective_hub) hubSet.add(String(item.effective_hub).trim());
-            if (item.via_hub) hubSet.add(item.via_hub.trim());
-            if (item.via_hub2) hubSet.add(item.via_hub2.trim());
-        });
-        return Array.from(hubSet)
-            .filter(h => h)
-            .sort()
-            .map(hub => ({ id: hub, name: hub }));
-    }, [stockList]);
-
     // Filter stock list for Stock View / Edit tab (status filtering is done by API via status param only)
     const getFilteredStockByStatus = () => {
         let filtered = [...stockList];
@@ -1467,8 +1561,8 @@ export default function Stocks() {
                 // VIA HUB 2 overwrites VIA HUB 1 if exists
                 // Sorted alphabetically: VIA HUB 1, VIA HUB 2, etc.
                 if (sortOption === 'via_hub' || sortOption === 'via_hub_status') {
-                    const viaHubA = (a.via_hub2 || a.via_hub || "").toLowerCase().trim();
-                    const viaHubB = (b.via_hub2 || b.via_hub || "").toLowerCase().trim();
+                    const viaHubA = getStockEffectiveHubSortValue(a);
+                    const viaHubB = getStockEffectiveHubSortValue(b);
 
                     if (viaHubA !== viaHubB) {
                         return viaHubA.localeCompare(viaHubB);
@@ -1499,8 +1593,8 @@ export default function Stocks() {
                 }
 
                 if (sortOption === 'via_vessel_via_hub_status') {
-                    const viaHubA = (a.via_hub2 || a.via_hub || "").toLowerCase().trim();
-                    const viaHubB = (b.via_hub2 || b.via_hub || "").toLowerCase().trim();
+                    const viaHubA = getStockEffectiveHubSortValue(a);
+                    const viaHubB = getStockEffectiveHubSortValue(b);
 
                     if (viaHubA !== viaHubB) {
                         return viaHubA.localeCompare(viaHubB);
@@ -1540,8 +1634,8 @@ export default function Stocks() {
 
                     // Special case for via_hub_status: If same hub and both have "Stock" status, sort by Date on Stock
                     if (sortOption === 'via_hub_status') {
-                        const viaHubA = (a.via_hub2 || a.via_hub || "").toLowerCase().trim();
-                        const viaHubB = (b.via_hub2 || b.via_hub || "").toLowerCase().trim();
+                        const viaHubA = getStockEffectiveHubSortValue(a);
+                        const viaHubB = getStockEffectiveHubSortValue(b);
                         const normalizedA = normalizeStatusForSort(a.stock_status);
                         const normalizedB = normalizeStatusForSort(b.stock_status);
 
@@ -1736,8 +1830,8 @@ export default function Stocks() {
         const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
         const kg = item.weight_kg ?? item.weight_kgs ?? "-";
         const lwhText = item.lwh_text || "-";
-        const viaHub1 = item.via_hub_1 || item.via_hub1 || item.via_hub || "-";
-        const viaHub2 = item.via_hub_2 || item.via_hub2 || "-";
+        const viaHub1 = getStockViaHub1Display(item);
+        const viaHub2 = getStockViaHub2Display(item);
         const destination = formatStockDestinationDisplay(item, "destination") || item.destination_new || item.destination_id || item.destination || item.stock_destination || "-";
         const dgUn = item.dg_un || "-";
         const soNumber = item.so_id
@@ -1748,10 +1842,10 @@ export default function Stocks() {
         const exportDoc1 = item.export_doc || "-";
         const exportDoc2 = item.export_doc_2 || "-";
         const currency = getDisplayName(item.currency_id || item.currency) || "-";
-        const value = item.value ?? "-";
+        const value = formatStockValueDisplay(item.value);
         const dateOnStock = formatDate(item.date_on_stock) || item.date_on_stock || item.stock_date || item.create_date || "-";
         const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || "-";
-        const apDestination = formatStockDestinationDisplay(item, "ap") || item.ap_destination || item.ap_destination_id || "-";
+        const apDestination = formatStockDestinationDisplay(item, "ap");
 
         if (viewType === "filter1") {
             return [vessel, viaHub1, supplier, reqNo, poNumber, stockStatus, boxes, kg, lwhText, dgUn];
@@ -1785,15 +1879,15 @@ export default function Stocks() {
                 (item.po_text || "-").replace(/\n/g, " "),
                 getStatusLabel(item.stock_status) || "-",
                 getDisplayName(item.currency_id || item.currency) || "-",
-                item.value ?? "-",
+                formatStockValueDisplay(item.value),
                 formatDate(item.date_on_stock) || item.date_on_stock || item.stock_date || item.create_date || "-",
                 item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
                 item.weight_kg ?? item.weight_kgs ?? "-",
                 item.lwh_text || "-",
                 item.origin_text || item.origin || getDisplayName(item.origin_id) || "-",
-                item.via_hub_1 || item.via_hub1 || item.via_hub || "-",
-                item.via_hub_2 || item.via_hub2 || "-",
-                formatStockDestinationDisplay(item, "ap") || item.ap_destination || item.ap_destination_id || "-",
+                getStockViaHub1Display(item),
+                getStockViaHub2Display(item),
+                formatStockDestinationDisplay(item, "ap"),
                 formatStockDestinationDisplay(item, "destination") || item.destination_new || item.destination_id || item.destination || item.stock_destination || "-",
                 item.dg_un || "-",
                 soNumber,
@@ -1813,7 +1907,7 @@ export default function Stocks() {
                 ? getSoNumberName(item.so_id)
                 : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number)) || "-";
             const currency = getDisplayName(item.currency_id || item.currency) || "-";
-            const value = item.value ?? "-";
+            const value = formatStockValueDisplay(item.value);
 
             return [
                 getDisplayName(item.vessel_id || item.vessel) || "-",
@@ -1828,9 +1922,9 @@ export default function Stocks() {
                 item.weight_kg ?? item.weight_kgs ?? "-",
                 item.lwh_text || "-",
                 item.origin_text || item.origin || getDisplayName(item.origin_id) || "-",
-                item.via_hub_1 || item.via_hub1 || item.via_hub || "-",
-                item.via_hub_2 || item.via_hub2 || "-",
-                formatStockDestinationDisplay(item, "ap") || item.ap_destination || item.ap_destination_id || "-",
+                getStockViaHub1Display(item),
+                getStockViaHub2Display(item),
+                formatStockDestinationDisplay(item, "ap"),
                 formatStockDestinationDisplay(item, "destination") || item.destination_new || item.destination_id || item.destination || item.stock_destination || "-",
                 item.dg_un || "-",
                 soNumber,
@@ -1896,15 +1990,15 @@ export default function Stocks() {
                 item.weight_kg ?? item.weight_kgs ?? "-",
                 item.total_volume_cbm ?? item.cbm_total ?? item.cbm ?? "-",
                 item.origin_text || item.origin || getDisplayName(item.origin_id) || "-",
-                item.via_hub_1 || item.via_hub1 || item.via_hub || "-",
-                item.via_hub_2 || item.via_hub2 || "-",
+                getStockViaHub1Display(item),
+                getStockViaHub2Display(item),
                 formatStockDestinationDisplay(item, "ap"),
                 formatStockDestinationDisplay(item, "destination"),
                 getStatusLabel(item.stock_status) || "-",
                 formatDate(item.date_on_stock) || "-",
                 item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number)),
                 getDisplayName(item.currency_id || item.currency) || "-",
-                item.value || "-",
+                formatStockValueDisplay(item.value),
             ]);
             return { headers, rows };
         }
@@ -2729,19 +2823,15 @@ export default function Stocks() {
             so_id: normalizeStockFormSoId(resolveStockSoIdForForm(item, shippingOrdersFromStock)) || "",
             si_number: getFieldValue("si_number") || "",
             di_no: getFieldValue("di_no") || "",
-            origin_id: normalizeStockOriginHubText(item.origin_text || getDisplayName(item.origin_id) || ""),
-            ap_destination_id: getFieldValue("ap_destination_id", "ap_destination"),
-            ap_destination_ids_id: getStockM2OId(item.ap_destination_ids),
-            ap_destination_select:
-                getStockM2OName(item.ap_destination_ids) ||
-                (item.ap_destination_new && item.ap_destination_new !== false ? String(item.ap_destination_new) : "") ||
-                "",
+            origin_id: resolveOriginCountryId(item) ?? "",
+            origin_text: normalizeStockOriginHubText(item.origin_text || getDisplayName(item.origin_id) || ""),
+            narvi_stock_via_hub1_id: resolveStockLocationOptionId(item.narvi_stock_via_hub1),
+            narvi_stock_via_hub2_id: resolveStockLocationOptionId(item.narvi_stock_via_hub2),
+            narvi_stock_ap_destination_id:
+                resolveStockLocationOptionId(item.narvi_stock_ap_destination) ??
+                getStockM2OId(item.ap_destination_ids),
             destination_id: getFieldValue("destination_id", "destination", "stock_destination"),
             destination_ids_id: getStockM2OId(item.destination_ids),
-            destination_select:
-                getStockM2OName(item.destination_ids) ||
-                (item.destination_new && item.destination_new !== false ? String(item.destination_new) : "") ||
-                "",
             warehouse_id: getFieldValue("warehouse_id", "stock_warehouse"),
             currency_id: getFieldValue("currency_id", "currency"),
             // Ensure numeric fields are preserved as strings for input compatibility
@@ -2749,7 +2839,9 @@ export default function Stocks() {
             items: item.items || item.item_id || item.stock_items_quantity || "",
             weight_kg: item.weight_kg !== undefined && item.weight_kg !== null ? String(item.weight_kg || item.weight_kgs || "") : "",
             volume_cbm: item.volume_cbm !== undefined && item.volume_cbm !== null ? String(item.volume_cbm) : "",
-            value: item.value !== undefined && item.value !== null ? String(item.value) : "",
+            value: item.value !== undefined && item.value !== null && item.value !== false
+                ? normalizeStockValueForForm(item.value)
+                : "",
             // Preserve date fields (handle false as empty string)
             date_on_stock: item.date_on_stock && item.date_on_stock !== false ? item.date_on_stock : "",
             exp_ready_in_stock: item.exp_ready_in_stock && item.exp_ready_in_stock !== false ? (item.exp_ready_in_stock || item.ready_ex_supplier || "") : "",
@@ -2761,8 +2853,6 @@ export default function Stocks() {
             details: item.details || item.item_desc || "",
             dg_un: item.dg_un || "",
             remarks: item.remarks || "",
-            via_hub: normalizeStockOriginHubText(item.via_hub || ""),
-            via_hub2: normalizeStockOriginHubText(item.via_hub2 || ""),
             shipping_doc: item.shipping_doc || "",
             export_doc: item.export_doc || "",
             export_doc_2: item.export_doc_2 || "",
@@ -2773,6 +2863,7 @@ export default function Stocks() {
 
     const handleEditStart = (item) => {
         const normalizedItem = normalizeItemForEditing(item);
+        seedLocationPinsFromItem(item, normalizedItem);
         setEditingRowIds(new Set([item.id]));
         setEditingRowData({ [item.id]: normalizedItem });
     };
@@ -2784,12 +2875,70 @@ export default function Stocks() {
             const selectedItems = filteredAndSortedStock.filter(item => selectedIds.includes(item.id));
             const newEditingData = {};
             selectedItems.forEach(item => {
-                newEditingData[item.id] = normalizeItemForEditing(item);
+                const normalizedItem = normalizeItemForEditing(item);
+                seedLocationPinsFromItem(item, normalizedItem);
+                newEditingData[item.id] = normalizedItem;
             });
             setEditingRowIds(new Set(selectedIds));
             setEditingRowData(newEditingData);
         }
     };
+
+    const copyInlineValueToRowsBelow = useCallback((sourceItemId, fields, copyToAll = false) => {
+        const fieldList = Array.isArray(fields) ? fields : [fields];
+
+        setEditingRowData((prev) => {
+            const sourceRow = prev[sourceItemId];
+            if (!sourceRow) return prev;
+
+            const orderedIds = filteredAndSortedStock
+                .filter((i) => editingRowIds.has(i.id))
+                .map((i) => i.id);
+            const sourceIndex = orderedIds.indexOf(sourceItemId);
+            if (sourceIndex < 0) return prev;
+
+            const sourceValues = {};
+            fieldList.forEach((fieldName) => {
+                sourceValues[fieldName] = sourceRow[fieldName];
+            });
+
+            const newData = { ...prev };
+            const targetIds = copyToAll
+                ? orderedIds.slice(sourceIndex + 1)
+                : orderedIds.slice(sourceIndex + 1, sourceIndex + 2);
+
+            targetIds.forEach((targetId) => {
+                newData[targetId] = {
+                    ...newData[targetId],
+                    ...sourceValues,
+                };
+            });
+
+            return newData;
+        });
+    }, [filteredAndSortedStock, editingRowIds]);
+
+    const wrapInlineAssignCell = useCallback((item, fields, content, enabled = true) => {
+        if (!enabled || editingRowIds.size <= 1) {
+            return content;
+        }
+
+        const orderedIds = filteredAndSortedStock
+            .filter((i) => editingRowIds.has(i.id))
+            .map((i) => i.id);
+        const rowIndex = orderedIds.indexOf(item.id);
+
+        return (
+            <CellWithAssignMenu
+                rowIndex={rowIndex}
+                fields={fields}
+                onCopy={(idx, flds, copyToAll) => copyInlineValueToRowsBelow(orderedIds[idx], flds, copyToAll)}
+                totalRows={orderedIds.length}
+            >
+                {content}
+            </CellWithAssignMenu>
+        );
+    }, [copyInlineValueToRowsBelow, editingRowIds, filteredAndSortedStock]);
 
     // Handle inline edit cancel - cancel all editing
     const handleEditCancel = () => {
@@ -2899,9 +3048,10 @@ export default function Stocks() {
             { backend: "item_id", original: ["item_id", "stock_items_quantity", "items"], edited: ["item_id", "stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) }, // Keep item_id for lines format
             { backend: "stock_items_quantity", original: ["stock_items_quantity", "items", "item_id"], edited: ["stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) },
             { backend: "currency_id", original: ["currency_id", "currency"], edited: ["currency_id"], transform: (v) => toValue(toId(v), false) },
-            { backend: "origin_text", original: ["origin_id", "origin_text"], edited: ["origin_id", "origin_text"], transform: (v) => normalizeStockOriginHubText(v) },
-            { backend: "via_hub", original: ["via_hub"], edited: ["via_hub"], transform: (v) => normalizeStockOriginHubText(v) },
-            { backend: "via_hub2", original: ["via_hub2"], edited: ["via_hub2"], transform: (v) => normalizeStockOriginHubText(v) },
+            { backend: "origin_text", original: ["origin_text", "origin"], edited: ["origin_text"], transform: (v) => normalizeStockOriginHubText(v) },
+            { backend: "narvi_stock_via_hub1", original: ["narvi_stock_via_hub1", "narvi_stock_via_hub1_id", "via_hub"], edited: ["narvi_stock_via_hub1_id"], transform: (v) => toStockLocationPayloadId(v) },
+            { backend: "narvi_stock_via_hub2", original: ["narvi_stock_via_hub2", "narvi_stock_via_hub2_id", "via_hub2"], edited: ["narvi_stock_via_hub2_id"], transform: (v) => toStockLocationPayloadId(v) },
+            { backend: "narvi_stock_ap_destination", original: ["narvi_stock_ap_destination", "narvi_stock_ap_destination_id", "ap_destination_ids"], edited: ["narvi_stock_ap_destination_id"], transform: (v) => toStockLocationPayloadId(v) },
             { backend: "client_access", original: ["client_access"], edited: ["client_access"], transform: (v) => Boolean(v !== undefined ? v : false) },
             { backend: "remarks", original: ["remarks"], edited: ["remarks"], transform: (v) => v || "" },
             { backend: "internal_remark", original: ["internal_remark"], edited: ["internal_remark"], transform: (v) => v || "" },
@@ -2926,7 +3076,7 @@ export default function Stocks() {
                 }
             },
             { backend: "cw_air_freight_new", original: ["cw_air_freight_new", "cw_freight", "cw_airfreight"], edited: ["cw_air_freight_new"], transform: (v) => toNumber(v) },
-            { backend: "value", original: ["value"], edited: ["value"], transform: (v) => toNumber(v) },
+            { backend: "value", original: ["value"], edited: ["value"], transform: (v) => normalizeStockValueForSave(v) },
             { backend: "shipment_type", original: ["shipment_type"], edited: ["shipment_type"], transform: (v) => v || "" },
             { backend: "extra", original: ["extra", "extra2"], edited: ["extra"], transform: (v) => v || "" },
             { backend: "warehouse_new", original: ["warehouse_new", "warehouse_id", "stock_warehouse"], edited: ["warehouse_new", "warehouse_id"], transform: (v) => v || "" }, // Free text field
@@ -2979,9 +3129,16 @@ export default function Stocks() {
             payload.so_id = buildStockSoIdPayloadValue(editedSoId, shippingOrdersFromStock);
         }
 
+        const editedDestId = getEditedValue(["destination_ids_id"]);
+        const editedDestName =
+            findOptionById("destination", stockDestinationOptions, editedDestId)?.name ||
+            getStockM2OName(originalItem.destination_ids) ||
+            (originalItem.destination_new && originalItem.destination_new !== false
+                ? String(originalItem.destination_new)
+                : "");
         const currentDestinationNew = buildStockDestinationNewPayload(
-            getEditedValue(["destination_ids_id"]),
-            getEditedValue(["destination_select"]),
+            editedDestId,
+            editedDestName,
             stockDestinationOptions
         );
         const originalDestinationNew = buildStockDestinationNewPayload(
@@ -2994,27 +3151,6 @@ export default function Stocks() {
         );
         if (!valuesAreEqual(currentDestinationNew, originalDestinationNew)) {
             payload.destination_new = currentDestinationNew;
-        }
-
-        const currentApDestinationIds = buildStockDestinationIdsPayload(
-            getEditedValue(["ap_destination_ids_id"]),
-            getEditedValue(["ap_destination_select"]),
-            stockApDestinationOptions
-        );
-        const originalApDestinationIds = buildStockDestinationIdsPayload(
-            getStockM2OId(originalItem.ap_destination_ids),
-            getStockM2OName(originalItem.ap_destination_ids) ||
-            (originalItem.ap_destination_new && originalItem.ap_destination_new !== false
-                ? String(originalItem.ap_destination_new)
-                : ""),
-            stockApDestinationOptions
-        );
-        if (!valuesAreEqual(
-            JSON.stringify(currentApDestinationIds),
-            JSON.stringify(originalApDestinationIds)
-        )) {
-            payload.ap_destination_ids = currentApDestinationIds;
-            payload.ap_destination_new = "";
         }
 
         return payload;
@@ -3030,17 +3166,14 @@ export default function Stocks() {
             const payload = { lines: [linePayload] };
 
             const result = await updateStockItemApi(item.id, payload);
-            if (result && result.result && result.result.status === 'success') {
-                const apiMessage = result.result.message;
-                toast({
-                    title: 'Success',
-                    description: apiMessage || 'Stock item updated successfully',
-                    status: 'success',
-                    duration: 3000,
-                    isClosable: true,
+            const resultData = getStockBulkSaveResultData(result);
+            if (resultData?.status === "success" && !resultData.errors?.some(
+                (err) => String(err?.stock_id) === String(item.id)
+            )) {
+                showStockBulkSaveToasts(resultData, toast, {
+                    fallbackSummary: "Stock item updated successfully",
                 });
 
-                // Remove this row from editing
                 setEditingRowIds(prev => {
                     const newSet = new Set(prev);
                     newSet.delete(item.id);
@@ -3053,8 +3186,12 @@ export default function Stocks() {
                 });
 
                 getStockList({ page: 1, page_size: PAGE_SIZE });
+            } else if (resultData?.status === "success") {
+                showStockBulkSaveToasts(resultData, toast, {
+                    fallbackSummary: "Stock item updated successfully",
+                });
             } else {
-                throw new Error(result?.result?.message || 'Failed to update stock item');
+                throw new Error(resultData?.message || "Failed to update stock item");
             }
         } catch (error) {
             toast({
@@ -3086,21 +3223,33 @@ export default function Stocks() {
             // Send all lines in a single payload
             const payload = { lines };
             const result = await updateStockItemApi(editingIds[0], payload);
+            const resultData = getStockBulkSaveResultData(result);
 
-            if (result && result.result && result.result.status === 'success') {
-                const apiMessage = result.result.message;
-                toast({
-                    title: 'Success',
-                    description: apiMessage || `${lines.length} stock item(s) updated successfully`,
-                    status: 'success',
-                    duration: 3000,
-                    isClosable: true,
+            if (resultData?.status === "success") {
+                const { failedStockIds } = showStockBulkSaveToasts(resultData, toast, {
+                    fallbackSummary: `${lines.length} stock item(s) updated successfully`,
                 });
-                setEditingRowIds(new Set());
-                setEditingRowData({});
-                getStockList({ page: 1, page_size: PAGE_SIZE });
+
+                const succeededIds = editingIds.filter((itemId) => !failedStockIds.has(String(itemId)));
+
+                setEditingRowIds((prev) => {
+                    const next = new Set(prev);
+                    succeededIds.forEach((itemId) => next.delete(itemId));
+                    return next;
+                });
+                setEditingRowData((prev) => {
+                    const next = { ...prev };
+                    succeededIds.forEach((itemId) => {
+                        delete next[itemId];
+                    });
+                    return next;
+                });
+
+                if (succeededIds.length > 0 || failedStockIds.size === 0) {
+                    getStockList({ page: 1, page_size: PAGE_SIZE });
+                }
             } else {
-                throw new Error(result?.result?.message || result?.message || 'Failed to update stock items');
+                throw new Error(resultData?.message || result?.message || "Failed to update stock items");
             }
         } catch (error) {
             toast({
@@ -3136,7 +3285,7 @@ export default function Stocks() {
 
     const getClientViewFieldValues = (item) => {
         const currency = getDisplayName(item.currency_id || item.currency) || "-";
-        const value = item.value ?? "-";
+        const value = formatStockValueDisplay(item.value);
         const soNumber = item.so_id
             ? getSoNumberName(item.so_id)
             : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number)) || "-";
@@ -3151,8 +3300,8 @@ export default function Stocks() {
             boxes: item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
             kg: item.weight_kg ?? item.weight_kgs ?? "-",
             lwh_text: item.lwh_text || "-",
-            via_hub_1: item.via_hub_1 || item.via_hub1 || item.via_hub || "-",
-            via_hub_2: item.via_hub_2 || item.via_hub2 || "-",
+            narvi_stock_via_hub1: getStockViaHub1Display(item),
+            narvi_stock_via_hub2: getStockViaHub2Display(item),
             destination: formatStockDestinationDisplay(item, "destination") || item.destination_new || item.destination_id || item.destination || item.stock_destination || "-",
             dg_un: item.dg_un || "-",
             so_number: soNumber,
@@ -3164,9 +3313,7 @@ export default function Stocks() {
             value,
             date_on_stock: formatDate(item.date_on_stock) || item.date_on_stock || item.stock_date || item.create_date || "-",
             origin: item.origin_text || item.origin || getDisplayName(item.origin_id) || "-",
-            hub1: item.via_hub_1 || item.via_hub1 || item.via_hub || "-",
-            hub2: item.via_hub_2 || item.via_hub2 || "-",
-            ap_destination: formatStockDestinationDisplay(item, "ap") || item.ap_destination || item.ap_destination_id || "-",
+            narvi_stock_ap_destination: formatStockDestinationDisplay(item, "ap"),
         };
     };
 
@@ -3273,7 +3420,8 @@ export default function Stocks() {
     };
 
     // Helper function to render editable cell
-    const renderEditableCell = (item, field, value, type = "text", options = null) => {
+    const renderEditableCell = (item, field, value, type = "text", options = null, assignOptions = {}) => {
+        const { fields: assignFieldsOverride, enabled: assignEnabled = true } = assignOptions;
         const isEditing = editingRowIds.has(item.id);
         const rowEditingData = editingRowData[item.id] || {};
         const currentValue = rowEditingData[field] !== undefined ? rowEditingData[field] : value;
@@ -3298,6 +3446,29 @@ export default function Stocks() {
             });
         };
 
+        const wrapAssign = (content) => {
+            if (!assignEnabled) return content;
+
+            let fieldsToCopy = assignFieldsOverride;
+            if (!fieldsToCopy) {
+                if (type === "stock_destination_m2o") {
+                    fieldsToCopy = ["destination_ids_id"];
+                } else if (type === "stock_via_hub1") {
+                    fieldsToCopy = ["narvi_stock_via_hub1_id"];
+                } else if (type === "stock_via_hub2") {
+                    fieldsToCopy = ["narvi_stock_via_hub2_id"];
+                } else if (type === "stock_narvi_ap_destination") {
+                    fieldsToCopy = ["narvi_stock_ap_destination_id"];
+                } else if (field.includes("origin_id") || field === "origin_text") {
+                    fieldsToCopy = ["origin_id", "origin_text"];
+                } else {
+                    fieldsToCopy = field;
+                }
+            }
+
+            return wrapInlineAssignCell(item, fieldsToCopy, content);
+        };
+
         // Handle searchable select for SO number field
         if (type === "so_number" || field.includes("so_number")) {
             const ordersForRow = [...shippingOrdersFromStock];
@@ -3313,7 +3484,7 @@ export default function Stocks() {
                     label: so.so_id != null ? `SO-${so.so_id}` : ensureSoPrefix(so.so_number || so.name || so.id)
                 }));
 
-            return (
+            return wrapAssign(
                 <Box position="relative" zIndex={10}>
                     <SimpleSearchableSelect
                         value={currentValue ? String(currentValue) : ""}
@@ -3333,7 +3504,7 @@ export default function Stocks() {
         }
 
         if (type === "textarea") {
-            return (
+            return wrapAssign(
                 <Textarea
                     value={currentValue || ""}
                     onChange={(e) => handleChange(e.target.value)}
@@ -3346,106 +3517,137 @@ export default function Stocks() {
             );
         }
 
-        // Handle origin field as free text input with country suggestions
+        // Handle origin field as country select (same as client/vessel)
         if (field.includes("origin_id") || field === "origin_text") {
-            return (
-                <Box position="relative">
-                    <Input
-                        list={`origin-countries-${item.id}`}
-                        value={currentValue || ""}
-                        onChange={(e) => handleChange(e.target.value)}
-                        placeholder="Type or select country..."
-                        size="sm"
+            const selectId =
+                rowEditingData.origin_id !== undefined
+                    ? rowEditingData.origin_id
+                    : resolveOriginCountryId(item);
+            return wrapAssign(
+                <Box position="relative" zIndex={10} minW="160px">
+                    <SimpleSearchableSelect
+                        value={selectId != null && selectId !== "" ? String(selectId) : null}
+                        onChange={(id) => {
+                            const match = countries.find((c) => String(c.id || c.country_id) === String(id));
+                            if (match) pinOption("origin", { id: match.id, name: match.name });
+                            setEditingRowData((prev) => ({
+                                ...prev,
+                                [item.id]: {
+                                    ...(prev[item.id] || normalizeItemForEditing(item)),
+                                    origin_id: id,
+                                    origin_text: normalizeStockOriginHubText(match?.name || match?.code || ""),
+                                },
+                            }));
+                        }}
+                        options={getOptionsForValue("origin", countries, selectId)}
+                        placeholder="Select country..."
+                        displayKey="name"
+                        valueKey="id"
+                        formatOption={(option) => option.name || `Country ${option.id}`}
+                        isLoading={false}
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
                     />
-                    <datalist id={`origin-countries-${item.id}`}>
-                        {countries.map((country) => (
-                            <option key={country.id || country.country_id} value={country.name || country.code || ""} />
-                        ))}
-                    </datalist>
                 </Box>
             );
         }
 
         if (type === "stock_destination_m2o") {
-            const selectValue =
-                rowEditingData.destination_select !== undefined
-                    ? rowEditingData.destination_select
-                    : (getStockM2OName(item.destination_ids) ||
-                        (item.destination_new && item.destination_new !== false ? String(item.destination_new) : ""));
             const selectId =
                 rowEditingData.destination_ids_id !== undefined
                     ? rowEditingData.destination_ids_id
                     : getStockM2OId(item.destination_ids);
-            return (
+            return wrapAssign(
                 <Box position="relative" zIndex={10} minW="160px">
-                    <StockDestinationSelect
-                        value={selectValue || ""}
-                        onChange={({ id, name }) => {
+                    <SimpleSearchableSelect
+                        value={selectId != null && selectId !== "" ? String(selectId) : null}
+                        onChange={(id) => {
+                            const match = findOptionById("destination", stockDestinationOptions, id);
+                            if (match) pinOption("destination", match);
                             setEditingRowData((prev) => ({
                                 ...prev,
                                 [item.id]: {
                                     ...(prev[item.id] || normalizeItemForEditing(item)),
-                                    destination_select: name,
                                     destination_ids_id: id,
                                 },
                             }));
                         }}
+                        options={getOptionsForValue("destination", stockDestinationOptions, selectId)}
+                        placeholder="Select destination..."
+                        displayKey="name"
+                        valueKey="id"
+                        formatOption={(option) => option.name || `Destination ${option.id}`}
                         onSearchChange={setQDestination}
-                        options={mergeStockDestinationOptions(
-                            stockDestinationOptions,
-                            selectId,
-                            selectValue
-                        )}
-                        placeholder="Select or type destination..."
-                        listId={`inline-dest-${item.id}`}
-                        size="sm"
+                        isLoading={isLoadingDestinationOptions}
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
+                        {...STOCK_LIST_SELECT_PROPS}
                     />
                 </Box>
             );
         }
 
-        if (type === "stock_ap_destination_m2o") {
-            const selectValue =
-                rowEditingData.ap_destination_select !== undefined
-                    ? rowEditingData.ap_destination_select
-                    : (getStockM2OName(item.ap_destination_ids) ||
-                        (item.ap_destination_new && item.ap_destination_new !== false ? String(item.ap_destination_new) : ""));
+        if (type === "stock_via_hub1" || type === "stock_via_hub2" || type === "stock_narvi_ap_destination") {
+            const locationConfig = {
+                stock_via_hub1: {
+                    pinKey: "viaHub1",
+                    idField: "narvi_stock_via_hub1_id",
+                    itemKey: "narvi_stock_via_hub1",
+                    options: stockViaHub1Options,
+                    setQ: setQViaHub1,
+                    placeholder: "Select Via HUB 1...",
+                },
+                stock_via_hub2: {
+                    pinKey: "viaHub2",
+                    idField: "narvi_stock_via_hub2_id",
+                    itemKey: "narvi_stock_via_hub2",
+                    options: stockViaHub2Options,
+                    setQ: setQViaHub2,
+                    placeholder: "Select Via HUB 2...",
+                },
+                stock_narvi_ap_destination: {
+                    pinKey: "apDestination",
+                    idField: "narvi_stock_ap_destination_id",
+                    itemKey: "narvi_stock_ap_destination",
+                    options: stockNarviApDestinationOptions,
+                    setQ: setQNarviApDestination,
+                    placeholder: "Select AP destination...",
+                },
+            }[type];
+
             const selectId =
-                rowEditingData.ap_destination_ids_id !== undefined
-                    ? rowEditingData.ap_destination_ids_id
-                    : getStockM2OId(item.ap_destination_ids);
-            return (
+                rowEditingData[locationConfig.idField] !== undefined
+                    ? rowEditingData[locationConfig.idField]
+                    : resolveStockLocationOptionId(item[locationConfig.itemKey]);
+
+            return wrapAssign(
                 <Box position="relative" zIndex={10} minW="160px">
-                    <StockDestinationSelect
-                        value={selectValue || ""}
-                        onChange={({ id, name }) => {
+                    <SimpleSearchableSelect
+                        value={selectId != null && selectId !== "" ? String(selectId) : null}
+                        onChange={(id) => {
+                            const match = findOptionById(locationConfig.pinKey, locationConfig.options, id);
+                            if (match) pinOption(locationConfig.pinKey, match);
                             setEditingRowData((prev) => ({
                                 ...prev,
                                 [item.id]: {
                                     ...(prev[item.id] || normalizeItemForEditing(item)),
-                                    ap_destination_select: name,
-                                    ap_destination_ids_id: id,
+                                    [locationConfig.idField]: id,
                                 },
                             }));
                         }}
-                        onSearchChange={setQApDestination}
-                        options={mergeStockDestinationOptions(
-                            stockApDestinationOptions,
-                            selectId,
-                            selectValue
-                        )}
-                        placeholder="Select or type AP destination..."
-                        listId={`inline-ap-dest-${item.id}`}
-                        size="sm"
+                        options={getOptionsForValue(locationConfig.pinKey, locationConfig.options, selectId)}
+                        placeholder={locationConfig.placeholder}
+                        displayKey="name"
+                        valueKey="id"
+                        formatOption={(option) => option.name || `Option ${option.id}`}
+                        onSearchChange={locationConfig.setQ}
+                        isLoading={isLoadingDestinationOptions}
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
+                        {...STOCK_LIST_SELECT_PROPS}
                     />
                 </Box>
             );
@@ -3453,7 +3655,7 @@ export default function Stocks() {
 
         // Handle warehouse_id as free text textarea (not linked to warehouses)
         if (field === "warehouse_id" || field === "stock_warehouse") {
-            return (
+            return wrapAssign(
                 <Textarea
                     value={currentValue || ""}
                     onChange={(e) => handleChange(e.target.value)}
@@ -3470,7 +3672,7 @@ export default function Stocks() {
 
         switch (type) {
             case "select":
-                return (
+                return wrapAssign(
                     <Select
                         size="sm"
                         value={currentValue || ""}
@@ -3488,7 +3690,7 @@ export default function Stocks() {
                     </Select>
                 );
             case "date":
-                return (
+                return wrapAssign(
                     <Input
                         type="date"
                         size="sm"
@@ -3500,7 +3702,19 @@ export default function Stocks() {
                     />
                 );
             case "number":
-                return (
+                if (field === "value") {
+                    return wrapAssign(
+                        <StockValueInput
+                            value={currentValue}
+                            onChange={handleChange}
+                            bg={inputBg}
+                            color={inputText}
+                            borderColor={borderColor}
+                            minW="120px"
+                        />
+                    );
+                }
+                return wrapAssign(
                     <Input
                         type="number"
                         size="sm"
@@ -3511,12 +3725,11 @@ export default function Stocks() {
                         borderColor={borderColor}
                     />
                 );
-            default:
-                // Handle prefixes for SI NUMBER, SI COMBINED, and DI NUMBER fields
+            default: {
                 let displayValue = currentValue || "";
                 const onChangeHandler = (e) => handleChange(e.target.value);
 
-                return (
+                return wrapAssign(
                     <Input
                         size="sm"
                         value={displayValue}
@@ -3526,6 +3739,7 @@ export default function Stocks() {
                         borderColor={borderColor}
                     />
                 );
+            }
         }
     };
 
@@ -3576,7 +3790,7 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "vessel_id", item.vessel_id || item.vessel, "select", vessels.map(v => ({ value: v.id, label: v.name }))) : <Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "stock_item_id", item.stock_item_id || item.stock_id) : <Text {...cellText}>{renderText(item.stock_item_id || item.stock_id)}</Text>}
+                            {isEditing ? renderEditableCell(item, "stock_item_id", item.stock_item_id || item.stock_id, "text", null, { enabled: false }) : <Text {...cellText}>{renderText(item.stock_item_id || item.stock_id)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "supplier_id", item.supplier_id, "select", vendors.map(v => ({ value: v.id, label: v.name }))) : <Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text>}
@@ -3620,18 +3834,26 @@ export default function Stocks() {
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? (
-                                <Select
-                                    size="sm"
-                                    value={editingRowData.stock_status || item.stock_status || ""}
-                                    onChange={(e) => setEditingRowData(prev => ({ ...prev, stock_status: e.target.value }))}
-                                    bg={inputBg}
-                                    color={inputText}
-                                    borderColor={borderColor}
-                                >
-                                    {Object.entries(STATUS_CONFIG).map(([statusKey, config]) => (
-                                        <option key={statusKey} value={statusKey}>{config.label}</option>
-                                    ))}
-                                </Select>
+                                wrapInlineAssignCell(item, "stock_status",
+                                    <Select
+                                        size="sm"
+                                        value={(editingRowData[item.id] || {}).stock_status ?? item.stock_status ?? ""}
+                                        onChange={(e) => setEditingRowData(prev => ({
+                                            ...prev,
+                                            [item.id]: {
+                                                ...(prev[item.id] || normalizeItemForEditing(item)),
+                                                stock_status: e.target.value,
+                                            },
+                                        }))}
+                                        bg={inputBg}
+                                        color={inputText}
+                                        borderColor={borderColor}
+                                    >
+                                        {Object.entries(STATUS_CONFIG).map(([statusKey, config]) => (
+                                            <option key={statusKey} value={statusKey}>{config.label}</option>
+                                        ))}
+                                    </Select>
+                                )
                             ) : (
                                 <Badge colorScheme={statusStyle.color} size="sm" borderRadius="full" px="3" py="1">
                                     {getStatusLabel(item.stock_status)}
@@ -3642,11 +3864,13 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "origin_id", item.origin_text || item.origin_id, "text") : <Text {...cellText}>{item.origin_text || getDisplayName(item.origin_id) || "-"}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "via_hub", item.via_hub) : <Text {...cellText}>{renderText(item.via_hub)}</Text>}
+                            {isEditing ? renderEditableCell(item, "narvi_stock_via_hub1", null, "stock_via_hub1") : (
+                                <Text {...cellText}>{renderText(getStockViaHub1Display(item))}</Text>
+                            )}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? (
-                                renderEditableCell(item, "ap_destination_ids", null, "stock_ap_destination_m2o")
+                                renderEditableCell(item, "narvi_stock_ap_destination", null, "stock_narvi_ap_destination")
                             ) : (
                                 <Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</Text>
                             )}
@@ -3748,7 +3972,7 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "currency_id", item.currency_id || item.currency, "searchable") : <Text {...cellText}>{getDisplayName(item.currency_id || item.currency)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "value", item.value, "number") : <Text {...cellText}>{renderText(item.value)}</Text>}
+                            {isEditing ? renderEditableCell(item, "value", item.value, "number") : <Text {...cellText}>{formatStockValueDisplay(item.value)}</Text>}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                             {isEditing ? renderEditableCell(item, "client_id", item.client_id || item.client, "searchable") : <Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text>}
@@ -3829,22 +4053,30 @@ export default function Stocks() {
                             />
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "stock_item_id", item.stock_item_id || item.stock_id) : <Text {...cellText}>{renderText(item.stock_item_id || item.stock_id)}</Text>}
+                            {isEditing ? renderEditableCell(item, "stock_item_id", item.stock_item_id || item.stock_id, "text", null, { enabled: false }) : <Text {...cellText}>{renderText(item.stock_item_id || item.stock_id)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? (
-                                <Select
-                                    size="sm"
-                                    value={editingRowData.stock_status || item.stock_status || ""}
-                                    onChange={(e) => setEditingRowData(prev => ({ ...prev, stock_status: e.target.value }))}
-                                    bg={inputBg}
-                                    color={inputText}
-                                    borderColor={borderColor}
-                                >
-                                    {Object.entries(STATUS_CONFIG).map(([statusKey, config]) => (
-                                        <option key={statusKey} value={statusKey}>{config.label}</option>
-                                    ))}
-                                </Select>
+                                wrapInlineAssignCell(item, "stock_status",
+                                    <Select
+                                        size="sm"
+                                        value={(editingRowData[item.id] || {}).stock_status ?? item.stock_status ?? ""}
+                                        onChange={(e) => setEditingRowData(prev => ({
+                                            ...prev,
+                                            [item.id]: {
+                                                ...(prev[item.id] || normalizeItemForEditing(item)),
+                                                stock_status: e.target.value,
+                                            },
+                                        }))}
+                                        bg={inputBg}
+                                        color={inputText}
+                                        borderColor={borderColor}
+                                    >
+                                        {Object.entries(STATUS_CONFIG).map(([statusKey, config]) => (
+                                            <option key={statusKey} value={statusKey}>{config.label}</option>
+                                        ))}
+                                    </Select>
+                                )
                             ) : (
                                 <Badge colorScheme={statusStyle.color} size="sm" borderRadius="full" px="3" py="1">
                                     {getStatusLabel(item.stock_status)}
@@ -3901,20 +4133,24 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "currency_id", item.currency_id, "select", currencies.map(c => ({ value: c.id, label: c.name }))) : <Text {...cellText}>{getDisplayName(item.currency_id || item.currency)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "value", item.value, "number") : <Text {...cellText}>{renderText(item.value)}</Text>}
+                            {isEditing ? renderEditableCell(item, "value", item.value, "number") : <Text {...cellText}>{formatStockValueDisplay(item.value)}</Text>}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                             {isEditing ? renderEditableCell(item, "origin_id", item.origin_text || item.origin_id, "text") : <Text {...cellText}>{item.origin_text || getDisplayName(item.origin_id) || "-"}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "via_hub", item.via_hub) : <Text {...cellText}>{renderText(item.via_hub)}</Text>}
+                            {isEditing ? renderEditableCell(item, "narvi_stock_via_hub1", null, "stock_via_hub1") : (
+                                <Text {...cellText}>{renderText(getStockViaHub1Display(item))}</Text>
+                            )}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "via_hub2", item.via_hub2) : <Text {...cellText}>{renderText(item.via_hub2)}</Text>}
+                            {isEditing ? renderEditableCell(item, "narvi_stock_via_hub2", null, "stock_via_hub2") : (
+                                <Text {...cellText}>{renderText(getStockViaHub2Display(item))}</Text>
+                            )}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? (
-                                renderEditableCell(item, "ap_destination_ids", null, "stock_ap_destination_m2o")
+                                renderEditableCell(item, "narvi_stock_ap_destination", null, "stock_narvi_ap_destination")
                             ) : (
                                 <Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</Text>
                             )}
@@ -4640,7 +4876,7 @@ export default function Stocks() {
                                                             <Text fontSize="md" fontWeight="700" color={textColor}>Basic Filters</Text>
                                                         </HStack>
                                                         <HStack>
-                                                            {(stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewHub || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewSearchFilter || createDateFrom || createDateTo || daysRangeFrom || daysRangeTo || vesselViewStatuses.size > 0) && (
+                                                            {(stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || createDateFrom || createDateTo || daysRangeFrom || daysRangeTo || vesselViewStatuses.size > 0) && (
                                                                 <Button
                                                                     size="xs"
                                                                     leftIcon={<Icon as={MdClose} />}
@@ -4657,13 +4893,16 @@ export default function Stocks() {
                                                                         setCreateDateTo("");
                                                                         setDaysRangeFrom("");
                                                                         setDaysRangeTo("");
-                                                                        setStockViewHub(null);
+                                                                        setStockViewViaHub1(null);
+                                                                        setStockViewViaHub2(null);
+                                                                        setStockViewApDestination(null);
                                                                         setStockViewFilterSO("");
                                                                         setStockViewFilterSI("");
                                                                         setStockViewFilterSICombined("");
                                                                         setStockViewFilterDI("");
                                                                         setStockViewFilterPO("");
                                                                         setStockViewFilterReqNo("");
+                                                                        setStockViewFilterWarehouseNew("");
                                                                         setStockViewSearchFilter("");
                                                                         setVesselViewStatuses(new Set());
                                                                     }}
@@ -4832,6 +5071,33 @@ export default function Stocks() {
                                                             </HStack>
                                                         </Box>
 
+                                                        {/* Warehouse ID Filter */}
+                                                        <Box w="220px" minW="200px">
+                                                            <HStack spacing="1">
+                                                                <InputGroup size="sm">
+                                                                    <Input
+                                                                        value={stockViewFilterWarehouseNew}
+                                                                        onChange={(e) => setStockViewFilterWarehouseNew(e.target.value)}
+                                                                        placeholder="Filter by Warehouse ID"
+                                                                        bg={inputBg}
+                                                                        color={inputText}
+                                                                        borderColor={borderColor}
+                                                                        pl="8"
+                                                                    />
+                                                                </InputGroup>
+                                                                {stockViewFilterWarehouseNew && (
+                                                                    <IconButton
+                                                                        size="sm"
+                                                                        icon={<Icon as={MdClose} />}
+                                                                        colorScheme="red"
+                                                                        variant="ghost"
+                                                                        onClick={() => setStockViewFilterWarehouseNew("")}
+                                                                        aria-label="Clear warehouse ID filter"
+                                                                    />
+                                                                )}
+                                                            </HStack>
+                                                        </Box>
+
                                                     </Flex>
 
                                                     <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
@@ -4943,31 +5209,112 @@ export default function Stocks() {
                                                             </HStack>
                                                         </Box>
 
-                                                        {/* Hub Filter */}
+                                                        {/* Via HUB 1 Filter */}
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
                                                                     <SimpleSearchableSelect
-                                                                        value={stockViewHub}
-                                                                        onChange={(value) => setStockViewHub(value)}
-                                                                        options={hubOptions}
-                                                                        placeholder="Filter by Hub"
+                                                                        value={stockViewViaHub1 != null ? String(stockViewViaHub1) : null}
+                                                                        onChange={(id) => {
+                                                                            const match = findOptionById("viaHub1", stockViaHub1Options, id);
+                                                                            if (match) pinOption("viaHub1", match);
+                                                                            setStockViewViaHub1(id);
+                                                                        }}
+                                                                        onSearchChange={setQViaHub1}
+                                                                        options={getOptionsForValue("viaHub1", stockViaHub1Options, stockViewViaHub1)}
+                                                                        placeholder="Filter by Via HUB 1"
                                                                         displayKey="name"
                                                                         valueKey="id"
-                                                                        formatOption={(option) => option.name || option.id}
+                                                                        formatOption={(option) => option.name || `Option ${option.id}`}
+                                                                        isLoading={isLoadingDestinationOptions}
                                                                         bg={inputBg}
                                                                         color={inputText}
                                                                         borderColor={borderColor}
+                                                                        {...STOCK_LIST_SELECT_PROPS}
                                                                     />
                                                                 </Box>
-                                                                {stockViewHub && (
+                                                                {stockViewViaHub1 && (
                                                                     <IconButton
                                                                         size="sm"
                                                                         icon={<Icon as={MdClose} />}
                                                                         colorScheme="red"
                                                                         variant="ghost"
-                                                                        onClick={() => setStockViewHub(null)}
-                                                                        aria-label="Clear hub filter"
+                                                                        onClick={() => setStockViewViaHub1(null)}
+                                                                        aria-label="Clear Via HUB 1 filter"
+                                                                    />
+                                                                )}
+                                                            </HStack>
+                                                        </Box>
+
+                                                        {/* Via HUB 2 Filter */}
+                                                        <Box w="220px" minW="200px">
+                                                            <HStack spacing="1">
+                                                                <Box flex="1">
+                                                                    <SimpleSearchableSelect
+                                                                        value={stockViewViaHub2 != null ? String(stockViewViaHub2) : null}
+                                                                        onChange={(id) => {
+                                                                            const match = findOptionById("viaHub2", stockViaHub2Options, id);
+                                                                            if (match) pinOption("viaHub2", match);
+                                                                            setStockViewViaHub2(id);
+                                                                        }}
+                                                                        onSearchChange={setQViaHub2}
+                                                                        options={getOptionsForValue("viaHub2", stockViaHub2Options, stockViewViaHub2)}
+                                                                        placeholder="Filter by Via HUB 2"
+                                                                        displayKey="name"
+                                                                        valueKey="id"
+                                                                        formatOption={(option) => option.name || `Option ${option.id}`}
+                                                                        isLoading={isLoadingDestinationOptions}
+                                                                        bg={inputBg}
+                                                                        color={inputText}
+                                                                        borderColor={borderColor}
+                                                                        {...STOCK_LIST_SELECT_PROPS}
+                                                                    />
+                                                                </Box>
+                                                                {stockViewViaHub2 && (
+                                                                    <IconButton
+                                                                        size="sm"
+                                                                        icon={<Icon as={MdClose} />}
+                                                                        colorScheme="red"
+                                                                        variant="ghost"
+                                                                        onClick={() => setStockViewViaHub2(null)}
+                                                                        aria-label="Clear Via HUB 2 filter"
+                                                                    />
+                                                                )}
+                                                            </HStack>
+                                                        </Box>
+
+                                                        {/* AP Destination Filter */}
+                                                        <Box w="220px" minW="200px">
+                                                            <HStack spacing="1">
+                                                                <Box flex="1">
+                                                                    <SimpleSearchableSelect
+                                                                        value={stockViewApDestination != null ? String(stockViewApDestination) : null}
+                                                                        onChange={(id) => {
+                                                                            const match = findOptionById("apDestination", stockNarviApDestinationOptions, id);
+                                                                            if (match) pinOption("apDestination", match);
+                                                                            setStockViewApDestination(id);
+                                                                        }}
+                                                                        onSearchChange={setQNarviApDestination}
+                                                                        options={getOptionsForValue("apDestination", stockNarviApDestinationOptions, stockViewApDestination)}
+                                                                        placeholder="Filter by AP Destination"
+                                                                        displayKey="name"
+                                                                        valueKey="id"
+                                                                        formatOption={(option) => option.name || `Option ${option.id}`}
+                                                                        isLoading={isLoadingDestinationOptions}
+                                                                        bg={inputBg}
+                                                                        color={inputText}
+                                                                        borderColor={borderColor}
+                                                                        {...STOCK_LIST_SELECT_PROPS}
+                                                                    />
+                                                                </Box>
+                                                                {stockViewApDestination && (
+                                                                    <IconButton
+                                                                        size="sm"
+                                                                        icon={<Icon as={MdClose} />}
+                                                                        colorScheme="red"
+                                                                        variant="ghost"
+                                                                        onClick={() => setStockViewApDestination(null)}
+                                                                        aria-label="Clear AP Destination filter"
                                                                     />
                                                                 )}
                                                             </HStack>
@@ -4979,7 +5326,7 @@ export default function Stocks() {
                                                                     <Input
                                                                         value={stockViewFilterReqNo}
                                                                         onChange={(e) => setStockViewFilterReqNo(e.target.value)}
-                                                                        placeholder="Search by Req No..."
+                                                                        placeholder="Filter by Req No..."
                                                                         bg={inputBg}
                                                                         color={inputText}
                                                                         borderColor={borderColor}
@@ -5005,7 +5352,7 @@ export default function Stocks() {
                                                                     <Input
                                                                         value={stockViewFilterPO}
                                                                         onChange={(e) => setStockViewFilterPO(e.target.value)}
-                                                                        placeholder="Search by PO number..."
+                                                                        placeholder="Filter by PO number..."
                                                                         bg={inputBg}
                                                                         color={inputText}
                                                                         borderColor={borderColor}
@@ -5052,7 +5399,7 @@ export default function Stocks() {
                                                 {/* Results Count */}
                                                 <Text fontSize="sm" color={tableTextColorSecondary}>
                                                     {allFilteredItems.length} of {total_count > 0 ? total_count : stockList.length} stock items
-                                                    {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewHub || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewSearchFilter || vesselViewStatuses.size > 0 || isViewingSelected) && " (filtered)"}
+                                                    {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || vesselViewStatuses.size > 0 || isViewingSelected) && " (filtered)"}
                                                 </Text>
                                             </VStack>
                                         </Card>
@@ -5348,8 +5695,8 @@ export default function Stocks() {
                                                                     </Badge>
                                                                 </Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub2)}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{renderText(getStockViaHub1Display(item))}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{renderText(getStockViaHub2Display(item))}</Text></Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</Text></Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</Text></Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-"}</Text></Td>
@@ -5403,7 +5750,7 @@ export default function Stocks() {
                                                                     </HStack>
                                                                 </Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.currency_id || item.currency)}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{formatStockValueDisplay(item.value)}</Text></Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{renderText(item.internal_remark || "")}</Text></Td>
                                                                 <Td {...cellProps}>
@@ -6084,7 +6431,7 @@ export default function Stocks() {
                                             </Text>
                                             <Text color={tableTextColorSecondary} fontSize="sm" textAlign="center">
                                                 {(() => {
-                                                    const hasStockViewFilters = stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewHub || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewSearchFilter || vesselViewVessel || vesselViewClient || vesselViewStatuses.size > 0 || isViewingSelected;
+                                                    const hasStockViewFilters = stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || vesselViewVessel || vesselViewClient || vesselViewStatuses.size > 0 || isViewingSelected;
                                                     const hasClientViewFilters = clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel || clientViewStatuses.size > 0 || isViewingSelected;
                                                     if (activeTab === 0) {
                                                         return hasStockViewFilters

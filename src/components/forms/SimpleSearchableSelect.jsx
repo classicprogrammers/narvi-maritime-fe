@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useId } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useId, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Input,
@@ -82,6 +82,7 @@ const SimpleSearchableSelect = ({
     minW,
     maxW,
     onFocus: onFocusProp,
+    onBlur: onBlurProp,
     list: _ignoredList,
     autoComplete: _ignoredAutoComplete,
     name: nameProp,
@@ -103,6 +104,24 @@ const SimpleSearchableSelect = ({
       setSearchValue("");
     }
   }, [value, isOpen]);
+
+  const closeAndClearSearch = useCallback(() => {
+    setIsOpen(false);
+    setSearchValue("");
+    if (typeof onSearchChange === "function") {
+      onSearchChange("");
+    }
+  }, [onSearchChange]);
+
+  const hasSearchQuery = String(searchValue).trim() !== "";
+
+  // Server-side search with no matches: close dropdown and clear typed search text
+  useEffect(() => {
+    if (!serverSideSearch || !isOpen || isLoading || !hasSearchQuery) return;
+    if (filteredOptions.length === 0) {
+      closeAndClearSearch();
+    }
+  }, [serverSideSearch, isOpen, isLoading, hasSearchQuery, filteredOptions.length, closeAndClearSearch]);
 
   // When dropdown opens/value changes, set highlighted index
   useEffect(() => {
@@ -140,8 +159,7 @@ const SimpleSearchableSelect = ({
       const isClickInsideDropdown = dropdownRef.current && dropdownRef.current.contains(event.target);
 
       if (!isClickInsideContainer && !isClickInsideDropdown) {
-        setIsOpen(false);
-        setSearchValue("");
+        closeAndClearSearch();
       }
     };
 
@@ -156,7 +174,7 @@ const SimpleSearchableSelect = ({
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-  }, [isOpen]);
+  }, [isOpen, closeAndClearSearch]);
 
   const handleSelect = (e, option) => {
     e.preventDefault();
@@ -164,6 +182,9 @@ const SimpleSearchableSelect = ({
     onChange(option[valueKey]);
     setIsOpen(false);
     setSearchValue("");
+    if (typeof onSearchChange === "function") {
+      onSearchChange("");
+    }
   };
 
   const openDropdown = (prefill = "") => {
@@ -173,6 +194,8 @@ const SimpleSearchableSelect = ({
       onSearchChange(prefill);
     }
   };
+
+  const isStaleNoResultsState = isOpen && !isLoading && filteredOptions.length === 0 && hasSearchQuery;
 
   const handleInputChange = (e) => {
     const newValue = e.target.value;
@@ -186,13 +209,31 @@ const SimpleSearchableSelect = ({
 
   const handleFocus = (e) => {
     onFocusProp?.(e);
+    if (isStaleNoResultsState) {
+      closeAndClearSearch();
+    }
     openDropdown(prefillOnFocus && value ? displayValue : "");
   };
 
   const handleClick = () => {
+    if (isStaleNoResultsState) {
+      closeAndClearSearch();
+      requestAnimationFrame(() => openDropdown(""));
+      return;
+    }
     if (!isOpen) {
       openDropdown(prefillOnFocus && value ? displayValue : "");
     }
+  };
+
+  const handleBlur = (e) => {
+    onBlurProp?.(e);
+    requestAnimationFrame(() => {
+      if (!isOpen) return;
+      if (hasSearchQuery && filteredOptions.length === 0 && !isLoading) {
+        closeAndClearSearch();
+      }
+    });
   };
 
   const handleKeyDown = (e) => {
@@ -200,8 +241,7 @@ const SimpleSearchableSelect = ({
     const n = filteredOptions.length;
     if (n === 0) {
       if (e.key === 'Escape' || e.key === 'Tab') {
-        setIsOpen(false);
-        setSearchValue("");
+        closeAndClearSearch();
       }
       return;
     }
@@ -220,12 +260,10 @@ const SimpleSearchableSelect = ({
         break;
       case 'Escape':
         e.preventDefault();
-        setIsOpen(false);
-        setSearchValue("");
+        closeAndClearSearch();
         break;
       case 'Tab':
-        setIsOpen(false);
-        setSearchValue("");
+        closeAndClearSearch();
         break;
       default:
         break;
@@ -266,10 +304,10 @@ const SimpleSearchableSelect = ({
   const handleClear = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    setSearchValue("");
     onChange("");
     setIsOpen(true);
     setHighlightedIndex(0);
+    setSearchValue("");
     if (typeof onSearchChange === "function") onSearchChange("");
   };
 
@@ -353,6 +391,7 @@ const SimpleSearchableSelect = ({
             onChange={handleInputChange}
             onFocus={handleFocus}
             onClick={handleClick}
+            onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             size={size}

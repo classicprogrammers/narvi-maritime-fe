@@ -6,7 +6,7 @@ import Navbar from "components/navbar/NavbarAdmin.js";
 import Sidebar from "components/sidebar/Sidebar.js";
 import { SidebarContext } from "contexts/SidebarContext";
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { Redirect, Route, Switch, useHistory } from "react-router-dom";
+import { Redirect, Route, Switch, useHistory, useLocation } from "react-router-dom";
 import routes, { hiddenRoutes, getFilteredRoutes } from "routes.js";
 // API Modal component
 import { useUser } from "redux/hooks/useUser";
@@ -21,6 +21,7 @@ export default function Dashboard(props) {
   const [toggleSidebar, setToggleSidebar] = useState(true);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const history = useHistory();
+  const location = useLocation();
   const { user, checkAuth } = useUser();
 
   // Check auth on mount to ensure user data is loaded from localStorage
@@ -57,6 +58,7 @@ export default function Dashboard(props) {
     const isAdmin = (user?.user_type || "user") === "admin";
     return hiddenRoutes.filter((route) => !route.adminOnly || isAdmin);
   }, [user?.user_type]);
+
   // functions for changing the states from components
   const getRoute = () => {
     return window.location.pathname !== "/admin/full-screen-maps";
@@ -77,10 +79,10 @@ export default function Dashboard(props) {
       if (!pathMatchesRoute(pathname, layout, subItem.path, subItem.exact)) return;
       const matchLength = `${layout || ""}${subItem.path || ""}`.length;
       if (!bestMatch || matchLength > bestMatch.matchLength) {
-        bestMatch = { name: subItem.name, matchLength };
+        bestMatch = { item: subItem, matchLength };
       }
     });
-    return bestMatch?.name ?? null;
+    return bestMatch?.item ?? null;
   };
   const isQuotationFormPath = (pathname) => {
     const p = (pathname || "").toLowerCase().replace(/\/$/, "") || "/";
@@ -90,27 +92,41 @@ export default function Dashboard(props) {
       /^\/admin\/quotations\/edit\/\d+/.test(p)
     );
   };
-  const getActiveRoute = (routes) => {
-    const pathname = window.location.pathname;
+  const getStockManagePageTitle = (pathname, location) => {
+    const normalizedPath = (pathname || "").replace(/\/$/, "") || "/";
+    if (normalizedPath !== "/admin/stock-list/stock") {
+      return null;
+    }
+    const state = location?.state || {};
+    const hasSelectedItems = Array.isArray(state.selectedItems) && state.selectedItems.length > 0;
+    const hasBulkIds = Boolean(new URLSearchParams(location?.search || "").get("ids"));
+    return hasSelectedItems || hasBulkIds ? "Edit Stock" : "Add Stock";
+  };
+  const getActiveRoute = (routes, location = {}) => {
+    const pathname = location.pathname || window.location.pathname;
     if (isQuotationFormPath(pathname)) {
       return "Quotations";
+    }
+    const stockManageTitle = getStockManagePageTitle(pathname, location);
+    if (stockManageTitle) {
+      return stockManageTitle;
     }
     let activeRoute = "Dashboard";
     for (let i = 0; i < routes.length; i++) {
       if (routes[i].collapse) {
-        let collapseActiveRoute = getActiveRoute(routes[i].items);
+        let collapseActiveRoute = getActiveRoute(routes[i].items, location);
         if (collapseActiveRoute !== activeRoute) {
           return collapseActiveRoute;
         }
       } else if (routes[i].category) {
-        let categoryActiveRoute = getActiveRoute(routes[i].items);
+        let categoryActiveRoute = getActiveRoute(routes[i].items, location);
         if (categoryActiveRoute !== activeRoute) {
           return categoryActiveRoute;
         }
       } else if (routes[i].submenu) {
         const submenuMatch = findBestSubmenuMatch(pathname, routes[i].layout, routes[i].submenu);
         if (submenuMatch) {
-          return submenuMatch;
+          return submenuMatch.name;
         }
       } else {
         if (pathMatchesRoute(pathname, routes[i].layout, routes[i].path)) {
@@ -120,66 +136,58 @@ export default function Dashboard(props) {
     }
     return activeRoute;
   };
-  const getActiveNavbar = (routes) => {
+
+  const activeBrandText = useMemo(
+    () => getActiveRoute([...routes, ...hiddenRoutes], location),
+    [location.pathname, location.search, location.state]
+  );
+
+  const getActiveNavbar = (routes, pathname = window.location.pathname) => {
     let activeNavbar = false;
     for (let i = 0; i < routes.length; i++) {
       if (routes[i].collapse) {
-        let collapseActiveNavbar = getActiveNavbar(routes[i].items);
+        let collapseActiveNavbar = getActiveNavbar(routes[i].items, pathname);
         if (collapseActiveNavbar !== activeNavbar) {
           return collapseActiveNavbar;
         }
       } else if (routes[i].category) {
-        let categoryActiveNavbar = getActiveNavbar(routes[i].items);
+        let categoryActiveNavbar = getActiveNavbar(routes[i].items, pathname);
         if (categoryActiveNavbar !== activeNavbar) {
           return categoryActiveNavbar;
         }
       } else if (routes[i].submenu) {
-        for (let j = 0; j < routes[i].submenu.length; j++) {
-          if (
-            window.location.href.indexOf(
-              routes[i].layout + routes[i].submenu[j].path
-            ) !== -1
-          ) {
-            return routes[i].submenu[j].secondary;
-          }
+        const submenuMatch = findBestSubmenuMatch(pathname, routes[i].layout, routes[i].submenu);
+        if (submenuMatch?.secondary !== undefined) {
+          return submenuMatch.secondary;
         }
       } else {
-        if (
-          window.location.href.indexOf(routes[i].layout + routes[i].path) !== -1
-        ) {
+        if (pathMatchesRoute(pathname, routes[i].layout, routes[i].path)) {
           return routes[i].secondary;
         }
       }
     }
     return activeNavbar;
   };
-  const getActiveNavbarText = (routes) => {
+  const getActiveNavbarText = (routes, pathname = window.location.pathname) => {
     let activeNavbar = false;
     for (let i = 0; i < routes.length; i++) {
       if (routes[i].collapse) {
-        let collapseActiveNavbar = getActiveNavbarText(routes[i].items);
+        let collapseActiveNavbar = getActiveNavbarText(routes[i].items, pathname);
         if (collapseActiveNavbar !== activeNavbar) {
           return collapseActiveNavbar;
         }
       } else if (routes[i].category) {
-        let categoryActiveNavbar = getActiveNavbarText(routes[i].items);
+        let categoryActiveNavbar = getActiveNavbarText(routes[i].items, pathname);
         if (categoryActiveNavbar !== activeNavbar) {
           return categoryActiveNavbar;
         }
       } else if (routes[i].submenu) {
-        for (let j = 0; j < routes[i].submenu.length; j++) {
-          if (
-            window.location.href.indexOf(
-              routes[i].layout + routes[i].submenu[j].path
-            ) !== -1
-          ) {
-            return routes[i].submenu[j].messageNavbar;
-          }
+        const submenuMatch = findBestSubmenuMatch(pathname, routes[i].layout, routes[i].submenu);
+        if (submenuMatch?.messageNavbar !== undefined) {
+          return submenuMatch.messageNavbar;
         }
       } else {
-        if (
-          window.location.href.indexOf(routes[i].layout + routes[i].path) !== -1
-        ) {
+        if (pathMatchesRoute(pathname, routes[i].layout, routes[i].path)) {
           return routes[i].messageNavbar;
         }
       }
@@ -274,7 +282,7 @@ export default function Dashboard(props) {
               <Navbar
                 onOpen={onOpen}
                 logoText={"Narvi Maritime"}
-                brandText={getActiveRoute([...routes, ...hiddenRoutes])}
+                brandText={activeBrandText}
                 secondary={getActiveNavbar(routes)}
                 message={getActiveNavbarText(routes)}
                 fixed={fixed}

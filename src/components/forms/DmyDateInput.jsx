@@ -20,14 +20,18 @@ export const formatDateForApi = (value) => normalizeToIsoDate(value);
 
 export const formatIsoToDisplayDate = (value) => {
   if (value == null || value === false) return "";
-  const text = String(value).trim();
-  if (!text) return "";
-  const iso = normalizeToIsoDate(text);
+  // Keep raw text (including spaces) while typing free-form deadlines/notes.
+  // Only normalize when the value is a complete date.
+  const text = String(value);
+  const trimmed = text.trim();
+  if (!trimmed) return text;
+
+  const iso = normalizeToIsoDate(trimmed);
   if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
     const [year, month, day] = iso.split("-");
     return `${day}/${month}/${year}`;
   }
-  const dmyMatch = text.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
+  const dmyMatch = trimmed.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
   if (dmyMatch) {
     const [, day, month, year] = dmyMatch;
     return `${day.padStart(2, "0")}/${month.padStart(2, "0")}/${year}`;

@@ -30,10 +30,6 @@ import {
     Card,
     IconButton,
     Badge,
-    Menu,
-    MenuButton,
-    MenuList,
-    MenuItem,
     Modal,
     ModalOverlay,
     ModalContent,
@@ -45,13 +41,13 @@ import {
 } from "@chakra-ui/react";
 import {
     MdSave,
+    MdChevronLeft,
     MdAdd,
     MdContentCopy,
     MdDelete,
     MdClose,
     MdAttachFile,
     MdClose as MdRemove,
-    MdMoreVert,
     MdVisibility,
 } from "react-icons/md";
 import { normalizeStockStatusKey, shouldGenerateStockReportForStatusChange } from "../../../constants/stockStatus";
@@ -60,19 +56,28 @@ import { useUser } from "../../../redux/hooks/useUser";
 import { useMasterData } from "../../../hooks/useMasterData";
 import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
 import api from "../../../api/axios";
-import { createStockItemApi } from "../../../api/stock";
+import { createStockItemApi, updateStockItemApi } from "../../../api/stock";
+import { AssignToRowsBelowMenu, CellWithAssignMenu } from "../../../components/forms/AssignToRowsBelowMenu";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
-import StockDestinationSelect from "../../../components/forms/StockDestinationSelect";
+import StockValueInput from "../../../components/forms/StockValueInput";
 import useStockDestinationOptions from "../../../hooks/useStockDestinationOptions";
 import useStockFormRemoteSelects from "../../../hooks/useStockFormRemoteSelects";
+import useStockListOptionPins from "../../../hooks/useStockListOptionPins";
+import { mergeSelectedIntoOptions } from "../../../utils/stockFormSelectUtils";
 import {
-    buildStockDestinationIdsPayload,
     buildStockDestinationNewPayload,
+    formatStockDestinationDisplay,
     getStockM2OId,
     getStockM2OName,
-    mergeStockDestinationOptions,
 } from "../../../utils/stockDestinationOptions";
 import { buildStockCreateLinePayload } from "../../../utils/stockCreatePayload";
+import {
+    filterItemsWithBulkSaveFailures,
+    filterRowsWithBulkSaveFailures,
+    getStockBulkSaveResultData,
+    hasStockBulkSaveErrors,
+    showStockBulkSaveToasts,
+} from "../../../utils/stockBulkSaveResult";
 import {
     createAppendStockReportPdfOnStatusChange,
     createSaveRowBeforeStockReportPdf,
@@ -91,6 +96,14 @@ import {
   buildStockSoIdPayloadValue,
 } from "../../../utils/shippingOrderListState";
 import { isStockOriginHubFormField, normalizeStockOriginHubText } from "../../../utils/stockOriginHubText";
+import {
+    getStockLocationOptionName,
+    getStockViaHub1Display,
+    getStockViaHub2Display,
+    resolveStockLocationOptionId,
+    toStockLocationPayloadId,
+} from "../../../utils/stockLocationOptions";
+import { normalizeStockValueForForm, normalizeStockValueForSave } from "../../../utils/stockValue";
 
 export default function StockForm() {
     const history = useHistory();
@@ -98,18 +111,29 @@ export default function StockForm() {
     const { id } = useParams();
     const searchParams = new URLSearchParams(location.search);
     const bulkIds = searchParams.get('ids');
-    const isBulkEdit = !!bulkIds;
-    const isEditing = !!id || isBulkEdit;
+    const stateData = location.state || {};
+    const selectedItemsFromState = stateData.selectedItems || [];
+    const filterState = stateData.filterState || null;
+    const sourcePage = stateData.sourcePage || null;
+    const isEditFromList = selectedItemsFromState.length > 0;
+    const isBulkEdit = !!bulkIds || (isEditFromList && (stateData.isBulkEdit || selectedItemsFromState.length > 1));
+    const isEditing = !!id || isBulkEdit || isEditFromList;
     const toast = useToast();
     const { user } = useUser();
     const { updateStockItem, getStockList, updateLoading, stockList } = useStock();
     const { clients, vessels, suppliers, countries, pics, currencies, refreshClients, refreshVessels } = useMasterData();
     const {
         destinationOptions,
-        apDestinationOptions,
+        viaHub1Options,
+        viaHub2Options,
+        narviApDestinationOptions,
+        isLoading: isLoadingDestinationOptions,
         setQDestination,
-        setQApDestination,
+        setQViaHub1,
+        setQViaHub2,
+        setQNarviApDestination,
     } = useStockDestinationOptions();
+    const { pinOption, seedOption, getOptionsForValue, findOptionById } = useStockListOptionPins();
     const {
         shippingOrders,
         isLoadingShippingOrders,
@@ -131,11 +155,11 @@ export default function StockForm() {
         masterSuppliers: suppliers,
         masterVessels: vessels,
     });
-    const [isLoading, setIsLoading] = useState(isEditing);
+    const [isLoading, setIsLoading] = useState(isEditing && !isEditFromList);
     const [selectedItems, setSelectedItems] = useState([]);
-    const [currentItemIndex, setCurrentItemIndex] = useState(0);
     const hasFetchedCurrenciesRef = React.useRef(false);
     const hasPatchedLegacySoIdRef = React.useRef(false);
+    const hasInitializedFromListRef = useRef(false);
 
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
@@ -206,6 +230,8 @@ export default function StockForm() {
         expReadyInStock: "", // Ready ex Supplier - date field
         warehouseId: "", // Free text + textarea
         dateOnStock: "", // Date field
+        shippedDate: "", // Shipped date
+        deliveredDate: "", // Delivered date
         item: "", // PCS - numbers
         weightKgs: "", // Weight kgs - numbers
         lengthCm: "", // Length cm - numbers
@@ -216,15 +242,12 @@ export default function StockForm() {
         dgUn: "", // DG/UN Number - Free text
         value: "", // Value - numbers
         currency: null, // Currency ID
-        origin_text: "", // Origin - Airport code or Country
-        viaHub: "", // Via HUB 1 - Airport code
-        viaHub2: "", // Via HUB 2 - Airport code
-        apDestination: "", // AP Destination - Free text
-        apDestinationId: null,
-        apDestinationSelect: "",
-        destination: "", // Destination - Free text
+        originId: null,
+        origin_text: "",
+        narviStockViaHub1: null,
+        narviStockViaHub2: null,
+        narviStockApDestination: null,
         destinationId: null,
-        destinationSelect: "",
         shippingDoc: "", // Shipping Docs - Free text + textarea
         exportDoc: "", // Export doc 1 - Free text + textarea
         exportDoc2: "", // Export doc 2 - Free text + textarea
@@ -352,6 +375,7 @@ export default function StockForm() {
 
     useEffect(() => {
         const loadStockItems = async () => {
+            if (isEditFromList) return;
             if (!(isBulkEdit && bulkIds) && !(isEditing && id)) {
                 return;
             }
@@ -417,6 +441,7 @@ export default function StockForm() {
         id,
         isEditing,
         isBulkEdit,
+        isEditFromList,
         bulkIds,
         history,
         toast,
@@ -446,7 +471,9 @@ export default function StockForm() {
             let changed = false;
             const next = prev.map((row) => {
                 if (row.soId != null || !row.stockId) return row;
-                const stock = stockList?.find((s) => String(s.id) === String(row.stockId));
+                const stock =
+                    stockList?.find((s) => String(s.id) === String(row.stockId)) ||
+                    selectedItemsFromState.find((s) => String(s.id) === String(row.stockId));
                 if (!stock) return row;
                 const soId = normalizeStockFormSoId(resolveStockSoIdForForm(stock, shippingOrders));
                 if (!soId) return row;
@@ -455,7 +482,7 @@ export default function StockForm() {
             });
             return changed ? next : prev;
         });
-    }, [shippingOrders, isEditing, stockList]);
+    }, [shippingOrders, isEditing, stockList, selectedItemsFromState]);
 
     // Normalize currency values when currencies are loaded
     useEffect(() => {
@@ -490,28 +517,67 @@ export default function StockForm() {
     const hasSyncedVesselsRef = React.useRef(false);
     const hasSyncedSuppliersRef = React.useRef(false);
 
-    // Convert origin ID to country name when formRows load
+    const resolveOriginCountryId = useCallback((stock) => {
+        const raw = stock?.origin_text ?? stock?.origin ?? "";
+        const text = normalizeStockOriginHubText(
+            raw === null || raw === undefined || raw === false ? "" : String(raw)
+        );
+        if (!text) return null;
+        if (/^\d+$/.test(text)) {
+            const byId = countries.find((c) => String(c.id || c.country_id) === text);
+            if (byId) return byId.id || byId.country_id;
+        }
+        const match = countries.find((c) => {
+            const name = normalizeStockOriginHubText(c.name || "");
+            const code = normalizeStockOriginHubText(c.code || "");
+            return name === text || code === text;
+        });
+        return match ? (match.id || match.country_id) : null;
+    }, [countries]);
+
+    const seedLocationPinsFromStock = useCallback((stock, rowData) => {
+        const pick = (val, fallback = "") =>
+            val === null || val === undefined || val === false ? fallback : String(val || fallback);
+        seedOption("viaHub1", rowData.narviStockViaHub1, getStockViaHub1Display(stock));
+        seedOption("viaHub2", rowData.narviStockViaHub2, getStockViaHub2Display(stock));
+        seedOption(
+            "apDestination",
+            rowData.narviStockApDestination,
+            formatStockDestinationDisplay(stock, "ap")
+        );
+        seedOption(
+            "destination",
+            rowData.destinationId,
+            getStockM2OName(stock.destination_ids) ||
+            pick(stock.destination_new, pick(stock.destination))
+        );
+        seedOption("origin", rowData.originId, rowData.origin_text);
+    }, [seedOption]);
+
+    // Convert legacy origin id/text to originId when formRows load
     useEffect(() => {
-        if (!formRows.length) return;
-        const countriesList = getCached(MASTER_KEYS.COUNTRIES) ?? [];
-        if (!countriesList.length || hasSyncedCountriesRef.current) return;
+        if (!formRows.length || !countries.length) return;
+        if (hasSyncedCountriesRef.current) return;
         hasSyncedCountriesRef.current = true;
         setFormRows((prevRows) =>
             prevRows.map((row) => {
-                if (!row.origin_text) return row;
-                const normalizedValue = String(row.origin_text);
-                if (!/^\d+$/.test(normalizedValue)) return row;
-                const country = countriesList.find((c) => {
-                    const cId = c.id || c.country_id;
-                    return String(cId) === normalizedValue;
+                if (row.originId) return row;
+                const text = normalizeStockOriginHubText(row.origin_text || "");
+                if (!text) return row;
+                const match = countries.find((c) => {
+                    const name = normalizeStockOriginHubText(c.name || "");
+                    const code = normalizeStockOriginHubText(c.code || "");
+                    return name === text || code === text || String(c.id) === text;
                 });
-                if (country) {
-                    return { ...row, origin_text: normalizeStockOriginHubText(country.name || country.code || normalizedValue) };
-                }
-                return row;
+                if (!match) return row;
+                return {
+                    ...row,
+                    originId: match.id || match.country_id,
+                    origin_text: normalizeStockOriginHubText(match.name || match.code || text),
+                };
             })
         );
-    }, [formRows]);
+    }, [formRows, countries]);
 
     useEffect(() => {
         const uniqueClientIds = [...new Set(formRows.map((row) => row.client).filter(Boolean).map((clientId) => String(clientId)))];
@@ -557,9 +623,11 @@ export default function StockForm() {
                     const vesselDestId = exactMatch.destination_id || exactMatch.destination;
                     if (vesselDestId) {
                         const destId = String(vesselDestId);
-                        updatedRow.destination = destId;
+                        updatedRow.destinationId = Number.isFinite(Number(destId)) ? Number(destId) : null;
                         updatedRow.vesselDestination = destId;
-                        updatedRow.apDestination = destId;
+                        if (Number.isFinite(Number(destId))) {
+                            updatedRow.narviStockApDestination = Number(destId);
+                        }
                     }
                     if (exactMatch.eta || exactMatch.eta_date) {
                         const etaDate = exactMatch.eta_date || exactMatch.eta;
@@ -577,9 +645,11 @@ export default function StockForm() {
                     const vesselDestId = fallbackMatch.destination_id || fallbackMatch.destination;
                     if (vesselDestId) {
                         const destId = String(vesselDestId);
-                        updatedRow.destination = destId;
+                        updatedRow.destinationId = Number.isFinite(Number(destId)) ? Number(destId) : null;
                         updatedRow.vesselDestination = destId;
-                        updatedRow.apDestination = destId;
+                        if (Number.isFinite(Number(destId))) {
+                            updatedRow.narviStockApDestination = Number(destId);
+                        }
                     }
                     if (fallbackMatch.eta || fallbackMatch.eta_date) {
                         const etaDate = fallbackMatch.eta_date || fallbackMatch.eta;
@@ -711,7 +781,21 @@ export default function StockForm() {
         // Handle false, null, undefined, and empty strings as empty
         const normalizeId = (value) => {
             if (value === null || value === undefined || value === "" || value === false) return "";
+            if (typeof value === "object" && value !== null) {
+                if (value.id !== undefined && value.id !== null && value.id !== false && value.id !== "") {
+                    return String(value.id);
+                }
+                return "";
+            }
             return String(value);
+        };
+
+        const resolveRelationId = (...candidates) => {
+            for (const candidate of candidates) {
+                const id = normalizeId(candidate);
+                if (id) return id;
+            }
+            return "";
         };
 
         // Helper to get field value, treating false as empty
@@ -724,16 +808,18 @@ export default function StockForm() {
             id: stock.id || Date.now() + Math.random(),
             stockId: stock.id || null, // Store the original stock ID for updates
             stockItemId: getFieldValue(stock.stock_item_id),
-            client: normalizeId(stock.client_id) || normalizeId(stock.client) || "",
-            vessel: normalizeId(stock.vessel_id) || normalizeId(stock.vessel) || "",
-            pic: normalizeId(stock.pic_new) || normalizeId(stock.pic_id) || normalizeId(stock.pic) || null, // PIC ID
+            client: resolveRelationId(stock.client_id, stock.client),
+            vessel: resolveRelationId(stock.vessel_id, stock.vessel),
+            pic: resolveRelationId(stock.pic_new, stock.pic_id, stock.pic) || null,
             stockStatus: normalizeStockStatusKey(getFieldValue(stock.stock_status)),
-            supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
+            supplier: resolveRelationId(stock.supplier_id, stock.supplier),
             poNumber: getFieldValue(stock.po_text) || "",
             reqNo: getFieldValue(stock.req_no) || "",
             expReadyInStock: getFieldValue(stock.exp_ready_in_stock) || "",
             warehouseId: getFieldValue(stock.warehouse_new) || getFieldValue(stock.warehouse_id) || "",
             dateOnStock: getFieldValue(stock.date_on_stock) || "",
+            shippedDate: getFieldValue(stock.shipped_date) || "",
+            deliveredDate: getFieldValue(stock.delivered_date) || "",
             item: stock.item || stock.items || stock.item_id || stock.stock_items_quantity || "",
             weightKgs: getFieldValue(stock.weight_kg ?? stock.weight_kgs, ""),
             lengthCm: getFieldValue(stock.length_cm, ""),
@@ -742,36 +828,26 @@ export default function StockForm() {
             volumeNoDim: getFieldValue(stock.volume_no_dim ?? stock.volume_dim ?? stock.volume_cbm, ""),
             lwhText: getFieldValue(stock.lwh_text),
             dgUn: getFieldValue(stock.dg_un) || "",
-            value: getFieldValue(stock.value, ""),
-            currency: normalizeId(stock.currency_id) || normalizeId(stock.currency) || null, // Currency ID
-            origin_text: (() => {
-                // If origin_text is already text (from previous saves), use it directly
-                if (stock.origin_text && typeof stock.origin_text === 'string' && !/^\d+$/.test(stock.origin_text)) {
-                    return normalizeStockOriginHubText(stock.origin_text);
-                }
-                // Backward compatibility: check origin field
-                if (stock.origin && typeof stock.origin === 'string' && !/^\d+$/.test(stock.origin)) {
-                    return normalizeStockOriginHubText(stock.origin);
-                }
-                // Otherwise, keep as ID - will be converted to name in useEffect
-                return normalizeId(stock.origin_id) || normalizeId(stock.origin) || "";
-            })(),
-            viaHub: normalizeStockOriginHubText(getFieldValue(stock.via_hub, "")),
-            viaHub2: normalizeStockOriginHubText(getFieldValue(stock.via_hub2, "")),
-            apDestination: getFieldValue(stock.ap_destination_new) || getFieldValue(stock.ap_destination) || "",
-            apDestinationId: getStockM2OId(stock.ap_destination_ids),
-            apDestinationSelect:
-                getStockM2OName(stock.ap_destination_ids) ||
-                getFieldValue(stock.ap_destination_new) ||
-                getFieldValue(stock.ap_destination) ||
-                "",
-            destination: getFieldValue(stock.destination_new) || getFieldValue(stock.destination) || "",
+            value: normalizeStockValueForForm(getFieldValue(stock.value, "")),
+            currency: resolveRelationId(stock.currency_id, stock.currency) || null,
+            originId: resolveOriginCountryId(stock),
+            origin_text: normalizeStockOriginHubText(
+                (stock.origin_text && typeof stock.origin_text === "string" && !/^\d+$/.test(stock.origin_text))
+                    ? stock.origin_text
+                    : (stock.origin && typeof stock.origin === "string" && !/^\d+$/.test(stock.origin))
+                        ? stock.origin
+                        : (() => {
+                            const cid = resolveOriginCountryId(stock);
+                            const country = countries.find((c) => String(c.id || c.country_id) === String(cid));
+                            return country ? (country.name || country.code || "") : "";
+                        })()
+            ),
+            narviStockViaHub1: resolveStockLocationOptionId(stock.narvi_stock_via_hub1),
+            narviStockViaHub2: resolveStockLocationOptionId(stock.narvi_stock_via_hub2),
+            narviStockApDestination:
+                resolveStockLocationOptionId(stock.narvi_stock_ap_destination) ??
+                getStockM2OId(stock.ap_destination_ids),
             destinationId: getStockM2OId(stock.destination_ids),
-            destinationSelect:
-                getStockM2OName(stock.destination_ids) ||
-                getFieldValue(stock.destination_new) ||
-                getFieldValue(stock.destination) ||
-                "",
             shippingDoc: getFieldValue(stock.shipping_doc),
             exportDoc: getFieldValue(stock.export_doc),
             exportDoc2: getFieldValue(stock.export_doc_2),
@@ -807,39 +883,82 @@ export default function StockForm() {
             })) : [],
         };
 
+        seedLocationPinsFromStock(stock, rowData);
+
         if (returnData) {
             return rowData;
         }
         setFormRows([rowData]);
     };
 
-    // Copy value to rows below
-    const copyValueToRowsBelow = (rowIndex, field, copyToAll = false) => {
-        setFormRows(prev => {
+    // Load items passed from stock list (edit via add-stock route)
+    useEffect(() => {
+        if (!isEditFromList) return;
+        if (hasInitializedFromListRef.current) return;
+        hasInitializedFromListRef.current = true;
+
+        const rows = selectedItemsFromState.map((item) => loadFormDataFromStock(item, true));
+        setSelectedItems(selectedItemsFromState);
+        setFormRows(rows.length > 0 ? rows : [getEmptyRow()]);
+        setIsLoading(false);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isEditFromList, selectedItemsFromState]);
+
+    const navigateBackFromEdit = useCallback(() => {
+        if (filterState) {
+            const backPath = sourcePage === "stocks"
+                ? "/admin/stock-list/stocks"
+                : "/admin/stock-list/main-db";
+            history.push({
+                pathname: backPath,
+                state: { filterState, fromEdit: true },
+            });
+        } else {
+            history.goBack();
+        }
+    }, [filterState, sourcePage, history]);
+
+    // Copy value(s) to row(s) below
+    const copyValueToRowsBelow = (rowIndex, fields, copyToAll = false) => {
+        const fieldList = Array.isArray(fields) ? fields : [fields];
+
+        setFormRows((prev) => {
             const newRows = [...prev];
-            const sourceValue = newRows[rowIndex][field];
+            const sourceValues = {};
+            fieldList.forEach((field) => {
+                sourceValues[field] = newRows[rowIndex][field];
+            });
+
+            const applyCopy = (targetIndex) => {
+                newRows[targetIndex] = {
+                    ...newRows[targetIndex],
+                    ...sourceValues,
+                };
+            };
 
             if (copyToAll) {
-                // Copy to all rows below
                 for (let i = rowIndex + 1; i < newRows.length; i++) {
-                    newRows[i] = {
-                        ...newRows[i],
-                        [field]: sourceValue
-                    };
+                    applyCopy(i);
                 }
-            } else {
-                // Copy only to the next row below
-                if (rowIndex + 1 < newRows.length) {
-                    newRows[rowIndex + 1] = {
-                        ...newRows[rowIndex + 1],
-                        [field]: sourceValue
-                    };
-                }
+            } else if (rowIndex + 1 < newRows.length) {
+                applyCopy(rowIndex + 1);
             }
 
             return newRows;
         });
     };
+
+    const assignCell = (rowIndex, fields, children, align = "center") => (
+        <CellWithAssignMenu
+            rowIndex={rowIndex}
+            fields={fields}
+            onCopy={copyValueToRowsBelow}
+            totalRows={formRows.length}
+            align={align}
+        >
+            {children}
+        </CellWithAssignMenu>
+    );
 
     // Handle file upload for attachments
     const handleFileUpload = (rowIndex, files) => {
@@ -957,10 +1076,10 @@ export default function StockForm() {
                 const nextClient = processedValue == null ? "" : String(processedValue);
                 if (previousClient !== nextClient) {
                     updatedRow.vessel = "";
-                    updatedRow.destination = "";
+                    updatedRow.destinationId = null;
                     updatedRow.vesselDestination = "";
                     updatedRow.vesselEta = "";
-                    updatedRow.apDestination = "";
+                    updatedRow.narviStockApDestination = null;
                 }
             }
 
@@ -975,8 +1094,7 @@ export default function StockForm() {
                     const vesselDestinationName = selectedVessel.destination_name || selectedVessel.destination; // Try to get name
                     if (vesselDestinationId) {
                         const destId = String(vesselDestinationId);
-                        updatedRow.destination = destId; // For destination field
-                        updatedRow.apDestination = destId; // For ap_destination field
+                        updatedRow.destinationId = Number.isFinite(Number(destId)) ? Number(destId) : null;
                     }
                     // vessel_destination is now free text - fill with name if available, or leave empty
                     if (vesselDestinationName && typeof vesselDestinationName === 'string') {
@@ -1092,7 +1210,6 @@ export default function StockForm() {
             currencies,
             pics,
             destinationOptions,
-            apDestinationOptions,
             shippingOrders,
             normalizeStockStatusKey,
             removeSIPrefix,
@@ -1106,7 +1223,6 @@ export default function StockForm() {
             currencies,
             pics,
             destinationOptions,
-            apDestinationOptions,
             shippingOrders,
         ]
     );
@@ -1142,15 +1258,14 @@ export default function StockForm() {
             stock_items_quantity: rowData.itemId ? String(rowData.itemId) : "", // Also include stock_items_quantity
             item: rowData.item !== "" && rowData.item !== null && rowData.item !== undefined ? toNumber(rowData.item) || 0 : 0,
             currency_id: rowData.currency ? String(rowData.currency) : "",
-            origin_text: normalizeStockOriginHubText(rowData.origin_text),
-            ap_destination_ids: buildStockDestinationIdsPayload(
-                rowData.apDestinationId,
-                rowData.apDestinationSelect,
-                apDestinationOptions
-            ),
-            ap_destination_new: "",
-            via_hub: normalizeStockOriginHubText(rowData.viaHub), // Free text field
-            via_hub2: normalizeStockOriginHubText(rowData.viaHub2), // Free text field
+            origin_text: (() => {
+                const country = countries.find((c) => String(c.id || c.country_id) === String(rowData.originId));
+                if (country) return normalizeStockOriginHubText(country.name || country.code || "");
+                return normalizeStockOriginHubText(rowData.origin_text);
+            })(),
+            narvi_stock_via_hub1: toStockLocationPayloadId(rowData.narviStockViaHub1),
+            narvi_stock_via_hub2: toStockLocationPayloadId(rowData.narviStockViaHub2),
+            narvi_stock_ap_destination: toStockLocationPayloadId(rowData.narviStockApDestination),
             client_access: Boolean(rowData.clientAccess),
             remarks: rowData.remarks || "",
             internal_remark: rowData.internalRemark || "",
@@ -1163,12 +1278,12 @@ export default function StockForm() {
             // LWH text: raw text + array of lines
             lwh_text: rowData.lwhText || "",
             cw_air_freight_new: toNumber(rowData.cwAirfreight) || 0,
-            value: toNumber(rowData.value) || 0,
+            value: normalizeStockValueForSave(rowData.value),
             shipment_type: "", // Include shipment_type as empty string
             extra: rowData.extra2 || "",
             destination_new: buildStockDestinationNewPayload(
                 rowData.destinationId,
-                rowData.destinationSelect,
+                findOptionById("destination", destinationOptions, rowData.destinationId)?.name || "",
                 destinationOptions
             ),
             warehouse_new: rowData.warehouseId || "", // Warehouse - Free text
@@ -1275,7 +1390,7 @@ export default function StockForm() {
 
     const handleSaveStockItem = async () => {
         try {
-            if (isBulkEdit && selectedItems.length > 0) {
+            if ((isBulkEdit || isEditFromList) && (selectedItems.length > 0 || isEditFromList)) {
                 // Bulk update - send all rows in a single payload with lines array
                 if (formRows.length === 0) {
                     throw new Error('No data to save');
@@ -1292,20 +1407,32 @@ export default function StockForm() {
                 // Send all lines in a single payload
                 const payload = { lines };
                 const result = await updateStockItemApi(id || formRows[0]?.stockId, payload);
+                const resultData = getStockBulkSaveResultData(result);
 
-                if (result && result.result && result.result.status === 'success') {
-                    const apiMessage = result.result.message;
-                    toast({
-                        title: 'Success',
-                        description: apiMessage || `${lines.length} stock item(s) updated successfully`,
-                        status: 'success',
-                        duration: 3000,
-                        isClosable: true,
+                if (resultData?.status === "success") {
+                    showStockBulkSaveToasts(resultData, toast, {
+                        fallbackSummary: `${lines.length} stock item(s) updated successfully`,
                     });
                     getStockList();
-                    history.push("/admin/stock-list/main-db");
+                    if (!hasStockBulkSaveErrors(resultData)) {
+                        if (isEditFromList) {
+                            navigateBackFromEdit();
+                        } else {
+                            history.push("/admin/stock-list/main-db");
+                        }
+                    } else {
+                        const failedRows = filterRowsWithBulkSaveFailures(formRows, resultData);
+                        if (failedRows.length > 0) {
+                            setFormRows(failedRows);
+                            const sourceItems = selectedItems.length > 0 ? selectedItems : selectedItemsFromState;
+                            const failedItems = filterItemsWithBulkSaveFailures(sourceItems, resultData);
+                            if (failedItems.length > 0) {
+                                setSelectedItems(failedItems);
+                            }
+                        }
+                    }
                 } else {
-                    throw new Error(result?.result?.message || result?.message || 'Failed to update stock items');
+                    throw new Error(resultData?.message || result?.message || "Failed to update stock items");
                 }
             } else if (isEditing && id) {
                 // Update existing single item - use first row, wrap in lines array
@@ -1315,19 +1442,22 @@ export default function StockForm() {
                 const linePayload = getPayload(formRows[0], true); // Include stock_id
                 const payload = { lines: [linePayload] };
                 const result = await updateStockItemApi(id, payload);
-                if (result && result.result && result.result.status === 'success') {
-                    const apiMessage = result.result.message;
-                    toast({
-                        title: 'Success',
-                        description: apiMessage || 'Stock item updated successfully',
-                        status: 'success',
-                        duration: 3000,
-                        isClosable: true,
+                const resultData = getStockBulkSaveResultData(result);
+
+                if (resultData?.status === "success") {
+                    showStockBulkSaveToasts(resultData, toast, {
+                        fallbackSummary: "Stock item updated successfully",
                     });
                     getStockList();
-                    history.push("/admin/stock-list/main-db");
+                    if (!hasStockBulkSaveErrors(resultData)) {
+                        if (isEditFromList) {
+                            navigateBackFromEdit();
+                        } else {
+                            history.push("/admin/stock-list/main-db");
+                        }
+                    }
                 } else {
-                    throw new Error(result?.result?.message || result?.message || 'Failed to update stock item');
+                    throw new Error(resultData?.message || result?.message || "Failed to update stock item");
                 }
             } else {
                 // Create new - save all rows (one record per row)
@@ -1357,38 +1487,23 @@ export default function StockForm() {
                 if (result && result.result) {
                     const resultData = result.result;
 
-                    // Check for errors even if status is "success"
-                    if ((resultData.error_count && resultData.error_count > 0) ||
-                        (resultData.errors && Array.isArray(resultData.errors) && resultData.errors.length > 0)) {
-
-                        // Extract error messages from errors array
-                        const errorMessages = resultData.errors
-                            ? resultData.errors.map(err => err.message || `${err.field}: ${err.message || 'Unknown error'}`).join('; ')
-                            : resultData.message || 'Failed to create stock items';
-
-                        toast({
-                            title: 'Error',
-                            description: errorMessages,
-                            status: 'error',
-                            duration: 8000,
-                            isClosable: true,
+                    if (resultData.status === "success") {
+                        showStockBulkSaveToasts(resultData, toast, {
+                            fallbackSummary: "Stock items created successfully",
                         });
-                        throw new Error(errorMessages);
-                    }
-
-                    // Success case - no errors
-                    if (resultData.status === 'success') {
-                        const successCount = resultData.created_count || lines.length;
-                        toast({
-                            title: 'Success',
-                            description: `${successCount} stock item(s) created successfully`,
-                            status: 'success',
-                            duration: 3000,
-                            isClosable: true,
-                        });
-                        setAddStockHasDataFlag(false);
-                        getStockList();
-                        history.push("/admin/stock-list/stocks");
+                        if (!hasStockBulkSaveErrors(resultData)) {
+                            setAddStockHasDataFlag(false);
+                            getStockList();
+                            history.push("/admin/stock-list/stocks");
+                        } else {
+                            getStockList();
+                            const failedRows = filterRowsWithBulkSaveFailures(formRows, resultData, {
+                                getRowId: () => null,
+                            });
+                            if (failedRows.length > 0) {
+                                setFormRows(failedRows);
+                            }
+                        }
                     } else {
                         const errorMsg = resultData.message || result?.message || 'Failed to create stock items';
                         toast({
@@ -1450,11 +1565,22 @@ export default function StockForm() {
                 borderColor={borderColor}
             >
                 <HStack spacing="4">
+                    {isEditFromList && (
+                        <IconButton
+                            icon={<Icon as={MdChevronLeft} />}
+                            size="sm"
+                            variant="ghost"
+                            aria-label="Back"
+                            onClick={navigateBackFromEdit}
+                        />
+                    )}
                     <Text fontSize={{ base: "sm", md: "md" }} fontWeight="bold" color={textColor}>
                         {isBulkEdit
-                            ? `Bulk Edit Stock Items (${currentItemIndex + 1} of ${selectedItems.length})`
+                            ? `Bulk Edit Stock Items (${selectedItems.length || formRows.length})`
                             : isEditing
-                                ? "Edit Stock Item"
+                                ? isEditFromList
+                                    ? `Edit Stock Item${formRows.length > 1 ? `s (${formRows.length})` : ""}`
+                                    : "Edit Stock Item"
                                 : "Create New Stock Item"}
                     </Text>
                 </HStack>
@@ -1503,62 +1629,14 @@ export default function StockForm() {
                         isLoading={updateLoading}
                         loadingText="Saving..."
                     >
-                        {isBulkEdit
-                            ? `Update All (${selectedItems.length} items)`
+                        {isBulkEdit || isEditFromList
+                            ? `Update All (${selectedItems.length || formRows.length} items)`
                             : isEditing
                                 ? "Update Stock Item"
                                 : `Save ${formRows.length} Item(s)`}
                     </Button>
                 </HStack>
             </Flex>
-
-            {/* Bulk Edit Navigation */}
-            {isBulkEdit && selectedItems.length > 1 && (
-                <Flex
-                    bg={cardBg}
-                    px={{ base: "4", md: "6" }}
-                    py="2"
-                    justify="space-between"
-                    align="center"
-                    borderBottom="1px"
-                    borderColor={borderColor}
-                >
-                    <HStack spacing="2">
-                        <Button
-                            size="xs"
-                            onClick={() => {
-                                if (currentItemIndex > 0) {
-                                    const newIndex = currentItemIndex - 1;
-                                    setCurrentItemIndex(newIndex);
-                                    loadFormDataFromStock(selectedItems[newIndex]);
-                                }
-                            }}
-                            isDisabled={currentItemIndex === 0}
-                        >
-                            Previous
-                        </Button>
-                        <Text fontSize="sm" color={textColor}>
-                            Item {currentItemIndex + 1} of {selectedItems.length}
-                        </Text>
-                        <Button
-                            size="xs"
-                            onClick={() => {
-                                if (currentItemIndex < selectedItems.length - 1) {
-                                    const newIndex = currentItemIndex + 1;
-                                    setCurrentItemIndex(newIndex);
-                                    loadFormDataFromStock(selectedItems[newIndex]);
-                                }
-                            }}
-                            isDisabled={currentItemIndex === selectedItems.length - 1}
-                        >
-                            Next
-                        </Button>
-                    </HStack>
-                    <Text fontSize="xs" color="gray.500">
-                        Changes will apply to all {selectedItems.length} selected items
-                    </Text>
-                </Flex>
-            )}
 
             {/* Main Content Area - Horizontal Table Form */}
             <Box bg={cardBg} p={{ base: "4", md: "6" }} overflowX="auto">
@@ -1580,6 +1658,8 @@ export default function StockForm() {
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Ready ex Supplier</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Warehouse ID</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Date on Stock</Th>
+                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Shipped Date</Th>
+                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Delivered Date</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PCS</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Weight kgs</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Dimension</Th>
@@ -1624,191 +1704,238 @@ export default function StockForm() {
                                             </Td>
                                         )}
                                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                                            <SimpleSearchableSelect
-                                                value={row.client}
-                                                onChange={(value) => handleInputChange(rowIndex, "client", value)}
-                                                options={getClientOptionsForValue(row.client)}
-                                                placeholder="Select Client"
-                                                displayKey="name"
-                                                valueKey="id"
-                                                formatOption={(option) => option.name || `Client ${option.id}`}
-                                                isLoading={isLoadingClients}
-                                                onSearchChange={handleClientSearchChange}
-                                                {...stockFormSelectDropdownProps}
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                                autoWidth
-                                                autoWidthMin={18}
-                                                autoWidthMax={50}
-                                            />
+                                            {assignCell(rowIndex, "client",
+                                                <SimpleSearchableSelect
+                                                    value={row.client}
+                                                    onChange={(value) => handleInputChange(rowIndex, "client", value)}
+                                                    options={getClientOptionsForValue(row.client)}
+                                                    placeholder="Select Client"
+                                                    displayKey="name"
+                                                    valueKey="id"
+                                                    formatOption={(option) => option.name || `Client ${option.id}`}
+                                                    isLoading={isLoadingClients}
+                                                    onSearchChange={handleClientSearchChange}
+                                                    {...stockFormSelectDropdownProps}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                    autoWidth
+                                                    autoWidthMin={18}
+                                                    autoWidthMax={50}
+                                                />
+                                            )}
                                         </Td>
                                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                                            <SimpleSearchableSelect
-                                                value={row.vessel}
-                                                onChange={(value) => handleInputChange(rowIndex, "vessel", value)}
-                                                options={getVesselOptionsForClient(row.client, row.vessel)}
-                                                placeholder="Select Vessel"
-                                                displayKey="name"
-                                                valueKey="id"
-                                                formatOption={(option) => option.name || String(option.id ?? "")}
-                                                isLoading={Boolean(isLoadingVesselByClient[getVesselLoadingKey(row.client)])}
-                                                onSearchChange={(q) => handleVesselSearchChange(row.client, q)}
-                                                {...stockFormSelectDropdownProps}
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                                autoWidth
-                                                autoWidthMin={18}
-                                                autoWidthMax={50}
-                                            />
+                                            {assignCell(rowIndex, "vessel",
+                                                <SimpleSearchableSelect
+                                                    value={row.vessel}
+                                                    onChange={(value) => handleInputChange(rowIndex, "vessel", value)}
+                                                    options={getVesselOptionsForClient(row.client, row.vessel)}
+                                                    placeholder="Select Vessel"
+                                                    displayKey="name"
+                                                    valueKey="id"
+                                                    formatOption={(option) => option.name || String(option.id ?? "")}
+                                                    isLoading={Boolean(isLoadingVesselByClient[getVesselLoadingKey(row.client)])}
+                                                    onSearchChange={(q) => handleVesselSearchChange(row.client, q)}
+                                                    {...stockFormSelectDropdownProps}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                    autoWidth
+                                                    autoWidthMin={18}
+                                                    autoWidthMax={50}
+                                                />
+                                            )}
                                         </Td>
                                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                                            <SimpleSearchableSelect
-                                                value={row.pic ? String(row.pic) : null}
-                                                onChange={(value) => {
-                                                    // Store the PIC ID
-                                                    handleInputChange(rowIndex, "pic", value ? String(value) : null);
-                                                }}
-                                                options={pics}
-                                                placeholder="Select PIC"
-                                                displayKey="name"
-                                                valueKey="id"
-                                                formatOption={(option) => option.name || `PIC ${option.id}`}
-                                                isLoading={false}
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                                size="sm"
-                                                autoWidth
-                                                autoWidthMin={16}
-                                                autoWidthMax={40}
-                                            />
+                                            {assignCell(rowIndex, "pic",
+                                                <SimpleSearchableSelect
+                                                    value={row.pic ? String(row.pic) : null}
+                                                    onChange={(value) => {
+                                                        handleInputChange(rowIndex, "pic", value ? String(value) : null);
+                                                    }}
+                                                    options={pics}
+                                                    placeholder="Select PIC"
+                                                    displayKey="name"
+                                                    valueKey="id"
+                                                    formatOption={(option) => option.name || `PIC ${option.id}`}
+                                                    isLoading={false}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                    size="sm"
+                                                    autoWidth
+                                                    autoWidthMin={16}
+                                                    autoWidthMax={40}
+                                                />
+                                            )}
                                         </Td>
                                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                                            <SimpleSearchableSelect
-                                                value={row.supplier}
-                                                onChange={(value) => handleInputChange(rowIndex, "supplier", value)}
-                                                options={getSupplierOptionsForValue(row.supplier)}
-                                                placeholder="Select Supplier"
-                                                displayKey="name"
-                                                valueKey="id"
-                                                formatOption={(option) => option.name || `Supplier ${option.id}`}
-                                                isLoading={isLoadingSuppliers}
-                                                onSearchChange={handleSupplierSearchChange}
-                                                {...stockFormSelectDropdownProps}
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                                autoWidth
-                                                autoWidthMin={18}
-                                                autoWidthMax={55}
-                                            />
+                                            {assignCell(rowIndex, "supplier",
+                                                <SimpleSearchableSelect
+                                                    value={row.supplier}
+                                                    onChange={(value) => handleInputChange(rowIndex, "supplier", value)}
+                                                    options={getSupplierOptionsForValue(row.supplier)}
+                                                    placeholder="Select Supplier"
+                                                    displayKey="name"
+                                                    valueKey="id"
+                                                    formatOption={(option) => option.name || `Supplier ${option.id}`}
+                                                    isLoading={isLoadingSuppliers}
+                                                    onSearchChange={handleSupplierSearchChange}
+                                                    {...stockFormSelectDropdownProps}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                    autoWidth
+                                                    autoWidthMin={18}
+                                                    autoWidthMax={55}
+                                                />
+                                            )}
                                         </Td>
-                                        <Td {...cellProps}>
-                                            <Textarea
-                                                value={row.reqNo || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "reqNo", e.target.value)}
-                                                placeholder="Enter Req No(s) - one per line"
-                                                size="sm"
-                                                rows={3}
-                                                w="auto"
-                                                minW="24ch"
-                                                maxW="90ch"
-                                                cols={getAutoCols(row.reqNo, "Enter Req No(s) - one per line", { min: 24, max: 90 })}
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
+                                        <Td {...cellProps} overflow="visible">
+                                            {assignCell(rowIndex, "reqNo",
+                                                <Textarea
+                                                    value={row.reqNo || ""}
+                                                    onChange={(e) => handleInputChange(rowIndex, "reqNo", e.target.value)}
+                                                    placeholder="Enter Req No(s) - one per line"
+                                                    size="sm"
+                                                    rows={3}
+                                                    w="auto"
+                                                    minW="24ch"
+                                                    maxW="90ch"
+                                                    cols={getAutoCols(row.reqNo, "Enter Req No(s) - one per line", { min: 24, max: 90 })}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                />
+                                            )}
                                         </Td>
-                                        {/* Single PO Number field, but allow multiple lines for clarity */}
-                                        <Td {...cellProps}>
-                                            <Textarea
-                                                value={row.poNumber || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "poNumber", e.target.value)}
-                                                placeholder="Enter PO Number(s) - one per line"
-                                                size="sm"
-                                                rows={3}
-                                                w="auto"
-                                                minW="24ch"
-                                                maxW="90ch"
-                                                cols={getAutoCols(row.poNumber, "Enter PO Number(s) - one per line", { min: 24, max: 90 })}
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
+                                        <Td {...cellProps} overflow="visible">
+                                            {assignCell(rowIndex, "poNumber",
+                                                <Textarea
+                                                    value={row.poNumber || ""}
+                                                    onChange={(e) => handleInputChange(rowIndex, "poNumber", e.target.value)}
+                                                    placeholder="Enter PO Number(s) - one per line"
+                                                    size="sm"
+                                                    rows={3}
+                                                    w="auto"
+                                                    minW="24ch"
+                                                    maxW="90ch"
+                                                    cols={getAutoCols(row.poNumber, "Enter PO Number(s) - one per line", { min: 24, max: 90 })}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                />
+                                            )}
                                         </Td>
-                                        {/* Ready ex Supplier - date field */}
-                                        <Td {...cellProps}>
-                                            <Input
-                                                type="date"
-                                                value={row.expReadyInStock || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "expReadyInStock", e.target.value)}
-                                                size="sm"
-                                                w="auto"
-                                                htmlSize={getAutoHtmlSize(row.expReadyInStock, "", { min: 12, max: 12 })}
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
+                                        <Td {...cellProps} overflow="visible">
+                                            {assignCell(rowIndex, "expReadyInStock",
+                                                <Input
+                                                    type="date"
+                                                    value={row.expReadyInStock || ""}
+                                                    onChange={(e) => handleInputChange(rowIndex, "expReadyInStock", e.target.value)}
+                                                    size="sm"
+                                                    w="auto"
+                                                    htmlSize={getAutoHtmlSize(row.expReadyInStock, "", { min: 12, max: 12 })}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                />
+                                            )}
                                         </Td>
-                                        {/* Warehouse ID - Free text + textarea */}
-                                        <Td {...cellProps}>
-                                            <Textarea
-                                                value={row.warehouseId || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "warehouseId", e.target.value)}
-                                                placeholder="Enter Warehouse ID"
-                                                size="sm"
-                                                rows={2}
-                                                w="auto"
-                                                minW="24ch"
-                                                maxW="90ch"
-                                                cols={getAutoCols(row.warehouseId, "Enter Warehouse ID", { min: 24, max: 60 })}
-                                                resize="vertical"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
+                                        <Td {...cellProps} overflow="visible">
+                                            {assignCell(rowIndex, "warehouseId",
+                                                <Textarea
+                                                    value={row.warehouseId || ""}
+                                                    onChange={(e) => handleInputChange(rowIndex, "warehouseId", e.target.value)}
+                                                    placeholder="Enter Warehouse ID"
+                                                    size="sm"
+                                                    rows={2}
+                                                    w="auto"
+                                                    minW="24ch"
+                                                    maxW="90ch"
+                                                    cols={getAutoCols(row.warehouseId, "Enter Warehouse ID", { min: 24, max: 60 })}
+                                                    resize="vertical"
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                />
+                                            )}
                                         </Td>
-                                        {/* Date on Stock - date field */}
-                                        <Td {...cellProps}>
-                                            <Input
-                                                type="date"
-                                                value={row.dateOnStock || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "dateOnStock", e.target.value)}
-                                                size="sm"
-                                                w="auto"
-                                                htmlSize={getAutoHtmlSize(row.dateOnStock, "", { min: 12, max: 12 })}
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
+                                        <Td {...cellProps} overflow="visible">
+                                            {assignCell(rowIndex, "dateOnStock",
+                                                <Input
+                                                    type="date"
+                                                    value={row.dateOnStock || ""}
+                                                    onChange={(e) => handleInputChange(rowIndex, "dateOnStock", e.target.value)}
+                                                    size="sm"
+                                                    w="auto"
+                                                    htmlSize={getAutoHtmlSize(row.dateOnStock, "", { min: 12, max: 12 })}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                />
+                                            )}
                                         </Td>
-                                        <Td {...cellProps}>
-                                            <NumberInput
-                                                value={row.item || ""}
-                                                onChange={(value) => handleInputChange(rowIndex, "item", value)}
-                                                min={0}
-                                                precision={0}
-                                                size="sm"
-                                                minW="200px"
-                                                w="100%"
-                                            >
-                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                            </NumberInput>
+                                        <Td {...cellProps} overflow="visible">
+                                            {assignCell(rowIndex, "shippedDate",
+                                                <Input
+                                                    type="date"
+                                                    value={row.shippedDate || ""}
+                                                    onChange={(e) => handleInputChange(rowIndex, "shippedDate", e.target.value)}
+                                                    size="sm"
+                                                    w="auto"
+                                                    htmlSize={getAutoHtmlSize(row.shippedDate, "", { min: 12, max: 12 })}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                />
+                                            )}
                                         </Td>
-                                        <Td {...cellProps}>
-                                            <NumberInput
-                                                value={row.weightKgs}
-                                                onChange={(value) => handleInputChange(rowIndex, "weightKgs", value)}
-                                                min={0}
-                                                precision={2}
-                                                size="sm"
-                                                minW="200px"
-                                                w="100%"
-                                            >
-                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                            </NumberInput>
+                                        <Td {...cellProps} overflow="visible">
+                                            {assignCell(rowIndex, "deliveredDate",
+                                                <Input
+                                                    type="date"
+                                                    value={row.deliveredDate || ""}
+                                                    onChange={(e) => handleInputChange(rowIndex, "deliveredDate", e.target.value)}
+                                                    size="sm"
+                                                    w="auto"
+                                                    htmlSize={getAutoHtmlSize(row.deliveredDate, "", { min: 12, max: 12 })}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                />
+                                            )}
+                                        </Td>
+                                        <Td {...cellProps} overflow="visible">
+                                            {assignCell(rowIndex, "item",
+                                                <NumberInput
+                                                    value={row.item || ""}
+                                                    onChange={(value) => handleInputChange(rowIndex, "item", value)}
+                                                    min={0}
+                                                    precision={0}
+                                                    size="sm"
+                                                    minW="200px"
+                                                    w="100%"
+                                                >
+                                                    <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                                </NumberInput>
+                                            )}
+                                        </Td>
+                                        <Td {...cellProps} overflow="visible">
+                                            {assignCell(rowIndex, "weightKgs",
+                                                <NumberInput
+                                                    value={row.weightKgs}
+                                                    onChange={(value) => handleInputChange(rowIndex, "weightKgs", value)}
+                                                    min={0}
+                                                    precision={2}
+                                                    size="sm"
+                                                    minW="200px"
+                                                    w="100%"
+                                                >
+                                                    <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                                </NumberInput>
+                                            )}
                                         </Td>
                                         <Td {...cellProps}>
                                             <HStack spacing={2}>
@@ -1827,255 +1954,234 @@ export default function StockForm() {
                                                 </Button>
                                             </HStack>
                                         </Td>
-                                        <Td {...cellProps}>
-                                            <Textarea
-                                                value={row.lwhText}
-                                                onChange={(e) => handleInputChange(rowIndex, "lwhText", e.target.value)}
-                                                placeholder="LWH Text (one set per line)"
-                                                size="sm"
-                                                rows={3}
-                                                w="auto"
-                                                minW="24ch"
-                                                maxW="90ch"
-                                                cols={getAutoCols(row.lwhText, "LWH Text (one set per line)", { min: 24, max: 90 })}
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
+                                        <Td {...cellProps} overflow="visible">
+                                            {assignCell(rowIndex, "lwhText",
+                                                <Textarea
+                                                    value={row.lwhText}
+                                                    onChange={(e) => handleInputChange(rowIndex, "lwhText", e.target.value)}
+                                                    placeholder="LWH Text (one set per line)"
+                                                    size="sm"
+                                                    rows={3}
+                                                    w="auto"
+                                                    minW="24ch"
+                                                    maxW="90ch"
+                                                    cols={getAutoCols(row.lwhText, "LWH Text (one set per line)", { min: 24, max: 90 })}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                />
+                                            )}
                                         </Td>
-                                        <Td {...cellProps}>
-                                            <Textarea
-                                                value={row.dgUn || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "dgUn", e.target.value)}
-                                                placeholder="Enter DG/UN Number"
-                                                size="sm"
-                                                rows={3}
-                                                w="auto"
-                                                minW="24ch"
-                                                maxW="60ch"
-                                                cols={getAutoCols(row.dgUn, "Enter DG/UN Number", { min: 24, max: 60 })}
-                                                resize="vertical"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
+                                        <Td {...cellProps} overflow="visible">
+                                            {assignCell(rowIndex, "dgUn",
+                                                <Textarea
+                                                    value={row.dgUn || ""}
+                                                    onChange={(e) => handleInputChange(rowIndex, "dgUn", e.target.value)}
+                                                    placeholder="Enter DG/UN Number"
+                                                    size="sm"
+                                                    rows={3}
+                                                    w="auto"
+                                                    minW="24ch"
+                                                    maxW="60ch"
+                                                    cols={getAutoCols(row.dgUn, "Enter DG/UN Number", { min: 24, max: 60 })}
+                                                    resize="vertical"
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                />
+                                            )}
                                         </Td>
-                                        <Td {...cellProps}>
-                                            <NumberInput
-                                                value={row.value}
-                                                onChange={(value) => handleInputChange(rowIndex, "value", value)}
-                                                min={0}
-                                                precision={2}
-                                                size="sm"
-                                                minW="200px"
-                                                w="100%"
-                                            >
-                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                            </NumberInput>
+                                        <Td {...cellProps} overflow="visible">
+                                            {assignCell(rowIndex, "value",
+                                                <StockValueInput
+                                                    value={row.value}
+                                                    onChange={(value) => handleInputChange(rowIndex, "value", value)}
+                                                    minW="200px"
+                                                    w="100%"
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                />
+                                            )}
                                         </Td>
                                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                                            <SimpleSearchableSelect
-                                                value={row.currency}
-                                                onChange={(value) => handleInputChange(rowIndex, "currency", value)}
-                                                options={currencies}
-                                                placeholder="Select Currency"
-                                                displayKey="name"
-                                                valueKey="id"
-                                                formatOption={(option) => {
-                                                    const code = option.name || option.code || option.symbol || "";
-                                                    const fullName = option.full_name || option.description || "";
-                                                    return [code, fullName].filter(Boolean).join(" - ") || `Currency ${option.id}`;
-                                                }}
-                                                isLoading={false}
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                                autoWidth
-                                                autoWidthMin={16}
-                                                autoWidthMax={55}
-                                            />
+                                            {assignCell(rowIndex, "currency",
+                                                <SimpleSearchableSelect
+                                                    value={row.currency}
+                                                    onChange={(value) => handleInputChange(rowIndex, "currency", value)}
+                                                    options={currencies}
+                                                    placeholder="Select Currency"
+                                                    displayKey="name"
+                                                    valueKey="id"
+                                                    formatOption={(option) => {
+                                                        const code = option.name || option.code || option.symbol || "";
+                                                        const fullName = option.full_name || option.description || "";
+                                                        return [code, fullName].filter(Boolean).join(" - ") || `Currency ${option.id}`;
+                                                    }}
+                                                    isLoading={false}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                    autoWidth
+                                                    autoWidthMin={16}
+                                                    autoWidthMax={55}
+                                                />
+                                            )}
                                         </Td>
-                                        <Td {...cellProps} position="relative">
-                                            <Flex gap="1" align="center">
-                                                <Box position="relative" flex="0 0 auto">
-                                                    <Input
-                                                        list={`origin-countries-${rowIndex}`}
-                                                        value={row.origin_text || ""}
-                                                        onChange={(e) => handleInputChange(rowIndex, "origin_text", e.target.value)}
-                                                        placeholder="Type or select country..."
-                                                        size="sm"
-                                                        w="auto"
-                                                        htmlSize={getAutoHtmlSize(row.origin_text, "Type or select country...", { min: 18, max: 60 })}
-                                                        bg={inputBg}
-                                                        color={inputText}
-                                                        borderColor={borderColor}
-                                                    />
-                                                    <datalist id={`origin-countries-${rowIndex}`}>
-                                                        {countries.map((country) => (
-                                                            <option key={country.id || country.country_id} value={country.name || country.code || ""} />
-                                                        ))}
-                                                    </datalist>
-                                                </Box>
-                                                {formRows.length > 1 && rowIndex < formRows.length - 1 && (
-                                                    <Menu>
-                                                        <MenuButton
-                                                            as={IconButton}
-                                                            icon={<Icon as={MdMoreVert} />}
-                                                            size="xs"
-                                                            variant="ghost"
-                                                            aria-label="Copy to rows below"
-                                                        />
-                                                        <MenuList>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "origin_text", false)}>
-                                                                Assign to below row
-                                                            </MenuItem>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "origin_text", true)}>
-                                                                Assign to all rows below
-                                                            </MenuItem>
-                                                        </MenuList>
-                                                    </Menu>
-                                                )}
-                                            </Flex>
+                                        <Td {...cellProps} position="relative" overflow="visible">
+                                            {assignCell(rowIndex, "originId",
+                                                <SimpleSearchableSelect
+                                                    value={row.originId ? String(row.originId) : null}
+                                                    onChange={(id) => {
+                                                        const match = countries.find((c) => String(c.id || c.country_id) === String(id));
+                                                        if (match) pinOption("origin", { id: match.id, name: match.name });
+                                                        handleInputChange(rowIndex, "originId", id);
+                                                        handleInputChange(
+                                                            rowIndex,
+                                                            "origin_text",
+                                                            normalizeStockOriginHubText(match?.name || match?.code || "")
+                                                        );
+                                                    }}
+                                                    options={getOptionsForValue("origin", countries, row.originId)}
+                                                    placeholder="Select country..."
+                                                    displayKey="name"
+                                                    valueKey="id"
+                                                    formatOption={(option) => option.name || `Country ${option.id}`}
+                                                    isLoading={false}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                    autoWidth
+                                                    autoWidthMin={18}
+                                                    autoWidthMax={50}
+                                                />
+                                            )}
                                         </Td>
-                                        <Td {...cellProps} position="relative">
-                                            <Flex gap="1" align="center">
-                                                <Input
-                                                    value={row.viaHub || ""}
-                                                    onChange={(e) => handleInputChange(rowIndex, "viaHub", e.target.value)}
-                                                    placeholder="Enter HUB 1"
+                                        <Td {...cellProps} position="relative" overflow="visible">
+                                            {assignCell(rowIndex, "narviStockViaHub1",
+                                                <SimpleSearchableSelect
+                                                    value={row.narviStockViaHub1 != null ? String(row.narviStockViaHub1) : null}
+                                                    onChange={(id) => {
+                                                        const match = findOptionById("viaHub1", viaHub1Options, id);
+                                                        if (match) pinOption("viaHub1", match);
+                                                        handleInputChange(rowIndex, "narviStockViaHub1", id);
+                                                    }}
+                                                    options={getOptionsForValue("viaHub1", viaHub1Options, row.narviStockViaHub1)}
+                                                    placeholder="Select Via HUB 1..."
+                                                    displayKey="name"
+                                                    valueKey="id"
+                                                    formatOption={(option) => option.name || `Option ${option.id}`}
+                                                    isLoading={isLoadingDestinationOptions}
+                                                    onSearchChange={setQViaHub1}
+                                                    {...stockFormSelectDropdownProps}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                    autoWidth
+                                                    autoWidthMin={18}
+                                                    autoWidthMax={50}
+                                                />
+                                            )}
+                                        </Td>
+                                        <Td {...cellProps} position="relative" overflow="visible">
+                                            {assignCell(rowIndex, "narviStockViaHub2",
+                                                <SimpleSearchableSelect
+                                                    value={row.narviStockViaHub2 != null ? String(row.narviStockViaHub2) : null}
+                                                    onChange={(id) => {
+                                                        const match = findOptionById("viaHub2", viaHub2Options, id);
+                                                        if (match) pinOption("viaHub2", match);
+                                                        handleInputChange(rowIndex, "narviStockViaHub2", id);
+                                                    }}
+                                                    options={getOptionsForValue("viaHub2", viaHub2Options, row.narviStockViaHub2)}
+                                                    placeholder="Select Via HUB 2..."
+                                                    displayKey="name"
+                                                    valueKey="id"
+                                                    formatOption={(option) => option.name || `Option ${option.id}`}
+                                                    isLoading={isLoadingDestinationOptions}
+                                                    onSearchChange={setQViaHub2}
+                                                    {...stockFormSelectDropdownProps}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                    autoWidth
+                                                    autoWidthMin={18}
+                                                    autoWidthMax={50}
+                                                />
+                                            )}
+                                        </Td>
+                                        <Td {...cellProps} position="relative" overflow="visible" zIndex={1}>
+                                            {assignCell(rowIndex, "narviStockApDestination",
+                                                <SimpleSearchableSelect
+                                                    value={row.narviStockApDestination != null ? String(row.narviStockApDestination) : null}
+                                                    onChange={(id) => {
+                                                        const match = findOptionById("apDestination", narviApDestinationOptions, id);
+                                                        if (match) pinOption("apDestination", match);
+                                                        handleInputChange(rowIndex, "narviStockApDestination", id);
+                                                    }}
+                                                    options={getOptionsForValue("apDestination", narviApDestinationOptions, row.narviStockApDestination)}
+                                                    placeholder="Select AP destination..."
+                                                    displayKey="name"
+                                                    valueKey="id"
+                                                    formatOption={(option) => option.name || `Option ${option.id}`}
+                                                    isLoading={isLoadingDestinationOptions}
+                                                    onSearchChange={setQNarviApDestination}
+                                                    {...stockFormSelectDropdownProps}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                    autoWidth
+                                                    autoWidthMin={18}
+                                                    autoWidthMax={50}
+                                                />
+                                            )}
+                                        </Td>
+                                        <Td {...cellProps} position="relative" overflow="visible" zIndex={1}>
+                                            {assignCell(rowIndex, "destinationId",
+                                                <SimpleSearchableSelect
+                                                    value={row.destinationId != null ? String(row.destinationId) : null}
+                                                    onChange={(id) => {
+                                                        const match = findOptionById("destination", destinationOptions, id);
+                                                        if (match) pinOption("destination", match);
+                                                        handleInputChange(rowIndex, "destinationId", id);
+                                                    }}
+                                                    options={getOptionsForValue("destination", destinationOptions, row.destinationId)}
+                                                    placeholder="Select destination..."
+                                                    displayKey="name"
+                                                    valueKey="id"
+                                                    formatOption={(option) => option.name || `Destination ${option.id}`}
+                                                    isLoading={isLoadingDestinationOptions}
+                                                    onSearchChange={setQDestination}
+                                                    {...stockFormSelectDropdownProps}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                    autoWidth
+                                                    autoWidthMin={18}
+                                                    autoWidthMax={50}
+                                                />
+                                            )}
+                                        </Td>
+                                        <Td {...cellProps} overflow="visible">
+                                            {assignCell(rowIndex, "shippingDoc",
+                                                <Textarea
+                                                    value={row.shippingDoc || ""}
+                                                    onChange={(e) => handleInputChange(rowIndex, "shippingDoc", e.target.value)}
+                                                    placeholder="Enter Shipping Docs"
                                                     size="sm"
+                                                    rows={3}
                                                     w="auto"
-                                                    flex="0 0 auto"
-                                                    htmlSize={getAutoHtmlSize(row.viaHub, "Enter HUB 1", { min: 14, max: 40 })}
+                                                    minW="24ch"
+                                                    maxW="90ch"
+                                                    cols={getAutoCols(row.shippingDoc, "Enter Shipping Docs", { min: 24, max: 90 })}
+                                                    resize="vertical"
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
                                                 />
-                                                {formRows.length > 1 && rowIndex < formRows.length - 1 && (
-                                                    <Menu>
-                                                        <MenuButton
-                                                            as={IconButton}
-                                                            icon={<Icon as={MdMoreVert} />}
-                                                            size="xs"
-                                                            variant="ghost"
-                                                            aria-label="Copy to rows below"
-                                                        />
-                                                        <MenuList>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "viaHub", false)}>
-                                                                Assign to below row
-                                                            </MenuItem>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "viaHub", true)}>
-                                                                Assign to all rows below
-                                                            </MenuItem>
-                                                        </MenuList>
-                                                    </Menu>
-                                                )}
-                                            </Flex>
+                                            )}
                                         </Td>
-                                        <Td {...cellProps} position="relative">
-                                            <Flex gap="1" align="center">
-                                                <Input
-                                                    value={row.viaHub2 || ""}
-                                                    onChange={(e) => handleInputChange(rowIndex, "viaHub2", e.target.value)}
-                                                    placeholder="Enter HUB 2"
-                                                    size="sm"
-                                                    w="auto"
-                                                    flex="0 0 auto"
-                                                    htmlSize={getAutoHtmlSize(row.viaHub2, "Enter HUB 2", { min: 14, max: 40 })}
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                    borderColor={borderColor}
-                                                />
-                                                {formRows.length > 1 && rowIndex < formRows.length - 1 && (
-                                                    <Menu>
-                                                        <MenuButton
-                                                            as={IconButton}
-                                                            icon={<Icon as={MdMoreVert} />}
-                                                            size="xs"
-                                                            variant="ghost"
-                                                            aria-label="Copy to rows below"
-                                                        />
-                                                        <MenuList>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "viaHub2", false)}>
-                                                                Assign to below row
-                                                            </MenuItem>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "viaHub2", true)}>
-                                                                Assign to all rows below
-                                                            </MenuItem>
-                                                        </MenuList>
-                                                    </Menu>
-                                                )}
-                                            </Flex>
-                                        </Td>
-                                        <Td {...cellProps} position="relative" overflow="visible" zIndex={1}>
-                                            <StockDestinationSelect
-                                                value={row.apDestinationSelect || ""}
-                                                onChange={({ id, name }) => {
-                                                    handleInputChange(rowIndex, "apDestinationSelect", name);
-                                                    handleInputChange(rowIndex, "apDestinationId", id);
-                                                }}
-                                                onSearchChange={setQApDestination}
-                                                options={mergeStockDestinationOptions(
-                                                    apDestinationOptions,
-                                                    row.apDestinationId,
-                                                    row.apDestinationSelect
-                                                )}
-                                                placeholder="Select or type AP destination..."
-                                                listId={`new-ap-dest-${rowIndex}`}
-                                                size="sm"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                                htmlSize={getAutoHtmlSize(row.apDestinationSelect, "Select or type AP destination...", { min: 18, max: 60 })}
-                                                flex="0 0 auto"
-                                                w="auto"
-                                            />
-                                        </Td>
-                                        <Td {...cellProps} position="relative" overflow="visible" zIndex={1}>
-                                            <StockDestinationSelect
-                                                value={row.destinationSelect || ""}
-                                                onChange={({ id, name }) => {
-                                                    handleInputChange(rowIndex, "destinationSelect", name);
-                                                    handleInputChange(rowIndex, "destinationId", id);
-                                                }}
-                                                onSearchChange={setQDestination}
-                                                options={mergeStockDestinationOptions(
-                                                    destinationOptions,
-                                                    row.destinationId,
-                                                    row.destinationSelect
-                                                )}
-                                                placeholder="Select or type destination..."
-                                                listId={`new-dest-${rowIndex}`}
-                                                size="sm"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                                htmlSize={getAutoHtmlSize(row.destinationSelect, "Select or type destination...", { min: 18, max: 60 })}
-                                                flex="0 0 auto"
-                                                w="auto"
-                                            />
-                                        </Td>
-                                        {/* Shipping Docs - Free text + textarea */}
-                                        <Td {...cellProps}>
-                                            <Textarea
-                                                value={row.shippingDoc || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "shippingDoc", e.target.value)}
-                                                placeholder="Enter Shipping Docs"
-                                                size="sm"
-                                                rows={3}
-                                                w="auto"
-                                                minW="24ch"
-                                                maxW="90ch"
-                                                cols={getAutoCols(row.shippingDoc, "Enter Shipping Docs", { min: 24, max: 90 })}
-                                                resize="vertical"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
-                                        </Td>
-                                        {/* Export docs - Free text + textarea */}
-                                        <Td {...cellProps} position="relative">
-                                            <Flex gap="1" align="center">
+                                        <Td {...cellProps} position="relative" overflow="visible">
+                                            {assignCell(rowIndex, "exportDoc",
                                                 <Textarea
                                                     value={row.exportDoc || ""}
                                                     onChange={(e) => handleInputChange(rowIndex, "exportDoc", e.target.value)}
@@ -2092,30 +2198,10 @@ export default function StockForm() {
                                                     borderColor={borderColor}
                                                     flex="0 0 auto"
                                                 />
-                                                {formRows.length > 1 && rowIndex < formRows.length - 1 && (
-                                                    <Menu>
-                                                        <MenuButton
-                                                            as={IconButton}
-                                                            icon={<Icon as={MdMoreVert} />}
-                                                            size="xs"
-                                                            variant="ghost"
-                                                            aria-label="Copy to rows below"
-                                                        />
-                                                        <MenuList>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "exportDoc", false)}>
-                                                                Assign to below row
-                                                            </MenuItem>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "exportDoc", true)}>
-                                                                Assign to all rows below
-                                                            </MenuItem>
-                                                        </MenuList>
-                                                    </Menu>
-                                                )}
-                                            </Flex>
+                                            )}
                                         </Td>
-                                        {/* Export doc 2 - Free text + textarea */}
-                                        <Td {...cellProps} position="relative">
-                                            <Flex gap="1" align="center">
+                                        <Td {...cellProps} position="relative" overflow="visible">
+                                            {assignCell(rowIndex, "exportDoc2",
                                                 <Textarea
                                                     value={row.exportDoc2 || ""}
                                                     onChange={(e) => handleInputChange(rowIndex, "exportDoc2", e.target.value)}
@@ -2132,30 +2218,10 @@ export default function StockForm() {
                                                     borderColor={borderColor}
                                                     flex="0 0 auto"
                                                 />
-                                                {formRows.length > 1 && rowIndex < formRows.length - 1 && (
-                                                    <Menu>
-                                                        <MenuButton
-                                                            as={IconButton}
-                                                            icon={<Icon as={MdMoreVert} />}
-                                                            size="xs"
-                                                            variant="ghost"
-                                                            aria-label="Copy to rows below"
-                                                        />
-                                                        <MenuList>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "exportDoc2", false)}>
-                                                                Assign to below row
-                                                            </MenuItem>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "exportDoc2", true)}>
-                                                                Assign to all rows below
-                                                            </MenuItem>
-                                                        </MenuList>
-                                                    </Menu>
-                                                )}
-                                            </Flex>
+                                            )}
                                         </Td>
-                                        {/* Remarks - Free text + textarea */}
-                                        <Td {...cellProps} position="relative">
-                                            <Flex gap="1" align="center">
+                                        <Td {...cellProps} position="relative" overflow="visible">
+                                            {assignCell(rowIndex, "remarks",
                                                 <Textarea
                                                     value={row.remarks || ""}
                                                     onChange={(e) => handleInputChange(rowIndex, "remarks", e.target.value)}
@@ -2172,98 +2238,67 @@ export default function StockForm() {
                                                     borderColor={borderColor}
                                                     flex="0 0 auto"
                                                 />
-                                                {formRows.length > 1 && rowIndex < formRows.length - 1 && (
-                                                    <Menu>
-                                                        <MenuButton
-                                                            as={IconButton}
-                                                            icon={<Icon as={MdMoreVert} />}
-                                                            size="xs"
-                                                            variant="ghost"
-                                                            aria-label="Copy to rows below"
-                                                        />
-                                                        <MenuList>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "remarks", false)}>
-                                                                Assign to below row
-                                                            </MenuItem>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "remarks", true)}>
-                                                                Assign to all rows below
-                                                            </MenuItem>
-                                                        </MenuList>
-                                                    </Menu>
-                                                )}
-                                            </Flex>
+                                            )}
                                         </Td>
-                                        {/* Internal Remark - Free text + textarea */}
-                                        <Td {...cellProps}>
-                                            <Textarea
-                                                value={row.internalRemark || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "internalRemark", e.target.value)}
-                                                placeholder="Enter Internal Remark"
-                                                size="sm"
-                                                rows={3}
-                                                w="auto"
-                                                minW="24ch"
-                                                maxW="90ch"
-                                                cols={getAutoCols(row.internalRemark, "Enter Internal Remark", { min: 24, max: 90 })}
-                                                resize="vertical"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
-                                        </Td>
-                                        {/* SO Number — shipping order M2O */}
-                                        <Td {...cellProps} position="relative">
-                                            <Flex gap="1" align="center">
-                                                <SimpleSearchableSelect
-                                                    value={row.soId || null}
-                                                    onChange={(val) => handleInputChange(rowIndex, "soId", val)}
-                                                    options={shippingOrderOptions}
-                                                    placeholder={
-                                                        isLoadingShippingOrders
-                                                            ? "Loading SO numbers..."
-                                                            : "Search SO number..."
-                                                    }
-                                                    displayKey="name"
-                                                    valueKey="id"
-                                                    isLoading={isLoadingShippingOrders}
-                                                    onSearchChange={handleShippingOrderSearchChange}
-                                                    {...stockFormSelectDropdownProps}
+                                        <Td {...cellProps} overflow="visible">
+                                            {assignCell(rowIndex, "internalRemark",
+                                                <Textarea
+                                                    value={row.internalRemark || ""}
+                                                    onChange={(e) => handleInputChange(rowIndex, "internalRemark", e.target.value)}
+                                                    placeholder="Enter Internal Remark"
+                                                    size="sm"
+                                                    rows={3}
+                                                    w="auto"
+                                                    minW="24ch"
+                                                    maxW="90ch"
+                                                    cols={getAutoCols(row.internalRemark, "Enter Internal Remark", { min: 24, max: 90 })}
+                                                    resize="vertical"
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                    autoWidth
-                                                    autoWidthMin={18}
-                                                    autoWidthMax={50}
                                                 />
+                                            )}
+                                        </Td>
+                                        <Td {...cellProps} position="relative" overflow="visible">
+                                            <Flex gap="1" align="center" w="100%">
+                                                <Box flex="1" minW="0">
+                                                    <SimpleSearchableSelect
+                                                        value={row.soId || null}
+                                                        onChange={(val) => handleInputChange(rowIndex, "soId", val)}
+                                                        options={shippingOrderOptions}
+                                                        placeholder={
+                                                            isLoadingShippingOrders
+                                                                ? "Loading SO numbers..."
+                                                                : "Search SO number..."
+                                                        }
+                                                        displayKey="name"
+                                                        valueKey="id"
+                                                        isLoading={isLoadingShippingOrders}
+                                                        onSearchChange={handleShippingOrderSearchChange}
+                                                        {...stockFormSelectDropdownProps}
+                                                        bg={inputBg}
+                                                        color={inputText}
+                                                        borderColor={borderColor}
+                                                        autoWidth
+                                                        autoWidthMin={18}
+                                                        autoWidthMax={50}
+                                                    />
+                                                </Box>
                                                 <StockSoNumberOpenButton
                                                     item={{
                                                         so_id: buildStockSoIdM2O(row.soId, shippingOrders),
                                                     }}
                                                 />
-                                                {formRows.length > 1 && rowIndex < formRows.length - 1 && (
-                                                    <Menu>
-                                                        <MenuButton
-                                                            as={IconButton}
-                                                            icon={<Icon as={MdMoreVert} />}
-                                                            size="xs"
-                                                            variant="ghost"
-                                                            aria-label="Copy to rows below"
-                                                        />
-                                                        <MenuList>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "soId", false)}>
-                                                                Assign to below row
-                                                            </MenuItem>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "soId", true)}>
-                                                                Assign to all rows below
-                                                            </MenuItem>
-                                                        </MenuList>
-                                                    </Menu>
-                                                )}
+                                                <AssignToRowsBelowMenu
+                                                    rowIndex={rowIndex}
+                                                    fields="soId"
+                                                    onCopy={copyValueToRowsBelow}
+                                                    totalRows={formRows.length}
+                                                />
                                             </Flex>
                                         </Td>
-                                        {/* SI Number - Free text */}
-                                        <Td {...cellProps} position="relative">
-                                            <Flex gap="1" align="center">
+                                        <Td {...cellProps} position="relative" overflow="visible">
+                                            {assignCell(rowIndex, "siNumber",
                                                 <Input
                                                     type="text"
                                                     inputMode="text"
@@ -2278,30 +2313,10 @@ export default function StockForm() {
                                                     color={inputText}
                                                     borderColor={borderColor}
                                                 />
-                                                {formRows.length > 1 && rowIndex < formRows.length - 1 && (
-                                                    <Menu>
-                                                        <MenuButton
-                                                            as={IconButton}
-                                                            icon={<Icon as={MdMoreVert} />}
-                                                            size="xs"
-                                                            variant="ghost"
-                                                            aria-label="Copy to rows below"
-                                                        />
-                                                        <MenuList>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "siNumber", false)}>
-                                                                Assign to below row
-                                                            </MenuItem>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "siNumber", true)}>
-                                                                Assign to all rows below
-                                                            </MenuItem>
-                                                        </MenuList>
-                                                    </Menu>
-                                                )}
-                                            </Flex>
+                                            )}
                                         </Td>
-                                        {/* SI Combined - Free text */}
-                                        <Td {...cellProps} position="relative">
-                                            <Flex gap="1" align="center">
+                                        <Td {...cellProps} position="relative" overflow="visible">
+                                            {assignCell(rowIndex, "siCombined",
                                                 <Input
                                                     type="text"
                                                     inputMode="text"
@@ -2316,30 +2331,10 @@ export default function StockForm() {
                                                     color={inputText}
                                                     borderColor={borderColor}
                                                 />
-                                                {formRows.length > 1 && rowIndex < formRows.length - 1 && (
-                                                    <Menu>
-                                                        <MenuButton
-                                                            as={IconButton}
-                                                            icon={<Icon as={MdMoreVert} />}
-                                                            size="xs"
-                                                            variant="ghost"
-                                                            aria-label="Copy to rows below"
-                                                        />
-                                                        <MenuList>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "siCombined", false)}>
-                                                                Assign to below row
-                                                            </MenuItem>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "siCombined", true)}>
-                                                                Assign to all rows below
-                                                            </MenuItem>
-                                                        </MenuList>
-                                                    </Menu>
-                                                )}
-                                            </Flex>
+                                            )}
                                         </Td>
-                                        {/* DI Number - Free text */}
-                                        <Td {...cellProps} position="relative">
-                                            <Flex gap="1" align="center">
+                                        <Td {...cellProps} position="relative" overflow="visible">
+                                            {assignCell(rowIndex, "diNumber",
                                                 <Input
                                                     type="text"
                                                     inputMode="text"
@@ -2354,65 +2349,49 @@ export default function StockForm() {
                                                     color={inputText}
                                                     borderColor={borderColor}
                                                 />
-                                                {formRows.length > 1 && rowIndex < formRows.length - 1 && (
-                                                    <Menu>
-                                                        <MenuButton
-                                                            as={IconButton}
-                                                            icon={<Icon as={MdMoreVert} />}
-                                                            size="xs"
-                                                            variant="ghost"
-                                                            aria-label="Copy to rows below"
-                                                        />
-                                                        <MenuList>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "diNumber", false)}>
-                                                                Assign to below row
-                                                            </MenuItem>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "diNumber", true)}>
-                                                                Assign to all rows below
-                                                            </MenuItem>
-                                                        </MenuList>
-                                                    </Menu>
-                                                )}
-                                            </Flex>
+                                            )}
                                         </Td>
-                                        {/* Client Access - Yes or No */}
-                                        <Td {...cellProps}>
-                                            <Select
-                                                value={row.clientAccess ? "true" : "false"}
-                                                onChange={(e) => handleInputChange(rowIndex, "clientAccess", e.target.value === "true")}
-                                                size="sm"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            >
-                                                <option value="false">No</option>
-                                                <option value="true">Yes</option>
-                                            </Select>
+                                        <Td {...cellProps} overflow="visible">
+                                            {assignCell(rowIndex, "clientAccess",
+                                                <Select
+                                                    value={row.clientAccess ? "true" : "false"}
+                                                    onChange={(e) => handleInputChange(rowIndex, "clientAccess", e.target.value === "true")}
+                                                    size="sm"
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                >
+                                                    <option value="false">No</option>
+                                                    <option value="true">Yes</option>
+                                                </Select>
+                                            )}
                                         </Td>
-                                        <Td {...cellProps}>
-                                            <Select
-                                                value={row.stockStatus}
-                                                onChange={(e) => handleInputChange(rowIndex, "stockStatus", e.target.value)}
-                                                size="sm"
-                                                minW="200px"
-                                                w="100%"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            >
-                                                <option value="">Select</option>
-                                                <option value="released">Released</option>
-                                                <option value="pending">Pending</option>
-                                                <option value="stock">Stock</option>
-                                                <option value="on_shipping">On Shipping Instr</option>
-                                                <option value="on_delivery">On Delivery Instr</option>
-                                                <option value="in_transit">In Transit</option>
-                                                <option value="arrived">Arrived Dest</option>
-                                                <option value="shipped">Shipped</option>
-                                                <option value="delivered">Delivered</option>
-                                                <option value="irregular">Irregularities</option>
-                                                <option value="cancelled">Cancelled</option>
-                                            </Select>
+                                        <Td {...cellProps} overflow="visible">
+                                            {assignCell(rowIndex, "stockStatus",
+                                                <Select
+                                                    value={row.stockStatus}
+                                                    onChange={(e) => handleInputChange(rowIndex, "stockStatus", e.target.value)}
+                                                    size="sm"
+                                                    minW="200px"
+                                                    w="100%"
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                >
+                                                    <option value="">Select</option>
+                                                    <option value="released">Released</option>
+                                                    <option value="pending">Pending</option>
+                                                    <option value="stock">Stock</option>
+                                                    <option value="on_shipping">On Shipping Instr</option>
+                                                    <option value="on_delivery">On Delivery Instr</option>
+                                                    <option value="in_transit">In Transit</option>
+                                                    <option value="arrived">Arrived Dest</option>
+                                                    <option value="shipped">Shipped</option>
+                                                    <option value="delivered">Delivered</option>
+                                                    <option value="irregular">Irregularities</option>
+                                                    <option value="cancelled">Cancelled</option>
+                                                </Select>
+                                            )}
                                         </Td>
                                         {/* Files - Upload button */}
                                         <Td {...cellProps}>

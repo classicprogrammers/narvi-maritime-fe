@@ -58,6 +58,12 @@ import {
   getClientStockSortButtonLabel,
   mapStockSortOptionToApiSortBy,
 } from "utils/stockSortOptions";
+import { formatStockValueDisplay } from "utils/stockValue";
+import { formatStockDestinationDisplay } from "utils/stockDestinationOptions";
+import {
+  getStockViaHub1Display,
+  getStockViaHub2Display,
+} from "utils/stockLocationOptions";
 import { clearClientNavigationState } from "views/client/dashboard/clientDashboardNavigation";
 import * as XLSX from "xlsx";
 
@@ -149,10 +155,7 @@ function ClientStock() {
       });
       const toDisplay = (value) =>
         value != null && value !== false && String(value).trim() !== "" ? String(value) : "-";
-      const toNumberDisplay = (value) =>
-        value != null && value !== false && value !== "" && !Number.isNaN(Number(value))
-          ? String(value)
-          : "-";
+      const toNumberDisplay = (value) => formatStockValueDisplay(value);
 
       const normalizedRows = (res?.stock_list || []).map((item, idx) => {
         const stockStatusRaw = item.stock_status;
@@ -187,10 +190,10 @@ function ClientStock() {
         origin: toDisplay(item.first_entry_location || item.origin),
         location: toDisplay(item.first_entry_location || item.origin),
         firstEntryLocation: toDisplay(item.first_entry_location || item.origin),
-        viaHub1: toDisplay(item.via_hub_1 ?? item.via_hub),
-        viaHub2: toDisplay(item.via_hub_2 ?? item.via_hub2),
+        viaHub1: toDisplay(getStockViaHub1Display(item)),
+        viaHub2: toDisplay(getStockViaHub2Display(item)),
         effectiveHub: toDisplay(item.effective_hub ?? item.hub),
-        apDestination: toDisplay(item.ap_destination),
+        apDestination: toDisplay(formatStockDestinationDisplay(item, "ap")),
         destination: toDisplay(item.destination),
         stockStatus: toDisplay(stockStatusRaw),
         stockStatusRaw,
@@ -309,9 +312,11 @@ function ClientStock() {
     if (isStockHubSortOption(clientSortOption)) {
       const hubSortField = getStockHubSortField(clientSortOption);
       const getHubSortValue = (row) => {
-        if (hubSortField === "via_hub") return getViaHub1(row);
-        if (hubSortField === "via_hub2") return getViaHub2(row);
-        if (hubSortField === "ap_destination_new") return getApDestination(row);
+        if (hubSortField === "narvi_stock_via_hub1" || hubSortField === "via_hub") return getViaHub1(row);
+        if (hubSortField === "narvi_stock_via_hub2" || hubSortField === "via_hub2") return getViaHub2(row);
+        if (hubSortField === "narvi_stock_ap_destination" || hubSortField === "ap_destination_new") {
+          return getApDestination(row);
+        }
         return getEffectiveHub(row);
       };
       rows.sort((a, b) => getHubSortValue(a).localeCompare(getHubSortValue(b)));

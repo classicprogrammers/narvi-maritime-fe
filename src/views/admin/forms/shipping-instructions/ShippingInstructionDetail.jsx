@@ -33,6 +33,7 @@ import {
   ModalCloseButton,
   Spinner,
   useDisclosure,
+  useToast,
 } from "@chakra-ui/react";
 import { MdPrint, MdSettings, MdHelpOutline, MdPictureAsPdf, MdDownload } from "react-icons/md";
 import SimpleSearchableSelect from "../../../../components/forms/SimpleSearchableSelect";
@@ -329,6 +330,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         : postSiFormUpdateApi;
   const history = useHistory();
   const { id } = useParams();
+  const toast = useToast();
   const {
     isOpen: isPdfPreviewOpen,
     onOpen: onPdfPreviewOpen,

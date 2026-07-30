@@ -46,14 +46,16 @@ const handleApiError = (error, operation) => {
   throw new Error(errorMessage);
 };
 
-// Load destination / AP destination dropdown options for stock list forms
+// Load destination / via hub / AP destination dropdown options for stock list forms
 export const getStockListOptionsApi = async (params = {}) => {
   try {
     const {
       q_destination = "",
-      q_ap_destination = "",
       q_destination_ids,
-      q_ap_destination_ids,
+      q_narvi_stock_via_hub1 = "",
+      q_narvi_stock_via_hub2 = "",
+      q_narvi_stock_ap_destination = "",
+      q_narvi_stock_location = "",
       page = 1,
       page_size = 50,
     } = params;
@@ -65,14 +67,29 @@ export const getStockListOptionsApi = async (params = {}) => {
         : q_destination_ids != null && String(q_destination_ids).trim() !== ""
           ? String(q_destination_ids).trim()
           : "";
-    const apDestQ =
-      q_ap_destination != null && String(q_ap_destination).trim() !== ""
-        ? String(q_ap_destination).trim()
-        : q_ap_destination_ids != null && String(q_ap_destination_ids).trim() !== ""
-          ? String(q_ap_destination_ids).trim()
-          : "";
     if (destQ) payload.q_destination = destQ;
-    if (apDestQ) payload.q_ap_destination = apDestQ;
+
+    const viaHub1Q =
+      q_narvi_stock_via_hub1 != null && String(q_narvi_stock_via_hub1).trim() !== ""
+        ? String(q_narvi_stock_via_hub1).trim()
+        : "";
+    const viaHub2Q =
+      q_narvi_stock_via_hub2 != null && String(q_narvi_stock_via_hub2).trim() !== ""
+        ? String(q_narvi_stock_via_hub2).trim()
+        : "";
+    const apDestQ =
+      q_narvi_stock_ap_destination != null && String(q_narvi_stock_ap_destination).trim() !== ""
+        ? String(q_narvi_stock_ap_destination).trim()
+        : "";
+    const locationQ =
+      q_narvi_stock_location != null && String(q_narvi_stock_location).trim() !== ""
+        ? String(q_narvi_stock_location).trim()
+        : "";
+
+    if (viaHub1Q) payload.q_narvi_stock_via_hub1 = viaHub1Q;
+    if (viaHub2Q) payload.q_narvi_stock_via_hub2 = viaHub2Q;
+    if (apDestQ) payload.q_narvi_stock_ap_destination = apDestQ;
+    if (locationQ) payload.q_narvi_stock_location = locationQ;
 
     const response = await api.post(getApiEndpoint("STOCK_LIST_OPTIONS"), payload);
     const data = response.data || response;
@@ -90,9 +107,21 @@ export const getStockListOptionsApi = async (params = {}) => {
       destination_options: Array.isArray(source.destination_options) ? source.destination_options : [],
       destination_total_count: source.destination_total_count ?? 0,
       destination_total_pages: source.destination_total_pages ?? 0,
-      ap_destination_options: Array.isArray(source.ap_destination_options) ? source.ap_destination_options : [],
-      ap_destination_total_count: source.ap_destination_total_count ?? 0,
-      ap_destination_total_pages: source.ap_destination_total_pages ?? 0,
+      narvi_stock_via_hub1_options: Array.isArray(source.narvi_stock_via_hub1_options)
+        ? source.narvi_stock_via_hub1_options
+        : [],
+      narvi_stock_via_hub1_total_count: source.narvi_stock_via_hub1_total_count ?? 0,
+      narvi_stock_via_hub1_total_pages: source.narvi_stock_via_hub1_total_pages ?? 0,
+      narvi_stock_via_hub2_options: Array.isArray(source.narvi_stock_via_hub2_options)
+        ? source.narvi_stock_via_hub2_options
+        : [],
+      narvi_stock_via_hub2_total_count: source.narvi_stock_via_hub2_total_count ?? 0,
+      narvi_stock_via_hub2_total_pages: source.narvi_stock_via_hub2_total_pages ?? 0,
+      narvi_stock_ap_destination_options: Array.isArray(source.narvi_stock_ap_destination_options)
+        ? source.narvi_stock_ap_destination_options
+        : [],
+      narvi_stock_ap_destination_total_count: source.narvi_stock_ap_destination_total_count ?? 0,
+      narvi_stock_ap_destination_total_pages: source.narvi_stock_ap_destination_total_pages ?? 0,
       page: source.page ?? page,
       page_size: source.page_size ?? page_size,
     };
@@ -146,8 +175,12 @@ export const getStockListApi = async (params = {}) => {
       via_hub = "",
       effective_hub = "",
       hub = "",
+      narvi_stock_via_hub1,
+      narvi_stock_via_hub2,
+      narvi_stock_ap_destination,
       supplier_id,
       warehouse_id,
+      warehouse_new,
       currency_id,
       active, // no default; only include if caller explicitly passes it
       create_date_from = "",
@@ -237,15 +270,27 @@ export const getStockListApi = async (params = {}) => {
     } else if (hub != null && String(hub).trim() !== "") {
       requestParams.hub = String(hub).trim();
     }
-    // Explicit Via Hub 1 field filter (distinct from resolved hub filter).
+    // Explicit Via Hub 1 field filter (legacy text).
     if (via_hub != null && String(via_hub).trim() !== "") {
       requestParams.via_hub = String(via_hub).trim();
+    }
+    if (narvi_stock_via_hub1 != null && narvi_stock_via_hub1 !== "") {
+      requestParams.narvi_stock_via_hub1 = narvi_stock_via_hub1;
+    }
+    if (narvi_stock_via_hub2 != null && narvi_stock_via_hub2 !== "") {
+      requestParams.narvi_stock_via_hub2 = narvi_stock_via_hub2;
+    }
+    if (narvi_stock_ap_destination != null && narvi_stock_ap_destination !== "") {
+      requestParams.narvi_stock_ap_destination = narvi_stock_ap_destination;
     }
     if (active != null && String(active).trim() !== "") {
       requestParams.active = String(active).trim();
     }
     if (supplier_id != null && supplier_id !== "") requestParams.supplier_id = supplier_id;
     if (warehouse_id != null && warehouse_id !== "") requestParams.warehouse_id = warehouse_id;
+    if (warehouse_new != null && String(warehouse_new).trim() !== "") {
+      requestParams.warehouse_new = String(warehouse_new).trim();
+    }
     if (currency_id != null && currency_id !== "") requestParams.currency_id = currency_id;
 
     const response = await api.get(getApiEndpoint("STOCK_LIST"), {

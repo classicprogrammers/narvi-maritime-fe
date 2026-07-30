@@ -47,13 +47,22 @@ import { useUser } from "../../../redux/hooks/useUser";
 import { useMasterData } from "../../../hooks/useMasterData";
 import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
+import StockOriginCountrySelect from "../../../components/forms/StockOriginCountrySelect";
+import StockIdNameSearchableSelect from "../../../components/forms/StockIdNameSearchableSelect";
+import StockValueInput from "../../../components/forms/StockValueInput";
 import useStockDestinationOptions from "../../../hooks/useStockDestinationOptions";
 import {
-    buildStockDestinationIdsPayload,
     buildStockDestinationNewPayload,
     getStockM2OId,
     getStockM2OName,
 } from "../../../utils/stockDestinationOptions";
+import {
+    getStockLocationOptionName,
+    mergeStockIdNameOptions,
+    resolveStockLocationOptionId,
+    toStockLocationPayloadId,
+} from "../../../utils/stockLocationOptions";
+import { normalizeStockValueForForm, normalizeStockValueForSave } from "../../../utils/stockValue";
 import { buildStockCreateLinePayload } from "../../../utils/stockCreatePayload";
 import {
     createAppendStockReportPdfOnStatusChange,
@@ -77,7 +86,16 @@ export default function StockForm() {
     const { user } = useUser();
     const { updateStockItem, getStockList, updateLoading, stockList } = useStock();
     const { clients, vessels, suppliers, countries, pics, currencies, refreshClients, refreshVessels } = useMasterData();
-    const { destinationOptions, apDestinationOptions } = useStockDestinationOptions();
+    const {
+        destinationOptions,
+        viaHub1Options,
+        viaHub2Options,
+        narviApDestinationOptions,
+        isLoading: isLoadingLocationOptions,
+        setQViaHub1,
+        setQViaHub2,
+        setQNarviApDestination,
+    } = useStockDestinationOptions();
     const [isLoading, setIsLoading] = useState(isEditing);
     const [vesselOptionsByClientId, setVesselOptionsByClientId] = useState({});
     const [isLoadingVesselByClient, setIsLoadingVesselByClient] = useState({});
@@ -125,8 +143,12 @@ export default function StockForm() {
         value: "",
         currency: "",
         origin_text: "",
-        viaHub: "", // Free text field
-        viaHub2: "", // Free text field
+        narviStockViaHub1: null,
+        narviStockViaHub1Name: "",
+        narviStockViaHub2: null,
+        narviStockViaHub2Name: "",
+        narviStockApDestination: null,
+        narviStockApDestinationName: "",
         expReadyInStock: "", // Date field
         remarks: "",
         blank: "",
@@ -137,7 +159,7 @@ export default function StockForm() {
         destination: "", // Free text (destination_new)
         destinationId: null,
         destinationSelect: "",
-        apDestination: "", // Free text (ap_destination_new)
+        apDestination: "", // legacy display fallback
         apDestinationId: null,
         apDestinationSelect: "",
         itemId: "",
@@ -459,6 +481,12 @@ export default function StockForm() {
         // Handle false, null, undefined, and empty strings as empty
         const normalizeId = (value) => {
             if (value === null || value === undefined || value === "" || value === false) return "";
+            if (typeof value === "object" && value !== null) {
+                if (value.id !== undefined && value.id !== null && value.id !== false && value.id !== "") {
+                    return String(value.id);
+                }
+                return "";
+            }
             return String(value);
         };
 
@@ -510,7 +538,7 @@ export default function StockForm() {
                 }],
             lwhText: getFieldValue(stock.lwh_text),
             details: getFieldValue(stock.details) || getFieldValue(stock.item_desc),
-            value: getFieldValue(stock.value, ""),
+            value: normalizeStockValueForForm(getFieldValue(stock.value, "")),
             currency: normalizeId(stock.currency_id) || normalizeId(stock.currency) || "",
             origin_text: (() => {
                 // If origin_text is already text (from previous saves), use it directly
@@ -524,13 +552,19 @@ export default function StockForm() {
                 // Otherwise, keep as ID - will be converted to name in useEffect after countries load
                 return normalizeId(stock.origin_id) || normalizeId(stock.origin) || "";
             })(),
-            viaHub: normalizeStockOriginHubText(getFieldValue(stock.via_hub, "")),
+            narviStockViaHub1: resolveStockLocationOptionId(stock.narvi_stock_via_hub1),
+            narviStockViaHub1Name:
+                getStockLocationOptionName(stock.narvi_stock_via_hub1) ||
+                normalizeStockOriginHubText(getFieldValue(stock.via_hub, "")),
             attachments: [], // New uploads will be added here
             attachmentsToDelete: [], // IDs of attachments to delete
-            existingAttachments: Array.isArray(stock.attachments) ? stock.attachments : [], // Existing attachments from API // Free text field
+            existingAttachments: Array.isArray(stock.attachments) ? stock.attachments : [], // Existing attachments from API
             stockStatusChangedBy: "",
             stockStatusPreviousForPayload: "",
-            viaHub2: normalizeStockOriginHubText(getFieldValue(stock.via_hub2, "")), // Free text field
+            narviStockViaHub2: resolveStockLocationOptionId(stock.narvi_stock_via_hub2),
+            narviStockViaHub2Name:
+                getStockLocationOptionName(stock.narvi_stock_via_hub2) ||
+                normalizeStockOriginHubText(getFieldValue(stock.via_hub2, "")),
             expReadyInStock: getFieldValue(stock.exp_ready_in_stock) || "",
             remarks: getFieldValue(stock.remarks),
             blank: getFieldValue(stock.blank, ""),
@@ -548,6 +582,15 @@ export default function StockForm() {
             apDestination: getFieldValue(stock.ap_destination_new) || getFieldValue(stock.ap_destination) || "",
             apDestinationId: getStockM2OId(stock.ap_destination_ids),
             apDestinationSelect:
+                getStockM2OName(stock.ap_destination_ids) ||
+                getFieldValue(stock.ap_destination_new) ||
+                getFieldValue(stock.ap_destination) ||
+                "",
+            narviStockApDestination:
+                resolveStockLocationOptionId(stock.narvi_stock_ap_destination) ??
+                getStockM2OId(stock.ap_destination_ids),
+            narviStockApDestinationName:
+                getStockLocationOptionName(stock.narvi_stock_ap_destination) ||
                 getStockM2OName(stock.ap_destination_ids) ||
                 getFieldValue(stock.ap_destination_new) ||
                 getFieldValue(stock.ap_destination) ||
@@ -803,7 +846,6 @@ export default function StockForm() {
             currencies,
             pics,
             destinationOptions,
-            apDestinationOptions,
             normalizeStockStatusKey,
             removeSOPrefix,
             removeSIPrefix,
@@ -817,7 +859,6 @@ export default function StockForm() {
             currencies,
             pics,
             destinationOptions,
-            apDestinationOptions,
         ]
     );
 
@@ -853,16 +894,11 @@ export default function StockForm() {
             item: rowData.item !== "" && rowData.item !== null && rowData.item !== undefined ? toNumber(rowData.item) || 0 : 0,
             currency_id: rowData.currency ? String(rowData.currency) : "",
             origin_text: normalizeStockOriginHubText(rowData.origin_text),
-            ap_destination_ids: buildStockDestinationIdsPayload(
-                rowData.apDestinationId,
-                rowData.apDestinationSelect,
-                apDestinationOptions
-            ),
-            ap_destination_new: "",
-            via_hub: normalizeStockOriginHubText(rowData.viaHub), // Free text field
+            narvi_stock_via_hub1: toStockLocationPayloadId(rowData.narviStockViaHub1),
+            narvi_stock_via_hub2: toStockLocationPayloadId(rowData.narviStockViaHub2),
+            narvi_stock_ap_destination: toStockLocationPayloadId(rowData.narviStockApDestination),
             attachments: rowData.attachments || [], // Include attachments in payload
             attachment_to_delete: rowData.attachmentsToDelete || [], // Include attachment IDs to delete
-            via_hub2: normalizeStockOriginHubText(rowData.viaHub2), // Free text field
             client_access: Boolean(rowData.clientAccess),
             remarks: rowData.remarks || "",
             weight_kg: toNumber(rowData.weightKgs) || 0,
@@ -905,7 +941,7 @@ export default function StockForm() {
             // LWH text: raw text + array of lines
             lwh_text: rowData.lwhText || "",
             cw_freight: 0,
-            value: toNumber(rowData.value) || 0,
+            value: normalizeStockValueForSave(rowData.value),
             sl_create_datetime: new Date().toISOString().replace('T', ' ').slice(0, 19),
             extra: "",
             destination_new: buildStockDestinationNewPayload(
@@ -1674,15 +1710,13 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <NumberInput
+                                        <StockValueInput
                                             value={row.value}
                                             onChange={(value) => handleInputChange(rowIndex, "value", value)}
-                                            min={0}
-                                            precision={2}
-                                            size="sm"
-                                        >
-                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                        </NumberInput>
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
                                         <SimpleSearchableSelect
@@ -1704,44 +1738,51 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Box position="relative">
-                                            <Input
-                                                list={`origin-countries-${rowIndex}`}
-                                                value={row.origin_text || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "origin_text", e.target.value)}
-                                                placeholder="Type or select country..."
-                                                size="sm"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
-                                            <datalist id={`origin-countries-${rowIndex}`}>
-                                                {countries.map((country) => (
-                                                    <option key={country.id || country.country_id} value={country.name || country.code || ""} />
-                                                ))}
-                                            </datalist>
-                                        </Box>
-                                    </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Input
-                                            value={row.viaHub || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "viaHub", e.target.value)}
-                                            placeholder="Enter HUB 1"
-                                            size="sm"
+                                        <StockOriginCountrySelect
+                                            value={row.origin_text || ""}
+                                            onChange={(val) => handleInputChange(rowIndex, "origin_text", val)}
+                                            countries={countries}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Input
-                                            value={row.viaHub2 || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "viaHub2", e.target.value)}
-                                            placeholder="Enter HUB 2"
+                                        <StockIdNameSearchableSelect
+                                            value={row.narviStockViaHub1}
+                                            selectedName={row.narviStockViaHub1Name}
+                                            onChange={(id) => handleInputChange(rowIndex, "narviStockViaHub1", id)}
+                                            onSearchChange={setQViaHub1}
+                                            options={mergeStockIdNameOptions(
+                                                viaHub1Options,
+                                                row.narviStockViaHub1,
+                                                row.narviStockViaHub1Name
+                                            )}
+                                            placeholder="Select Via HUB 1..."
                                             size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
+                                            isLoading={isLoadingLocationOptions}
+                                        />
+                                    </Td>
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <StockIdNameSearchableSelect
+                                            value={row.narviStockViaHub2}
+                                            selectedName={row.narviStockViaHub2Name}
+                                            onChange={(id) => handleInputChange(rowIndex, "narviStockViaHub2", id)}
+                                            onSearchChange={setQViaHub2}
+                                            options={mergeStockIdNameOptions(
+                                                viaHub2Options,
+                                                row.narviStockViaHub2,
+                                                row.narviStockViaHub2Name
+                                            )}
+                                            placeholder="Select Via HUB 2..."
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                            isLoading={isLoadingLocationOptions}
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">

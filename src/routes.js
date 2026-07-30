@@ -58,7 +58,6 @@ import ShippingOrderEditPage from "views/admin/shipping-order/ShippingOrderEditP
 import StockList from "views/admin/stock-list";
 import StockForm from "views/admin/stock-list/StockForm";
 import Stocks from "views/admin/stock-list/Stocks";
-import StockDBMainEdit from "views/admin/stock-list/StockDBMainEdit";
 import NewStockItem from "views/admin/stock-list/NewStockItem";
 
 // Forms Imports
@@ -206,7 +205,7 @@ const routes = [
       },
       {
         name: "Add Stock",
-        path: "/stock-list/add-stock",
+        path: "/stock-list/stock",
         icon: <Icon as={MdAdd} width="20px" height="20px" color="inherit" />,
         component: NewStockItem,
       },
@@ -476,12 +475,6 @@ const hiddenRoutes = [
     layout: "/admin",
     path: "/stock-list/form/:id?",
     component: StockForm,
-  },
-  {
-    name: "Stock Items Edit",
-    layout: "/admin",
-    path: "/stock-list/edit-stock",
-    component: StockDBMainEdit,
   },
   {
     name: "Vessel Detail",

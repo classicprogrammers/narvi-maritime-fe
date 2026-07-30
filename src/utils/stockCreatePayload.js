@@ -6,6 +6,8 @@
 import { buildStockSoIdPayloadValue } from "./shippingOrderListState";
 import { buildStockDestinationNewPayload } from "./stockDestinationOptions";
 import { normalizeStockOriginHubText } from "./stockOriginHubText";
+import { toStockLocationPayloadId } from "./stockLocationOptions";
+import { normalizeStockValueForSave } from "./stockValue";
 
 /** Keys accepted by the stock create API (line object). */
 export const STOCK_CREATE_LINE_KEYS = new Set([
@@ -27,8 +29,9 @@ export const STOCK_CREATE_LINE_KEYS = new Set([
   "ap_destination",
   "ap_destination_new",
   "ap_destination_ids",
-  "via_hub",
-  "via_hub2",
+  "narvi_stock_via_hub1",
+  "narvi_stock_via_hub2",
+  "narvi_stock_ap_destination",
   "warehouse_id",
   "warehouse_new",
   "warehouse_text",
@@ -218,7 +221,6 @@ export const buildStockCreateLinePayload = (rowData, context = {}) => {
     currencies = [],
     pics = [],
     destinationOptions = [],
-    apDestinationOptions = [],
     shippingOrders = [],
     normalizeStockStatusKey = (v) => v,
     removeSIPrefix = (v) => v,
@@ -266,12 +268,12 @@ export const buildStockCreateLinePayload = (rowData, context = {}) => {
 
   const destinationNew = buildStockDestinationNewPayload(
     rowData.destinationId,
-    rowData.destinationSelect || rowData.destination,
+    (Array.isArray(destinationOptions)
+      ? destinationOptions.find((opt) => Number(opt.id) === Number(rowData.destinationId))
+      : null
+    )?.name || "",
     destinationOptions
   );
-
-  const apDestName =
-    rowData.apDestinationSelect || rowData.apDestination || "";
 
   const soIdValue = buildStockSoIdPayloadValue(rowData.soId, shippingOrders);
 
@@ -288,8 +290,9 @@ export const buildStockCreateLinePayload = (rowData, context = {}) => {
     item: itemQty,
     stock_items_quantity: itemQty,
     origin_text: normalizeStockOriginHubText(rowData.origin_text),
-    via_hub: normalizeStockOriginHubText(rowData.viaHub),
-    via_hub2: normalizeStockOriginHubText(rowData.viaHub2),
+    narvi_stock_via_hub1: toStockLocationPayloadId(rowData.narviStockViaHub1),
+    narvi_stock_via_hub2: toStockLocationPayloadId(rowData.narviStockViaHub2),
+    narvi_stock_ap_destination: toStockLocationPayloadId(rowData.narviStockApDestination),
     client_access: Boolean(rowData.clientAccess),
     remarks: rowData.remarks || "",
     internal_remark: rowData.internalRemark || "",
@@ -301,14 +304,8 @@ export const buildStockCreateLinePayload = (rowData, context = {}) => {
     volume_cbm: toNumber(rowData.volumeCbm),
     lwh_text: rowData.lwhText || "",
     cw_air_freight_new: toNumber(rowData.cwAirfreight),
-    value: toNumber(rowData.value),
+    value: normalizeStockValueForSave(rowData.value),
     destination_new: destinationNew,
-    ap_destination_ids: buildStockApDestinationIds(
-      rowData.apDestinationId,
-      apDestName,
-      apDestinationOptions
-    ),
-    ap_destination_new: apDestName,
     warehouse_new: rowData.warehouseId || "",
     po_text: rowData.poNumber || "",
     req_no: rowData.reqNo || "",

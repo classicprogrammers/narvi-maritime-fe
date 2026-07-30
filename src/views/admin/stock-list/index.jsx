@@ -47,6 +47,15 @@ import { useHistory, useLocation } from "react-router-dom";
 import { useMasterData } from "../../../hooks/useMasterData";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import { formatStockDestinationDisplay } from "../../../utils/stockDestinationOptions";
+import {
+    getStockApDestinationSortValue,
+    getStockEffectiveHubSortValue,
+    getStockViaHub1Display,
+    getStockViaHub1SortValue,
+    getStockViaHub2Display,
+    getStockViaHub2SortValue,
+} from "../../../utils/stockLocationOptions";
+import { formatStockValueDisplay } from "../../../utils/stockValue";
 import { downloadStockItemAttachmentApi } from "../../../api/stock";
 import StockListAttachmentsCell from "../../../components/stock-list/StockListAttachmentsCell";
 import StockSoNumberLink from "../../../components/stock-list/StockSoNumberLink";
@@ -509,7 +518,16 @@ export default function StockList() {
             if (filterState.filterReqNo !== undefined) setFilterReqNo(filterState.filterReqNo);
             if (filterState.filterRemarks !== undefined) setFilterRemarks(filterState.filterRemarks);
             if (filterState.filterDaysOnStock !== undefined) setFilterDaysOnStock(filterState.filterDaysOnStock);
+            if (filterState.filterCreateDateFrom !== undefined) setFilterCreateDateFrom(filterState.filterCreateDateFrom);
+            if (filterState.filterCreateDateTo !== undefined) setFilterCreateDateTo(filterState.filterCreateDateTo);
             if (filterState.searchFilter !== undefined) setSearchFilter(filterState.searchFilter);
+            if (filterState.page !== undefined) setPage(filterState.page);
+            if (filterState.sortBy !== undefined) setSortBy(filterState.sortBy);
+            if (filterState.sortOrder !== undefined) setSortOrder(filterState.sortOrder);
+            if (filterState.activeFilter !== undefined) setActiveFilter(filterState.activeFilter);
+            if (filterState.sortField !== undefined) setSortField(filterState.sortField);
+            if (filterState.sortDirection !== undefined) setSortDirection(filterState.sortDirection);
+            if (filterState.sortOption !== undefined) setSortOption(filterState.sortOption);
             // Clear location.state to prevent restoring on subsequent renders
             history.replace(location.pathname, {});
         }
@@ -621,8 +639,10 @@ export default function StockList() {
         const hubSet = new Set();
         stockList.forEach(item => {
             if (item.effective_hub) hubSet.add(String(item.effective_hub).trim());
-            if (item.via_hub) hubSet.add(item.via_hub.trim());
-            if (item.via_hub2) hubSet.add(item.via_hub2.trim());
+            const hub1 = getStockViaHub1Display(item);
+            const hub2 = getStockViaHub2Display(item);
+            if (hub1 && hub1 !== "-") hubSet.add(String(hub1).trim());
+            if (hub2 && hub2 !== "-") hubSet.add(String(hub2).trim());
         });
         return Array.from(hubSet)
             .filter(h => h)
@@ -676,9 +696,15 @@ export default function StockList() {
                 } else if (sortField === 'origin_id' || sortField === 'origin_text') {
                     aVal = a.origin_text || a.origin || getDisplayName(a.origin_id);
                     bVal = b.origin_text || b.origin || getDisplayName(b.origin_id);
-                } else if (sortField === 'ap_destination_id' || sortField === 'ap_destination') {
-                    aVal = formatStockDestinationDisplay(a, "ap");
-                    bVal = formatStockDestinationDisplay(b, "ap");
+                } else if (sortField === 'narvi_stock_ap_destination' || sortField === 'ap_destination_id' || sortField === 'ap_destination') {
+                    aVal = getStockApDestinationSortValue(a) || formatStockDestinationDisplay(a, "ap");
+                    bVal = getStockApDestinationSortValue(b) || formatStockDestinationDisplay(b, "ap");
+                } else if (sortField === 'narvi_stock_via_hub1' || sortField === 'via_hub') {
+                    aVal = getStockViaHub1SortValue(a);
+                    bVal = getStockViaHub1SortValue(b);
+                } else if (sortField === 'narvi_stock_via_hub2' || sortField === 'via_hub2') {
+                    aVal = getStockViaHub2SortValue(a);
+                    bVal = getStockViaHub2SortValue(b);
                 } else if (sortField === 'destination_id' || sortField === 'destination') {
                     aVal = formatStockDestinationDisplay(a, "destination");
                     bVal = formatStockDestinationDisplay(b, "destination");
@@ -729,8 +755,8 @@ export default function StockList() {
                 // VIA HUB 2 overwrites VIA HUB 1 if exists
                 // Sorted alphabetically: VIA HUB 1, VIA HUB 2, etc.
                 if (sortOption === 'via_hub' || sortOption === 'via_hub_status') {
-                    const viaHubA = (a.via_hub2 || a.via_hub || "").toLowerCase().trim();
-                    const viaHubB = (b.via_hub2 || b.via_hub || "").toLowerCase().trim();
+                    const viaHubA = getStockEffectiveHubSortValue(a);
+                    const viaHubB = getStockEffectiveHubSortValue(b);
 
                     if (viaHubA !== viaHubB) {
                         return viaHubA.localeCompare(viaHubB);
@@ -761,8 +787,8 @@ export default function StockList() {
                 }
 
                 if (sortOption === 'via_vessel_via_hub_status') {
-                    const viaHubA = (a.via_hub2 || a.via_hub || "").toLowerCase().trim();
-                    const viaHubB = (b.via_hub2 || b.via_hub || "").toLowerCase().trim();
+                    const viaHubA = getStockEffectiveHubSortValue(a);
+                    const viaHubB = getStockEffectiveHubSortValue(b);
 
                     if (viaHubA !== viaHubB) {
                         return viaHubA.localeCompare(viaHubB);
@@ -802,8 +828,8 @@ export default function StockList() {
 
                     // Special case for via_hub_status: If same hub and both have "Stock" status, sort by Date on Stock
                     if (sortOption === 'via_hub_status') {
-                        const viaHubA = (a.via_hub2 || a.via_hub || "").toLowerCase().trim();
-                        const viaHubB = (b.via_hub2 || b.via_hub || "").toLowerCase().trim();
+                        const viaHubA = getStockEffectiveHubSortValue(a);
+                        const viaHubB = getStockEffectiveHubSortValue(b);
                         const normalizedA = normalizeStatus(a.stock_status);
                         const normalizedB = normalizeStatus(b.stock_status);
 
@@ -845,71 +871,70 @@ export default function StockList() {
         }
     };
 
-    // Handle bulk edit - navigate to StockDB Main edit page with selected items' full data
-    const handleBulkEdit = () => {
-        const selectedIds = Array.from(selectedRows);
-        if (selectedIds.length > 0) {
-            // Filter the full data objects from stockList for selected items
-            const selectedItemsData = stockList.filter(item => selectedIds.includes(item.id));
-            // Pass current filter state so it can be restored when navigating back
-            const filterState = {
-                selectedClient,
-                selectedVessel,
-                selectedSupplier,
-                selectedStatus,
-                selectedWarehouse,
-                selectedCurrency,
-                selectedHub,
-                filterSO,
-                filterSI,
-                filterSICombined,
-                filterDI,
-                filterPO,
-                filterReqNo,
-                filterRemarks,
-                filterDaysOnStock,
-                searchFilter
-            };
-            const editState = { selectedItems: selectedItemsData, isBulkEdit: true, filterState, sourcePage: 'main-db' };
-            history.push({
-                pathname: '/admin/stock-list/edit-stock',
-                state: editState
-            });
-        }
-    };
+    // Build filter snapshot for navigation to add-stock (edit) and restore on back
+    const buildMainDbFilterState = useCallback(() => ({
+        selectedClient,
+        selectedVessel,
+        selectedSupplier,
+        selectedStatus,
+        selectedWarehouse,
+        selectedCurrency,
+        selectedHub,
+        filterSO,
+        filterSI,
+        filterSICombined,
+        filterDI,
+        filterPO,
+        filterReqNo,
+        filterRemarks,
+        filterDaysOnStock,
+        filterCreateDateFrom,
+        filterCreateDateTo,
+        searchFilter,
+        page,
+        sortBy,
+        sortOrder,
+        activeFilter,
+        sortField,
+        sortDirection,
+        sortOption,
+    }), [
+        selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse,
+        selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI,
+        filterPO, filterReqNo, filterRemarks, filterDaysOnStock, filterCreateDateFrom,
+        filterCreateDateTo, searchFilter, page, sortBy, sortOrder, activeFilter,
+        sortField, sortDirection, sortOption,
+    ]);
 
-    // Handle bulk view - open modal with selected items
-    const handleBulkView = () => {
-        // Toggle view mode - filter table to show only selected items
-        setIsViewingSelected(prev => !prev);
-    };
-
-    // Handle single item edit - navigate to StockDB Main edit page with item's full data
-    const handleEditItem = (item) => {
-        // Pass current filter state so it can be restored when navigating back
-        const filterState = {
-            selectedClient,
-            selectedVessel,
-            selectedSupplier,
-            selectedStatus,
-            selectedWarehouse,
-            selectedCurrency,
-            selectedHub,
-            filterSO,
-            filterSI,
-            filterSICombined,
-            filterDI,
-            filterPO,
-            filterReqNo,
-            filterRemarks,
-            filterDaysOnStock,
-            searchFilter
-        };
-        const editState = { selectedItems: [item], isBulkEdit: false, filterState, sourcePage: 'main-db' };
+    const navigateToAddStockForEdit = useCallback((selectedItemsData, isBulk) => {
+        if (!selectedItemsData?.length) return;
         history.push({
-            pathname: '/admin/stock-list/edit-stock',
-            state: editState
+            pathname: "/admin/stock-list/stock",
+            state: {
+                selectedItems: selectedItemsData,
+                isBulkEdit: isBulk,
+                filterState: buildMainDbFilterState(),
+                sourcePage: "main-db",
+            },
         });
+    }, [history, buildMainDbFilterState]);
+
+    // Edit selected rows — same flow as Stocklist View/Edit (opens add-stock page)
+    const handleNavigateToEdit = () => {
+        const selectedIds = Array.from(selectedRows);
+        if (selectedIds.length === 0) return;
+        const selectedItemsData = filteredAndSortedStock.filter((item) => selectedIds.includes(item.id));
+        navigateToAddStockForEdit(selectedItemsData, selectedItemsData.length > 1);
+    };
+
+    // Handle bulk view - filter table to selected items only
+    const handleBulkView = () => {
+        setIsViewingSelected((prev) => !prev);
+    };
+
+    // Single row edit — opens add-stock page (same as Stocklist View/Edit)
+    const handleEditItem = (item) => {
+        navigateToAddStockForEdit([item], false);
     };
 
 
@@ -1844,7 +1869,7 @@ export default function StockList() {
                             leftIcon={<Icon as={MdEdit} />}
                             colorScheme="blue"
                             size="sm"
-                            onClick={handleBulkEdit}
+                            onClick={handleNavigateToEdit}
                         >
                             Edit Selected
                         </Button>
@@ -2058,8 +2083,8 @@ export default function StockList() {
                                             <Td {...cellProps}>{renderMultiLineLabels(item.po_text)}</Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.extra_2 || item.extra)}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub_2 || item.via_hub2)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(getStockViaHub1Display(item))}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(getStockViaHub2Display(item))}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-")}</Text></Td>
@@ -2113,7 +2138,7 @@ export default function StockList() {
                                                     </Tooltip>
                                                 </HStack>
                                             </Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{formatStockValueDisplay(item.value)}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.currency_id || item.currency)}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{item.client_access ? "Yes" : "No"}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.pic)}</Text></Td>
@@ -2383,7 +2408,7 @@ export default function StockList() {
                                                     Value
                                                 </Text>
                                                 <Text fontSize="sm" fontWeight="medium" color={textColor}>
-                                                    {renderText(item.value)} {getDisplayName(item.currency_id || item.currency)}
+                                                    {formatStockValueDisplay(item.value)} {getDisplayName(item.currency_id || item.currency)}
                                                 </Text>
                                             </Box>
                                             <Box>

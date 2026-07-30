@@ -30,8 +30,12 @@ export function SidebarLinks(props) {
   const [, setAddStockFlagDummy] = useState(0);
 
   const pathname = (location.pathname || "").replace(/\/$/, "") || "/";
+  const isStockFormPath = (path = pathname) => {
+    const p = (path || "").replace(/\/$/, "") || "/";
+    return p === "/admin/stock-list/stock";
+  };
   const isAddStockWithData =
-    pathname.includes("/stock-list/add-stock") &&
+    isStockFormPath() &&
     (typeof sessionStorage !== "undefined" && sessionStorage.getItem("addStockHasData") === "1");
 
   React.useEffect(() => {
@@ -49,7 +53,10 @@ export function SidebarLinks(props) {
   const isShippingOrderEditMode =
     pathname.includes("/shipping-orders/edit") &&
     /\/shipping-orders\/edit\/\d+/.test(pathname);
-  const isStockListEditMode = pathname.includes("/stock-list/edit-stock");
+  const isStockListEditMode =
+    isStockFormPath() &&
+    Array.isArray(location.state?.selectedItems) &&
+    location.state.selectedItems.length > 0;
 
   const isQuotationFormPath = (path = pathname) => {
     const p = (path || "").toLowerCase().replace(/\/$/, "") || "/";
@@ -135,8 +142,11 @@ export function SidebarLinks(props) {
     // Get source page from location.state
     const sourcePage = location.state?.sourcePage || null;
     
-    // Special handling for edit-stock page: highlight the source page tab
-    if (pathname === '/admin/stock-list/edit-stock' || pathname === '/admin/stock-list/edit-stock/') {
+    // Edit stock via stock form: highlight the source list tab
+    if (isStockFormPath() &&
+      Array.isArray(location.state?.selectedItems) &&
+      location.state.selectedItems.length > 0
+    ) {
       if (sourcePage === 'main-db' && normalizedRoute === '/stock-list/main-db') {
         return true;
       }
@@ -176,12 +186,18 @@ export function SidebarLinks(props) {
       if (remainingPath === '' || remainingPath.startsWith('/') || remainingPath.startsWith('?')) {
         return true;
       }
+      // e.g. /stock-list/stock must not match /stock-list/stocks
+      return false;
     }
     
     // Fallback to includes check for other routes (but exclude hyphenated variants)
     if (pathname.includes(normalizedRoute)) {
       // Special case: prevent "main-db" from matching "main-db-edit"
       if (normalizedRoute === '/stock-list/main-db' && pathname.includes('/stock-list/main-db-')) {
+        return false;
+      }
+      // Special case: prevent "stock" from matching "stocks"
+      if (normalizedRoute === '/stock-list/stock' && pathname.includes('/stock-list/stocks')) {
         return false;
       }
       return true;
