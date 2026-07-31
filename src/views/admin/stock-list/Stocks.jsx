@@ -143,10 +143,7 @@ import {
     normalizeStockStatusKey,
     resolveStockListActiveParam,
 } from "../../../constants/stockStatus";
-import {
-    stockListHasSearchFilters,
-    withStockListFetchMode,
-} from "../../../utils/stockListFetchParams";
+import { withStockListFetchMode } from "../../../utils/stockListFetchParams";
 import StockListAttachmentsCell from "../../../components/stock-list/StockListAttachmentsCell";
 import StockSoNumberLink from "../../../components/stock-list/StockSoNumberLink";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
@@ -570,6 +567,9 @@ export default function Stocks() {
 
     const PAGE_SIZE = 40;
 
+    // When true, API gets fetch_all=true; otherwise page-by-page (PAGE_SIZE)
+    const [fetchAllStockList, setFetchAllStockList] = useState(false);
+
     // Pagination state for Stock View / Edit tab (activeTab === 0)
     const [stockViewPage, setStockViewPage] = useState(savedState.stockViewPage);
 
@@ -839,90 +839,10 @@ export default function Stocks() {
         return digits;
     };
 
-    const stockViewUsesFetchAll = useMemo(() => {
-        const vesselStatusSet = vesselViewStatuses || new Set();
-        const statusParam = vesselStatusSet.size > 0
-            ? Array.from(vesselStatusSet)
-            : (stockViewStatus?.trim() || undefined);
-        const viaHub1Id = resolveStockLocationOptionId(stockViewViaHub1);
-        const viaHub2Id = resolveStockLocationOptionId(stockViewViaHub2);
-        const apDestId = resolveStockLocationOptionId(stockViewApDestination);
-        const clientId = stockViewClient != null
-            ? (typeof stockViewClient === "object" ? (stockViewClient?.id ?? stockViewClient?.value) : stockViewClient)
-            : undefined;
-        const vesselId = stockViewVessel != null
-            ? (typeof stockViewVessel === "object" ? (stockViewVessel?.id ?? stockViewVessel?.value) : stockViewVessel)
-            : undefined;
-        return stockListHasSearchFilters({
-            client_id: clientId ?? undefined,
-            vessel_id: vesselId ?? undefined,
-            stock_status: statusParam,
-            active: resolveStockListActiveParam(stockViewActiveFilter),
-            search: stockViewSearchFilter?.trim() || undefined,
-            so_id: normalizeSoNumber(stockViewFilterSO) || undefined,
-            si_number: stockViewFilterSI?.trim() || undefined,
-            si_combined: stockViewFilterSICombined?.trim() || undefined,
-            di_no: stockViewFilterDI?.trim() || undefined,
-            po_text: stockViewFilterPO?.trim() || undefined,
-            req_no: stockViewFilterReqNo?.trim() || undefined,
-            warehouse_new: stockViewFilterWarehouseNew?.trim() || undefined,
-            stock_item_id: stockViewStockItemId?.trim() || undefined,
-            date_on_stock: stockViewDateOnStock?.trim() || undefined,
-            days_on_stock: stockViewDaysOnStock?.trim() || undefined,
-            days_on_stock_min: daysRangeFrom?.trim() || undefined,
-            days_on_stock_max: daysRangeTo?.trim() || undefined,
-            date_on_stock_from: createDateFrom?.trim() || undefined,
-            date_on_stock_to: createDateTo?.trim() || undefined,
-            narvi_stock_via_hub1: viaHub1Id ?? undefined,
-            narvi_stock_via_hub2: viaHub2Id ?? undefined,
-            narvi_stock_ap_destination: apDestId ?? undefined,
-        });
-    }, [
-        vesselViewStatuses,
-        stockViewStatus,
-        stockViewViaHub1,
-        stockViewViaHub2,
-        stockViewApDestination,
-        stockViewClient,
-        stockViewVessel,
-        stockViewActiveFilter,
-        stockViewSearchFilter,
-        stockViewFilterSO,
-        stockViewFilterSI,
-        stockViewFilterSICombined,
-        stockViewFilterDI,
-        stockViewFilterPO,
-        stockViewFilterReqNo,
-        stockViewFilterWarehouseNew,
-        stockViewStockItemId,
-        stockViewDateOnStock,
-        stockViewDaysOnStock,
-        daysRangeFrom,
-        daysRangeTo,
-        createDateFrom,
-        createDateTo,
-    ]);
-
-    const clientViewUsesFetchAll = useMemo(() => {
-        const statusSet = clientViewStatuses || new Set();
-        const statusParam = statusSet.size > 0 ? Array.from(statusSet) : undefined;
-        const searchText = [clientViewSearchClient, clientViewSearchVessel].filter(Boolean).join(" ") || undefined;
-        return stockListHasSearchFilters({
-            client_id: clientViewClient ?? undefined,
-            vessel_id: clientViewVesselFilter ?? undefined,
-            stock_status: statusParam,
-            search: searchText,
-            name: searchText,
-        });
-    }, [
-        clientViewStatuses,
-        clientViewClient,
-        clientViewVesselFilter,
-        clientViewSearchClient,
-        clientViewSearchVessel,
-    ]);
-
-    const listUsesFetchAll = activeTab === 0 ? stockViewUsesFetchAll : clientViewUsesFetchAll;
+    // fetch_all is only sent when the user checks "Fetch all" — filters still paginate otherwise
+    const listUsesFetchAll = fetchAllStockList;
+    const stockViewUsesFetchAll = fetchAllStockList;
+    const clientViewUsesFetchAll = fetchAllStockList;
 
     const filterRef = useRef({});
     filterRef.current = {
@@ -1064,7 +984,7 @@ export default function Stocks() {
                         narvi_stock_ap_destination: apDestId ?? undefined,
                         sort_by,
                     },
-                    { page, page_size: PAGE_SIZE }
+                    { page, page_size: PAGE_SIZE, fetchAll: listUsesFetchAll }
                 )
             );
         } else {
@@ -1083,13 +1003,13 @@ export default function Stocks() {
                         name: searchText,
                         sort_by,
                     },
-                    { page, page_size: PAGE_SIZE }
+                    { page, page_size: PAGE_SIZE, fetchAll: listUsesFetchAll }
                 )
             );
         }
     }, listUsesFetchAll
         ? [apiFetchTrigger, getStockList, activeTab, sortOption, clientSortOption, listUsesFetchAll]
-        : [apiFetchTrigger, getStockList, activeTab, sortOption, clientSortOption, currentApiPage]);
+        : [apiFetchTrigger, getStockList, activeTab, sortOption, clientSortOption, listUsesFetchAll, currentApiPage]);
 
     // Restore filter state from location.state when returning from edit mode
     useEffect(() => {
@@ -5396,11 +5316,27 @@ export default function Stocks() {
                                                     </Box>
                                                 )}
 
-                                                {/* Results Count */}
-                                                <Text fontSize="sm" color={tableTextColorSecondary}>
-                                                    {allFilteredItems.length} of {total_count > 0 ? total_count : stockList.length} stock items
-                                                    {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || vesselViewStatuses.size > 0 || isViewingSelected) && " (filtered)"}
-                                                </Text>
+                                                {/* Results Count + Fetch all */}
+                                                <HStack spacing="4" align="center" flexWrap="wrap">
+                                                    <Text fontSize="sm" color={tableTextColorSecondary}>
+                                                        {allFilteredItems.length} of {total_count > 0 ? total_count : stockList.length} stock items
+                                                        {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || vesselViewStatuses.size > 0 || isViewingSelected) && " (filtered)"}
+                                                    </Text>
+                                                    <Checkbox
+                                                        size="sm"
+                                                        colorScheme="blue"
+                                                        isChecked={fetchAllStockList}
+                                                        onChange={(e) => {
+                                                            const checked = e.target.checked;
+                                                            setFetchAllStockList(checked);
+                                                            setStockViewPage(1);
+                                                            setClientViewPage(1);
+                                                            setApiFetchTrigger((t) => t + 1);
+                                                        }}
+                                                    >
+                                                        Fetch all
+                                                    </Checkbox>
+                                                </HStack>
                                             </VStack>
                                         </Card>
                                     </Box>
@@ -5786,7 +5722,7 @@ export default function Stocks() {
                                 {allFilteredItems.length > 0 && stockViewUsesFetchAll && (
                                     <Box px="25px" py={4}>
                                         <Text fontSize="sm" color={textColor}>
-                                            Showing all {allFilteredItems.length} matching records (filters active)
+                                            Showing all {allFilteredItems.length} matching records (fetch all)
                                         </Text>
                                     </Box>
                                 )}
@@ -6221,7 +6157,7 @@ export default function Stocks() {
                                 {allFilteredItems.length > 0 && clientViewUsesFetchAll && (
                                     <Box px="25px" py={4}>
                                         <Text fontSize="sm" color={textColor}>
-                                            Showing all {allFilteredItems.length} matching records (filters active)
+                                            Showing all {allFilteredItems.length} matching records (fetch all)
                                         </Text>
                                     </Box>
                                 )}

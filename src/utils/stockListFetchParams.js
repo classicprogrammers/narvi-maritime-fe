@@ -63,10 +63,13 @@ export function stockListHasSearchFilters(params = {}) {
   return false;
 }
 
-/** When filters are set, request all matches in one call (`fetch_all=true`). Otherwise paginate. */
-export function withStockListFetchMode(params = {}, { page = 1, page_size = 50 } = {}) {
+/**
+ * Paginate by default (page + page_size).
+ * Only send `fetch_all=true` when the caller explicitly opts in via `fetchAll`.
+ */
+export function withStockListFetchMode(params = {}, { page = 1, page_size = 50, fetchAll = false } = {}) {
   const { fetch_all: _fa, page: _p, page_size: _ps, ...rest } = params;
-  if (stockListHasSearchFilters(rest)) {
+  if (fetchAll) {
     return { ...rest, fetch_all: true };
   }
   return { ...rest, page, page_size };

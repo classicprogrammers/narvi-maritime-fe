@@ -76,10 +76,7 @@ import {
     normalizeStockStatusKey,
     resolveStockListActiveParam,
 } from "../../../constants/stockStatus";
-import {
-    stockListHasSearchFilters,
-    withStockListFetchMode,
-} from "../../../utils/stockListFetchParams";
+import { withStockListFetchMode } from "../../../utils/stockListFetchParams";
 
 function mapStockSoFieldToOrder(soField) {
     if (!soField || typeof soField !== "object" || soField.id == null) return null;
@@ -247,6 +244,8 @@ export default function StockList() {
     // Pagination state
     const [page, setPage] = useState(savedState.page);
     const PAGE_SIZE = 40;
+    // When true, API gets fetch_all=true; otherwise page-by-page (PAGE_SIZE)
+    const [fetchAllStockList, setFetchAllStockList] = useState(false);
     const [totalCount, setTotalCount] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
     const [hasNext, setHasNext] = useState(false);
@@ -399,56 +398,12 @@ export default function StockList() {
                     currency_id: getIdParam(selectedCurrency),
                     active: resolveStockListActiveParam(activeFilter),
                 },
-                { page, page_size: PAGE_SIZE }
+                { page, page_size: PAGE_SIZE, fetchAll: fetchAllStockList }
             )
         );
-    }, [getStockList, page, sortBy, sortOrder, sortOption, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterReqNo, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, selectedHub, selectedSupplier, selectedWarehouse, selectedCurrency, activeFilter]);
+    }, [getStockList, page, sortBy, sortOrder, sortOption, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterReqNo, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, selectedHub, selectedSupplier, selectedWarehouse, selectedCurrency, activeFilter, fetchAllStockList]);
 
-    const stockListUsesFetchAll = useMemo(
-        () =>
-            stockListHasSearchFilters({
-                search: searchFilter?.trim() || undefined,
-                client_id: getIdParam(selectedClient),
-                vessel_id: getIdParam(selectedVessel),
-                stock_status: selectedStatus?.trim() || undefined,
-                so_id: normalizeSoNumber(filterSO) || undefined,
-                si_number: filterSI?.trim() || undefined,
-                si_combined: filterSICombined?.trim() || undefined,
-                di_no: filterDI?.trim() || undefined,
-                po_text: filterPO?.trim() || undefined,
-                req_no: filterReqNo?.trim() || undefined,
-                remarks: filterRemarks?.trim() || undefined,
-                days_on_stock_min: filterDaysOnStock?.trim() || undefined,
-                date_on_stock_from: filterCreateDateFrom?.trim() || undefined,
-                date_on_stock_to: filterCreateDateTo?.trim() || undefined,
-                effective_hub: hubParam != null ? String(hubParam).trim() : undefined,
-                supplier_id: getIdParam(selectedSupplier),
-                warehouse_id: getIdParam(selectedWarehouse),
-                currency_id: getIdParam(selectedCurrency),
-                active: resolveStockListActiveParam(activeFilter),
-            }),
-        [
-            searchFilter,
-            selectedClient,
-            selectedVessel,
-            selectedStatus,
-            filterSO,
-            filterSI,
-            filterSICombined,
-            filterDI,
-            filterPO,
-            filterReqNo,
-            filterRemarks,
-            filterDaysOnStock,
-            filterCreateDateFrom,
-            filterCreateDateTo,
-            hubParam,
-            selectedSupplier,
-            selectedWarehouse,
-            selectedCurrency,
-            activeFilter,
-        ]
-    );
+    const stockListUsesFetchAll = fetchAllStockList;
 
     const statusFilterOptions = useMemo(
         () => getStatusOptionsForActiveFilter(stockStatusOptions, activeFilter),
@@ -1840,11 +1795,25 @@ export default function StockList() {
                                         </Box>
                                     )}
 
-                                    {/* Results Count */}
-                                    <Text fontSize="sm" color={tableTextColorSecondary}>
-                                        Showing {filteredAndSortedStock.length} of {totalCount || reduxTotalCount || stockList.length} stock items
-                                        {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || filterReqNo || filterRemarks || filterDaysOnStock || filterCreateDateFrom || filterCreateDateTo || searchFilter || isViewingSelected) && " (filtered)"}
-                                    </Text>
+                                    {/* Results Count + Fetch all */}
+                                    <HStack spacing="4" align="center" flexWrap="wrap">
+                                        <Text fontSize="sm" color={tableTextColorSecondary}>
+                                            Showing {filteredAndSortedStock.length} of {totalCount || reduxTotalCount || stockList.length} stock items
+                                            {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || filterReqNo || filterRemarks || filterDaysOnStock || filterCreateDateFrom || filterCreateDateTo || searchFilter || isViewingSelected) && " (filtered)"}
+                                        </Text>
+                                        <Checkbox
+                                            size="sm"
+                                            colorScheme="blue"
+                                            isChecked={fetchAllStockList}
+                                            onChange={(e) => {
+                                                setFetchAllStockList(e.target.checked);
+                                                setPage(1);
+                                                setFetchTrigger((t) => t + 1);
+                                            }}
+                                        >
+                                            Fetch all
+                                        </Checkbox>
+                                    </HStack>
                                 </VStack>
                             </Collapse>
                         </VStack>
@@ -2179,7 +2148,7 @@ export default function StockList() {
                 <Box px="25px" mt={4} mb={4}>
                     {stockListUsesFetchAll ? (
                         <Text fontSize="sm" color="gray.600">
-                            Showing all {filteredAndSortedStock.length} matching records (filters active)
+                            Showing all {filteredAndSortedStock.length} matching records (fetch all)
                         </Text>
                     ) : (
                     <Flex justify="space-between" align="center" py={4} flexWrap="wrap" gap={4}>
