@@ -5298,40 +5298,17 @@ export default function Stocks() {
                                                     </Box>
                                                 )}
 
-                                                {/* Results Count + Fetch all */}
-                                                <HStack spacing="4" align="center" flexWrap="wrap">
-                                                    <Text fontSize="sm" color={tableTextColorSecondary}>
-                                                        {allFilteredItems.length} of {total_count > 0 ? total_count : stockList.length} stock items
-                                                        {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || vesselViewStatuses.size > 0 || isViewingSelected) && " (filtered)"}
-                                                    </Text>
-                                                    <HStack spacing="2" align="center">
-                                                        <Text fontSize="sm" color={textColor} fontWeight="600">
-                                                            Fetch all
-                                                        </Text>
-                                                        <Switch
-                                                            size="md"
-                                                            colorScheme="green"
-                                                            isChecked={fetchAllStockList}
-                                                            onChange={(e) => {
-                                                                setFetchAllStockList(e.target.checked);
-                                                                setStockViewPage(1);
-                                                                setClientViewPage(1);
-                                                                setApiFetchTrigger((t) => t + 1);
-                                                            }}
-                                                        />
-                                                        <Text fontSize="xs" color={tableTextColorSecondary}>
-                                                            {fetchAllStockList
-                                                                ? "Loading all matching records"
-                                                                : "Loading 40 records per page"}
-                                                        </Text>
-                                                    </HStack>
-                                                </HStack>
+                                                {/* Results Count */}
+                                                <Text fontSize="sm" color={tableTextColorSecondary}>
+                                                    {allFilteredItems.length} of {total_count > 0 ? total_count : stockList.length} stock items
+                                                    {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || vesselViewStatuses.size > 0 || isViewingSelected) && " (filtered)"}
+                                                </Text>
                                             </VStack>
                                         </Card>
                                     </Box>
                                 </Collapse>
 
-                                {/* Active items toggle, Select All and Bulk Action Buttons */}
+                                {/* Active items toggle, Fetch all, Select All and Bulk Action Buttons */}
                                 <Flex px="25px" mb="20px" align="center" gap="4" flexWrap="wrap">
                                     <HStack spacing="2" align="center">
                                         <Text fontSize="sm" color={textColor} fontWeight="600">
@@ -5353,6 +5330,27 @@ export default function Stocks() {
                                             {stockViewActiveFilter === "false"
                                                 ? "Showing released / shipped / delivered / cancelled"
                                                 : "Showing active items"}
+                                        </Text>
+                                    </HStack>
+                                    <HStack spacing="2" align="center">
+                                        <Text fontSize="sm" color={textColor} fontWeight="600">
+                                            Fetch all
+                                        </Text>
+                                        <Switch
+                                            size="md"
+                                            colorScheme="green"
+                                            isChecked={fetchAllStockList}
+                                            onChange={(e) => {
+                                                setFetchAllStockList(e.target.checked);
+                                                setStockViewPage(1);
+                                                setClientViewPage(1);
+                                                setApiFetchTrigger((t) => t + 1);
+                                            }}
+                                        />
+                                        <Text fontSize="xs" color={tableTextColorSecondary}>
+                                            {fetchAllStockList
+                                                ? "Loading all matching records"
+                                                : "Loading 40 records per page"}
                                         </Text>
                                     </HStack>
                                     {allFilteredItems.length > 0 && (
@@ -5977,6 +5975,34 @@ export default function Stocks() {
                                                     borderColor={borderColor}
                                                     textColor={textColor}
                                                 />
+                                                {/* Results Count + Fetch all */}
+                                                <HStack spacing="4" align="center" flexWrap="wrap" mt="3">
+                                                    <Text fontSize="sm" color={tableTextColorSecondary}>
+                                                        {filteredAndSortedStock.length} of {total_count > 0 ? total_count : stockList.length} stock items
+                                                        {(clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel || createDateFrom || createDateTo || clientViewStatuses.size > 0) && " (filtered)"}
+                                                    </Text>
+                                                    <HStack spacing="2" align="center">
+                                                        <Text fontSize="sm" color={textColor} fontWeight="600">
+                                                            Fetch all
+                                                        </Text>
+                                                        <Switch
+                                                            size="md"
+                                                            colorScheme="green"
+                                                            isChecked={fetchAllStockList}
+                                                            onChange={(e) => {
+                                                                setFetchAllStockList(e.target.checked);
+                                                                setStockViewPage(1);
+                                                                setClientViewPage(1);
+                                                                setApiFetchTrigger((t) => t + 1);
+                                                            }}
+                                                        />
+                                                        <Text fontSize="xs" color={tableTextColorSecondary}>
+                                                            {fetchAllStockList
+                                                                ? "Loading all matching records"
+                                                                : "Loading 40 records per page"}
+                                                        </Text>
+                                                    </HStack>
+                                                </HStack>
                                             </Box>
                                         </VStack>
                                     </Card>

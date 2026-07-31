@@ -1210,10 +1210,32 @@ export default function StockList() {
                     <Card bg={cardBg} p="4" border="1px" borderColor={borderColor}>
                         <VStack spacing="4" align="stretch">
                             {/* Filter Header with Toggle Button */}
-                            <HStack justify="space-between">
-                                <HStack>
-                                    <Icon as={MdFilterList} color="blue.500" />
-                                    <Text fontSize="md" fontWeight="700" color={textColor}>Filters</Text>
+                            <HStack justify="space-between" flexWrap="wrap" gap="3">
+                                <HStack spacing="4" align="center" flexWrap="wrap">
+                                    <HStack>
+                                        <Icon as={MdFilterList} color="blue.500" />
+                                        <Text fontSize="md" fontWeight="700" color={textColor}>Filters</Text>
+                                    </HStack>
+                                    <HStack spacing="2" align="center">
+                                        <Text fontSize="sm" color={textColor} fontWeight="600">
+                                            Fetch all
+                                        </Text>
+                                        <Switch
+                                            size="md"
+                                            colorScheme="green"
+                                            isChecked={fetchAllStockList}
+                                            onChange={(e) => {
+                                                setFetchAllStockList(e.target.checked);
+                                                setPage(1);
+                                                setFetchTrigger((t) => t + 1);
+                                            }}
+                                        />
+                                        <Text fontSize="xs" color={tableTextColorSecondary}>
+                                            {fetchAllStockList
+                                                ? "Loading all matching records"
+                                                : "Loading 40 records per page"}
+                                        </Text>
+                                    </HStack>
                                 </HStack>
                                 <Button
                                     size="sm"
@@ -1795,33 +1817,11 @@ export default function StockList() {
                                         </Box>
                                     )}
 
-                                    {/* Results Count + Fetch all */}
-                                    <HStack spacing="4" align="center" flexWrap="wrap">
-                                        <Text fontSize="sm" color={tableTextColorSecondary}>
-                                            Showing {filteredAndSortedStock.length} of {totalCount || reduxTotalCount || stockList.length} stock items
-                                            {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || filterReqNo || filterRemarks || filterDaysOnStock || filterCreateDateFrom || filterCreateDateTo || searchFilter || isViewingSelected) && " (filtered)"}
-                                        </Text>
-                                        <HStack spacing="2" align="center">
-                                            <Text fontSize="sm" color={textColor} fontWeight="600">
-                                                Fetch all
-                                            </Text>
-                                            <Switch
-                                                size="md"
-                                                colorScheme="green"
-                                                isChecked={fetchAllStockList}
-                                                onChange={(e) => {
-                                                    setFetchAllStockList(e.target.checked);
-                                                    setPage(1);
-                                                    setFetchTrigger((t) => t + 1);
-                                                }}
-                                            />
-                                            <Text fontSize="xs" color={tableTextColorSecondary}>
-                                                {fetchAllStockList
-                                                    ? "Loading all matching records"
-                                                    : "Loading 40 records per page"}
-                                            </Text>
-                                        </HStack>
-                                    </HStack>
+                                    {/* Results Count */}
+                                    <Text fontSize="sm" color={tableTextColorSecondary}>
+                                        Showing {filteredAndSortedStock.length} of {totalCount || reduxTotalCount || stockList.length} stock items
+                                        {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || filterReqNo || filterRemarks || filterDaysOnStock || filterCreateDateFrom || filterCreateDateTo || searchFilter || isViewingSelected) && " (filtered)"}
+                                    </Text>
                                 </VStack>
                             </Collapse>
                         </VStack>
