@@ -706,7 +706,7 @@ export default function Stocks() {
     // View selected items - filter table instead of modal
     const [isViewingSelected, setIsViewingSelected] = useState(false);
 
-    const { clients, vessels, suppliers: vendors, countries, destinations, currencies } = useMasterData();
+    const { clients, vessels, suppliers: vendors, destinations, currencies } = useMasterData();
     const { vesselOptions: stockViewVesselOptions, isLoadingVessels: isLoadingStockViewVessels } =
         useClientVesselFilterOptions(stockViewClient, stockViewVessel, vessels);
     const { vesselOptions: clientViewVesselOptions, isLoadingVessels: isLoadingClientViewVessels } =
@@ -718,31 +718,33 @@ export default function Stocks() {
         viaHub1Options: stockViaHub1Options,
         viaHub2Options: stockViaHub2Options,
         narviApDestinationOptions: stockNarviApDestinationOptions,
+        originTextOptions: stockOriginTextOptions,
         isLoading: isLoadingDestinationOptions,
         setQDestination,
         setQViaHub1,
         setQViaHub2,
         setQNarviApDestination,
+        setQOriginText,
     } = useStockDestinationOptions();
     const { pinOption, seedOption, getOptionsForValue, findOptionById } = useStockListOptionPins();
 
-    const resolveOriginCountryId = useCallback((stock) => {
+    const resolveOriginOptionId = useCallback((stock) => {
         const raw = stock?.origin_text ?? stock?.origin ?? stock?.origin_id ?? "";
         const text = normalizeStockOriginHubText(
             raw === null || raw === undefined || raw === false ? "" : String(raw)
         );
         if (!text) return null;
         if (/^\d+$/.test(text)) {
-            const byId = countries.find((c) => String(c.id || c.country_id) === text);
-            if (byId) return byId.id || byId.country_id;
+            const byId = stockOriginTextOptions.find((o) => String(o.id) === text);
+            if (byId) return byId.id;
+            const numeric = Number(text);
+            return Number.isFinite(numeric) ? numeric : null;
         }
-        const match = countries.find((c) => {
-            const name = normalizeStockOriginHubText(c.name || "");
-            const code = normalizeStockOriginHubText(c.code || "");
-            return name === text || code === text;
-        });
-        return match ? (match.id || match.country_id) : null;
-    }, [countries]);
+        const match = stockOriginTextOptions.find(
+            (o) => normalizeStockOriginHubText(o.name || "") === text
+        );
+        return match ? match.id : null;
+    }, [stockOriginTextOptions]);
 
     const seedLocationPinsFromItem = useCallback((item, rowData) => {
         const pick = (val, fallback = "") =>
@@ -2743,7 +2745,7 @@ export default function Stocks() {
             so_id: normalizeStockFormSoId(resolveStockSoIdForForm(item, shippingOrdersFromStock)) || "",
             si_number: getFieldValue("si_number") || "",
             di_no: getFieldValue("di_no") || "",
-            origin_id: resolveOriginCountryId(item) ?? "",
+            origin_id: resolveOriginOptionId(item) ?? "",
             origin_text: normalizeStockOriginHubText(item.origin_text || getDisplayName(item.origin_id) || ""),
             narvi_stock_via_hub1_id: resolveStockLocationOptionId(item.narvi_stock_via_hub1),
             narvi_stock_via_hub2_id: resolveStockLocationOptionId(item.narvi_stock_via_hub2),
@@ -3437,37 +3439,39 @@ export default function Stocks() {
             );
         }
 
-        // Handle origin field as country select (same as client/vessel)
+        // Handle origin field from stock list options (origin_text_options)
         if (field.includes("origin_id") || field === "origin_text") {
             const selectId =
                 rowEditingData.origin_id !== undefined
                     ? rowEditingData.origin_id
-                    : resolveOriginCountryId(item);
+                    : resolveOriginOptionId(item);
             return wrapAssign(
                 <Box position="relative" zIndex={10} minW="160px">
                     <SimpleSearchableSelect
                         value={selectId != null && selectId !== "" ? String(selectId) : null}
                         onChange={(id) => {
-                            const match = countries.find((c) => String(c.id || c.country_id) === String(id));
-                            if (match) pinOption("origin", { id: match.id, name: match.name });
+                            const match = findOptionById("origin", stockOriginTextOptions, id);
+                            if (match) pinOption("origin", match);
                             setEditingRowData((prev) => ({
                                 ...prev,
                                 [item.id]: {
                                     ...(prev[item.id] || normalizeItemForEditing(item)),
                                     origin_id: id,
-                                    origin_text: normalizeStockOriginHubText(match?.name || match?.code || ""),
+                                    origin_text: normalizeStockOriginHubText(match?.name || ""),
                                 },
                             }));
                         }}
-                        options={getOptionsForValue("origin", countries, selectId)}
-                        placeholder="Select country..."
+                        options={getOptionsForValue("origin", stockOriginTextOptions, selectId)}
+                        placeholder="Select origin..."
                         displayKey="name"
                         valueKey="id"
-                        formatOption={(option) => option.name || `Country ${option.id}`}
-                        isLoading={false}
+                        formatOption={(option) => option.name || `Origin ${option.id}`}
+                        onSearchChange={setQOriginText}
+                        isLoading={isLoadingDestinationOptions}
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
+                        {...STOCK_LIST_SELECT_PROPS}
                     />
                 </Box>
             );

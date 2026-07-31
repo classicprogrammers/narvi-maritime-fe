@@ -56,6 +56,7 @@ export const getStockListOptionsApi = async (params = {}) => {
       q_narvi_stock_via_hub2 = "",
       q_narvi_stock_ap_destination = "",
       q_narvi_stock_location = "",
+      q_origin_text = "",
       page = 1,
       page_size = 50,
     } = params;
@@ -85,11 +86,16 @@ export const getStockListOptionsApi = async (params = {}) => {
       q_narvi_stock_location != null && String(q_narvi_stock_location).trim() !== ""
         ? String(q_narvi_stock_location).trim()
         : "";
+    const originTextQ =
+      q_origin_text != null && String(q_origin_text).trim() !== ""
+        ? String(q_origin_text).trim()
+        : "";
 
     if (viaHub1Q) payload.q_narvi_stock_via_hub1 = viaHub1Q;
     if (viaHub2Q) payload.q_narvi_stock_via_hub2 = viaHub2Q;
     if (apDestQ) payload.q_narvi_stock_ap_destination = apDestQ;
     if (locationQ) payload.q_narvi_stock_location = locationQ;
+    if (originTextQ) payload.q_origin_text = originTextQ;
 
     const response = await api.post(getApiEndpoint("STOCK_LIST_OPTIONS"), payload);
     const data = response.data || response;
@@ -122,6 +128,9 @@ export const getStockListOptionsApi = async (params = {}) => {
         : [],
       narvi_stock_ap_destination_total_count: source.narvi_stock_ap_destination_total_count ?? 0,
       narvi_stock_ap_destination_total_pages: source.narvi_stock_ap_destination_total_pages ?? 0,
+      origin_text_options: Array.isArray(source.origin_text_options) ? source.origin_text_options : [],
+      origin_text_total_count: source.origin_text_total_count ?? 0,
+      origin_text_total_pages: source.origin_text_total_pages ?? 0,
       page: source.page ?? page,
       page_size: source.page_size ?? page_size,
     };

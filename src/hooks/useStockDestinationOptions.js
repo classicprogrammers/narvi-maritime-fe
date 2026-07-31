@@ -8,11 +8,13 @@ export default function useStockDestinationOptions() {
   const [viaHub1Options, setViaHub1Options] = useState([]);
   const [viaHub2Options, setViaHub2Options] = useState([]);
   const [narviApDestinationOptions, setNarviApDestinationOptions] = useState([]);
+  const [originTextOptions, setOriginTextOptions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [qDestination, setQDestination] = useState("");
   const [qViaHub1, setQViaHub1] = useState("");
   const [qViaHub2, setQViaHub2] = useState("");
   const [qNarviApDestination, setQNarviApDestination] = useState("");
+  const [qOriginText, setQOriginText] = useState("");
   const requestIdRef = useRef(0);
 
   const loadOptions = useCallback(
@@ -21,6 +23,7 @@ export default function useStockDestinationOptions() {
       q_narvi_stock_via_hub1,
       q_narvi_stock_via_hub2,
       q_narvi_stock_ap_destination,
+      q_origin_text,
       page = 1,
       page_size = 50,
     } = {}) => {
@@ -32,6 +35,7 @@ export default function useStockDestinationOptions() {
           q_narvi_stock_via_hub1,
           q_narvi_stock_via_hub2,
           q_narvi_stock_ap_destination,
+          q_origin_text,
           page,
           page_size,
         });
@@ -40,6 +44,7 @@ export default function useStockDestinationOptions() {
         setViaHub1Options(normalizeStockIdNameOptions(result.narvi_stock_via_hub1_options));
         setViaHub2Options(normalizeStockIdNameOptions(result.narvi_stock_via_hub2_options));
         setNarviApDestinationOptions(normalizeStockIdNameOptions(result.narvi_stock_ap_destination_options));
+        setOriginTextOptions(normalizeStockIdNameOptions(result.origin_text_options));
       } catch (e) {
         if (requestId === requestIdRef.current) {
           console.error("Failed to load stock list options:", e);
@@ -60,25 +65,29 @@ export default function useStockDestinationOptions() {
         q_narvi_stock_via_hub1: qViaHub1,
         q_narvi_stock_via_hub2: qViaHub2,
         q_narvi_stock_ap_destination: qNarviApDestination,
+        q_origin_text: qOriginText,
       });
     }, 300);
     return () => clearTimeout(timeoutId);
-  }, [qDestination, qViaHub1, qViaHub2, qNarviApDestination, loadOptions]);
+  }, [qDestination, qViaHub1, qViaHub2, qNarviApDestination, qOriginText, loadOptions]);
 
   return {
     destinationOptions,
     viaHub1Options,
     viaHub2Options,
     narviApDestinationOptions,
+    originTextOptions,
     isLoading,
     qDestination,
     qViaHub1,
     qViaHub2,
     qNarviApDestination,
+    qOriginText,
     setQDestination,
     setQViaHub1,
     setQViaHub2,
     setQNarviApDestination,
+    setQOriginText,
     reloadOptions: loadOptions,
   };
 }

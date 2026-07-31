@@ -85,16 +85,18 @@ export default function StockForm() {
     const toast = useToast();
     const { user } = useUser();
     const { updateStockItem, getStockList, updateLoading, stockList } = useStock();
-    const { clients, vessels, suppliers, countries, pics, currencies, refreshClients, refreshVessels } = useMasterData();
+    const { clients, vessels, suppliers, pics, currencies, refreshClients, refreshVessels } = useMasterData();
     const {
         destinationOptions,
         viaHub1Options,
         viaHub2Options,
         narviApDestinationOptions,
+        originTextOptions,
         isLoading: isLoadingLocationOptions,
         setQViaHub1,
         setQViaHub2,
         setQNarviApDestination,
+        setQOriginText,
     } = useStockDestinationOptions();
     const [isLoading, setIsLoading] = useState(isEditing);
     const [vesselOptionsByClientId, setVesselOptionsByClientId] = useState({});
@@ -355,26 +357,8 @@ export default function StockForm() {
     }, [currencies]);
 
     // Sync form rows from cache (read getCached inside effect + refs to avoid infinite loop from useMasterData refs)
-    const hasSyncedCountriesRef = React.useRef(false);
     const hasSyncedClientsRef = React.useRef(false);
     const hasSyncedVesselsRef = React.useRef(false);
-
-    useEffect(() => {
-        if (!formRows.length) return;
-        const countriesList = getCached(MASTER_KEYS.COUNTRIES) ?? [];
-        if (!countriesList.length || hasSyncedCountriesRef.current) return;
-        hasSyncedCountriesRef.current = true;
-        setFormRows((prevRows) =>
-            prevRows.map((row) => {
-                if (!row.origin_text) return row;
-                const normalizedValue = String(row.origin_text);
-                if (!/^\d+$/.test(normalizedValue)) return row;
-                const country = countriesList.find((c) => String(c.id || c.country_id) === normalizedValue);
-                if (country) return { ...row, origin_text: normalizeStockOriginHubText(country.name || country.code || normalizedValue) };
-                return row;
-            })
-        );
-    }, [formRows]);
 
     useEffect(() => {
         const uniqueClientIds = [...new Set(formRows.map((row) => row.client).filter(Boolean).map((clientId) => String(clientId)))];
@@ -549,8 +533,13 @@ export default function StockForm() {
                 if (stock.origin && typeof stock.origin === 'string' && !/^\d+$/.test(stock.origin)) {
                     return normalizeStockOriginHubText(stock.origin);
                 }
-                // Otherwise, keep as ID - will be converted to name in useEffect after countries load
-                return normalizeId(stock.origin_id) || normalizeId(stock.origin) || "";
+                // Numeric id — resolve name from origin_text_options when available
+                const oid = normalizeId(stock.origin_id) || normalizeId(stock.origin) || "";
+                if (oid) {
+                    const match = originTextOptions.find((o) => String(o.id) === String(oid));
+                    if (match) return normalizeStockOriginHubText(match.name || "");
+                }
+                return "";
             })(),
             narviStockViaHub1: resolveStockLocationOptionId(stock.narvi_stock_via_hub1),
             narviStockViaHub1Name:
@@ -1741,7 +1730,9 @@ export default function StockForm() {
                                         <StockOriginCountrySelect
                                             value={row.origin_text || ""}
                                             onChange={(val) => handleInputChange(rowIndex, "origin_text", val)}
-                                            countries={countries}
+                                            options={originTextOptions}
+                                            onSearchChange={setQOriginText}
+                                            isLoading={isLoadingLocationOptions}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}

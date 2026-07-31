@@ -121,17 +121,19 @@ export default function StockForm() {
     const toast = useToast();
     const { user } = useUser();
     const { updateStockItem, getStockList, updateLoading, stockList } = useStock();
-    const { clients, vessels, suppliers, countries, pics, currencies, refreshClients, refreshVessels } = useMasterData();
+    const { clients, vessels, suppliers, pics, currencies, refreshClients, refreshVessels } = useMasterData();
     const {
         destinationOptions,
         viaHub1Options,
         viaHub2Options,
         narviApDestinationOptions,
+        originTextOptions,
         isLoading: isLoadingDestinationOptions,
         setQDestination,
         setQViaHub1,
         setQViaHub2,
         setQNarviApDestination,
+        setQOriginText,
     } = useStockDestinationOptions();
     const { pinOption, seedOption, getOptionsForValue, findOptionById } = useStockListOptionPins();
     const {
@@ -512,28 +514,27 @@ export default function StockForm() {
     }, [currencies]);
 
     // Sync form rows from cache (read getCached inside effect + refs to avoid infinite loop from useMasterData refs)
-    const hasSyncedCountriesRef = React.useRef(false);
     const hasSyncedClientsRef = React.useRef(false);
     const hasSyncedVesselsRef = React.useRef(false);
     const hasSyncedSuppliersRef = React.useRef(false);
 
-    const resolveOriginCountryId = useCallback((stock) => {
-        const raw = stock?.origin_text ?? stock?.origin ?? "";
+    const resolveOriginOptionId = useCallback((stock) => {
+        const raw = stock?.origin_text ?? stock?.origin ?? stock?.origin_id ?? "";
         const text = normalizeStockOriginHubText(
             raw === null || raw === undefined || raw === false ? "" : String(raw)
         );
         if (!text) return null;
         if (/^\d+$/.test(text)) {
-            const byId = countries.find((c) => String(c.id || c.country_id) === text);
-            if (byId) return byId.id || byId.country_id;
+            const byId = originTextOptions.find((o) => String(o.id) === text);
+            if (byId) return byId.id;
+            const numeric = Number(text);
+            return Number.isFinite(numeric) ? numeric : null;
         }
-        const match = countries.find((c) => {
-            const name = normalizeStockOriginHubText(c.name || "");
-            const code = normalizeStockOriginHubText(c.code || "");
-            return name === text || code === text;
-        });
-        return match ? (match.id || match.country_id) : null;
-    }, [countries]);
+        const match = originTextOptions.find(
+            (o) => normalizeStockOriginHubText(o.name || "") === text
+        );
+        return match ? match.id : null;
+    }, [originTextOptions]);
 
     const seedLocationPinsFromStock = useCallback((stock, rowData) => {
         const pick = (val, fallback = "") =>
@@ -554,30 +555,31 @@ export default function StockForm() {
         seedOption("origin", rowData.originId, rowData.origin_text);
     }, [seedOption]);
 
-    // Convert legacy origin id/text to originId when formRows load
+    // Resolve originId from origin_text_options when options load / update
     useEffect(() => {
-        if (!formRows.length || !countries.length) return;
-        if (hasSyncedCountriesRef.current) return;
-        hasSyncedCountriesRef.current = true;
-        setFormRows((prevRows) =>
-            prevRows.map((row) => {
+        if (!originTextOptions.length) return;
+        setFormRows((prevRows) => {
+            let changed = false;
+            const next = prevRows.map((row) => {
                 if (row.originId) return row;
                 const text = normalizeStockOriginHubText(row.origin_text || "");
                 if (!text) return row;
-                const match = countries.find((c) => {
-                    const name = normalizeStockOriginHubText(c.name || "");
-                    const code = normalizeStockOriginHubText(c.code || "");
-                    return name === text || code === text || String(c.id) === text;
+                const match = originTextOptions.find((o) => {
+                    const name = normalizeStockOriginHubText(o.name || "");
+                    return name === text || String(o.id) === text;
                 });
                 if (!match) return row;
+                changed = true;
+                seedOption("origin", match.id, match.name);
                 return {
                     ...row,
-                    originId: match.id || match.country_id,
-                    origin_text: normalizeStockOriginHubText(match.name || match.code || text),
+                    originId: match.id,
+                    origin_text: normalizeStockOriginHubText(match.name || text),
                 };
-            })
-        );
-    }, [formRows, countries]);
+            });
+            return changed ? next : prevRows;
+        });
+    }, [originTextOptions, seedOption]);
 
     useEffect(() => {
         const uniqueClientIds = [...new Set(formRows.map((row) => row.client).filter(Boolean).map((clientId) => String(clientId)))];
@@ -830,16 +832,16 @@ export default function StockForm() {
             dgUn: getFieldValue(stock.dg_un) || "",
             value: normalizeStockValueForForm(getFieldValue(stock.value, "")),
             currency: resolveRelationId(stock.currency_id, stock.currency) || null,
-            originId: resolveOriginCountryId(stock),
+            originId: resolveOriginOptionId(stock),
             origin_text: normalizeStockOriginHubText(
                 (stock.origin_text && typeof stock.origin_text === "string" && !/^\d+$/.test(stock.origin_text))
                     ? stock.origin_text
                     : (stock.origin && typeof stock.origin === "string" && !/^\d+$/.test(stock.origin))
                         ? stock.origin
                         : (() => {
-                            const cid = resolveOriginCountryId(stock);
-                            const country = countries.find((c) => String(c.id || c.country_id) === String(cid));
-                            return country ? (country.name || country.code || "") : "";
+                            const oid = resolveOriginOptionId(stock);
+                            const match = originTextOptions.find((o) => String(o.id) === String(oid));
+                            return match ? match.name : "";
                         })()
             ),
             narviStockViaHub1: resolveStockLocationOptionId(stock.narvi_stock_via_hub1),
@@ -1259,8 +1261,8 @@ export default function StockForm() {
             item: rowData.item !== "" && rowData.item !== null && rowData.item !== undefined ? toNumber(rowData.item) || 0 : 0,
             currency_id: rowData.currency ? String(rowData.currency) : "",
             origin_text: (() => {
-                const country = countries.find((c) => String(c.id || c.country_id) === String(rowData.originId));
-                if (country) return normalizeStockOriginHubText(country.name || country.code || "");
+                const match = findOptionById("origin", originTextOptions, rowData.originId);
+                if (match) return normalizeStockOriginHubText(match.name || "");
                 return normalizeStockOriginHubText(rowData.origin_text);
             })(),
             narvi_stock_via_hub1: toStockLocationPayloadId(rowData.narviStockViaHub1),
@@ -2033,21 +2035,23 @@ export default function StockForm() {
                                                 <SimpleSearchableSelect
                                                     value={row.originId ? String(row.originId) : null}
                                                     onChange={(id) => {
-                                                        const match = countries.find((c) => String(c.id || c.country_id) === String(id));
-                                                        if (match) pinOption("origin", { id: match.id, name: match.name });
+                                                        const match = findOptionById("origin", originTextOptions, id);
+                                                        if (match) pinOption("origin", match);
                                                         handleInputChange(rowIndex, "originId", id);
                                                         handleInputChange(
                                                             rowIndex,
                                                             "origin_text",
-                                                            normalizeStockOriginHubText(match?.name || match?.code || "")
+                                                            normalizeStockOriginHubText(match?.name || "")
                                                         );
                                                     }}
-                                                    options={getOptionsForValue("origin", countries, row.originId)}
-                                                    placeholder="Select country..."
+                                                    options={getOptionsForValue("origin", originTextOptions, row.originId)}
+                                                    placeholder="Select origin..."
                                                     displayKey="name"
                                                     valueKey="id"
-                                                    formatOption={(option) => option.name || `Country ${option.id}`}
-                                                    isLoading={false}
+                                                    formatOption={(option) => option.name || `Origin ${option.id}`}
+                                                    onSearchChange={setQOriginText}
+                                                    isLoading={isLoadingDestinationOptions}
+                                                    {...stockFormSelectDropdownProps}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}

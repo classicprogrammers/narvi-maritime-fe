@@ -1,11 +1,18 @@
 import React, { useMemo } from "react";
 import SimpleSearchableSelect from "./SimpleSearchableSelect";
 import { normalizeStockOriginHubText } from "../../utils/stockOriginHubText";
+import { mergeStockIdNameOptions } from "../../utils/stockLocationOptions";
 
+/**
+ * Origin select backed by `/api/stock/list/options` `origin_text_options`.
+ * Value/onChange use the origin name string (`origin_text`).
+ */
 export default function StockOriginCountrySelect({
     value,
     onChange,
-    countries = [],
+    options = [],
+    onSearchChange,
+    isLoading = false,
     size = "sm",
     bg,
     color,
@@ -19,35 +26,45 @@ export default function StockOriginCountrySelect({
 }) {
     const normalizedValue = value ? normalizeStockOriginHubText(value) : "";
 
-    const options = useMemo(() => {
-        const list = countries.map((country) => {
-            const text = normalizeStockOriginHubText(country.name || country.code || "");
-            return {
-                id: country.id || country.country_id || text,
-                name: text,
-            };
-        });
+    const matched = useMemo(() => {
+        if (!normalizedValue) return null;
+        return (Array.isArray(options) ? options : []).find(
+            (opt) => normalizeStockOriginHubText(opt.name || "") === normalizedValue
+        ) || null;
+    }, [options, normalizedValue]);
 
-        if (normalizedValue && !list.some((opt) => opt.name === normalizedValue)) {
-            list.unshift({
-                id: `legacy-${normalizedValue}`,
-                name: normalizedValue,
-            });
-        }
+    const selectOptions = useMemo(
+        () => mergeStockIdNameOptions(options, matched?.id, normalizedValue),
+        [options, matched?.id, normalizedValue]
+    );
 
-        return list;
-    }, [countries, normalizedValue]);
+    const selectValue = matched?.id != null
+        ? String(matched.id)
+        : (normalizedValue ? `legacy-${normalizedValue}` : null);
 
     return (
         <SimpleSearchableSelect
-            value={normalizedValue || null}
-            onChange={(val) => onChange(val ? normalizeStockOriginHubText(val) : "")}
-            options={options}
-            placeholder="Select country..."
+            value={selectValue}
+            onChange={(id) => {
+                if (id == null || id === "") {
+                    onChange?.("");
+                    onSearchChange?.("");
+                    return;
+                }
+                if (String(id).startsWith("legacy-")) return;
+                const match = (Array.isArray(options) ? options : []).find(
+                    (opt) => String(opt.id) === String(id)
+                );
+                onChange?.(normalizeStockOriginHubText(match?.name || ""));
+            }}
+            options={selectOptions}
+            placeholder="Select origin..."
             displayKey="name"
-            valueKey="name"
+            valueKey="id"
             formatOption={(option) => option.name || ""}
-            isLoading={false}
+            isLoading={isLoading}
+            serverSideSearch
+            onSearchChange={onSearchChange}
             size={size}
             bg={bg}
             color={color}
