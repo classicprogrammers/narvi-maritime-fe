@@ -1801,18 +1801,26 @@ export default function StockList() {
                                             Showing {filteredAndSortedStock.length} of {totalCount || reduxTotalCount || stockList.length} stock items
                                             {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || filterReqNo || filterRemarks || filterDaysOnStock || filterCreateDateFrom || filterCreateDateTo || searchFilter || isViewingSelected) && " (filtered)"}
                                         </Text>
-                                        <Checkbox
-                                            size="sm"
-                                            colorScheme="blue"
-                                            isChecked={fetchAllStockList}
-                                            onChange={(e) => {
-                                                setFetchAllStockList(e.target.checked);
-                                                setPage(1);
-                                                setFetchTrigger((t) => t + 1);
-                                            }}
-                                        >
-                                            Fetch all
-                                        </Checkbox>
+                                        <HStack spacing="2" align="center">
+                                            <Text fontSize="sm" color={textColor} fontWeight="600">
+                                                Fetch all
+                                            </Text>
+                                            <Switch
+                                                size="md"
+                                                colorScheme="green"
+                                                isChecked={fetchAllStockList}
+                                                onChange={(e) => {
+                                                    setFetchAllStockList(e.target.checked);
+                                                    setPage(1);
+                                                    setFetchTrigger((t) => t + 1);
+                                                }}
+                                            />
+                                            <Text fontSize="xs" color={tableTextColorSecondary}>
+                                                {fetchAllStockList
+                                                    ? "Loading all matching records"
+                                                    : "Loading 40 records per page"}
+                                            </Text>
+                                        </HStack>
                                     </HStack>
                                 </VStack>
                             </Collapse>

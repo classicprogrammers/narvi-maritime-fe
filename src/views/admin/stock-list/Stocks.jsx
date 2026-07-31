@@ -4832,7 +4832,7 @@ export default function Stocks() {
                                                             )}
                                                         </HStack>
                                                     </HStack>
-                                                    <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap" mb="10px">
+                                                    <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
                                                         {/* Stock Item ID Filter */}
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
@@ -5018,9 +5018,6 @@ export default function Stocks() {
                                                             </HStack>
                                                         </Box>
 
-                                                    </Flex>
-
-                                                    <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
                                                         {/* SO Number Filter */}
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
@@ -5322,20 +5319,27 @@ export default function Stocks() {
                                                         {allFilteredItems.length} of {total_count > 0 ? total_count : stockList.length} stock items
                                                         {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || vesselViewStatuses.size > 0 || isViewingSelected) && " (filtered)"}
                                                     </Text>
-                                                    <Checkbox
-                                                        size="sm"
-                                                        colorScheme="blue"
-                                                        isChecked={fetchAllStockList}
-                                                        onChange={(e) => {
-                                                            const checked = e.target.checked;
-                                                            setFetchAllStockList(checked);
-                                                            setStockViewPage(1);
-                                                            setClientViewPage(1);
-                                                            setApiFetchTrigger((t) => t + 1);
-                                                        }}
-                                                    >
-                                                        Fetch all
-                                                    </Checkbox>
+                                                    <HStack spacing="2" align="center">
+                                                        <Text fontSize="sm" color={textColor} fontWeight="600">
+                                                            Fetch all
+                                                        </Text>
+                                                        <Switch
+                                                            size="md"
+                                                            colorScheme="green"
+                                                            isChecked={fetchAllStockList}
+                                                            onChange={(e) => {
+                                                                setFetchAllStockList(e.target.checked);
+                                                                setStockViewPage(1);
+                                                                setClientViewPage(1);
+                                                                setApiFetchTrigger((t) => t + 1);
+                                                            }}
+                                                        />
+                                                        <Text fontSize="xs" color={tableTextColorSecondary}>
+                                                            {fetchAllStockList
+                                                                ? "Loading all matching records"
+                                                                : "Loading 40 records per page"}
+                                                        </Text>
+                                                    </HStack>
                                                 </HStack>
                                             </VStack>
                                         </Card>
