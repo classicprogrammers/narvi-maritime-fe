@@ -24,7 +24,7 @@ const assertAdviseSuccess = (data) => {
 
 /**
  * Shipping Advise APIs (SI Shipping Advise flow).
- * Options: q_agent, q_cnee, q_si, q_from, q_to + page, page_size
+ * Options: q_agent, q_cnee, q_si, q_sic, q_from, q_to + page, page_size
  */
 
 export const getShippingAdviseOptionsApi = async ({
@@ -32,6 +32,7 @@ export const getShippingAdviseOptionsApi = async ({
   page_size = 100,
   q_cnee,
   q_si,
+  q_sic,
   q_agent,
   q_from,
   q_to,
@@ -45,6 +46,7 @@ export const getShippingAdviseOptionsApi = async ({
   payload.page_size = clampedPageSize;
   if (q_cnee != null && String(q_cnee).trim() !== "") payload.q_cnee = String(q_cnee);
   if (q_si != null && String(q_si).trim() !== "") payload.q_si = String(q_si);
+  if (q_sic != null && String(q_sic).trim() !== "") payload.q_sic = String(q_sic);
   if (q_agent != null && String(q_agent).trim() !== "") payload.q_agent = String(q_agent);
   if (q_from != null && String(q_from).trim() !== "") payload.q_from = String(q_from);
   if (q_to != null && String(q_to).trim() !== "") payload.q_to = String(q_to);

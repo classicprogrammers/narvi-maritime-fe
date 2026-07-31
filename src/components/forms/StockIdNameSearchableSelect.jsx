@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import SimpleSearchableSelect from "./SimpleSearchableSelect";
+import RemoteSearchableSelect from "./RemoteSearchableSelect";
 import { mergeStockIdNameOptions, resolveStockLocationOptionId } from "../../utils/stockLocationOptions";
 
 export default function StockIdNameSearchableSelect({
@@ -43,7 +43,7 @@ export default function StockIdNameSearchableSelect({
     };
 
     return (
-        <SimpleSearchableSelect
+        <RemoteSearchableSelect
             value={selectedId != null ? String(selectedId) : null}
             onChange={handleChange}
             options={selectOptions}
@@ -52,7 +52,6 @@ export default function StockIdNameSearchableSelect({
             valueKey="id"
             formatOption={(option) => option.name || ""}
             isLoading={isLoading}
-            serverSideSearch
             onSearchChange={onSearchChange}
             size={size}
             bg={bg}

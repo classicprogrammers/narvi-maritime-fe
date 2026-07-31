@@ -115,14 +115,6 @@ const SimpleSearchableSelect = ({
 
   const hasSearchQuery = String(searchValue).trim() !== "";
 
-  // Server-side search with no matches: close dropdown and clear typed search text
-  useEffect(() => {
-    if (!serverSideSearch || !isOpen || isLoading || !hasSearchQuery) return;
-    if (filteredOptions.length === 0) {
-      closeAndClearSearch();
-    }
-  }, [serverSideSearch, isOpen, isLoading, hasSearchQuery, filteredOptions.length, closeAndClearSearch]);
-
   // When dropdown opens/value changes, set highlighted index
   useEffect(() => {
     if (isOpen) {

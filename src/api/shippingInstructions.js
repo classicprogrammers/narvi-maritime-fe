@@ -5,6 +5,7 @@ export const getSiFormOptionsApi = async ({
   page_size = 100,
   q_cnee,
   q_si,
+  q_sic,
   q_agent,
   q_ship_by,
   q_shipped_by,
@@ -21,6 +22,7 @@ export const getSiFormOptionsApi = async ({
   // Backend expects search text (ilike on display_name / si_number)
   if (q_cnee != null && String(q_cnee).trim() !== "") payload.q_cnee = String(q_cnee);
   if (q_si != null && String(q_si).trim() !== "") payload.q_si = String(q_si);
+  if (q_sic != null && String(q_sic).trim() !== "") payload.q_sic = String(q_sic);
   if (q_agent != null && String(q_agent).trim() !== "") payload.q_agent = String(q_agent);
   if (q_ship_by != null && String(q_ship_by).trim() !== "") payload.q_ship_by = String(q_ship_by);
   if (q_shipped_by != null && String(q_shipped_by).trim() !== "") payload.q_shipped_by = String(q_shipped_by);

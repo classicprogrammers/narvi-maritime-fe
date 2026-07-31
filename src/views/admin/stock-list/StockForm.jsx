@@ -46,7 +46,7 @@ import { useStock } from "../../../redux/hooks/useStock";
 import { useUser } from "../../../redux/hooks/useUser";
 import { useMasterData } from "../../../hooks/useMasterData";
 import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
-import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
+import RemoteSearchableSelect from "../../../components/forms/RemoteSearchableSelect";
 import StockOriginCountrySelect from "../../../components/forms/StockOriginCountrySelect";
 import StockIdNameSearchableSelect from "../../../components/forms/StockIdNameSearchableSelect";
 import StockValueInput from "../../../components/forms/StockValueInput";
@@ -64,6 +64,7 @@ import {
 } from "../../../utils/stockLocationOptions";
 import { normalizeStockValueForForm, normalizeStockValueForSave } from "../../../utils/stockValue";
 import { buildStockCreateLinePayload } from "../../../utils/stockCreatePayload";
+import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps } from "../../../utils/stockUpdatePayload";
 import {
     createAppendStockReportPdfOnStatusChange,
     createSaveRowBeforeStockReportPdf,
@@ -891,35 +892,8 @@ export default function StockForm() {
             client_access: Boolean(rowData.clientAccess),
             remarks: rowData.remarks || "",
             weight_kg: toNumber(rowData.weightKgs) || 0,
-            // Include dimensions array if present - with strict conditions based on calculation_method
-            dimensions: Array.isArray(rowData.dimensions) && rowData.dimensions.length > 0
-                ? rowData.dimensions.map(dim => {
-                    const method = dim.calculation_method || "lwh";
-                    // Strict conditions: only include relevant fields based on method
-                    if (method === "lwh") {
-                        return {
-                            id: dim.id || undefined,
-                            calculation_method: "lwh",
-                            length_cm: dim.length_cm ? parseFloat(dim.length_cm) : 0.0,
-                            width_cm: dim.width_cm ? parseFloat(dim.width_cm) : 0.0,
-                            height_cm: dim.height_cm ? parseFloat(dim.height_cm) : 0.0,
-                            volume_dim: false, // Always false for lwh method
-                            cw_air_freight: dim.cw_air_freight ? parseFloat(dim.cw_air_freight) : 0.0,
-                        };
-                    } else {
-                        // method === "volume"
-                        return {
-                            id: dim.id || undefined,
-                            calculation_method: "volume",
-                            length_cm: 0.0, // Always 0.0 for volume method
-                            width_cm: 0.0, // Always 0.0 for volume method
-                            height_cm: 0.0, // Always 0.0 for volume method
-                            volume_dim: dim.volume_dim ? parseFloat(dim.volume_dim) : false,
-                            cw_air_freight: dim.cw_air_freight ? parseFloat(dim.cw_air_freight) : 0.0,
-                        };
-                    }
-                })
-                : undefined,
+            // Dimensions filled below with create/update/delete ops
+            dimensions: undefined,
             // Legacy fields for backward compatibility (use first dimension if available)
             width_cm: rowData.dimensions?.[0]?.calculation_method === "lwh" ? (toNumber(rowData.dimensions[0].width_cm) || 0) : 0,
             length_cm: rowData.dimensions?.[0]?.calculation_method === "lwh" ? (toNumber(rowData.dimensions[0].length_cm) || 0) : 0,
@@ -959,13 +933,101 @@ export default function StockForm() {
             payload.stock_item_id = rowData.stockItemId;
         }
 
-        // Include stock_id for update/delete operations
+        // Include stock_id for update operations (never send id)
         if (includeStockId && rowData.stockId) {
             payload.stock_id = rowData.stockId;
-            payload.id = rowData.stockId;
         }
 
-        return payload;
+        const originalStock =
+            selectedItems.find((s) => String(s.id) === String(rowData.stockId)) ||
+            (Array.isArray(stockList)
+                ? stockList.find((s) => String(s.id) === String(rowData.stockId))
+                : null);
+
+        const dimensionOps = buildStockUpdateDimensionsOps(
+            rowData.dimensions,
+            originalStock?.dimensions || []
+        );
+        if (dimensionOps) {
+            payload.dimensions = dimensionOps;
+        } else {
+            delete payload.dimensions;
+        }
+
+        if (!originalStock) {
+            return payload;
+        }
+
+        const baselineRow = loadFormDataFromStock(originalStock, true);
+        const baselinePayload = {
+            stock_id: originalStock.id,
+            stock_status: normalizeStockStatusKey(baselineRow.stockStatus) || "",
+            stock_status_changed_by: "",
+            stock_status_previous: "",
+            client_id: baselineRow.client ? String(baselineRow.client) : "",
+            supplier_id: baselineRow.supplier ? String(baselineRow.supplier) : "",
+            vessel_id: baselineRow.vessel ? String(baselineRow.vessel) : "",
+            po_text: baselineRow.poNumber || "",
+            req_no: baselineRow.reqNo || "",
+            pic_new: baselineRow.pic ? String(baselineRow.pic) : false,
+            item_id: baselineRow.itemId ? String(baselineRow.itemId) : "",
+            item: baselineRow.item !== "" && baselineRow.item !== null && baselineRow.item !== undefined
+                ? toNumber(baselineRow.item) || 0
+                : 0,
+            currency_id: baselineRow.currency ? String(baselineRow.currency) : "",
+            origin_text: normalizeStockOriginHubText(baselineRow.origin_text),
+            narvi_stock_via_hub1: toStockLocationPayloadId(baselineRow.narviStockViaHub1),
+            narvi_stock_via_hub2: toStockLocationPayloadId(baselineRow.narviStockViaHub2),
+            narvi_stock_ap_destination: toStockLocationPayloadId(baselineRow.narviStockApDestination),
+            attachments: [],
+            attachment_to_delete: [],
+            client_access: Boolean(baselineRow.clientAccess),
+            remarks: baselineRow.remarks || "",
+            weight_kg: toNumber(baselineRow.weightKgs) || 0,
+            dimensions: undefined,
+            width_cm: baselineRow.dimensions?.[0]?.calculation_method === "lwh"
+                ? (toNumber(baselineRow.dimensions[0].width_cm) || 0)
+                : 0,
+            length_cm: baselineRow.dimensions?.[0]?.calculation_method === "lwh"
+                ? (toNumber(baselineRow.dimensions[0].length_cm) || 0)
+                : 0,
+            height_cm: baselineRow.dimensions?.[0]?.calculation_method === "lwh"
+                ? (toNumber(baselineRow.dimensions[0].height_cm) || 0)
+                : 0,
+            volume_dim: baselineRow.dimensions?.[0]?.calculation_method === "volume"
+                ? (toNumber(baselineRow.dimensions[0].volume_dim) || 0)
+                : 0,
+            lwh_text: baselineRow.lwhText || "",
+            cw_freight: 0,
+            value: normalizeStockValueForSave(baselineRow.value),
+            extra: "",
+            destination_new: buildStockDestinationNewPayload(
+                baselineRow.destinationId,
+                baselineRow.destinationSelect,
+                destinationOptions
+            ),
+            warehouse_new: baselineRow.warehouseId || "",
+            shipping_doc: baselineRow.shippingDoc || "",
+            export_doc: "",
+            exp_ready_in_stock: baselineRow.expReadyInStock || "",
+            shipped_date: null,
+            delivered_date: "",
+            details: baselineRow.details || "",
+            vessel_destination: baselineRow.vesselDestination ? String(baselineRow.vesselDestination) : "",
+            vessel_eta: baselineRow.vesselEta || "",
+            po_text_array: splitLines(baselineRow.poNumber),
+            req_no_array: splitLines(baselineRow.reqNo),
+            lwh_text_array: splitLines(baselineRow.lwhText),
+        };
+
+        if (baselineRow.stockItemId) {
+            baselinePayload.stock_item_id = baselineRow.stockItemId;
+        }
+
+        // Ignore always-now timestamp so it doesn't force a fake change
+        delete payload.sl_create_datetime;
+
+        return pickStockUpdateChangedFields(payload, baselinePayload);
     };
     getPayloadRef.current = getPayload;
 
@@ -1316,7 +1378,7 @@ export default function StockForm() {
                                         </Td>
                                     )}
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
-                                        <SimpleSearchableSelect
+                                        <RemoteSearchableSelect
                                             value={row.client}
                                             onChange={(value) => handleInputChange(rowIndex, "client", value)}
                                             options={clients}
@@ -1331,7 +1393,7 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
-                                        <SimpleSearchableSelect
+                                        <RemoteSearchableSelect
                                             value={row.vessel}
                                             onChange={(value) => handleInputChange(rowIndex, "vessel", value)}
                                             options={getVesselOptionsForClient(row.client)}
@@ -1346,7 +1408,7 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
-                                        <SimpleSearchableSelect
+                                        <RemoteSearchableSelect
                                             value={row.pic ? String(row.pic) : null}
                                             onChange={(value) => {
                                                 // Store the PIC ID
@@ -1365,7 +1427,7 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
-                                        <SimpleSearchableSelect
+                                        <RemoteSearchableSelect
                                             value={row.supplier}
                                             onChange={(value) => handleInputChange(rowIndex, "supplier", value)}
                                             options={clients}
@@ -1708,7 +1770,7 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
-                                        <SimpleSearchableSelect
+                                        <RemoteSearchableSelect
                                             value={row.currency}
                                             onChange={(value) => handleInputChange(rowIndex, "currency", value)}
                                             options={currencies}

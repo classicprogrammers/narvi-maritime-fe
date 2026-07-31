@@ -105,11 +105,12 @@ function collectShippingOrdersFromStockItems(items = []) {
     return Array.from(map.values());
 }
 import { useMasterData } from "../../../hooks/useMasterData";
-import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
+import RemoteSearchableSelect from "../../../components/forms/RemoteSearchableSelect";
 import { CellWithAssignMenu } from "../../../components/forms/AssignToRowsBelowMenu";
 import StockValueInput from "../../../components/forms/StockValueInput";
 import useStockDestinationOptions from "../../../hooks/useStockDestinationOptions";
 import useStockListOptionPins from "../../../hooks/useStockListOptionPins";
+import { stockUpdateValuesEqual } from "../../../utils/stockUpdatePayload";
 import {
     buildStockDestinationNewPayload,
     formatStockDestinationDisplay,
@@ -150,13 +151,6 @@ import StockReportHistoryModal from "../../../components/stock-list/StockReportH
 import { useStockAttachmentsGallery } from "../../../hooks/useStockAttachmentsGallery";
 import { getInlineAttachmentDisplayNames } from "../../../utils/stockReportAttachmentsUi";
 import { formatVolumeCbm } from "../../../utils/stockVolume";
-
-const STOCK_LIST_SELECT_PROPS = {
-    prefillOnFocus: false,
-    clearOnEmptySearch: false,
-    serverSideSearch: true,
-};
-
 const CLIENT_VIEW_TABLE_COLUMNS = {
     filter1: [
         { key: "client", label: "CLIENT", uiOnly: true },
@@ -2893,14 +2887,7 @@ export default function Stocks() {
     };
 
     // Helper to compare values (handles different data types)
-    const valuesAreEqual = (val1, val2) => {
-        // Handle null/undefined/empty
-        if ((!val1 || val1 === false || val1 === "") && (!val2 || val2 === false || val2 === "")) return true;
-        // Handle numbers - compare as numbers
-        if (typeof val1 === "number" && typeof val2 === "number") return val1 === val2;
-        // Convert both to strings for comparison
-        return String(val1 || "") === String(val2 || "");
-    };
+    const valuesAreEqual = (val1, val2) => stockUpdateValuesEqual(val1, val2);
 
     // Map frontend editingRowData to backend API payload structure - only include changed fields
     const buildPayload = (originalItem, editedData = null) => {
@@ -3408,7 +3395,7 @@ export default function Stocks() {
 
             return wrapAssign(
                 <Box position="relative" zIndex={10}>
-                    <SimpleSearchableSelect
+                    <RemoteSearchableSelect
                         value={currentValue ? String(currentValue) : ""}
                         onChange={(val) => handleChange(val)}
                         options={soOptions}
@@ -3447,7 +3434,7 @@ export default function Stocks() {
                     : resolveOriginOptionId(item);
             return wrapAssign(
                 <Box position="relative" zIndex={10} minW="160px">
-                    <SimpleSearchableSelect
+                    <RemoteSearchableSelect
                         value={selectId != null && selectId !== "" ? String(selectId) : null}
                         onChange={(id) => {
                             const match = findOptionById("origin", stockOriginTextOptions, id);
@@ -3471,8 +3458,7 @@ export default function Stocks() {
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
-                        {...STOCK_LIST_SELECT_PROPS}
-                    />
+                        />
                 </Box>
             );
         }
@@ -3484,7 +3470,7 @@ export default function Stocks() {
                     : getStockM2OId(item.destination_ids);
             return wrapAssign(
                 <Box position="relative" zIndex={10} minW="160px">
-                    <SimpleSearchableSelect
+                    <RemoteSearchableSelect
                         value={selectId != null && selectId !== "" ? String(selectId) : null}
                         onChange={(id) => {
                             const match = findOptionById("destination", stockDestinationOptions, id);
@@ -3507,8 +3493,7 @@ export default function Stocks() {
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
-                        {...STOCK_LIST_SELECT_PROPS}
-                    />
+                        />
                 </Box>
             );
         }
@@ -3548,7 +3533,7 @@ export default function Stocks() {
 
             return wrapAssign(
                 <Box position="relative" zIndex={10} minW="160px">
-                    <SimpleSearchableSelect
+                    <RemoteSearchableSelect
                         value={selectId != null && selectId !== "" ? String(selectId) : null}
                         onChange={(id) => {
                             const match = findOptionById(locationConfig.pinKey, locationConfig.options, id);
@@ -3571,8 +3556,7 @@ export default function Stocks() {
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
-                        {...STOCK_LIST_SELECT_PROPS}
-                    />
+                        />
                 </Box>
             );
         }
@@ -4329,7 +4313,7 @@ export default function Stocks() {
                                                                     Filter by Vessel
                                                                 </Text>
                                                             </Flex>
-                                                            <SimpleSearchableSelect
+                                                            <RemoteSearchableSelect
                                                                 value={vesselViewVessel}
                                                                 onChange={(value) => setVesselViewVessel(value)}
                                                                 options={vesselViewVesselOptions}
@@ -4353,7 +4337,7 @@ export default function Stocks() {
                                                                     Filter by Client
                                                                 </Text>
                                                             </Flex>
-                                                            <SimpleSearchableSelect
+                                                            <RemoteSearchableSelect
                                                                 value={vesselViewClient}
                                                                 onChange={(value) => {
                                                                     setVesselViewClient(value);
@@ -4473,7 +4457,7 @@ export default function Stocks() {
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
-                                                                    <SimpleSearchableSelect
+                                                                    <RemoteSearchableSelect
                                                                         value={clientViewClient}
                                                                         onChange={(value) => {
                                                                             setClientViewClient(value);
@@ -4507,7 +4491,7 @@ export default function Stocks() {
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
-                                                                    <SimpleSearchableSelect
+                                                                    <RemoteSearchableSelect
                                                                         value={clientViewVesselFilter}
                                                                         onChange={(value) => setClientViewVesselFilter(value)}
                                                                         options={clientViewVesselOptions}
@@ -4571,7 +4555,7 @@ export default function Stocks() {
                                                                 </Button>
                                                             )}
                                                         </Flex>
-                                                        <SimpleSearchableSelect
+                                                        <RemoteSearchableSelect
                                                             value={clientViewClient}
                                                             onChange={(value) => {
                                                                 setClientViewClient(value);
@@ -4868,7 +4852,7 @@ export default function Stocks() {
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
-                                                                    <SimpleSearchableSelect
+                                                                    <RemoteSearchableSelect
                                                                         value={stockViewClient}
                                                                         onChange={(value) => {
                                                                             setStockViewClient(value);
@@ -4902,7 +4886,7 @@ export default function Stocks() {
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
-                                                                    <SimpleSearchableSelect
+                                                                    <RemoteSearchableSelect
                                                                         value={stockViewVessel}
                                                                         onChange={(value) => setStockViewVessel(value)}
                                                                         options={stockViewVesselOptions}
@@ -5134,7 +5118,7 @@ export default function Stocks() {
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
-                                                                    <SimpleSearchableSelect
+                                                                    <RemoteSearchableSelect
                                                                         value={stockViewViaHub1 != null ? String(stockViewViaHub1) : null}
                                                                         onChange={(id) => {
                                                                             const match = findOptionById("viaHub1", stockViaHub1Options, id);
@@ -5151,8 +5135,7 @@ export default function Stocks() {
                                                                         bg={inputBg}
                                                                         color={inputText}
                                                                         borderColor={borderColor}
-                                                                        {...STOCK_LIST_SELECT_PROPS}
-                                                                    />
+                                                                        />
                                                                 </Box>
                                                                 {stockViewViaHub1 && (
                                                                     <IconButton
@@ -5171,7 +5154,7 @@ export default function Stocks() {
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
-                                                                    <SimpleSearchableSelect
+                                                                    <RemoteSearchableSelect
                                                                         value={stockViewViaHub2 != null ? String(stockViewViaHub2) : null}
                                                                         onChange={(id) => {
                                                                             const match = findOptionById("viaHub2", stockViaHub2Options, id);
@@ -5188,8 +5171,7 @@ export default function Stocks() {
                                                                         bg={inputBg}
                                                                         color={inputText}
                                                                         borderColor={borderColor}
-                                                                        {...STOCK_LIST_SELECT_PROPS}
-                                                                    />
+                                                                        />
                                                                 </Box>
                                                                 {stockViewViaHub2 && (
                                                                     <IconButton
@@ -5208,7 +5190,7 @@ export default function Stocks() {
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
-                                                                    <SimpleSearchableSelect
+                                                                    <RemoteSearchableSelect
                                                                         value={stockViewApDestination != null ? String(stockViewApDestination) : null}
                                                                         onChange={(id) => {
                                                                             const match = findOptionById("apDestination", stockNarviApDestinationOptions, id);
@@ -5225,8 +5207,7 @@ export default function Stocks() {
                                                                         bg={inputBg}
                                                                         color={inputText}
                                                                         borderColor={borderColor}
-                                                                        {...STOCK_LIST_SELECT_PROPS}
-                                                                    />
+                                                                        />
                                                                 </Box>
                                                                 {stockViewApDestination && (
                                                                     <IconButton
@@ -5911,7 +5892,7 @@ export default function Stocks() {
                                                     <Box w="220px" minW="200px">
                                                         <HStack spacing="1">
                                                             <Box flex="1">
-                                                                <SimpleSearchableSelect
+                                                                <RemoteSearchableSelect
                                                                     value={clientViewClient}
                                                                     onChange={(value) => {
                                                                         setClientViewClient(value);
@@ -5945,7 +5926,7 @@ export default function Stocks() {
                                                     <Box w="220px" minW="200px">
                                                         <HStack spacing="1">
                                                             <Box flex="1">
-                                                                <SimpleSearchableSelect
+                                                                <RemoteSearchableSelect
                                                                     value={clientViewVesselFilter}
                                                                     onChange={(value) => setClientViewVesselFilter(value)}
                                                                     options={clientViewVesselOptions}

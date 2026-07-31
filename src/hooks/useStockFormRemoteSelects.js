@@ -5,6 +5,7 @@ import vesselsAPI from "../api/vessels";
 import { getShippingOrders } from "../api/shippingOrders";
 import { mergeSelectedIntoOptions, mergeShippingOrderLists } from "../utils/stockFormSelectUtils";
 import { resolveShippingOrderSoIdApiParam, getSoNumberSearchKeyFromField } from "../utils/shippingOrderListState";
+import { REMOTE_SEARCHABLE_SELECT_PROPS } from "../components/forms/RemoteSearchableSelect";
 
 const PAGE_SIZE = 50;
 const DEBOUNCE_MS = 300;
@@ -379,9 +380,7 @@ export default function useStockFormRemoteSelects({
   );
 
   const stockFormSelectDropdownProps = {
-    prefillOnFocus: false,
-    clearOnEmptySearch: false,
-    serverSideSearch: true,
+    ...REMOTE_SEARCHABLE_SELECT_PROPS,
   };
 
   // First page on mount; typing in a field still triggers debounced search requests.

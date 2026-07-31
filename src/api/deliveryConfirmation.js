@@ -28,6 +28,7 @@ export const getDeliveryConfirmationOptionsApi = async ({
   q_di,
   q_pic,
   q_si,
+  q_sic,
   q_so,
   q_to,
   q_delivery_to_at,
@@ -43,6 +44,7 @@ export const getDeliveryConfirmationOptionsApi = async ({
   if (q_di != null && String(q_di).trim() !== "") payload.q_di = String(q_di);
   if (q_pic != null && String(q_pic).trim() !== "") payload.q_pic = String(q_pic);
   if (q_si != null && String(q_si).trim() !== "") payload.q_si = String(q_si);
+  if (q_sic != null && String(q_sic).trim() !== "") payload.q_sic = String(q_sic);
   if (q_so != null && String(q_so).trim() !== "") payload.q_so = String(q_so);
   if (q_to != null && String(q_to).trim() !== "") payload.q_to = String(q_to);
   if (q_delivery_to_at != null && String(q_delivery_to_at).trim() !== "") {

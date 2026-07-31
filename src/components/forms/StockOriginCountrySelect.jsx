@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import SimpleSearchableSelect from "./SimpleSearchableSelect";
+import RemoteSearchableSelect from "./RemoteSearchableSelect";
 import { normalizeStockOriginHubText } from "../../utils/stockOriginHubText";
 import { mergeStockIdNameOptions } from "../../utils/stockLocationOptions";
 
@@ -43,7 +43,7 @@ export default function StockOriginCountrySelect({
         : (normalizedValue ? `legacy-${normalizedValue}` : null);
 
     return (
-        <SimpleSearchableSelect
+        <RemoteSearchableSelect
             value={selectValue}
             onChange={(id) => {
                 if (id == null || id === "") {
@@ -63,7 +63,6 @@ export default function StockOriginCountrySelect({
             valueKey="id"
             formatOption={(option) => option.name || ""}
             isLoading={isLoading}
-            serverSideSearch
             onSearchChange={onSearchChange}
             size={size}
             bg={bg}

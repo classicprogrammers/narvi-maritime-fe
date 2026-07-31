@@ -58,7 +58,7 @@ import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
 import api from "../../../api/axios";
 import { createStockItemApi, updateStockItemApi } from "../../../api/stock";
 import { AssignToRowsBelowMenu, CellWithAssignMenu } from "../../../components/forms/AssignToRowsBelowMenu";
-import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
+import RemoteSearchableSelect from "../../../components/forms/RemoteSearchableSelect";
 import StockValueInput from "../../../components/forms/StockValueInput";
 import useStockDestinationOptions from "../../../hooks/useStockDestinationOptions";
 import useStockFormRemoteSelects from "../../../hooks/useStockFormRemoteSelects";
@@ -71,6 +71,7 @@ import {
     getStockM2OName,
 } from "../../../utils/stockDestinationOptions";
 import { buildStockCreateLinePayload } from "../../../utils/stockCreatePayload";
+import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps } from "../../../utils/stockUpdatePayload";
 import {
     filterItemsWithBulkSaveFailures,
     filterRowsWithBulkSaveFailures,
@@ -151,7 +152,6 @@ export default function StockForm() {
         handleVesselSearchChange,
         ensureVesselsLoadedForClient,
         isLoadingVesselByClient,
-        stockFormSelectDropdownProps,
     } = useStockFormRemoteSelects({
         masterClients: clients,
         masterSuppliers: suppliers,
@@ -875,6 +875,7 @@ export default function StockForm() {
             existingAttachments: Array.isArray(stock.attachments) ? stock.attachments : [], // Existing attachments from API
             dimensions: Array.isArray(stock.dimensions) ? stock.dimensions.map(dim => ({
                 id: dim.id || null,
+                calculation_method: dim.calculation_method || "lwh",
                 length_cm: dim.length_cm || "",
                 width_cm: dim.width_cm || "",
                 height_cm: dim.height_cm || "",
@@ -1300,22 +1301,7 @@ export default function StockForm() {
             dg_un: rowData.dgUn || "", // DG/UN Number - Free text
             attachments: rowData.attachments || [], // Include attachments in payload
             attachment_to_delete: rowData.attachmentsToDelete || [], // Include attachment IDs to delete
-            dimensions: Array.isArray(rowData.dimensions) && rowData.dimensions.length > 0
-                ? rowData.dimensions.map(dim => {
-                    // For new records, all dimensions are "create" operations.
-                    return {
-                        op: "create",
-                        calculation_method: dim.calculation_method || "lwh",
-                        length_cm: toNumber(dim.length_cm) || 0,
-                        width_cm: toNumber(dim.width_cm) || 0,
-                        height_cm: toNumber(dim.height_cm) || 0,
-                        volume_dim: (dim.calculation_method || "lwh") === "volume"
-                            ? (toNumber(dim.volume_dim) || 0)
-                            : false,
-                        weight_kg: toNumber(dim.weight_kg) || 0,
-                    };
-                })
-                : undefined,
+            dimensions: undefined, // filled below with create/update/delete ops
             vessel_destination: rowData.vesselDestination ? String(rowData.vesselDestination) : "", // Free text field
             vessel_eta: rowData.vesselEta || "",
             so_id: buildStockSoIdPayloadValue(rowData.soId, shippingOrders),
@@ -1363,7 +1349,127 @@ export default function StockForm() {
             // DO NOT include id field - only stock_id is needed for update
         }
 
-        return payload;
+        // Diff against original stock — API only needs stock_id + changed fields
+        const originalStock =
+            selectedItems.find((s) => String(s.id) === String(rowData.stockId)) ||
+            selectedItemsFromState.find((s) => String(s.id) === String(rowData.stockId)) ||
+            (Array.isArray(stockList)
+                ? stockList.find((s) => String(s.id) === String(rowData.stockId))
+                : null);
+
+        // Dimensions: create / update / delete ops (never re-create existing rows as create)
+        const dimensionOps = buildStockUpdateDimensionsOps(
+            rowData.dimensions,
+            originalStock?.dimensions || []
+        );
+        if (dimensionOps) {
+            payload.dimensions = dimensionOps;
+        } else {
+            delete payload.dimensions;
+        }
+
+        if (!originalStock) {
+            return payload;
+        }
+
+        const baselineRow = loadFormDataFromStock(originalStock, true);
+        const baselinePayload = {
+            stock_id: originalStock.id,
+            stock_status: normalizeStockStatusKey(baselineRow.stockStatus) || "",
+            stock_status_changed_by: "",
+            stock_status_previous: "",
+            client_id: baselineRow.client ? String(baselineRow.client) : "",
+            supplier_id: baselineRow.supplier ? String(baselineRow.supplier) : "",
+            vessel_id: baselineRow.vessel ? String(baselineRow.vessel) : "",
+            po_text: baselineRow.poNumber || "",
+            req_no: baselineRow.reqNo || "",
+            pic_new: baselineRow.pic ? String(baselineRow.pic) : false,
+            item_id: baselineRow.itemId ? String(baselineRow.itemId) : "",
+            stock_items_quantity: baselineRow.itemId ? String(baselineRow.itemId) : "",
+            item: baselineRow.item !== "" && baselineRow.item !== null && baselineRow.item !== undefined
+                ? toNumber(baselineRow.item) || 0
+                : 0,
+            currency_id: baselineRow.currency ? String(baselineRow.currency) : "",
+            origin_text: (() => {
+                const match = findOptionById("origin", originTextOptions, baselineRow.originId);
+                if (match) return normalizeStockOriginHubText(match.name || "");
+                return normalizeStockOriginHubText(baselineRow.origin_text);
+            })(),
+            narvi_stock_via_hub1: toStockLocationPayloadId(baselineRow.narviStockViaHub1),
+            narvi_stock_via_hub2: toStockLocationPayloadId(baselineRow.narviStockViaHub2),
+            narvi_stock_ap_destination: toStockLocationPayloadId(baselineRow.narviStockApDestination),
+            client_access: Boolean(baselineRow.clientAccess),
+            remarks: baselineRow.remarks || "",
+            internal_remark: baselineRow.internalRemark || "",
+            weight_kg: toNumber(baselineRow.weightKgs) || 0,
+            width_cm: toNumber(baselineRow.widthCm) || 0,
+            length_cm: toNumber(baselineRow.lengthCm) || 0,
+            height_cm: toNumber(baselineRow.heightCm) || 0,
+            volume_dim: baselineRow.dimensions?.[0]?.calculation_method === "volume"
+                ? (toNumber(baselineRow.dimensions[0].volume_dim) || 0)
+                : 0,
+            lwh_text: baselineRow.lwhText || "",
+            cw_air_freight_new: toNumber(baselineRow.cwAirfreight) || 0,
+            value: normalizeStockValueForSave(baselineRow.value),
+            shipment_type: "",
+            extra: baselineRow.extra2 || "",
+            destination_new: buildStockDestinationNewPayload(
+                baselineRow.destinationId,
+                findOptionById("destination", destinationOptions, baselineRow.destinationId)?.name || "",
+                destinationOptions
+            ),
+            warehouse_new: baselineRow.warehouseId || "",
+            shipping_doc: baselineRow.shippingDoc || "",
+            export_doc: baselineRow.exportDoc || "",
+            export_doc_2: baselineRow.exportDoc2 || "",
+            date_on_stock: baselineRow.dateOnStock || "",
+            exp_ready_in_stock: baselineRow.expReadyInStock || "",
+            shipped_date: baselineRow.shippedDate || null,
+            delivered_date: baselineRow.deliveredDate || "",
+            details: baselineRow.details || "",
+            dg_un: baselineRow.dgUn || "",
+            attachments: [],
+            attachment_to_delete: [],
+            // No dimension ops on baseline — candidate already holds only changed ops
+            dimensions: undefined,
+            vessel_destination: baselineRow.vesselDestination ? String(baselineRow.vesselDestination) : "",
+            vessel_eta: baselineRow.vesselEta || "",
+            so_id: buildStockSoIdPayloadValue(baselineRow.soId, shippingOrders),
+            si_number: baselineRow.siNumber
+                ? String(removeSIPrefix(
+                    String(baselineRow.siNumber).startsWith("SI-")
+                        ? String(baselineRow.siNumber)
+                        : `SI-${baselineRow.siNumber}`
+                ))
+                : "",
+            si_combined: baselineRow.siCombined
+                ? (() => {
+                    let value = String(baselineRow.siCombined);
+                    if (value && !value.startsWith("SIC-") && !value.startsWith("SI-C-") && !value.startsWith("SI-")) {
+                        value = `SIC-${value}`;
+                    }
+                    const cleaned = String(removeSICombinedPrefix(value));
+                    return cleaned === "" ? false : cleaned;
+                })()
+                : false,
+            di_no: baselineRow.diNumber
+                ? String(removeDIPrefix(
+                    String(baselineRow.diNumber).startsWith("DI-")
+                        ? String(baselineRow.diNumber)
+                        : `DI-${baselineRow.diNumber}`
+                ))
+                : "",
+            vessel_destination_text: baselineRow.vesselDestination || "",
+            po_text_array: splitLines(baselineRow.poNumber),
+            req_no_array: splitLines(baselineRow.reqNo),
+            lwh_text_array: splitLines(baselineRow.lwhText),
+        };
+
+        if (baselineRow.stockItemId) {
+            baselinePayload.stock_item_id = baselineRow.stockItemId;
+        }
+
+        return pickStockUpdateChangedFields(payload, baselinePayload);
     };
     getPayloadRef.current = getPayload;
 
@@ -1707,7 +1813,7 @@ export default function StockForm() {
                                         )}
                                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                                             {assignCell(rowIndex, "client",
-                                                <SimpleSearchableSelect
+                                                <RemoteSearchableSelect
                                                     value={row.client}
                                                     onChange={(value) => handleInputChange(rowIndex, "client", value)}
                                                     options={getClientOptionsForValue(row.client)}
@@ -1717,7 +1823,6 @@ export default function StockForm() {
                                                     formatOption={(option) => option.name || `Client ${option.id}`}
                                                     isLoading={isLoadingClients}
                                                     onSearchChange={handleClientSearchChange}
-                                                    {...stockFormSelectDropdownProps}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -1729,7 +1834,7 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                                             {assignCell(rowIndex, "vessel",
-                                                <SimpleSearchableSelect
+                                                <RemoteSearchableSelect
                                                     value={row.vessel}
                                                     onChange={(value) => handleInputChange(rowIndex, "vessel", value)}
                                                     options={getVesselOptionsForClient(row.client, row.vessel)}
@@ -1739,7 +1844,6 @@ export default function StockForm() {
                                                     formatOption={(option) => option.name || String(option.id ?? "")}
                                                     isLoading={Boolean(isLoadingVesselByClient[getVesselLoadingKey(row.client)])}
                                                     onSearchChange={(q) => handleVesselSearchChange(row.client, q)}
-                                                    {...stockFormSelectDropdownProps}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -1751,7 +1855,7 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                                             {assignCell(rowIndex, "pic",
-                                                <SimpleSearchableSelect
+                                                <RemoteSearchableSelect
                                                     value={row.pic ? String(row.pic) : null}
                                                     onChange={(value) => {
                                                         handleInputChange(rowIndex, "pic", value ? String(value) : null);
@@ -1774,7 +1878,7 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                                             {assignCell(rowIndex, "supplier",
-                                                <SimpleSearchableSelect
+                                                <RemoteSearchableSelect
                                                     value={row.supplier}
                                                     onChange={(value) => handleInputChange(rowIndex, "supplier", value)}
                                                     options={getSupplierOptionsForValue(row.supplier)}
@@ -1784,7 +1888,6 @@ export default function StockForm() {
                                                     formatOption={(option) => option.name || `Supplier ${option.id}`}
                                                     isLoading={isLoadingSuppliers}
                                                     onSearchChange={handleSupplierSearchChange}
-                                                    {...stockFormSelectDropdownProps}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -2008,7 +2111,7 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                                             {assignCell(rowIndex, "currency",
-                                                <SimpleSearchableSelect
+                                                <RemoteSearchableSelect
                                                     value={row.currency}
                                                     onChange={(value) => handleInputChange(rowIndex, "currency", value)}
                                                     options={currencies}
@@ -2032,7 +2135,7 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} position="relative" overflow="visible">
                                             {assignCell(rowIndex, "originId",
-                                                <SimpleSearchableSelect
+                                                <RemoteSearchableSelect
                                                     value={row.originId ? String(row.originId) : null}
                                                     onChange={(id) => {
                                                         const match = findOptionById("origin", originTextOptions, id);
@@ -2051,7 +2154,6 @@ export default function StockForm() {
                                                     formatOption={(option) => option.name || `Origin ${option.id}`}
                                                     onSearchChange={setQOriginText}
                                                     isLoading={isLoadingDestinationOptions}
-                                                    {...stockFormSelectDropdownProps}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -2063,7 +2165,7 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} position="relative" overflow="visible">
                                             {assignCell(rowIndex, "narviStockViaHub1",
-                                                <SimpleSearchableSelect
+                                                <RemoteSearchableSelect
                                                     value={row.narviStockViaHub1 != null ? String(row.narviStockViaHub1) : null}
                                                     onChange={(id) => {
                                                         const match = findOptionById("viaHub1", viaHub1Options, id);
@@ -2077,7 +2179,6 @@ export default function StockForm() {
                                                     formatOption={(option) => option.name || `Option ${option.id}`}
                                                     isLoading={isLoadingDestinationOptions}
                                                     onSearchChange={setQViaHub1}
-                                                    {...stockFormSelectDropdownProps}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -2089,7 +2190,7 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} position="relative" overflow="visible">
                                             {assignCell(rowIndex, "narviStockViaHub2",
-                                                <SimpleSearchableSelect
+                                                <RemoteSearchableSelect
                                                     value={row.narviStockViaHub2 != null ? String(row.narviStockViaHub2) : null}
                                                     onChange={(id) => {
                                                         const match = findOptionById("viaHub2", viaHub2Options, id);
@@ -2103,7 +2204,6 @@ export default function StockForm() {
                                                     formatOption={(option) => option.name || `Option ${option.id}`}
                                                     isLoading={isLoadingDestinationOptions}
                                                     onSearchChange={setQViaHub2}
-                                                    {...stockFormSelectDropdownProps}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -2115,7 +2215,7 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} position="relative" overflow="visible" zIndex={1}>
                                             {assignCell(rowIndex, "narviStockApDestination",
-                                                <SimpleSearchableSelect
+                                                <RemoteSearchableSelect
                                                     value={row.narviStockApDestination != null ? String(row.narviStockApDestination) : null}
                                                     onChange={(id) => {
                                                         const match = findOptionById("apDestination", narviApDestinationOptions, id);
@@ -2129,7 +2229,6 @@ export default function StockForm() {
                                                     formatOption={(option) => option.name || `Option ${option.id}`}
                                                     isLoading={isLoadingDestinationOptions}
                                                     onSearchChange={setQNarviApDestination}
-                                                    {...stockFormSelectDropdownProps}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -2141,7 +2240,7 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} position="relative" overflow="visible" zIndex={1}>
                                             {assignCell(rowIndex, "destinationId",
-                                                <SimpleSearchableSelect
+                                                <RemoteSearchableSelect
                                                     value={row.destinationId != null ? String(row.destinationId) : null}
                                                     onChange={(id) => {
                                                         const match = findOptionById("destination", destinationOptions, id);
@@ -2155,7 +2254,6 @@ export default function StockForm() {
                                                     formatOption={(option) => option.name || `Destination ${option.id}`}
                                                     isLoading={isLoadingDestinationOptions}
                                                     onSearchChange={setQDestination}
-                                                    {...stockFormSelectDropdownProps}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -2266,7 +2364,7 @@ export default function StockForm() {
                                         <Td {...cellProps} position="relative" overflow="visible">
                                             <Flex gap="1" align="center" w="100%">
                                                 <Box flex="1" minW="0">
-                                                    <SimpleSearchableSelect
+                                                    <RemoteSearchableSelect
                                                         value={row.soId || null}
                                                         onChange={(val) => handleInputChange(rowIndex, "soId", val)}
                                                         options={shippingOrderOptions}
@@ -2279,7 +2377,6 @@ export default function StockForm() {
                                                         valueKey="id"
                                                         isLoading={isLoadingShippingOrders}
                                                         onSearchChange={handleShippingOrderSearchChange}
-                                                        {...stockFormSelectDropdownProps}
                                                         bg={inputBg}
                                                         color={inputText}
                                                         borderColor={borderColor}
