@@ -59,6 +59,8 @@ import api from "../../../api/axios";
 import { createStockItemApi, updateStockItemApi } from "../../../api/stock";
 import { AssignToRowsBelowMenu, CellWithAssignMenu } from "../../../components/forms/AssignToRowsBelowMenu";
 import RemoteSearchableSelect from "../../../components/forms/RemoteSearchableSelect";
+import StockOriginCountrySelect from "../../../components/forms/StockOriginCountrySelect";
+import StockIdNameSearchableSelect from "../../../components/forms/StockIdNameSearchableSelect";
 import StockValueInput from "../../../components/forms/StockValueInput";
 import useStockDestinationOptions from "../../../hooks/useStockDestinationOptions";
 import useStockFormRemoteSelects from "../../../hooks/useStockFormRemoteSelects";
@@ -101,6 +103,7 @@ import {
     getStockLocationOptionName,
     getStockViaHub1Display,
     getStockViaHub2Display,
+    mergeStockIdNameOptions,
     resolveStockLocationOptionId,
     toStockLocationPayloadId,
 } from "../../../utils/stockLocationOptions";
@@ -247,9 +250,13 @@ export default function StockForm() {
         originId: null,
         origin_text: "",
         narviStockViaHub1: null,
+        narviStockViaHub1Name: "",
         narviStockViaHub2: null,
+        narviStockViaHub2Name: "",
         narviStockApDestination: null,
+        narviStockApDestinationName: "",
         destinationId: null,
+        destinationName: "",
         shippingDoc: "", // Shipping Docs - Free text + textarea
         exportDoc: "", // Export doc 1 - Free text + textarea
         exportDoc2: "", // Export doc 2 - Free text + textarea
@@ -519,49 +526,93 @@ export default function StockForm() {
     const hasSyncedSuppliersRef = React.useRef(false);
 
     const resolveOriginOptionId = useCallback((stock) => {
-        const raw = stock?.origin_text ?? stock?.origin ?? stock?.origin_id ?? "";
+        // Prefer explicit origin id (same pattern as vessel/supplier), then name match.
+        const fromId =
+            resolveStockLocationOptionId(stock?.origin_id) ??
+            resolveStockLocationOptionId(stock?.origin);
+        if (fromId != null) return fromId;
+
+        const rawText = stock?.origin_text;
+        if (rawText == null || rawText === false || rawText === "") return null;
+
+        // origin_text may itself be a numeric id or an {id,name}/[id,name] value
+        const asId = resolveStockLocationOptionId(rawText);
+        if (asId != null) return asId;
+
         const text = normalizeStockOriginHubText(
-            raw === null || raw === undefined || raw === false ? "" : String(raw)
+            getStockLocationOptionName(rawText) || String(rawText)
         );
         if (!text) return null;
-        if (/^\d+$/.test(text)) {
-            const byId = originTextOptions.find((o) => String(o.id) === text);
-            if (byId) return byId.id;
-            const numeric = Number(text);
-            return Number.isFinite(numeric) ? numeric : null;
-        }
+
         const match = originTextOptions.find(
             (o) => normalizeStockOriginHubText(o.name || "") === text
         );
         return match ? match.id : null;
     }, [originTextOptions]);
 
+    const resolveOriginDisplayName = useCallback((stock, originId = null) => {
+        const fromField =
+            getStockLocationOptionName(stock?.origin_id) ||
+            getStockLocationOptionName(stock?.origin) ||
+            getStockLocationOptionName(stock?.origin_text);
+        if (fromField) return normalizeStockOriginHubText(fromField);
+
+        if (
+            typeof stock?.origin_text === "string" &&
+            stock.origin_text &&
+            !/^\d+$/.test(stock.origin_text.trim())
+        ) {
+            return normalizeStockOriginHubText(stock.origin_text);
+        }
+
+        if (originId != null) {
+            const match = originTextOptions.find((o) => String(o.id) === String(originId));
+            if (match?.name) return normalizeStockOriginHubText(match.name);
+        }
+        return "";
+    }, [originTextOptions]);
+
+    const cleanLocationDisplay = useCallback((value) => {
+        const text = value == null || value === false ? "" : String(value).trim();
+        return !text || text === "-" ? "" : text;
+    }, []);
+
     const seedLocationPinsFromStock = useCallback((stock, rowData) => {
-        const pick = (val, fallback = "") =>
-            val === null || val === undefined || val === false ? fallback : String(val || fallback);
-        seedOption("viaHub1", rowData.narviStockViaHub1, getStockViaHub1Display(stock));
-        seedOption("viaHub2", rowData.narviStockViaHub2, getStockViaHub2Display(stock));
+        seedOption("viaHub1", rowData.narviStockViaHub1, rowData.narviStockViaHub1Name);
+        seedOption("viaHub2", rowData.narviStockViaHub2, rowData.narviStockViaHub2Name);
         seedOption(
             "apDestination",
             rowData.narviStockApDestination,
-            formatStockDestinationDisplay(stock, "ap")
+            rowData.narviStockApDestinationName
         );
+        seedOption("destination", rowData.destinationId, rowData.destinationName);
         seedOption(
-            "destination",
-            rowData.destinationId,
-            getStockM2OName(stock.destination_ids) ||
-            pick(stock.destination_new, pick(stock.destination))
+            "origin",
+            rowData.originId,
+            rowData.origin_text || resolveOriginDisplayName(stock, rowData.originId)
         );
-        seedOption("origin", rowData.originId, rowData.origin_text);
-    }, [seedOption]);
+    }, [seedOption, resolveOriginDisplayName]);
 
-    // Resolve originId from origin_text_options when options load / update
+    // Resolve originId / origin_text from options when they load (select is name-bound)
     useEffect(() => {
         if (!originTextOptions.length) return;
         setFormRows((prevRows) => {
             let changed = false;
             const next = prevRows.map((row) => {
-                if (row.originId) return row;
+                if (row.originId) {
+                    const pinned = findOptionById("origin", originTextOptions, row.originId);
+                    if (pinned) {
+                        seedOption("origin", pinned.id, pinned.name);
+                        const resolvedText = normalizeStockOriginHubText(pinned.name || "");
+                        if (resolvedText && resolvedText !== normalizeStockOriginHubText(row.origin_text || "")) {
+                            changed = true;
+                            return { ...row, origin_text: resolvedText };
+                        }
+                        return row;
+                    }
+                    if (row.origin_text) seedOption("origin", row.originId, row.origin_text);
+                    return row;
+                }
                 const text = normalizeStockOriginHubText(row.origin_text || "");
                 if (!text) return row;
                 const match = originTextOptions.find((o) => {
@@ -579,7 +630,96 @@ export default function StockForm() {
             });
             return changed ? next : prevRows;
         });
-    }, [originTextOptions, seedOption]);
+    }, [originTextOptions, seedOption, findOptionById]);
+
+    // Fill hub/destination display names + pins once option lists load
+    useEffect(() => {
+        if (
+            !viaHub1Options.length &&
+            !viaHub2Options.length &&
+            !narviApDestinationOptions.length &&
+            !destinationOptions.length
+        ) {
+            return;
+        }
+        setFormRows((prevRows) => {
+            let changed = false;
+            const next = prevRows.map((row) => {
+                let updated = row;
+
+                const applyName = (id, currentName, poolKey, pool, nameKey) => {
+                    if (id == null || id === "") return;
+                    const match = findOptionById(poolKey, pool, id);
+                    const label = (match?.name || currentName || "").trim();
+                    seedOption(poolKey, id, label || `#${id}`);
+                    if (match?.name && String(currentName || "").trim() !== String(match.name).trim()) {
+                        changed = true;
+                        updated = { ...updated, [nameKey]: match.name };
+                    }
+                };
+
+                applyName(
+                    updated.narviStockViaHub1,
+                    updated.narviStockViaHub1Name,
+                    "viaHub1",
+                    viaHub1Options,
+                    "narviStockViaHub1Name"
+                );
+                applyName(
+                    updated.narviStockViaHub2,
+                    updated.narviStockViaHub2Name,
+                    "viaHub2",
+                    viaHub2Options,
+                    "narviStockViaHub2Name"
+                );
+                applyName(
+                    updated.narviStockApDestination,
+                    updated.narviStockApDestinationName,
+                    "apDestination",
+                    narviApDestinationOptions,
+                    "narviStockApDestinationName"
+                );
+                applyName(
+                    updated.destinationId,
+                    updated.destinationName,
+                    "destination",
+                    destinationOptions,
+                    "destinationName"
+                );
+                return updated;
+            });
+            return changed ? next : prevRows;
+        });
+    }, [
+        formRows,
+        viaHub1Options,
+        viaHub2Options,
+        narviApDestinationOptions,
+        destinationOptions,
+        findOptionById,
+        seedOption,
+    ]);
+
+    // Prefetch option lists by current labels so remote search can resolve selected values
+    const hasPrefetchedLocationOptionsRef = React.useRef(false);
+    useEffect(() => {
+        if (!isEditing || hasPrefetchedLocationOptionsRef.current || !formRows.length) return;
+        const row = formRows[0];
+        const hasAnyLabel = Boolean(
+            row?.origin_text ||
+            row?.narviStockViaHub1Name ||
+            row?.narviStockViaHub2Name ||
+            row?.narviStockApDestinationName ||
+            row?.destinationName
+        );
+        if (!row || !hasAnyLabel) return;
+        hasPrefetchedLocationOptionsRef.current = true;
+        if (row.origin_text) setQOriginText(String(row.origin_text));
+        if (row.narviStockViaHub1Name) setQViaHub1(String(row.narviStockViaHub1Name));
+        if (row.narviStockViaHub2Name) setQViaHub2(String(row.narviStockViaHub2Name));
+        if (row.narviStockApDestinationName) setQNarviApDestination(String(row.narviStockApDestinationName));
+        if (row.destinationName) setQDestination(String(row.destinationName));
+    }, [isEditing, formRows, setQOriginText, setQViaHub1, setQViaHub2, setQNarviApDestination, setQDestination]);
 
     useEffect(() => {
         const uniqueClientIds = [...new Set(formRows.map((row) => row.client).filter(Boolean).map((clientId) => String(clientId)))];
@@ -832,24 +972,68 @@ export default function StockForm() {
             dgUn: getFieldValue(stock.dg_un) || "",
             value: normalizeStockValueForForm(getFieldValue(stock.value, "")),
             currency: resolveRelationId(stock.currency_id, stock.currency) || null,
-            originId: resolveOriginOptionId(stock),
-            origin_text: normalizeStockOriginHubText(
-                (stock.origin_text && typeof stock.origin_text === "string" && !/^\d+$/.test(stock.origin_text))
-                    ? stock.origin_text
-                    : (stock.origin && typeof stock.origin === "string" && !/^\d+$/.test(stock.origin))
-                        ? stock.origin
-                        : (() => {
-                            const oid = resolveOriginOptionId(stock);
-                            const match = originTextOptions.find((o) => String(o.id) === String(oid));
-                            return match ? match.name : "";
-                        })()
-            ),
+            originId: (() => {
+                const oid = resolveOriginOptionId(stock);
+                return oid != null ? oid : null;
+            })(),
+            origin_text: (() => {
+                const oid = resolveOriginOptionId(stock);
+                return resolveOriginDisplayName(stock, oid);
+            })(),
             narviStockViaHub1: resolveStockLocationOptionId(stock.narvi_stock_via_hub1),
+            narviStockViaHub1Name: (() => {
+                const fromM2O = getStockLocationOptionName(stock.narvi_stock_via_hub1);
+                if (fromM2O) return fromM2O;
+                const id = resolveStockLocationOptionId(stock.narvi_stock_via_hub1);
+                const display = cleanLocationDisplay(getStockViaHub1Display(stock));
+                // Avoid treating bare numeric ids as labels (select already binds by id)
+                if (display && id != null && display === String(id)) return "";
+                return display ? normalizeStockOriginHubText(display) : "";
+            })(),
             narviStockViaHub2: resolveStockLocationOptionId(stock.narvi_stock_via_hub2),
+            narviStockViaHub2Name: (() => {
+                const fromM2O = getStockLocationOptionName(stock.narvi_stock_via_hub2);
+                if (fromM2O) return fromM2O;
+                const id = resolveStockLocationOptionId(stock.narvi_stock_via_hub2);
+                const display = cleanLocationDisplay(getStockViaHub2Display(stock));
+                if (display && id != null && display === String(id)) return "";
+                return display ? normalizeStockOriginHubText(display) : "";
+            })(),
             narviStockApDestination:
                 resolveStockLocationOptionId(stock.narvi_stock_ap_destination) ??
                 getStockM2OId(stock.ap_destination_ids),
-            destinationId: getStockM2OId(stock.destination_ids),
+            narviStockApDestinationName: (() => {
+                const fromM2O =
+                    getStockLocationOptionName(stock.narvi_stock_ap_destination) ||
+                    getStockM2OName(stock.ap_destination_ids);
+                if (fromM2O) return fromM2O;
+                const id =
+                    resolveStockLocationOptionId(stock.narvi_stock_ap_destination) ??
+                    getStockM2OId(stock.ap_destination_ids);
+                const display = cleanLocationDisplay(formatStockDestinationDisplay(stock, "ap"));
+                if (display && id != null && display === String(id)) return "";
+                return display;
+            })(),
+            destinationId:
+                getStockM2OId(stock.destination_ids) ??
+                resolveStockLocationOptionId(stock.destination_ids) ??
+                resolveStockLocationOptionId(stock.destination_id) ??
+                resolveStockLocationOptionId(stock.destination),
+            destinationName: (() => {
+                const fromM2O = getStockM2OName(stock.destination_ids);
+                if (fromM2O) return fromM2O;
+                const text =
+                    getFieldValue(stock.destination_new) ||
+                    getFieldValue(stock.destination) ||
+                    "";
+                const id =
+                    getStockM2OId(stock.destination_ids) ??
+                    resolveStockLocationOptionId(stock.destination_ids) ??
+                    resolveStockLocationOptionId(stock.destination_id) ??
+                    resolveStockLocationOptionId(stock.destination);
+                if (text && id != null && String(text).trim() === String(id)) return "";
+                return text;
+            })(),
             shippingDoc: getFieldValue(stock.shipping_doc),
             exportDoc: getFieldValue(stock.export_doc),
             exportDoc2: getFieldValue(stock.export_doc_2),
@@ -2145,25 +2329,30 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} position="relative" overflow="visible">
                                             {assignCell(rowIndex, "originId",
-                                                <RemoteSearchableSelect
-                                                    value={row.originId ? String(row.originId) : null}
-                                                    onChange={(id) => {
-                                                        const match = findOptionById("origin", originTextOptions, id);
-                                                        if (match) pinOption("origin", match);
-                                                        handleInputChange(rowIndex, "originId", id);
-                                                        handleInputChange(
-                                                            rowIndex,
-                                                            "origin_text",
-                                                            normalizeStockOriginHubText(match?.name || "")
+                                                <StockOriginCountrySelect
+                                                    value={row.origin_text || ""}
+                                                    selectedId={row.originId}
+                                                    onChange={(name) => {
+                                                        const text = normalizeStockOriginHubText(name || "");
+                                                        const match = originTextOptions.find(
+                                                            (o) => normalizeStockOriginHubText(o.name || "") === text
                                                         );
+                                                        if (match) pinOption("origin", match);
+                                                        handleInputChange(rowIndex, "origin_text", text);
+                                                        handleInputChange(rowIndex, "originId", match?.id ?? null);
                                                     }}
-                                                    options={getOptionsForValue("origin", originTextOptions, row.originId)}
-                                                    placeholder="Select origin..."
-                                                    displayKey="name"
-                                                    valueKey="id"
-                                                    formatOption={(option) => option.name || `Origin ${option.id}`}
+                                                    options={getOptionsForValue(
+                                                        "origin",
+                                                        mergeStockIdNameOptions(
+                                                            originTextOptions,
+                                                            row.originId,
+                                                            row.origin_text
+                                                        ),
+                                                        row.originId
+                                                    )}
                                                     onSearchChange={setQOriginText}
                                                     isLoading={isLoadingDestinationOptions}
+                                                    placeholder="Select origin..."
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -2175,20 +2364,28 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} position="relative" overflow="visible">
                                             {assignCell(rowIndex, "narviStockViaHub1",
-                                                <RemoteSearchableSelect
-                                                    value={row.narviStockViaHub1 != null ? String(row.narviStockViaHub1) : null}
-                                                    onChange={(id) => {
-                                                        const match = findOptionById("viaHub1", viaHub1Options, id);
-                                                        if (match) pinOption("viaHub1", match);
+                                                <StockIdNameSearchableSelect
+                                                    value={row.narviStockViaHub1}
+                                                    selectedName={row.narviStockViaHub1Name}
+                                                    onChange={(id, name) => {
+                                                        if (id != null && name) {
+                                                            pinOption("viaHub1", { id, name });
+                                                        }
                                                         handleInputChange(rowIndex, "narviStockViaHub1", id);
+                                                        handleInputChange(rowIndex, "narviStockViaHub1Name", name || "");
                                                     }}
-                                                    options={getOptionsForValue("viaHub1", viaHub1Options, row.narviStockViaHub1)}
-                                                    placeholder="Select Via HUB 1..."
-                                                    displayKey="name"
-                                                    valueKey="id"
-                                                    formatOption={(option) => option.name || `Option ${option.id}`}
-                                                    isLoading={isLoadingDestinationOptions}
                                                     onSearchChange={setQViaHub1}
+                                                    options={getOptionsForValue(
+                                                        "viaHub1",
+                                                        mergeStockIdNameOptions(
+                                                            viaHub1Options,
+                                                            row.narviStockViaHub1,
+                                                            row.narviStockViaHub1Name
+                                                        ),
+                                                        row.narviStockViaHub1
+                                                    )}
+                                                    placeholder="Select Via HUB 1..."
+                                                    isLoading={isLoadingDestinationOptions}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -2200,20 +2397,28 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} position="relative" overflow="visible">
                                             {assignCell(rowIndex, "narviStockViaHub2",
-                                                <RemoteSearchableSelect
-                                                    value={row.narviStockViaHub2 != null ? String(row.narviStockViaHub2) : null}
-                                                    onChange={(id) => {
-                                                        const match = findOptionById("viaHub2", viaHub2Options, id);
-                                                        if (match) pinOption("viaHub2", match);
+                                                <StockIdNameSearchableSelect
+                                                    value={row.narviStockViaHub2}
+                                                    selectedName={row.narviStockViaHub2Name}
+                                                    onChange={(id, name) => {
+                                                        if (id != null && name) {
+                                                            pinOption("viaHub2", { id, name });
+                                                        }
                                                         handleInputChange(rowIndex, "narviStockViaHub2", id);
+                                                        handleInputChange(rowIndex, "narviStockViaHub2Name", name || "");
                                                     }}
-                                                    options={getOptionsForValue("viaHub2", viaHub2Options, row.narviStockViaHub2)}
-                                                    placeholder="Select Via HUB 2..."
-                                                    displayKey="name"
-                                                    valueKey="id"
-                                                    formatOption={(option) => option.name || `Option ${option.id}`}
-                                                    isLoading={isLoadingDestinationOptions}
                                                     onSearchChange={setQViaHub2}
+                                                    options={getOptionsForValue(
+                                                        "viaHub2",
+                                                        mergeStockIdNameOptions(
+                                                            viaHub2Options,
+                                                            row.narviStockViaHub2,
+                                                            row.narviStockViaHub2Name
+                                                        ),
+                                                        row.narviStockViaHub2
+                                                    )}
+                                                    placeholder="Select Via HUB 2..."
+                                                    isLoading={isLoadingDestinationOptions}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -2225,20 +2430,28 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} position="relative" overflow="visible" zIndex={1}>
                                             {assignCell(rowIndex, "narviStockApDestination",
-                                                <RemoteSearchableSelect
-                                                    value={row.narviStockApDestination != null ? String(row.narviStockApDestination) : null}
-                                                    onChange={(id) => {
-                                                        const match = findOptionById("apDestination", narviApDestinationOptions, id);
-                                                        if (match) pinOption("apDestination", match);
+                                                <StockIdNameSearchableSelect
+                                                    value={row.narviStockApDestination}
+                                                    selectedName={row.narviStockApDestinationName}
+                                                    onChange={(id, name) => {
+                                                        if (id != null && name) {
+                                                            pinOption("apDestination", { id, name });
+                                                        }
                                                         handleInputChange(rowIndex, "narviStockApDestination", id);
+                                                        handleInputChange(rowIndex, "narviStockApDestinationName", name || "");
                                                     }}
-                                                    options={getOptionsForValue("apDestination", narviApDestinationOptions, row.narviStockApDestination)}
-                                                    placeholder="Select AP destination..."
-                                                    displayKey="name"
-                                                    valueKey="id"
-                                                    formatOption={(option) => option.name || `Option ${option.id}`}
-                                                    isLoading={isLoadingDestinationOptions}
                                                     onSearchChange={setQNarviApDestination}
+                                                    options={getOptionsForValue(
+                                                        "apDestination",
+                                                        mergeStockIdNameOptions(
+                                                            narviApDestinationOptions,
+                                                            row.narviStockApDestination,
+                                                            row.narviStockApDestinationName
+                                                        ),
+                                                        row.narviStockApDestination
+                                                    )}
+                                                    placeholder="Select AP destination..."
+                                                    isLoading={isLoadingDestinationOptions}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -2250,20 +2463,28 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} position="relative" overflow="visible" zIndex={1}>
                                             {assignCell(rowIndex, "destinationId",
-                                                <RemoteSearchableSelect
-                                                    value={row.destinationId != null ? String(row.destinationId) : null}
-                                                    onChange={(id) => {
-                                                        const match = findOptionById("destination", destinationOptions, id);
-                                                        if (match) pinOption("destination", match);
+                                                <StockIdNameSearchableSelect
+                                                    value={row.destinationId}
+                                                    selectedName={row.destinationName}
+                                                    onChange={(id, name) => {
+                                                        if (id != null && name) {
+                                                            pinOption("destination", { id, name });
+                                                        }
                                                         handleInputChange(rowIndex, "destinationId", id);
+                                                        handleInputChange(rowIndex, "destinationName", name || "");
                                                     }}
-                                                    options={getOptionsForValue("destination", destinationOptions, row.destinationId)}
-                                                    placeholder="Select destination..."
-                                                    displayKey="name"
-                                                    valueKey="id"
-                                                    formatOption={(option) => option.name || `Destination ${option.id}`}
-                                                    isLoading={isLoadingDestinationOptions}
                                                     onSearchChange={setQDestination}
+                                                    options={getOptionsForValue(
+                                                        "destination",
+                                                        mergeStockIdNameOptions(
+                                                            destinationOptions,
+                                                            row.destinationId,
+                                                            row.destinationName
+                                                        ),
+                                                        row.destinationId
+                                                    )}
+                                                    placeholder="Select destination..."
+                                                    isLoading={isLoadingDestinationOptions}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}

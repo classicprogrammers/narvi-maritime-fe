@@ -730,17 +730,23 @@ export default function Stocks() {
     const { pinOption, seedOption, getOptionsForValue, findOptionById } = useStockListOptionPins();
 
     const resolveOriginOptionId = useCallback((stock) => {
-        const raw = stock?.origin_text ?? stock?.origin ?? stock?.origin_id ?? "";
+        // Prefer explicit origin id (same as vessel/supplier), then name match.
+        const fromId =
+            resolveStockLocationOptionId(stock?.origin_id) ??
+            resolveStockLocationOptionId(stock?.origin);
+        if (fromId != null) return fromId;
+
+        const rawText = stock?.origin_text;
+        if (rawText == null || rawText === false || rawText === "") return null;
+
+        const asId = resolveStockLocationOptionId(rawText);
+        if (asId != null) return asId;
+
         const text = normalizeStockOriginHubText(
-            raw === null || raw === undefined || raw === false ? "" : String(raw)
+            getStockLocationOptionName(rawText) || String(rawText)
         );
         if (!text) return null;
-        if (/^\d+$/.test(text)) {
-            const byId = stockOriginTextOptions.find((o) => String(o.id) === text);
-            if (byId) return byId.id;
-            const numeric = Number(text);
-            return Number.isFinite(numeric) ? numeric : null;
-        }
+
         const match = stockOriginTextOptions.find(
             (o) => normalizeStockOriginHubText(o.name || "") === text
         );
@@ -2723,16 +2729,26 @@ export default function Stocks() {
         : someItemsSelected;
 
     // Handle inline edit start - for single row
-    // Helper to extract ID value (handles false, null, undefined, objects, and primitives)
+    // Helper to extract ID value (handles false, null, undefined, objects, Odoo tuples, and primitives)
     const extractId = (value, fallback = "") => {
         // If value is false/null/undefined/empty string, return fallback
         if (value === false || value === null || value === undefined || value === "") return fallback;
         // If value is 0, it's valid, return it as string
         if (value === 0) return "0";
+        // Odoo many2one: [id, "Name"]
+        if (Array.isArray(value)) {
+            if (value.length === 0) return fallback;
+            return extractId(value[0], fallback);
+        }
         // If it's an object with id property
-        if (typeof value === 'object' && value !== null && value.id !== undefined) return String(value.id);
+        if (typeof value === "object" && value !== null) {
+            if (value.id !== undefined && value.id !== null && value.id !== false && value.id !== "") {
+                return String(value.id);
+            }
+            return fallback;
+        }
         // If it's a number or string, return as string
-        if (typeof value === 'number' || typeof value === 'string') return String(value);
+        if (typeof value === "number" || typeof value === "string") return String(value);
         return fallback;
     };
 
@@ -2769,7 +2785,14 @@ export default function Stocks() {
             si_number: getFieldValue("si_number") || "",
             di_no: getFieldValue("di_no") || "",
             origin_id: resolveOriginOptionId(item) ?? "",
-            origin_text: normalizeStockOriginHubText(item.origin_text || getDisplayName(item.origin_id) || ""),
+            origin_text: normalizeStockOriginHubText(
+                getStockLocationOptionName(item.origin_id) ||
+                getStockLocationOptionName(item.origin) ||
+                getStockLocationOptionName(item.origin_text) ||
+                (typeof item.origin_text === "string" ? item.origin_text : "") ||
+                getDisplayName(item.origin_id) ||
+                ""
+            ),
             narvi_stock_via_hub1_id: resolveStockLocationOptionId(item.narvi_stock_via_hub1),
             narvi_stock_via_hub2_id: resolveStockLocationOptionId(item.narvi_stock_via_hub2),
             narvi_stock_ap_destination_id:

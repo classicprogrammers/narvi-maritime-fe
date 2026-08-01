@@ -31,7 +31,7 @@ export default function StockIdNameSearchableSelect({
 
     const handleChange = (nextId) => {
         if (nextId == null || nextId === "") {
-            onChange?.(null);
+            onChange?.(null, "");
             onSearchChange?.("");
             return;
         }
@@ -39,12 +39,23 @@ export default function StockIdNameSearchableSelect({
             return;
         }
         const id = Number(nextId);
-        onChange?.(Number.isFinite(id) ? id : null);
+        if (!Number.isFinite(id)) {
+            onChange?.(null, "");
+            return;
+        }
+        const match = selectOptions.find((o) => Number(o.id) === id);
+        onChange?.(id, match?.name ? String(match.name) : "");
     };
+
+    // When API gave us a name but no id yet, bind the legacy option so the input still shows it.
+    const selectValue =
+        selectedId != null
+            ? String(selectedId)
+            : (normalizedSelectedName ? `legacy-${normalizedSelectedName}` : null);
 
     return (
         <RemoteSearchableSelect
-            value={selectedId != null ? String(selectedId) : null}
+            value={selectValue}
             onChange={handleChange}
             options={selectOptions}
             placeholder={placeholder}

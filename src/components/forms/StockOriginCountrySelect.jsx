@@ -22,25 +22,33 @@ export default function StockOriginCountrySelect({
     autoWidth = true,
     autoWidthMin = 18,
     autoWidthMax = 60,
+    selectedId = null,
     ...rest
 }) {
     const normalizedValue = value ? normalizeStockOriginHubText(value) : "";
 
     const matched = useMemo(() => {
+        const list = Array.isArray(options) ? options : [];
+        if (selectedId != null && selectedId !== "") {
+            const byId = list.find((opt) => String(opt.id) === String(selectedId));
+            if (byId) return byId;
+        }
         if (!normalizedValue) return null;
-        return (Array.isArray(options) ? options : []).find(
+        return list.find(
             (opt) => normalizeStockOriginHubText(opt.name || "") === normalizedValue
         ) || null;
-    }, [options, normalizedValue]);
+    }, [options, normalizedValue, selectedId]);
 
     const selectOptions = useMemo(
-        () => mergeStockIdNameOptions(options, matched?.id, normalizedValue),
-        [options, matched?.id, normalizedValue]
+        () => mergeStockIdNameOptions(options, matched?.id ?? selectedId, normalizedValue),
+        [options, matched?.id, selectedId, normalizedValue]
     );
 
     const selectValue = matched?.id != null
         ? String(matched.id)
-        : (normalizedValue ? `legacy-${normalizedValue}` : null);
+        : (selectedId != null && selectedId !== ""
+            ? String(selectedId)
+            : (normalizedValue ? `legacy-${normalizedValue}` : null));
 
     return (
         <RemoteSearchableSelect

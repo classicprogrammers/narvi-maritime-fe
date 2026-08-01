@@ -45,22 +45,54 @@ export const normalizeStockIdNameOptions = (raw) => {
         .filter(Boolean);
 };
 
+/**
+ * Resolve a stock location option id from API shapes:
+ * - number / numeric string
+ * - { id, name } / { value_id, label }
+ * - Odoo many2one tuple [id, "Name"]
+ */
 export const resolveStockLocationOptionId = (value) => {
     if (value == null || value === false || value === "") return null;
-    if (typeof value === "object" && value.id != null) {
-        const id = Number(value.id);
+
+    // Odoo many2one: [id, "Display Name"]
+    if (Array.isArray(value)) {
+        if (value.length === 0) return null;
+        return resolveStockLocationOptionId(value[0]);
+    }
+
+    if (typeof value === "object") {
+        const rawId = value.id ?? value.value_id ?? null;
+        if (rawId == null || rawId === false || rawId === "") return null;
+        const id = Number(rawId);
         return Number.isFinite(id) ? id : null;
     }
-    const id = Number(value);
+
+    const trimmed = String(value).trim();
+    if (!trimmed || !/^-?\d+(\.\d+)?$/.test(trimmed)) return null;
+    const id = Number(trimmed);
     return Number.isFinite(id) ? id : null;
 };
 
 export const getStockLocationOptionName = (value) => {
     if (value == null || value === false || value === "") return "";
+
+    // Odoo many2one: [id, "Display Name"]
+    if (Array.isArray(value)) {
+        if (value.length >= 2 && value[1] != null && value[1] !== false) {
+            return String(value[1]).trim();
+        }
+        if (value.length >= 1) return getStockLocationOptionName(value[0]);
+        return "";
+    }
+
     if (typeof value === "object") {
-        const name = value.name ?? value.label;
+        const name = value.name ?? value.label ?? value.display_name;
         return name != null && name !== false ? String(name).trim() : "";
     }
+
+    // Non-numeric strings are legacy name-only values
+    const text = String(value).trim();
+    if (text && !/^-?\d+(\.\d+)?$/.test(text)) return text;
     return "";
 };
 
@@ -69,9 +101,25 @@ export const mergeStockIdNameOptions = (options, selectedId, selectedName) => {
     const id = resolveStockLocationOptionId(selectedId);
     const name = String(selectedName ?? "").trim();
     if (id == null && !name) return list;
-    if (id != null && !list.some((o) => Number(o.id) === id)) {
+
+    const existingIdx = id != null ? list.findIndex((o) => Number(o.id) === id) : -1;
+    if (existingIdx >= 0) {
+        // Prefer a real label over placeholder names injected by pin/merge helpers
+        const existing = list[existingIdx];
+        const existingName = String(existing?.name ?? "").trim();
+        const isPlaceholder =
+            !existingName ||
+            /^#\d+$/.test(existingName) ||
+            /^Option \d+$/i.test(existingName);
+        if (name && isPlaceholder) {
+            list[existingIdx] = { ...existing, name, key: existing.key || `id-${id}` };
+        }
+        return list;
+    }
+
+    if (id != null) {
         list.unshift({ id, name: name || `Option ${id}`, key: `id-${id}` });
-    } else if (id == null && name && !list.some((o) => String(o.name).toLowerCase() === name.toLowerCase())) {
+    } else if (name && !list.some((o) => String(o.name).toLowerCase() === name.toLowerCase())) {
         // Legacy text-only value without id — show for display but cannot save until re-selected
         list.unshift({ id: `legacy-${name}`, name, key: `legacy-${name}`, legacy: true });
     }

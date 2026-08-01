@@ -25,31 +25,32 @@ export const normalizeStockDestinationOptions = (raw) => {
 
 const unwrapStockM2OField = (field) => {
   if (field == null || field === false || field === "") return null;
-  if (Array.isArray(field)) return field.length > 0 ? field[0] : null;
+  // One record in a list: [{id,name}] or [[id,"Name"]]
+  if (Array.isArray(field)) {
+    if (field.length === 0) return null;
+    // Odoo many2one tuple [id, "Name"] — keep as-is for id/name helpers
+    if (
+      field.length === 2 &&
+      (typeof field[0] === "number" || typeof field[0] === "string") &&
+      (typeof field[1] === "string" || field[1] == null)
+    ) {
+      return field;
+    }
+    return field[0];
+  }
   return field;
 };
 
 export const getStockM2OId = (field) => {
   const value = unwrapStockM2OField(field);
-  if (value == null || value === false || value === "") return null;
-  if (typeof value === "object" && value.id != null) {
-    const id = Number(value.id);
-    return Number.isFinite(id) ? id : null;
-  }
-  const id = Number(value);
-  return Number.isFinite(id) ? id : null;
+  return resolveStockLocationOptionId(value);
 };
 
 export const getStockM2OName = (field) => {
   const value = unwrapStockM2OField(field);
   if (value == null || value === false || value === "") return "";
-  if (typeof value === "object") {
-    const name = value.name ?? value.label;
-    if (name != null && name !== false && String(name).trim() !== "") {
-      return String(name);
-    }
-    return "";
-  }
+  const fromHelper = getStockLocationOptionName(value);
+  if (fromHelper) return fromHelper;
   if (typeof value === "string") return value.trim();
   return "";
 };
