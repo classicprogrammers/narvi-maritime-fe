@@ -187,6 +187,7 @@ export const getStockListApi = async (params = {}) => {
       narvi_stock_via_hub1,
       narvi_stock_via_hub2,
       narvi_stock_ap_destination,
+      origin_text = "",
       supplier_id,
       warehouse_id,
       warehouse_new,
@@ -291,6 +292,9 @@ export const getStockListApi = async (params = {}) => {
     }
     if (narvi_stock_ap_destination != null && narvi_stock_ap_destination !== "") {
       requestParams.narvi_stock_ap_destination = narvi_stock_ap_destination;
+    }
+    if (origin_text != null && String(origin_text).trim() !== "") {
+      requestParams.origin_text = String(origin_text).trim();
     }
     if (active != null && String(active).trim() !== "") {
       requestParams.active = String(active).trim();

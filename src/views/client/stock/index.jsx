@@ -50,6 +50,7 @@ import { FALLBACK_ACTIVE_STATUS_OPTIONS, normalizeStockStatusKey } from "constan
 import { getCappedStockReportEntriesForDisplay } from "utils/stockReportAttachmentsUi";
 import { normalizeLegacyStockReportFilename } from "utils/stockReportPdf";
 import StockListAttachmentsCell from "components/stock-list/StockListAttachmentsCell";
+import StockCellText, { getStockCellTooltip } from "components/stock-list/StockCellText";
 import StockReportHistoryModal from "components/stock-list/StockReportHistoryModal";
 import { useStockAttachmentsGallery } from "hooks/useStockAttachmentsGallery";
 import StockHubSortMenuItems from "components/stock-list/StockHubSortMenuItems";
@@ -1027,15 +1028,31 @@ function ClientStock() {
                       onChange={() => handleToggleRow(row.id)}
                     />
                   </Td>
-                  <Td>{row.client}</Td>
-                  <Td>{row.vessel}</Td>
-                  <Td>{row.warehouseId}</Td>
-                  <Td>{row.supplier}</Td>
-                  <Td>{row.poNo}</Td>
-                  <Td>{row.dgUnNumber}</Td>
-                  <Td>{row.boxes}</Td>
-                  <Td>{row.weight}</Td>
                   <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.client}</StockCellText>
+                  </Td>
+                  <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.vessel}</StockCellText>
+                  </Td>
+                  <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.warehouseId}</StockCellText>
+                  </Td>
+                  <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.supplier}</StockCellText>
+                  </Td>
+                  <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.poNo}</StockCellText>
+                  </Td>
+                  <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.dgUnNumber}</StockCellText>
+                  </Td>
+                  <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.boxes}</StockCellText>
+                  </Td>
+                  <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.weight}</StockCellText>
+                  </Td>
+                  <Td title={getStockCellTooltip(row.totalVolumeCbm)}>
                     <Button
                       size="xs"
                       variant="ghost"
@@ -1045,12 +1062,22 @@ function ClientStock() {
                       {row.totalVolumeCbm}
                     </Button>
                   </Td>
-                  <Td>{row.origin}</Td>
-                  <Td>{row.viaHub1}</Td>
-                  <Td>{row.viaHub2}</Td>
-                  <Td>{row.apDestination}</Td>
-                  <Td>{row.destination}</Td>
                   <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.origin}</StockCellText>
+                  </Td>
+                  <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.viaHub1}</StockCellText>
+                  </Td>
+                  <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.viaHub2}</StockCellText>
+                  </Td>
+                  <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.apDestination}</StockCellText>
+                  </Td>
+                  <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.destination}</StockCellText>
+                  </Td>
+                  <Td title={getStockCellTooltip(formatStatus(row.stockStatus))}>
                     <Badge
                       borderRadius="full"
                       px={2.5}
@@ -1060,10 +1087,18 @@ function ClientStock() {
                       {formatStatus(row.stockStatus)}
                     </Badge>
                   </Td>
-                  <Td>{row.dateOnStock}</Td>
-                  <Td>{row.soNumber}</Td>
-                  <Td>{row.currency}</Td>
-                  <Td>{row.value}</Td>
+                  <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.dateOnStock}</StockCellText>
+                  </Td>
+                  <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.soNumber}</StockCellText>
+                  </Td>
+                  <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.currency}</StockCellText>
+                  </Td>
+                  <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.value}</StockCellText>
+                  </Td>
                   <Td>
                     {isClientPortalStockStatus(row.stockStatusKey) ? (
                       row.stockRecordId && (row.reportAttachments?.length || 0) > 0 ? (

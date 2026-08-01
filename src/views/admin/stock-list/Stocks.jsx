@@ -146,6 +146,7 @@ import {
 } from "../../../constants/stockStatus";
 import { withStockListFetchMode } from "../../../utils/stockListFetchParams";
 import StockListAttachmentsCell from "../../../components/stock-list/StockListAttachmentsCell";
+import StockCellText from "../../../components/stock-list/StockCellText";
 import StockSoNumberLink from "../../../components/stock-list/StockSoNumberLink";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
 import { useStockAttachmentsGallery } from "../../../hooks/useStockAttachmentsGallery";
@@ -486,6 +487,9 @@ function readPersistedStockViewEditState() {
             stockViewViaHub1: p.stockViewViaHub1 != null ? p.stockViewViaHub1 : null,
             stockViewViaHub2: p.stockViewViaHub2 != null ? p.stockViewViaHub2 : null,
             stockViewApDestination: p.stockViewApDestination != null ? p.stockViewApDestination : null,
+            stockViewOrigin: typeof p.stockViewOrigin === "string"
+                ? p.stockViewOrigin
+                : (p.stockViewOrigin != null ? String(p.stockViewOrigin) : null),
             stockViewActiveFilter: typeof p.stockViewActiveFilter === "string" ? p.stockViewActiveFilter : "true",
             sortOption: typeof p.sortOption === "string"
                 ? (normalizeStockHubSortOption(p.sortOption) ?? p.sortOption)
@@ -547,6 +551,7 @@ const defaultStockViewEditState = {
     stockViewViaHub1: null,
     stockViewViaHub2: null,
     stockViewApDestination: null,
+    stockViewOrigin: null,
     stockViewActiveFilter: "true",
     sortOption: "none",
     clientSortOption: "none",
@@ -645,6 +650,7 @@ export default function Stocks() {
     const [stockViewViaHub1, setStockViewViaHub1] = useState(savedState.stockViewViaHub1);
     const [stockViewViaHub2, setStockViewViaHub2] = useState(savedState.stockViewViaHub2);
     const [stockViewApDestination, setStockViewApDestination] = useState(savedState.stockViewApDestination);
+    const [stockViewOrigin, setStockViewOrigin] = useState(savedState.stockViewOrigin);
     const [stockViewActiveFilter, setStockViewActiveFilter] = useState(savedState.stockViewActiveFilter);
     const stockViewStatusFilterOptions = useMemo(
         () => getStatusOptionsForActiveFilter(stockStatusOptions, stockViewActiveFilter),
@@ -685,11 +691,12 @@ export default function Stocks() {
             stockViewViaHub1,
             stockViewViaHub2,
             stockViewApDestination,
+            stockViewOrigin,
             stockViewActiveFilter,
             sortOption,
             clientSortOption,
         });
-    }, [activeTab, stockViewPage, clientViewPage, vesselViewClient, vesselViewVessel, vesselViewStatuses, clientViewClient, clientViewStatuses, clientViewFilterType, clientViewSearchClient, clientViewSearchVessel, clientViewVesselFilter, stockViewClient, stockViewVessel, stockViewStatus, stockViewStockItemId, stockViewDateOnStock, stockViewDaysOnStock, stockViewFilterSO, stockViewFilterSI, stockViewFilterSICombined, stockViewFilterDI, stockViewFilterPO, stockViewFilterReqNo, stockViewFilterWarehouseNew, stockViewSearchFilter, stockViewViaHub1, stockViewViaHub2, stockViewApDestination, stockViewActiveFilter, sortOption, clientSortOption]);
+    }, [activeTab, stockViewPage, clientViewPage, vesselViewClient, vesselViewVessel, vesselViewStatuses, clientViewClient, clientViewStatuses, clientViewFilterType, clientViewSearchClient, clientViewSearchVessel, clientViewVesselFilter, stockViewClient, stockViewVessel, stockViewStatus, stockViewStockItemId, stockViewDateOnStock, stockViewDaysOnStock, stockViewFilterSO, stockViewFilterSI, stockViewFilterSICombined, stockViewFilterDI, stockViewFilterPO, stockViewFilterReqNo, stockViewFilterWarehouseNew, stockViewSearchFilter, stockViewViaHub1, stockViewViaHub2, stockViewApDestination, stockViewOrigin, stockViewActiveFilter, sortOption, clientSortOption]);
 
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
@@ -739,6 +746,21 @@ export default function Stocks() {
         );
         return match ? match.id : null;
     }, [stockOriginTextOptions]);
+
+    const stockViewOriginFilterId = useMemo(() => {
+        const text = stockViewOrigin ? normalizeStockOriginHubText(stockViewOrigin) : "";
+        if (!text) return null;
+        const match = getOptionsForValue("origin", stockOriginTextOptions, null).find(
+            (o) => normalizeStockOriginHubText(o.name || "") === text
+        );
+        return match?.id != null ? match.id : null;
+    }, [stockViewOrigin, stockOriginTextOptions, getOptionsForValue]);
+
+    useEffect(() => {
+        if (stockViewOriginFilterId == null) return;
+        const match = findOptionById("origin", stockOriginTextOptions, stockViewOriginFilterId);
+        if (match) pinOption("origin", match);
+    }, [stockViewOriginFilterId, stockOriginTextOptions, findOptionById, pinOption]);
 
     const seedLocationPinsFromItem = useCallback((item, rowData) => {
         const pick = (val, fallback = "") =>
@@ -860,6 +882,7 @@ export default function Stocks() {
         stockViewViaHub1,
         stockViewViaHub2,
         stockViewApDestination,
+        stockViewOrigin,
         stockViewActiveFilter,
         vesselViewClient,
         vesselViewVessel,
@@ -922,6 +945,7 @@ export default function Stocks() {
         stockViewViaHub1,
         stockViewViaHub2,
         stockViewApDestination,
+        stockViewOrigin,
         stockViewActiveFilter,
         vesselViewClient,
         vesselViewVessel,
@@ -947,6 +971,10 @@ export default function Stocks() {
             const viaHub1Id = resolveStockLocationOptionId(f.stockViewViaHub1);
             const viaHub2Id = resolveStockLocationOptionId(f.stockViewViaHub2);
             const apDestId = resolveStockLocationOptionId(f.stockViewApDestination);
+            // Origin filter stores the option name (origin_text), matching the stock field.
+            const originText = f.stockViewOrigin
+                ? normalizeStockOriginHubText(f.stockViewOrigin)
+                : undefined;
             const clientId = f.stockViewClient != null ? (typeof f.stockViewClient === "object" ? (f.stockViewClient?.id ?? f.stockViewClient?.value) : f.stockViewClient) : undefined;
             const vesselId = f.stockViewVessel != null ? (typeof f.stockViewVessel === "object" ? (f.stockViewVessel?.id ?? f.stockViewVessel?.value) : f.stockViewVessel) : undefined;
 
@@ -978,6 +1006,7 @@ export default function Stocks() {
                         narvi_stock_via_hub1: viaHub1Id ?? undefined,
                         narvi_stock_via_hub2: viaHub2Id ?? undefined,
                         narvi_stock_ap_destination: apDestId ?? undefined,
+                        origin_text: originText || undefined,
                         sort_by,
                     },
                     { page, page_size: PAGE_SIZE, fetchAll: listUsesFetchAll }
@@ -3250,16 +3279,23 @@ export default function Stocks() {
         }
         if (column.type === "multiline") {
             const fieldValue = getClientViewFieldValues(item)[column.key];
+            const display = renderText(fieldValue);
             return (
-                <Text color={tableTextColor} fontSize="sm" whiteSpace="pre-wrap" wordBreak="break-word">
-                    {renderText(fieldValue)}
+                <Text
+                    color={tableTextColor}
+                    fontSize="sm"
+                    whiteSpace="pre-wrap"
+                    wordBreak="break-word"
+                    title={display && display !== "-" ? String(display) : undefined}
+                >
+                    {display}
                 </Text>
             );
         }
         return (
-            <Text {...cellText}>
+            <StockCellText {...cellText}>
                 {renderText(getClientViewFieldValues(item)[column.key])}
-            </Text>
+            </StockCellText>
         );
     };
 
@@ -3315,12 +3351,12 @@ export default function Stocks() {
     const renderMultiLineLabels = (value) => {
         const lines = splitLines(value);
         if (!lines.length) {
-            return <Text {...cellText}>-</Text>;
+            return <StockCellText {...cellText}>-</StockCellText>;
         }
         return (
             <VStack align="start" spacing={1}>
                 {lines.map((line, idx) => (
-                    <Badge key={idx} colorScheme="blue" variant="subtle">
+                    <Badge key={idx} colorScheme="blue" variant="subtle" title={line}>
                         {line}
                     </Badge>
                 ))}
@@ -3336,7 +3372,7 @@ export default function Stocks() {
         const currentValue = rowEditingData[field] !== undefined ? rowEditingData[field] : value;
 
         if (!isEditing) {
-            return <Text {...cellText}>{value || "-"}</Text>;
+            return <StockCellText {...cellText}>{value || "-"}</StockCellText>;
         }
 
         const handleChange = (newValue) => {
@@ -3422,6 +3458,7 @@ export default function Stocks() {
                     bg={inputBg}
                     color={inputText}
                     borderColor={borderColor}
+                    title={currentValue ? String(currentValue) : undefined}
                 />
             );
         }
@@ -3607,6 +3644,7 @@ export default function Stocks() {
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
+                        title={currentValue ? String(currentValue) : undefined}
                     />
                 );
             case "number":
@@ -3631,6 +3669,7 @@ export default function Stocks() {
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
+                        title={currentValue != null && currentValue !== "" ? String(currentValue) : undefined}
                     />
                 );
             default: {
@@ -3645,6 +3684,7 @@ export default function Stocks() {
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
+                        title={displayValue ? String(displayValue) : undefined}
                     />
                 );
             }
@@ -3695,13 +3735,13 @@ export default function Stocks() {
                             />
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "vessel_id", item.vessel_id || item.vessel, "select", vessels.map(v => ({ value: v.id, label: v.name }))) : <Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text>}
+                            {isEditing ? renderEditableCell(item, "vessel_id", item.vessel_id || item.vessel, "select", vessels.map(v => ({ value: v.id, label: v.name }))) : <StockCellText {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "stock_item_id", item.stock_item_id || item.stock_id, "text", null, { enabled: false }) : <Text {...cellText}>{renderText(item.stock_item_id || item.stock_id)}</Text>}
+                            {isEditing ? renderEditableCell(item, "stock_item_id", item.stock_item_id || item.stock_id, "text", null, { enabled: false }) : <StockCellText {...cellText}>{renderText(item.stock_item_id || item.stock_id)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "supplier_id", item.supplier_id, "select", vendors.map(v => ({ value: v.id, label: v.name }))) : <Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text>}
+                            {isEditing ? renderEditableCell(item, "supplier_id", item.supplier_id, "select", vendors.map(v => ({ value: v.id, label: v.name }))) : <StockCellText {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing
@@ -3726,19 +3766,19 @@ export default function Stocks() {
                             )}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "si_number", item.si_number) : <Text {...cellText}>{(() => {
+                            {isEditing ? renderEditableCell(item, "si_number", item.si_number) : <StockCellText {...cellText}>{(() => {
                                 return renderText(item.si_number) || "-";
-                            })()}</Text>}
+                            })()}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "si_combined", item.si_combined) : <Text {...cellText}>{(() => {
+                            {isEditing ? renderEditableCell(item, "si_combined", item.si_combined) : <StockCellText {...cellText}>{(() => {
                                 return renderText(item.si_combined) || "-";
-                            })()}</Text>}
+                            })()}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "di_no", item.di_no) : <Text {...cellText}>{(() => {
+                            {isEditing ? renderEditableCell(item, "di_no", item.di_no) : <StockCellText {...cellText}>{(() => {
                                 return renderText(item.di_no) || "-";
-                            })()}</Text>}
+                            })()}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? (
@@ -3769,68 +3809,68 @@ export default function Stocks() {
                             )}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_text || item.origin_id, "text") : <Text {...cellText}>{item.origin_text || getDisplayName(item.origin_id) || "-"}</Text>}
+                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_text || item.origin_id, "text") : <StockCellText {...cellText}>{item.origin_text || getDisplayName(item.origin_id) || "-"}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "narvi_stock_via_hub1", null, "stock_via_hub1") : (
-                                <Text {...cellText}>{renderText(getStockViaHub1Display(item))}</Text>
+                                <StockCellText {...cellText}>{renderText(getStockViaHub1Display(item))}</StockCellText>
                             )}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? (
                                 renderEditableCell(item, "narvi_stock_ap_destination", null, "stock_narvi_ap_destination")
                             ) : (
-                                <Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</Text>
+                                <StockCellText {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</StockCellText>
                             )}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                             {isEditing ? (
                                 renderEditableCell(item, "destination_ids", null, "stock_destination_m2o")
                             ) : (
-                                <Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</Text>
+                                <StockCellText {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</StockCellText>
                             )}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "warehouse_new", item.warehouse_new || item.warehouse_id || item.stock_warehouse) : <Text {...cellText}>{renderText(item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-")}</Text>}
+                            {isEditing ? renderEditableCell(item, "warehouse_new", item.warehouse_new || item.warehouse_id || item.stock_warehouse) : <StockCellText {...cellText}>{renderText(item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-")}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "exp_ready_in_stock", item.exp_ready_in_stock || item.ready_ex_supplier, "date") : <Text {...cellText}>{formatDate(item.exp_ready_in_stock || item.ready_ex_supplier)}</Text>}
+                            {isEditing ? renderEditableCell(item, "exp_ready_in_stock", item.exp_ready_in_stock || item.ready_ex_supplier, "date") : <StockCellText {...cellText}>{formatDate(item.exp_ready_in_stock || item.ready_ex_supplier)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "date_on_stock", item.date_on_stock, "date") : <Text {...cellText}>{formatDate(item.date_on_stock)}</Text>}
+                            {isEditing ? renderEditableCell(item, "date_on_stock", item.date_on_stock, "date") : <StockCellText {...cellText}>{formatDate(item.date_on_stock)}</StockCellText>}
                         </Td>
                         <Td {...cellProps} textAlign="center">
-                            <Text {...cellText}>{renderText(item.days_on_stock)}</Text>
+                            <StockCellText {...cellText}>{renderText(item.days_on_stock)}</StockCellText>
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "shipped_date", item.shipped_date, "date") : <Text {...cellText}>{formatDate(item.shipped_date)}</Text>}
+                            {isEditing ? renderEditableCell(item, "shipped_date", item.shipped_date, "date") : <StockCellText {...cellText}>{formatDate(item.shipped_date)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "delivered_date", item.delivered_date, "date") : <Text {...cellText}>{formatDate(item.delivered_date)}</Text>}
+                            {isEditing ? renderEditableCell(item, "delivered_date", item.delivered_date, "date") : <StockCellText {...cellText}>{formatDate(item.delivered_date)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "dg_un", item.dg_un) : <Text {...cellText}>{renderText(item.dg_un)}</Text>}
+                            {isEditing ? renderEditableCell(item, "dg_un", item.dg_un) : <StockCellText {...cellText}>{renderText(item.dg_un)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "shipping_doc", item.shipping_doc, "textarea") : <Text {...cellText}>{renderText(item.shipping_doc)}</Text>}
+                            {isEditing ? renderEditableCell(item, "shipping_doc", item.shipping_doc, "textarea") : <StockCellText {...cellText}>{renderText(item.shipping_doc)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "export_doc", item.export_doc, "textarea") : <Text {...cellText}>{renderText(item.export_doc)}</Text>}
+                            {isEditing ? renderEditableCell(item, "export_doc", item.export_doc, "textarea") : <StockCellText {...cellText}>{renderText(item.export_doc)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "export_doc_2", item.export_doc_2, "textarea") : <Text {...cellText}>{renderText(item.export_doc_2)}</Text>}
+                            {isEditing ? renderEditableCell(item, "export_doc_2", item.export_doc_2, "textarea") : <StockCellText {...cellText}>{renderText(item.export_doc_2)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "remarks", item.remarks, "textarea") : <Text {...cellText}>{renderText(item.remarks)}</Text>}
+                            {isEditing ? renderEditableCell(item, "remarks", item.remarks, "textarea") : <StockCellText {...cellText}>{renderText(item.remarks)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "item", item.item || item.items || item.item_id || item.stock_items_quantity || "", "number") : <Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity || "-")}</Text>}
+                            {isEditing ? renderEditableCell(item, "item", item.item || item.items || item.item_id || item.stock_items_quantity || "", "number") : <StockCellText {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity || "-")}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "weight_kg", item.weight_kg ?? item.weight_kgs, "number") : <Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text>}
+                            {isEditing ? renderEditableCell(item, "weight_kg", item.weight_kg ?? item.weight_kgs, "number") : <StockCellText {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "lwh_text", item.lwh_text, "textarea") : <Text {...cellText}>{renderText(item.lwh_text)}</Text>}
+                            {isEditing ? renderEditableCell(item, "lwh_text", item.lwh_text, "textarea") : <StockCellText {...cellText}>{renderText(item.lwh_text)}</StockCellText>}
                         </Td>
                         <Td
                             {...cellProps}
@@ -3842,12 +3882,12 @@ export default function Stocks() {
                             _hover={!isEditing ? { bg: tableRowHoverBg } : {}}
                         >
                             {isEditing ? (
-                                <Text {...cellText}>{formatVolumeCbm(item.total_volume_cbm)}</Text>
+                                <StockCellText {...cellText}>{formatVolumeCbm(item.total_volume_cbm)}</StockCellText>
                             ) : (
                                 <HStack spacing={2} align="center" justify="flex-start">
-                                    <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
+                                    <StockCellText {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
                                         {formatVolumeCbm(item.total_volume_cbm)}
-                                    </Text>
+                                    </StockCellText>
                                     <Tooltip label="View dimensions" hasArrow>
                                         <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
                                     </Tooltip>
@@ -3867,9 +3907,9 @@ export default function Stocks() {
                                 renderEditableCell(item, "total_cw_air_freight", item.total_cw_air_freight, "number")
                             ) : (
                                 <HStack spacing={2} align="center" justify="flex-start">
-                                    <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
+                                    <StockCellText {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
                                         {renderText(item.total_cw_air_freight)}
-                                    </Text>
+                                    </StockCellText>
                                     <Tooltip label="View dimensions" hasArrow>
                                         <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
                                     </Tooltip>
@@ -3877,16 +3917,16 @@ export default function Stocks() {
                             )}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "currency_id", item.currency_id || item.currency, "searchable") : <Text {...cellText}>{getDisplayName(item.currency_id || item.currency)}</Text>}
+                            {isEditing ? renderEditableCell(item, "currency_id", item.currency_id || item.currency, "searchable") : <StockCellText {...cellText}>{getDisplayName(item.currency_id || item.currency)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "value", item.value, "number") : <Text {...cellText}>{formatStockValueDisplay(item.value)}</Text>}
+                            {isEditing ? renderEditableCell(item, "value", item.value, "number") : <StockCellText {...cellText}>{formatStockValueDisplay(item.value)}</StockCellText>}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "client_id", item.client_id || item.client, "searchable") : <Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text>}
+                            {isEditing ? renderEditableCell(item, "client_id", item.client_id || item.client, "searchable") : <StockCellText {...cellText}>{getDisplayName(item.client_id || item.client)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "internal_remark", item.internal_remark || "", "textarea") : <Text {...cellText}>{renderText(item.internal_remark || "")}</Text>}
+                            {isEditing ? renderEditableCell(item, "internal_remark", item.internal_remark || "", "textarea") : <StockCellText {...cellText}>{renderText(item.internal_remark || "")}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
                             <StockListAttachmentsCell
@@ -3961,7 +4001,7 @@ export default function Stocks() {
                             />
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "stock_item_id", item.stock_item_id || item.stock_id, "text", null, { enabled: false }) : <Text {...cellText}>{renderText(item.stock_item_id || item.stock_id)}</Text>}
+                            {isEditing ? renderEditableCell(item, "stock_item_id", item.stock_item_id || item.stock_id, "text", null, { enabled: false }) : <StockCellText {...cellText}>{renderText(item.stock_item_id || item.stock_id)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? (
@@ -3992,25 +4032,25 @@ export default function Stocks() {
                             )}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "exp_ready_in_stock", item.exp_ready_in_stock, "date") : <Text {...cellText}>{formatDate(item.exp_ready_in_stock)}</Text>}
+                            {isEditing ? renderEditableCell(item, "exp_ready_in_stock", item.exp_ready_in_stock, "date") : <StockCellText {...cellText}>{formatDate(item.exp_ready_in_stock)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "date_on_stock", item.date_on_stock, "date") : <Text {...cellText}>{formatDate(item.date_on_stock)}</Text>}
+                            {isEditing ? renderEditableCell(item, "date_on_stock", item.date_on_stock, "date") : <StockCellText {...cellText}>{formatDate(item.date_on_stock)}</StockCellText>}
                         </Td>
                         <Td {...cellProps} textAlign="center">
-                            <Text {...cellText}>{renderText(item.days_on_stock)}</Text>
+                            <StockCellText {...cellText}>{renderText(item.days_on_stock)}</StockCellText>
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "shipped_date", item.shipped_date, "date") : <Text {...cellText}>{formatDate(item.shipped_date)}</Text>}
+                            {isEditing ? renderEditableCell(item, "shipped_date", item.shipped_date, "date") : <StockCellText {...cellText}>{formatDate(item.shipped_date)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "delivered_date", item.delivered_date, "date") : <Text {...cellText}>{formatDate(item.delivered_date)}</Text>}
+                            {isEditing ? renderEditableCell(item, "delivered_date", item.delivered_date, "date") : <StockCellText {...cellText}>{formatDate(item.delivered_date)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "warehouse_new", item.warehouse_new || item.warehouse_id || item.stock_warehouse) : <Text {...cellText}>{renderText(item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-")}</Text>}
+                            {isEditing ? renderEditableCell(item, "warehouse_new", item.warehouse_new || item.warehouse_id || item.stock_warehouse) : <StockCellText {...cellText}>{renderText(item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-")}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "supplier_id", item.supplier_id, "select", vendors.map(v => ({ value: v.id, label: v.name }))) : <Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text>}
+                            {isEditing ? renderEditableCell(item, "supplier_id", item.supplier_id, "select", vendors.map(v => ({ value: v.id, label: v.name }))) : <StockCellText {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing
@@ -4023,67 +4063,67 @@ export default function Stocks() {
                                 : renderMultiLineLabels(item.po_text)}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "details", item.details || item.item_desc) : <Text {...cellText}>{renderText(item.details || item.item_desc)}</Text>}
+                            {isEditing ? renderEditableCell(item, "details", item.details || item.item_desc) : <StockCellText {...cellText}>{renderText(item.details || item.item_desc)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "dg_un", item.dg_un) : <Text {...cellText}>{renderText(item.dg_un)}</Text>}
+                            {isEditing ? renderEditableCell(item, "dg_un", item.dg_un) : <StockCellText {...cellText}>{renderText(item.dg_un)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "item", item.item || item.items || item.item_id || item.stock_items_quantity || "", "number") : <Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity || "-")}</Text>}
+                            {isEditing ? renderEditableCell(item, "item", item.item || item.items || item.item_id || item.stock_items_quantity || "", "number") : <StockCellText {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity || "-")}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "weight_kg", item.weight_kg ?? item.weight_kgs, "number") : <Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text>}
+                            {isEditing ? renderEditableCell(item, "weight_kg", item.weight_kg ?? item.weight_kgs, "number") : <StockCellText {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            <Text {...cellText}>{formatVolumeCbm(item.volume_cbm)}</Text>
+                            <StockCellText {...cellText}>{formatVolumeCbm(item.volume_cbm)}</StockCellText>
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "currency_id", item.currency_id, "select", currencies.map(c => ({ value: c.id, label: c.name }))) : <Text {...cellText}>{getDisplayName(item.currency_id || item.currency)}</Text>}
+                            {isEditing ? renderEditableCell(item, "currency_id", item.currency_id, "select", currencies.map(c => ({ value: c.id, label: c.name }))) : <StockCellText {...cellText}>{getDisplayName(item.currency_id || item.currency)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "value", item.value, "number") : <Text {...cellText}>{formatStockValueDisplay(item.value)}</Text>}
+                            {isEditing ? renderEditableCell(item, "value", item.value, "number") : <StockCellText {...cellText}>{formatStockValueDisplay(item.value)}</StockCellText>}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_text || item.origin_id, "text") : <Text {...cellText}>{item.origin_text || getDisplayName(item.origin_id) || "-"}</Text>}
+                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_text || item.origin_id, "text") : <StockCellText {...cellText}>{item.origin_text || getDisplayName(item.origin_id) || "-"}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "narvi_stock_via_hub1", null, "stock_via_hub1") : (
-                                <Text {...cellText}>{renderText(getStockViaHub1Display(item))}</Text>
+                                <StockCellText {...cellText}>{renderText(getStockViaHub1Display(item))}</StockCellText>
                             )}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "narvi_stock_via_hub2", null, "stock_via_hub2") : (
-                                <Text {...cellText}>{renderText(getStockViaHub2Display(item))}</Text>
+                                <StockCellText {...cellText}>{renderText(getStockViaHub2Display(item))}</StockCellText>
                             )}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? (
                                 renderEditableCell(item, "narvi_stock_ap_destination", null, "stock_narvi_ap_destination")
                             ) : (
-                                <Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</Text>
+                                <StockCellText {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</StockCellText>
                             )}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                             {isEditing ? (
                                 renderEditableCell(item, "destination_ids", null, "stock_destination_m2o")
                             ) : (
-                                <Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</Text>
+                                <StockCellText {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</StockCellText>
                             )}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "shipping_doc", item.shipping_doc) : <Text {...cellText}>{renderText(item.shipping_doc)}</Text>}
+                            {isEditing ? renderEditableCell(item, "shipping_doc", item.shipping_doc) : <StockCellText {...cellText}>{renderText(item.shipping_doc)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "export_doc", item.export_doc) : <Text {...cellText}>{renderText(item.export_doc)}</Text>}
+                            {isEditing ? renderEditableCell(item, "export_doc", item.export_doc) : <StockCellText {...cellText}>{renderText(item.export_doc)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "export_doc_2", item.export_doc_2) : <Text {...cellText}>{renderText(item.export_doc_2)}</Text>}
+                            {isEditing ? renderEditableCell(item, "export_doc_2", item.export_doc_2) : <StockCellText {...cellText}>{renderText(item.export_doc_2)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "remarks", item.remarks) : <Text {...cellText}>{renderText(item.remarks)}</Text>}
+                            {isEditing ? renderEditableCell(item, "remarks", item.remarks) : <StockCellText {...cellText}>{renderText(item.remarks)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "vessel_id", item.vessel_id || item.vessel, "select", vessels.map(v => ({ value: v.id, label: v.name }))) : <Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text>}
+                            {isEditing ? renderEditableCell(item, "vessel_id", item.vessel_id || item.vessel, "select", vessels.map(v => ({ value: v.id, label: v.name }))) : <StockCellText {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "so_id", item.so_id || item.so_number || item.stock_so_number, "so_number") : (
@@ -4098,19 +4138,19 @@ export default function Stocks() {
                             )}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "si_number", item.si_number) : <Text {...cellText}>{(() => {
+                            {isEditing ? renderEditableCell(item, "si_number", item.si_number) : <StockCellText {...cellText}>{(() => {
                                 return renderText(item.si_number) || "-";
-                            })()}</Text>}
+                            })()}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "si_combined", item.si_combined) : <Text {...cellText}>{(() => {
+                            {isEditing ? renderEditableCell(item, "si_combined", item.si_combined) : <StockCellText {...cellText}>{(() => {
                                 return renderText(item.si_combined) || "-";
-                            })()}</Text>}
+                            })()}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "di_no", item.di_no) : <Text {...cellText}>{(() => {
+                            {isEditing ? renderEditableCell(item, "di_no", item.di_no) : <StockCellText {...cellText}>{(() => {
                                 return renderText(item.di_no) || "-";
-                            })()}</Text>}
+                            })()}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
                             <StockListAttachmentsCell
@@ -4784,7 +4824,7 @@ export default function Stocks() {
                                                             <Text fontSize="md" fontWeight="700" color={textColor}>Basic Filters</Text>
                                                         </HStack>
                                                         <HStack>
-                                                            {(stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || createDateFrom || createDateTo || daysRangeFrom || daysRangeTo || vesselViewStatuses.size > 0) && (
+                                                            {(stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewOrigin || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || createDateFrom || createDateTo || daysRangeFrom || daysRangeTo || vesselViewStatuses.size > 0) && (
                                                                 <Button
                                                                     size="xs"
                                                                     leftIcon={<Icon as={MdClose} />}
@@ -4804,6 +4844,7 @@ export default function Stocks() {
                                                                         setStockViewViaHub1(null);
                                                                         setStockViewViaHub2(null);
                                                                         setStockViewApDestination(null);
+                                                                        setStockViewOrigin(null);
                                                                         setStockViewFilterSO("");
                                                                         setStockViewFilterSI("");
                                                                         setStockViewFilterSICombined("");
@@ -5221,6 +5262,50 @@ export default function Stocks() {
                                                                 )}
                                                             </HStack>
                                                         </Box>
+
+                                                        {/* Origin Filter */}
+                                                        <Box w="220px" minW="200px">
+                                                            <HStack spacing="1">
+                                                                <Box flex="1">
+                                                                    <RemoteSearchableSelect
+                                                                        value={stockViewOriginFilterId != null ? String(stockViewOriginFilterId) : null}
+                                                                        onChange={(id) => {
+                                                                            if (id == null || id === "") {
+                                                                                setStockViewOrigin(null);
+                                                                                return;
+                                                                            }
+                                                                            const match = findOptionById("origin", stockOriginTextOptions, id);
+                                                                            if (match) pinOption("origin", match);
+                                                                            setStockViewOrigin(
+                                                                                match?.name
+                                                                                    ? normalizeStockOriginHubText(match.name)
+                                                                                    : null
+                                                                            );
+                                                                        }}
+                                                                        onSearchChange={setQOriginText}
+                                                                        options={getOptionsForValue("origin", stockOriginTextOptions, stockViewOriginFilterId)}
+                                                                        placeholder="Filter by Origin"
+                                                                        displayKey="name"
+                                                                        valueKey="id"
+                                                                        formatOption={(option) => option.name || `Option ${option.id}`}
+                                                                        isLoading={isLoadingDestinationOptions}
+                                                                        bg={inputBg}
+                                                                        color={inputText}
+                                                                        borderColor={borderColor}
+                                                                    />
+                                                                </Box>
+                                                                {stockViewOrigin && (
+                                                                    <IconButton
+                                                                        size="sm"
+                                                                        icon={<Icon as={MdClose} />}
+                                                                        colorScheme="red"
+                                                                        variant="ghost"
+                                                                        onClick={() => setStockViewOrigin(null)}
+                                                                        aria-label="Clear Origin filter"
+                                                                    />
+                                                                )}
+                                                            </HStack>
+                                                        </Box>
                                                         {/* Req No Filter */}
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
@@ -5301,7 +5386,7 @@ export default function Stocks() {
                                                 {/* Results Count */}
                                                 <Text fontSize="sm" color={tableTextColorSecondary}>
                                                     {allFilteredItems.length} of {total_count > 0 ? total_count : stockList.length} stock items
-                                                    {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || vesselViewStatuses.size > 0 || isViewingSelected) && " (filtered)"}
+                                                    {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewOrigin || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || vesselViewStatuses.size > 0 || isViewingSelected) && " (filtered)"}
                                                 </Text>
                                             </VStack>
                                         </Card>
@@ -5583,9 +5668,9 @@ export default function Stocks() {
                                                                         }}
                                                                     />
                                                                 </Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.stock_item_id)}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</StockCellText></Td>
                                                                 <Td {...cellProps}>{renderMultiLineLabels(item.req_no)}</Td>
                                                                 <Td {...cellProps}>{renderMultiLineLabels(item.po_text)}</Td>
                                                                 <Td {...cellProps}>
@@ -5595,15 +5680,15 @@ export default function Stocks() {
                                                                         textProps={cellText}
                                                                     />
                                                                 </Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{(() => {
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{(() => {
                                                                     return renderText(item.si_number) || "-";
-                                                                })()}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{(() => {
+                                                                })()}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{(() => {
                                                                     return renderText(item.si_combined) || "-";
-                                                                })()}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{(() => {
+                                                                })()}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{(() => {
                                                                     return renderText(item.di_no) || "-";
-                                                                })()}</Text></Td>
+                                                                })()}</StockCellText></Td>
                                                                 <Td {...cellProps}>
                                                                     <Badge
                                                                         colorScheme={statusStyle.color}
@@ -5617,25 +5702,25 @@ export default function Stocks() {
                                                                         {getStatusLabel(item.stock_status)}
                                                                     </Badge>
                                                                 </Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{renderText(getStockViaHub1Display(item))}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{renderText(getStockViaHub2Display(item))}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-"}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{formatDate(item.exp_ready_in_stock)}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{formatDate(item.date_on_stock)}</Text></Td>
-                                                                <Td {...cellProps} textAlign="center"><Text {...cellText}>{renderText(item.days_on_stock)}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{formatDate(item.shipped_date)}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{formatDate(item.delivered_date)}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.dg_un)}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc_2)}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.remarks)}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.lwh_text)}</Text></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(getStockViaHub1Display(item))}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(getStockViaHub2Display(item))}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-"}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{formatDate(item.exp_ready_in_stock)}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{formatDate(item.date_on_stock)}</StockCellText></Td>
+                                                                <Td {...cellProps} textAlign="center"><StockCellText {...cellText}>{renderText(item.days_on_stock)}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{formatDate(item.shipped_date)}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{formatDate(item.delivered_date)}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.dg_un)}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.shipping_doc)}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.export_doc)}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.export_doc_2)}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.remarks)}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.lwh_text)}</StockCellText></Td>
                                                                 <Td
                                                                     {...cellProps}
                                                                     cursor="pointer"
@@ -5646,9 +5731,9 @@ export default function Stocks() {
                                                                     _hover={{ bg: tableRowHoverBg }}
                                                                 >
                                                                     <HStack spacing={2} align="center" justify="flex-start">
-                                                                        <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
+                                                                        <StockCellText {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
                                                                             {formatVolumeCbm(item.total_volume_cbm)}
-                                                                        </Text>
+                                                                        </StockCellText>
                                                                         <Tooltip label="View dimensions" hasArrow>
                                                                             <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
                                                                         </Tooltip>
@@ -5664,18 +5749,18 @@ export default function Stocks() {
                                                                     _hover={{ bg: tableRowHoverBg }}
                                                                 >
                                                                     <HStack spacing={2} align="center" justify="flex-start">
-                                                                        <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
+                                                                        <StockCellText {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
                                                                             {renderText(item.total_cw_air_freight)}
-                                                                        </Text>
+                                                                        </StockCellText>
                                                                         <Tooltip label="View dimensions" hasArrow>
                                                                             <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
                                                                         </Tooltip>
                                                                     </HStack>
                                                                 </Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.currency_id || item.currency)}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{formatStockValueDisplay(item.value)}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.internal_remark || "")}</Text></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{getDisplayName(item.currency_id || item.currency)}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{formatStockValueDisplay(item.value)}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{getDisplayName(item.client_id || item.client)}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.internal_remark || "")}</StockCellText></Td>
                                                                 <Td {...cellProps}>
                                                                     <StockListAttachmentsCell
                                                                         attachments={item.attachments}
@@ -6382,7 +6467,7 @@ export default function Stocks() {
                                             </Text>
                                             <Text color={tableTextColorSecondary} fontSize="sm" textAlign="center">
                                                 {(() => {
-                                                    const hasStockViewFilters = stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || vesselViewVessel || vesselViewClient || vesselViewStatuses.size > 0 || isViewingSelected;
+                                                    const hasStockViewFilters = stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewOrigin || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || vesselViewVessel || vesselViewClient || vesselViewStatuses.size > 0 || isViewingSelected;
                                                     const hasClientViewFilters = clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel || clientViewStatuses.size > 0 || isViewingSelected;
                                                     if (activeTab === 0) {
                                                         return hasStockViewFilters

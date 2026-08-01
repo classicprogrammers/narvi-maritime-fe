@@ -1808,6 +1808,7 @@ export default function StockForm() {
                                                     htmlSize={getAutoHtmlSize(row.stockItemId, "", { min: 12, max: 40 })}
                                                     bg={useColorModeValue("gray.100", "gray.700")}
                                                     color={inputText}
+                                                    title={row.stockItemId ? String(row.stockItemId) : undefined}
                                                 />
                                             </Td>
                                         )}
@@ -1912,7 +1913,8 @@ export default function StockForm() {
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                />
+                                                    title={row.reqNo ? String(row.reqNo) : undefined}
+                                                    />
                                             )}
                                         </Td>
                                         <Td {...cellProps} overflow="visible">
@@ -1930,7 +1932,8 @@ export default function StockForm() {
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                />
+                                                    title={row.poNumber ? String(row.poNumber) : undefined}
+                                                    />
                                             )}
                                         </Td>
                                         <Td {...cellProps} overflow="visible">
@@ -1945,7 +1948,8 @@ export default function StockForm() {
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                />
+                                                    title={row.expReadyInStock ? String(row.expReadyInStock) : undefined}
+                                                    />
                                             )}
                                         </Td>
                                         <Td {...cellProps} overflow="visible">
@@ -1964,7 +1968,8 @@ export default function StockForm() {
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                />
+                                                    title={row.warehouseId ? String(row.warehouseId) : undefined}
+                                                    />
                                             )}
                                         </Td>
                                         <Td {...cellProps} overflow="visible">
@@ -1979,7 +1984,8 @@ export default function StockForm() {
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                />
+                                                    title={row.dateOnStock ? String(row.dateOnStock) : undefined}
+                                                    />
                                             )}
                                         </Td>
                                         <Td {...cellProps} overflow="visible">
@@ -1994,7 +2000,8 @@ export default function StockForm() {
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                />
+                                                    title={row.shippedDate ? String(row.shippedDate) : undefined}
+                                                    />
                                             )}
                                         </Td>
                                         <Td {...cellProps} overflow="visible">
@@ -2009,7 +2016,8 @@ export default function StockForm() {
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                />
+                                                    title={row.deliveredDate ? String(row.deliveredDate) : undefined}
+                                                    />
                                             )}
                                         </Td>
                                         <Td {...cellProps} overflow="visible">
@@ -2074,7 +2082,8 @@ export default function StockForm() {
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                />
+                                                    title={row.lwhText ? String(row.lwhText) : undefined}
+                                                    />
                                             )}
                                         </Td>
                                         <Td {...cellProps} overflow="visible">
@@ -2093,7 +2102,8 @@ export default function StockForm() {
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                />
+                                                    title={row.dgUn ? String(row.dgUn) : undefined}
+                                                    />
                                             )}
                                         </Td>
                                         <Td {...cellProps} overflow="visible">
@@ -2279,7 +2289,8 @@ export default function StockForm() {
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                />
+                                                    title={row.shippingDoc ? String(row.shippingDoc) : undefined}
+                                                    />
                                             )}
                                         </Td>
                                         <Td {...cellProps} position="relative" overflow="visible">
@@ -2299,6 +2310,7 @@ export default function StockForm() {
                                                     color={inputText}
                                                     borderColor={borderColor}
                                                     flex="0 0 auto"
+                                                    title={row.exportDoc ? String(row.exportDoc) : undefined}
                                                 />
                                             )}
                                         </Td>
@@ -2319,6 +2331,7 @@ export default function StockForm() {
                                                     color={inputText}
                                                     borderColor={borderColor}
                                                     flex="0 0 auto"
+                                                    title={row.exportDoc2 ? String(row.exportDoc2) : undefined}
                                                 />
                                             )}
                                         </Td>
@@ -2339,6 +2352,7 @@ export default function StockForm() {
                                                     color={inputText}
                                                     borderColor={borderColor}
                                                     flex="0 0 auto"
+                                                    title={row.remarks ? String(row.remarks) : undefined}
                                                 />
                                             )}
                                         </Td>
@@ -2358,7 +2372,8 @@ export default function StockForm() {
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                />
+                                                    title={row.internalRemark ? String(row.internalRemark) : undefined}
+                                                    />
                                             )}
                                         </Td>
                                         <Td {...cellProps} position="relative" overflow="visible">
@@ -2413,7 +2428,8 @@ export default function StockForm() {
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                />
+                                                    title={row.siNumber ? String(row.siNumber) : undefined}
+                                                    />
                                             )}
                                         </Td>
                                         <Td {...cellProps} position="relative" overflow="visible">
@@ -2431,7 +2447,8 @@ export default function StockForm() {
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                />
+                                                    title={row.siCombined ? String(row.siCombined) : undefined}
+                                                    />
                                             )}
                                         </Td>
                                         <Td {...cellProps} position="relative" overflow="visible">
@@ -2449,7 +2466,8 @@ export default function StockForm() {
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                />
+                                                    title={row.diNumber ? String(row.diNumber) : undefined}
+                                                    />
                                             )}
                                         </Td>
                                         <Td {...cellProps} overflow="visible">

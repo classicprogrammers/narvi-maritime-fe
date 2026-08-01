@@ -76,6 +76,7 @@ export default function StockValueInput({
             bg={bg}
             color={color}
             borderColor={borderColor}
+            title={displayValue ? String(displayValue) : undefined}
             {...rest}
         />
     );

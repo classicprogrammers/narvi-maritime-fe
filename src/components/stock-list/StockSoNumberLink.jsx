@@ -22,7 +22,11 @@ export default function StockSoNumberLink({ item, label, children, textProps = {
   };
 
   if (!filter || isEmpty) {
-    return <Text {...textProps}>{display}</Text>;
+    return (
+      <Text {...textProps} title={!isEmpty ? String(display) : undefined}>
+        {display}
+      </Text>
+    );
   }
 
   return (
@@ -33,7 +37,7 @@ export default function StockSoNumberLink({ item, label, children, textProps = {
       color="blue.500"
       cursor="pointer"
       textAlign="left"
-      title={`Open ${display} in Shipping Orders (new tab)`}
+      title={`${display} — Open in Shipping Orders (new tab)`}
       _hover={{ textDecoration: "underline" }}
       onClick={handleClick}
     >

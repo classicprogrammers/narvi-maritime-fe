@@ -46,7 +46,11 @@ import { Checkbox, Input, Select, InputGroup, InputLeftElement, InputRightElemen
 import { useHistory, useLocation } from "react-router-dom";
 import { useMasterData } from "../../../hooks/useMasterData";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
+import RemoteSearchableSelect from "../../../components/forms/RemoteSearchableSelect";
+import useStockDestinationOptions from "../../../hooks/useStockDestinationOptions";
+import useStockListOptionPins from "../../../hooks/useStockListOptionPins";
 import { formatStockDestinationDisplay } from "../../../utils/stockDestinationOptions";
+import { normalizeStockOriginHubText } from "../../../utils/stockOriginHubText";
 import {
     getStockApDestinationSortValue,
     getStockEffectiveHubSortValue,
@@ -58,6 +62,7 @@ import {
 import { formatStockValueDisplay } from "../../../utils/stockValue";
 import { downloadStockItemAttachmentApi } from "../../../api/stock";
 import StockListAttachmentsCell from "../../../components/stock-list/StockListAttachmentsCell";
+import StockCellText from "../../../components/stock-list/StockCellText";
 import StockSoNumberLink from "../../../components/stock-list/StockSoNumberLink";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
 import { useStockAttachmentsGallery } from "../../../hooks/useStockAttachmentsGallery";
@@ -119,6 +124,7 @@ function readPersistedStockMainDbState() {
             selectedWarehouse: p.selectedWarehouse != null ? p.selectedWarehouse : null,
             selectedCurrency: p.selectedCurrency != null ? p.selectedCurrency : null,
             selectedHub: p.selectedHub != null ? p.selectedHub : null,
+            selectedOrigin: typeof p.selectedOrigin === "string" ? p.selectedOrigin : (p.selectedOrigin != null ? String(p.selectedOrigin) : null),
             filterSO: typeof p.filterSO === "string" ? p.filterSO : "",
             filterSI: typeof p.filterSI === "string" ? p.filterSI : "",
             filterSICombined: typeof p.filterSICombined === "string" ? p.filterSICombined : "",
@@ -158,6 +164,7 @@ const defaultStockMainDbState = {
     selectedWarehouse: null,
     selectedCurrency: null,
     selectedHub: null,
+    selectedOrigin: null,
     filterSO: "",
     filterSI: "",
     filterSICombined: "",
@@ -203,6 +210,12 @@ export default function StockList() {
 
 
     const { clients, vessels, agents: vendors, countries, destinations, currencies } = useMasterData();
+    const {
+        originTextOptions,
+        isLoading: isLoadingOriginOptions,
+        setQOriginText,
+    } = useStockDestinationOptions();
+    const { pinOption, getOptionsForValue, findOptionById } = useStockListOptionPins();
 
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
@@ -228,6 +241,22 @@ export default function StockList() {
     const [selectedWarehouse, setSelectedWarehouse] = useState(savedState.selectedWarehouse);
     const [selectedCurrency, setSelectedCurrency] = useState(savedState.selectedCurrency);
     const [selectedHub, setSelectedHub] = useState(savedState.selectedHub);
+    const [selectedOrigin, setSelectedOrigin] = useState(savedState.selectedOrigin);
+    const selectedOriginFilterId = useMemo(() => {
+        const text = selectedOrigin ? normalizeStockOriginHubText(selectedOrigin) : "";
+        if (!text) return null;
+        const match = getOptionsForValue("origin", originTextOptions, null).find(
+            (o) => normalizeStockOriginHubText(o.name || "") === text
+        );
+        return match?.id != null ? match.id : null;
+    }, [selectedOrigin, originTextOptions, getOptionsForValue]);
+
+    useEffect(() => {
+        if (selectedOriginFilterId == null) return;
+        const match = findOptionById("origin", originTextOptions, selectedOriginFilterId);
+        if (match) pinOption("origin", match);
+    }, [selectedOriginFilterId, originTextOptions, findOptionById, pinOption]);
+
     const [filterSO, setFilterSO] = useState(savedState.filterSO);
     const [filterSI, setFilterSI] = useState(savedState.filterSI);
     const [filterSICombined, setFilterSICombined] = useState(savedState.filterSICombined);
@@ -267,6 +296,7 @@ export default function StockList() {
             selectedWarehouse,
             selectedCurrency,
             selectedHub,
+            selectedOrigin,
             filterSO,
             filterSI,
             filterSICombined,
@@ -281,7 +311,7 @@ export default function StockList() {
             sortOrder,
             activeFilter,
         });
-    }, [page, searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterReqNo, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, sortBy, sortOrder, activeFilter]);
+    }, [page, searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, selectedOrigin, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterReqNo, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, sortBy, sortOrder, activeFilter]);
 
     // Sorting state
     const [sortField, setSortField] = useState(null);
@@ -393,6 +423,9 @@ export default function StockList() {
                     date_on_stock_from: filterCreateDateFrom?.trim() || undefined,
                     date_on_stock_to: filterCreateDateTo?.trim() || undefined,
                     effective_hub: hubParam != null ? String(hubParam).trim() : undefined,
+                    origin_text: selectedOrigin
+                        ? normalizeStockOriginHubText(selectedOrigin)
+                        : undefined,
                     supplier_id: getIdParam(selectedSupplier),
                     warehouse_id: getIdParam(selectedWarehouse),
                     currency_id: getIdParam(selectedCurrency),
@@ -401,7 +434,7 @@ export default function StockList() {
                 { page, page_size: PAGE_SIZE, fetchAll: fetchAllStockList }
             )
         );
-    }, [getStockList, page, sortBy, sortOrder, sortOption, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterReqNo, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, selectedHub, selectedSupplier, selectedWarehouse, selectedCurrency, activeFilter, fetchAllStockList]);
+    }, [getStockList, page, sortBy, sortOrder, sortOption, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterReqNo, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, selectedHub, selectedOrigin, selectedSupplier, selectedWarehouse, selectedCurrency, activeFilter, fetchAllStockList, hubParam]);
 
     const stockListUsesFetchAll = fetchAllStockList;
 
@@ -426,7 +459,7 @@ export default function StockList() {
             setFetchTrigger((t) => t + 1);
         }, 400);
         return () => { if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current); };
-    }, [searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterReqNo, filterRemarks, filterDaysOnStock]);
+    }, [searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, selectedOrigin, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterReqNo, filterRemarks, filterDaysOnStock]);
 
     // Fetch stock list on mount and when page or fetchTrigger changes (skip page when fetch_all)
     useEffect(() => {
@@ -465,6 +498,7 @@ export default function StockList() {
             if (filterState.selectedWarehouse !== undefined) setSelectedWarehouse(filterState.selectedWarehouse);
             if (filterState.selectedCurrency !== undefined) setSelectedCurrency(filterState.selectedCurrency);
             if (filterState.selectedHub !== undefined) setSelectedHub(filterState.selectedHub);
+            if (filterState.selectedOrigin !== undefined) setSelectedOrigin(filterState.selectedOrigin);
             if (filterState.filterSO !== undefined) setFilterSO(filterState.filterSO);
             if (filterState.filterSI !== undefined) setFilterSI(filterState.filterSI);
             if (filterState.filterSICombined !== undefined) setFilterSICombined(filterState.filterSICombined);
@@ -835,6 +869,7 @@ export default function StockList() {
         selectedWarehouse,
         selectedCurrency,
         selectedHub,
+        selectedOrigin,
         filterSO,
         filterSI,
         filterSICombined,
@@ -855,7 +890,7 @@ export default function StockList() {
         sortOption,
     }), [
         selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse,
-        selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI,
+        selectedCurrency, selectedHub, selectedOrigin, filterSO, filterSI, filterSICombined, filterDI,
         filterPO, filterReqNo, filterRemarks, filterDaysOnStock, filterCreateDateFrom,
         filterCreateDateTo, searchFilter, page, sortBy, sortOrder, activeFilter,
         sortField, sortDirection, sortOption,
@@ -1022,12 +1057,12 @@ export default function StockList() {
     const renderMultiLineLabels = (value) => {
         const lines = splitLines(value);
         if (!lines.length) {
-            return <Text {...cellText}>-</Text>;
+            return <StockCellText {...cellText}>-</StockCellText>;
         }
         return (
             <VStack align="start" spacing={1}>
                 {lines.map((line, idx) => (
-                    <Badge key={idx} colorScheme="blue" variant="subtle">
+                    <Badge key={idx} colorScheme="blue" variant="subtle" title={line}>
                         {line}
                     </Badge>
                 ))}
@@ -1281,7 +1316,7 @@ export default function StockList() {
                                                 </HStack>
                                             </HStack>
                                             <HStack>
-                                                {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || filterReqNo || filterRemarks || filterDaysOnStock || filterCreateDateFrom || filterCreateDateTo || searchFilter) && (
+                                                {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || selectedOrigin || filterSO || filterSI || filterSICombined || filterDI || filterPO || filterReqNo || filterRemarks || filterDaysOnStock || filterCreateDateFrom || filterCreateDateTo || searchFilter) && (
                                                     <Button
                                                         size="xs"
                                                         leftIcon={<Icon as={MdClose} />}
@@ -1295,6 +1330,7 @@ export default function StockList() {
                                                             setSelectedWarehouse(null);
                                                             setSelectedCurrency(null);
                                                             setSelectedHub(null);
+                                                            setSelectedOrigin(null);
                                                             setFilterSO("");
                                                             setFilterSI("");
                                                             setFilterSICombined("");
@@ -1695,6 +1731,50 @@ export default function StockList() {
                                                     )}
                                                 </HStack>
                                             </Box>
+
+                                            {/* Origin Filter */}
+                                            <Box w="220px" minW="200px">
+                                                <HStack spacing="1">
+                                                    <Box flex="1">
+                                                        <RemoteSearchableSelect
+                                                            value={selectedOriginFilterId != null ? String(selectedOriginFilterId) : null}
+                                                            onChange={(id) => {
+                                                                if (id == null || id === "") {
+                                                                    setSelectedOrigin(null);
+                                                                    return;
+                                                                }
+                                                                const match = findOptionById("origin", originTextOptions, id);
+                                                                if (match) pinOption("origin", match);
+                                                                setSelectedOrigin(
+                                                                    match?.name
+                                                                        ? normalizeStockOriginHubText(match.name)
+                                                                        : null
+                                                                );
+                                                            }}
+                                                            onSearchChange={setQOriginText}
+                                                            options={getOptionsForValue("origin", originTextOptions, selectedOriginFilterId)}
+                                                            placeholder="Filter by Origin"
+                                                            displayKey="name"
+                                                            valueKey="id"
+                                                            formatOption={(option) => option.name || option.id}
+                                                            isLoading={isLoadingOriginOptions}
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                        />
+                                                    </Box>
+                                                    {selectedOrigin && (
+                                                        <IconButton
+                                                            size="sm"
+                                                            icon={<Icon as={MdClose} />}
+                                                            colorScheme="red"
+                                                            variant="ghost"
+                                                            onClick={() => setSelectedOrigin(null)}
+                                                            aria-label="Clear Origin filter"
+                                                        />
+                                                    )}
+                                                </HStack>
+                                            </Box>
                                             {/* Req No Filter */}
                                             <Box w="220px" minW="200px">
                                                 <HStack spacing="1">
@@ -1820,7 +1900,7 @@ export default function StockList() {
                                     {/* Results Count */}
                                     <Text fontSize="sm" color={tableTextColorSecondary}>
                                         Showing {filteredAndSortedStock.length} of {totalCount || reduxTotalCount || stockList.length} stock items
-                                        {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || filterReqNo || filterRemarks || filterDaysOnStock || filterCreateDateFrom || filterCreateDateTo || searchFilter || isViewingSelected) && " (filtered)"}
+                                        {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || selectedOrigin || filterSO || filterSI || filterSICombined || filterDI || filterPO || filterReqNo || filterRemarks || filterDaysOnStock || filterCreateDateFrom || filterCreateDateTo || searchFilter || isViewingSelected) && " (filtered)"}
                                     </Text>
                                 </VStack>
                             </Collapse>
@@ -2028,9 +2108,9 @@ export default function StockList() {
                                                     size="sm"
                                                 />
                                             </Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.stock_item_id)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{getDisplayName(item.client_id || item.client)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</StockCellText></Td>
                                             <Td {...cellProps}>
                                                 <StockSoNumberLink
                                                     item={item}
@@ -2041,44 +2121,44 @@ export default function StockList() {
                                                     textProps={cellText}
                                                 />
                                             </Td>
-                                            <Td {...cellProps}><Text {...cellText}>{(() => {
+                                            <Td {...cellProps}><StockCellText {...cellText}>{(() => {
                                                 return renderText(item.si_number) || "-";
-                                            })()}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{(() => {
+                                            })()}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{(() => {
                                                 return renderText(item.si_combined) || "-";
-                                            })()}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{(() => {
+                                            })()}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{(() => {
                                                 return renderText(item.di_no) || "-";
-                                            })()}</Text></Td>
+                                            })()}</StockCellText></Td>
                                             <Td {...cellProps}>
                                                 <Badge colorScheme={getStatusColor(normalizeStockStatusKey(item.stock_status))} size="sm" borderRadius="full" px="3" py="1">
                                                     {renderStockStatus(item.stock_status)}
                                                 </Badge>
                                             </Td>
-                                            <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</StockCellText></Td>
                                             <Td {...cellProps}>{renderMultiLineLabels(item.req_no)}</Td>
                                             <Td {...cellProps}>{renderMultiLineLabels(item.po_text)}</Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.extra_2 || item.extra)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(getStockViaHub1Display(item))}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(getStockViaHub2Display(item))}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-")}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc_2)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.remarks)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.internal_remark)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{formatDate(item.date_on_stock)}</Text></Td>
-                                            <Td {...cellProps} textAlign="center"><Text {...cellText}>{renderText(item.days_on_stock)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{formatDate(item.exp_ready_in_stock)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{formatDate(item.shipped_date)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{formatDate(item.delivered_date)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.dg_un)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.lwh_text)}</Text></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.extra_2 || item.extra)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(getStockViaHub1Display(item))}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(getStockViaHub2Display(item))}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-")}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.shipping_doc)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.export_doc)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.export_doc_2)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.remarks)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.internal_remark)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{formatDate(item.date_on_stock)}</StockCellText></Td>
+                                            <Td {...cellProps} textAlign="center"><StockCellText {...cellText}>{renderText(item.days_on_stock)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{formatDate(item.exp_ready_in_stock)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{formatDate(item.shipped_date)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{formatDate(item.delivered_date)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.dg_un)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.lwh_text)}</StockCellText></Td>
                                             <Td
                                                 {...cellProps}
                                                 cursor="pointer"
@@ -2089,9 +2169,9 @@ export default function StockList() {
                                                 _hover={{ bg: tableRowHoverBg }}
                                             >
                                                 <HStack spacing={2} align="center" justify="flex-start">
-                                                    <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
+                                                    <StockCellText {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
                                                         {formatVolumeCbm(item.total_volume_cbm)}
-                                                    </Text>
+                                                    </StockCellText>
                                                     <Tooltip label="View dimensions" hasArrow>
                                                         <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
                                                     </Tooltip>
@@ -2107,22 +2187,22 @@ export default function StockList() {
                                                 _hover={{ bg: tableRowHoverBg }}
                                             >
                                                 <HStack spacing={2} align="center" justify="flex-start">
-                                                    <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
+                                                    <StockCellText {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
                                                         {renderText(item.total_cw_air_freight)}
-                                                    </Text>
+                                                    </StockCellText>
                                                     <Tooltip label="View dimensions" hasArrow>
                                                         <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
                                                     </Tooltip>
                                                 </HStack>
                                             </Td>
-                                            <Td {...cellProps}><Text {...cellText}>{formatStockValueDisplay(item.value)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.currency_id || item.currency)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{item.client_access ? "Yes" : "No"}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.pic)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{getSoStatus(item)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{getVesselDestination(item.vessel_id || item.vessel, item)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{getVesselEta(item.vessel_id || item.vessel, item)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{formatDateTime(item.sl_create_datetime)}</Text></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{formatStockValueDisplay(item.value)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{getDisplayName(item.currency_id || item.currency)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{item.client_access ? "Yes" : "No"}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.pic)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{getSoStatus(item)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{getVesselDestination(item.vessel_id || item.vessel, item)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{getVesselEta(item.vessel_id || item.vessel, item)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{formatDateTime(item.sl_create_datetime)}</StockCellText></Td>
                                             <Td {...cellProps}>
                                                 <StockListAttachmentsCell
                                                     attachments={item.attachments}
