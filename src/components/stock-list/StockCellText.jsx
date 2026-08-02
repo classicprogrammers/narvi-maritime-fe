@@ -1,5 +1,5 @@
 import React from "react";
-import { Text } from "@chakra-ui/react";
+import { Text, Tooltip } from "@chakra-ui/react";
 
 /**
  * Resolve a plain-string tooltip from cell content.
@@ -14,16 +14,33 @@ export function getStockCellTooltip(value) {
 }
 
 /**
- * Truncated table cell text that shows the full value in a native tooltip on hover.
+ * Truncated table cell text that shows the full value in a tooltip on hover.
  * Pass an explicit `title` to override; otherwise the tooltip is derived from children.
  */
-export default function StockCellText({ children, title, ...props }) {
+export default function StockCellText({
+    children,
+    title,
+    openDelay = 120,
+    closeDelay = 0,
+    ...props
+}) {
     const resolvedTitle =
         title !== undefined ? title : getStockCellTooltip(children);
 
     return (
-        <Text title={resolvedTitle || undefined} {...props}>
-            {children}
-        </Text>
+        <Tooltip
+            label={resolvedTitle}
+            isDisabled={!resolvedTitle}
+            openDelay={openDelay}
+            closeDelay={closeDelay}
+            hasArrow
+            placement="top"
+            maxW="420px"
+            whiteSpace="pre-wrap"
+        >
+            <Text {...props}>
+                {children}
+            </Text>
+        </Tooltip>
     );
 }
