@@ -52,12 +52,8 @@ import StockIdNameSearchableSelect from "../../../components/forms/StockIdNameSe
 import StockValueInput from "../../../components/forms/StockValueInput";
 import useStockDestinationOptions from "../../../hooks/useStockDestinationOptions";
 import {
-    buildStockDestinationIdsPayload,
-    buildStockDestinationNewPayload,
-    getStockM2OId,
-    getStockM2OName,
-} from "../../../utils/stockDestinationOptions";
-import {
+    buildNarviApDestinationSaveFields,
+    buildNarviDestinationSaveFields,
     getStockLocationOptionName,
     mergeStockIdNameOptions,
     resolveStockLocationOptionId,
@@ -546,48 +542,27 @@ export default function StockForm() {
                 return "";
             })(),
             narviStockViaHub1: resolveStockLocationOptionId(stock.narvi_stock_via_hub1),
-            narviStockViaHub1Name:
-                getStockLocationOptionName(stock.narvi_stock_via_hub1) ||
-                normalizeStockOriginHubText(getFieldValue(stock.via_hub, "")),
+            narviStockViaHub1Name: getStockLocationOptionName(stock.narvi_stock_via_hub1),
             attachments: [], // New uploads will be added here
             attachmentsToDelete: [], // IDs of attachments to delete
             existingAttachments: Array.isArray(stock.attachments) ? stock.attachments : [], // Existing attachments from API
             stockStatusChangedBy: "",
             stockStatusPreviousForPayload: "",
             narviStockViaHub2: resolveStockLocationOptionId(stock.narvi_stock_via_hub2),
-            narviStockViaHub2Name:
-                getStockLocationOptionName(stock.narvi_stock_via_hub2) ||
-                normalizeStockOriginHubText(getFieldValue(stock.via_hub2, "")),
+            narviStockViaHub2Name: getStockLocationOptionName(stock.narvi_stock_via_hub2),
             expReadyInStock: getFieldValue(stock.exp_ready_in_stock) || "",
             remarks: getFieldValue(stock.remarks),
             blank: getFieldValue(stock.blank, ""),
             clientAccess: Boolean(stock.client_access),
             // Internal fields for API payload (auto-filled or from data)
-            vesselDestination: normalizeId(stock.vessel_destination) || normalizeId(stock.destination) || "",
+            vesselDestination: normalizeId(stock.vessel_destination) || "",
             vesselEta: getFieldValue(stock.vessel_eta),
-            destination: getFieldValue(stock.destination_new) || getFieldValue(stock.destination) || "",
-            destinationId: getStockM2OId(stock.destination_ids),
-            destinationSelect:
-                getStockM2OName(stock.destination_ids) ||
-                getFieldValue(stock.destination_new) ||
-                getFieldValue(stock.destination) ||
-                "",
-            apDestination: getFieldValue(stock.ap_destination_new) || getFieldValue(stock.ap_destination) || "",
-            apDestinationId: getStockM2OId(stock.ap_destination_ids),
-            apDestinationSelect:
-                getStockM2OName(stock.ap_destination_ids) ||
-                getFieldValue(stock.ap_destination_new) ||
-                getFieldValue(stock.ap_destination) ||
-                "",
-            narviStockApDestination:
-                resolveStockLocationOptionId(stock.narvi_stock_ap_destination) ??
-                getStockM2OId(stock.ap_destination_ids),
-            narviStockApDestinationName:
-                getStockLocationOptionName(stock.narvi_stock_ap_destination) ||
-                getStockM2OName(stock.ap_destination_ids) ||
-                getFieldValue(stock.ap_destination_new) ||
-                getFieldValue(stock.ap_destination) ||
-                "",
+            destination: getStockLocationOptionName(stock.narvi_stock_destination),
+            destinationId: resolveStockLocationOptionId(stock.narvi_stock_destination),
+            destinationSelect: getStockLocationOptionName(stock.narvi_stock_destination),
+            destinationName: getStockLocationOptionName(stock.narvi_stock_destination),
+            narviStockApDestination: resolveStockLocationOptionId(stock.narvi_stock_ap_destination),
+            narviStockApDestinationName: getStockLocationOptionName(stock.narvi_stock_ap_destination),
             itemId: normalizeId(stock.item_id) || "",
             item: stock.item || stock.items || stock.item_id || stock.stock_items_quantity || "",
             volumeCbm: getFieldValue(stock.volume_cbm, ""),
@@ -839,6 +814,7 @@ export default function StockForm() {
             currencies,
             pics,
             destinationOptions,
+            narviApDestinationOptions,
             normalizeStockStatusKey,
             removeSOPrefix,
             removeSIPrefix,
@@ -852,6 +828,7 @@ export default function StockForm() {
             currencies,
             pics,
             destinationOptions,
+            narviApDestinationOptions,
         ]
     );
 
@@ -889,7 +866,11 @@ export default function StockForm() {
             origin_text: normalizeStockOriginHubText(rowData.origin_text),
             narvi_stock_via_hub1: toStockLocationPayloadId(rowData.narviStockViaHub1),
             narvi_stock_via_hub2: toStockLocationPayloadId(rowData.narviStockViaHub2),
-            narvi_stock_ap_destination: toStockLocationPayloadId(rowData.narviStockApDestination),
+            ...buildNarviApDestinationSaveFields(
+                rowData.narviStockApDestination,
+                rowData.narviStockApDestinationName || "",
+                narviApDestinationOptions
+            ),
             attachments: rowData.attachments || [], // Include attachments in payload
             attachment_to_delete: rowData.attachmentsToDelete || [], // Include attachment IDs to delete
             client_access: Boolean(rowData.clientAccess),
@@ -910,12 +891,7 @@ export default function StockForm() {
             value: normalizeStockValueForSave(rowData.value),
             sl_create_datetime: new Date().toISOString().replace('T', ' ').slice(0, 19),
             extra: "",
-            destination_new: buildStockDestinationNewPayload(
-                rowData.destinationId,
-                rowData.destinationSelect || rowData.destinationName || "",
-                destinationOptions
-            ),
-            destination_ids: buildStockDestinationIdsPayload(
+            ...buildNarviDestinationSaveFields(
                 rowData.destinationId,
                 rowData.destinationSelect || rowData.destinationName || "",
                 destinationOptions
@@ -986,7 +962,11 @@ export default function StockForm() {
             origin_text: normalizeStockOriginHubText(baselineRow.origin_text),
             narvi_stock_via_hub1: toStockLocationPayloadId(baselineRow.narviStockViaHub1),
             narvi_stock_via_hub2: toStockLocationPayloadId(baselineRow.narviStockViaHub2),
-            narvi_stock_ap_destination: toStockLocationPayloadId(baselineRow.narviStockApDestination),
+            ...buildNarviApDestinationSaveFields(
+                baselineRow.narviStockApDestination,
+                baselineRow.narviStockApDestinationName || "",
+                narviApDestinationOptions
+            ),
             attachments: [],
             attachment_to_delete: [],
             client_access: Boolean(baselineRow.clientAccess),
@@ -1009,12 +989,7 @@ export default function StockForm() {
             cw_freight: 0,
             value: normalizeStockValueForSave(baselineRow.value),
             extra: "",
-            destination_new: buildStockDestinationNewPayload(
-                baselineRow.destinationId,
-                baselineRow.destinationSelect || baselineRow.destinationName || "",
-                destinationOptions
-            ),
-            destination_ids: buildStockDestinationIdsPayload(
+            ...buildNarviDestinationSaveFields(
                 baselineRow.destinationId,
                 baselineRow.destinationSelect || baselineRow.destinationName || "",
                 destinationOptions

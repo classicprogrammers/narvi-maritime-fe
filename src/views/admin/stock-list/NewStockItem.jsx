@@ -66,13 +66,6 @@ import useStockDestinationOptions from "../../../hooks/useStockDestinationOption
 import useStockFormRemoteSelects from "../../../hooks/useStockFormRemoteSelects";
 import useStockListOptionPins from "../../../hooks/useStockListOptionPins";
 import { mergeSelectedIntoOptions } from "../../../utils/stockFormSelectUtils";
-import {
-    buildStockDestinationIdsPayload,
-    buildStockDestinationNewPayload,
-    formatStockDestinationDisplay,
-    getStockM2OId,
-    getStockM2OName,
-} from "../../../utils/stockDestinationOptions";
 import { buildStockCreateLinePayload } from "../../../utils/stockCreatePayload";
 import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps } from "../../../utils/stockUpdatePayload";
 import {
@@ -101,9 +94,9 @@ import {
 } from "../../../utils/shippingOrderListState";
 import { isStockOriginHubFormField, normalizeStockOriginHubText } from "../../../utils/stockOriginHubText";
 import {
+    buildNarviApDestinationSaveFields,
+    buildNarviDestinationSaveFields,
     getStockLocationOptionName,
-    getStockViaHub1Display,
-    getStockViaHub2Display,
     mergeStockIdNameOptions,
     resolveStockLocationOptionId,
     toClearableDateValue,
@@ -575,11 +568,6 @@ export default function StockForm() {
         return "";
     }, [originTextOptions]);
 
-    const cleanLocationDisplay = useCallback((value) => {
-        const text = value == null || value === false ? "" : String(value).trim();
-        return !text || text === "-" ? "" : text;
-    }, []);
-
     const seedLocationPinsFromStock = useCallback((stock, rowData) => {
         seedOption("viaHub1", rowData.narviStockViaHub1, rowData.narviStockViaHub1Name);
         seedOption("viaHub2", rowData.narviStockViaHub2, rowData.narviStockViaHub2Name);
@@ -964,59 +952,13 @@ export default function StockForm() {
                 return resolveOriginDisplayName(stock, oid);
             })(),
             narviStockViaHub1: resolveStockLocationOptionId(stock.narvi_stock_via_hub1),
-            narviStockViaHub1Name: (() => {
-                const fromM2O = getStockLocationOptionName(stock.narvi_stock_via_hub1);
-                if (fromM2O) return fromM2O;
-                const id = resolveStockLocationOptionId(stock.narvi_stock_via_hub1);
-                const display = cleanLocationDisplay(getStockViaHub1Display(stock));
-                // Avoid treating bare numeric ids as labels (select already binds by id)
-                if (display && id != null && display === String(id)) return "";
-                return display ? normalizeStockOriginHubText(display) : "";
-            })(),
+            narviStockViaHub1Name: getStockLocationOptionName(stock.narvi_stock_via_hub1),
             narviStockViaHub2: resolveStockLocationOptionId(stock.narvi_stock_via_hub2),
-            narviStockViaHub2Name: (() => {
-                const fromM2O = getStockLocationOptionName(stock.narvi_stock_via_hub2);
-                if (fromM2O) return fromM2O;
-                const id = resolveStockLocationOptionId(stock.narvi_stock_via_hub2);
-                const display = cleanLocationDisplay(getStockViaHub2Display(stock));
-                if (display && id != null && display === String(id)) return "";
-                return display ? normalizeStockOriginHubText(display) : "";
-            })(),
-            narviStockApDestination:
-                resolveStockLocationOptionId(stock.narvi_stock_ap_destination) ??
-                getStockM2OId(stock.ap_destination_ids),
-            narviStockApDestinationName: (() => {
-                const fromM2O =
-                    getStockLocationOptionName(stock.narvi_stock_ap_destination) ||
-                    getStockM2OName(stock.ap_destination_ids);
-                if (fromM2O) return fromM2O;
-                const id =
-                    resolveStockLocationOptionId(stock.narvi_stock_ap_destination) ??
-                    getStockM2OId(stock.ap_destination_ids);
-                const display = cleanLocationDisplay(formatStockDestinationDisplay(stock, "ap"));
-                if (display && id != null && display === String(id)) return "";
-                return display;
-            })(),
-            destinationId:
-                getStockM2OId(stock.destination_ids) ??
-                resolveStockLocationOptionId(stock.destination_ids) ??
-                resolveStockLocationOptionId(stock.destination_id) ??
-                resolveStockLocationOptionId(stock.destination),
-            destinationName: (() => {
-                const fromM2O = getStockM2OName(stock.destination_ids);
-                if (fromM2O) return fromM2O;
-                const text =
-                    getFieldValue(stock.destination_new) ||
-                    getFieldValue(stock.destination) ||
-                    "";
-                const id =
-                    getStockM2OId(stock.destination_ids) ??
-                    resolveStockLocationOptionId(stock.destination_ids) ??
-                    resolveStockLocationOptionId(stock.destination_id) ??
-                    resolveStockLocationOptionId(stock.destination);
-                if (text && id != null && String(text).trim() === String(id)) return "";
-                return text;
-            })(),
+            narviStockViaHub2Name: getStockLocationOptionName(stock.narvi_stock_via_hub2),
+            narviStockApDestination: resolveStockLocationOptionId(stock.narvi_stock_ap_destination),
+            narviStockApDestinationName: getStockLocationOptionName(stock.narvi_stock_ap_destination),
+            destinationId: resolveStockLocationOptionId(stock.narvi_stock_destination),
+            destinationName: getStockLocationOptionName(stock.narvi_stock_destination),
             shippingDoc: getFieldValue(stock.shipping_doc),
             exportDoc: getFieldValue(stock.export_doc),
             exportDoc2: getFieldValue(stock.export_doc_2),
@@ -1379,6 +1321,7 @@ export default function StockForm() {
             currencies,
             pics,
             destinationOptions,
+            narviApDestinationOptions,
             shippingOrders,
             normalizeStockStatusKey,
             removeSIPrefix,
@@ -1392,6 +1335,7 @@ export default function StockForm() {
             currencies,
             pics,
             destinationOptions,
+            narviApDestinationOptions,
             shippingOrders,
         ]
     );
@@ -1422,6 +1366,10 @@ export default function StockForm() {
             String(row.destinationName || "").trim() ||
             findOptionById("destination", destinationOptions, row.destinationId)?.name ||
             "";
+        const resolveApDestinationNameForPayload = (row) =>
+            String(row.narviStockApDestinationName || "").trim() ||
+            findOptionById("apDestination", narviApDestinationOptions, row.narviStockApDestination)?.name ||
+            "";
 
         // Update payload (partial/changed fields) — create uses buildStockCreateLinePayload
         const payload = {
@@ -1442,7 +1390,11 @@ export default function StockForm() {
             origin_text: resolveOriginTextForPayload(rowData),
             narvi_stock_via_hub1: toStockLocationPayloadId(rowData.narviStockViaHub1),
             narvi_stock_via_hub2: toStockLocationPayloadId(rowData.narviStockViaHub2),
-            narvi_stock_ap_destination: toStockLocationPayloadId(rowData.narviStockApDestination),
+            ...buildNarviApDestinationSaveFields(
+                rowData.narviStockApDestination,
+                resolveApDestinationNameForPayload(rowData),
+                narviApDestinationOptions
+            ),
             client_access: Boolean(rowData.clientAccess),
             remarks: rowData.remarks || "",
             internal_remark: rowData.internalRemark || "",
@@ -1458,12 +1410,7 @@ export default function StockForm() {
             value: normalizeStockValueForSave(rowData.value),
             shipment_type: "", // Include shipment_type as empty string
             extra: rowData.extra2 || "",
-            destination_new: buildStockDestinationNewPayload(
-                rowData.destinationId,
-                resolveDestinationNameForPayload(rowData),
-                destinationOptions
-            ),
-            destination_ids: buildStockDestinationIdsPayload(
+            ...buildNarviDestinationSaveFields(
                 rowData.destinationId,
                 resolveDestinationNameForPayload(rowData),
                 destinationOptions
@@ -1572,7 +1519,11 @@ export default function StockForm() {
             origin_text: resolveOriginTextForPayload(baselineRow),
             narvi_stock_via_hub1: toStockLocationPayloadId(baselineRow.narviStockViaHub1),
             narvi_stock_via_hub2: toStockLocationPayloadId(baselineRow.narviStockViaHub2),
-            narvi_stock_ap_destination: toStockLocationPayloadId(baselineRow.narviStockApDestination),
+            ...buildNarviApDestinationSaveFields(
+                baselineRow.narviStockApDestination,
+                resolveApDestinationNameForPayload(baselineRow),
+                narviApDestinationOptions
+            ),
             client_access: Boolean(baselineRow.clientAccess),
             remarks: baselineRow.remarks || "",
             internal_remark: baselineRow.internalRemark || "",
@@ -1588,12 +1539,7 @@ export default function StockForm() {
             value: normalizeStockValueForSave(baselineRow.value),
             shipment_type: "",
             extra: baselineRow.extra2 || "",
-            destination_new: buildStockDestinationNewPayload(
-                baselineRow.destinationId,
-                resolveDestinationNameForPayload(baselineRow),
-                destinationOptions
-            ),
-            destination_ids: buildStockDestinationIdsPayload(
+            ...buildNarviDestinationSaveFields(
                 baselineRow.destinationId,
                 resolveDestinationNameForPayload(baselineRow),
                 destinationOptions

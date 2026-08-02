@@ -1,21 +1,21 @@
-/** Helpers for narvi_stock_via_hub1 / narvi_stock_via_hub2 / narvi_stock_ap_destination option fields */
+/** Helpers for narvi_stock_* location fields (hubs / AP destination / destination). */
 
 export const STOCK_VIA_HUB1_KEY = "narvi_stock_via_hub1";
 export const STOCK_VIA_HUB2_KEY = "narvi_stock_via_hub2";
 export const STOCK_AP_DESTINATION_KEY = "narvi_stock_ap_destination";
-
-const LEGACY_VIA_HUB1_FIELDS = ["via_hub", "via_hub_1", "via_hub1"];
-const LEGACY_VIA_HUB2_FIELDS = ["via_hub2", "via_hub_2"];
-const LEGACY_AP_DESTINATION_FIELDS = ["ap_destination_new", "ap_destination", "ap_destination_id"];
+export const STOCK_DESTINATION_KEY = "narvi_stock_destination";
 
 export const getStockViaHub1Display = (item) =>
-    getStockLocationDisplay(item, STOCK_VIA_HUB1_KEY, LEGACY_VIA_HUB1_FIELDS);
+    getStockLocationDisplay(item, STOCK_VIA_HUB1_KEY);
 
 export const getStockViaHub2Display = (item) =>
-    getStockLocationDisplay(item, STOCK_VIA_HUB2_KEY, LEGACY_VIA_HUB2_FIELDS);
+    getStockLocationDisplay(item, STOCK_VIA_HUB2_KEY);
 
 export const getStockApDestinationDisplay = (item) =>
-    getStockLocationDisplay(item, STOCK_AP_DESTINATION_KEY, LEGACY_AP_DESTINATION_FIELDS);
+    getStockLocationDisplay(item, STOCK_AP_DESTINATION_KEY);
+
+export const getStockDestinationDisplay = (item) =>
+    getStockLocationDisplay(item, STOCK_DESTINATION_KEY);
 
 const toSortValue = (display) =>
     display != null && display !== "" && display !== "-" ? String(display).toLowerCase().trim() : "";
@@ -126,25 +126,69 @@ export const mergeStockIdNameOptions = (options, selectedId, selectedName) => {
     return list;
 };
 
-export const getStockLocationDisplay = (item, fieldKey, legacyTextFields = []) => {
+export const getStockLocationDisplay = (item, fieldKey) => {
     if (!item) return "-";
     const direct = item[fieldKey];
     const nameFromM2O = getStockLocationOptionName(direct);
     if (nameFromM2O) return nameFromM2O;
     const id = resolveStockLocationOptionId(direct);
     if (id != null) return String(id);
-    for (const legacyField of legacyTextFields) {
-        const legacy = item[legacyField];
-        if (legacy != null && legacy !== false && String(legacy).trim() !== "") {
-            return String(legacy).trim();
-        }
-    }
     return "-";
 };
 
 export const toStockLocationPayloadId = (value) => {
     const id = resolveStockLocationOptionId(value);
     return id != null ? id : false;
+};
+
+const resolveLocationOptionName = (optionId, selectName, options = []) => {
+    const trimmed = String(selectName ?? "").trim();
+    if (trimmed) return trimmed;
+    const id = resolveStockLocationOptionId(optionId);
+    if (id == null) return "";
+    const match = (Array.isArray(options) ? options : []).find((o) => String(o?.id) === String(id));
+    return match?.name ? String(match.name) : "";
+};
+
+/**
+ * AP destination save fields — primary narvi key plus legacy companions the backend still stores.
+ * Clear sends: narvi_stock_ap_destination=false, ap_destination_ids=false, ap_destination_new="".
+ */
+export const buildNarviApDestinationSaveFields = (optionId, selectName, options = []) => {
+    const id = toStockLocationPayloadId(optionId);
+    if (id === false) {
+        return {
+            narvi_stock_ap_destination: false,
+            ap_destination_ids: false,
+            ap_destination_new: "",
+        };
+    }
+    const name = resolveLocationOptionName(id, selectName, options);
+    return {
+        narvi_stock_ap_destination: id,
+        ap_destination_ids: { id, name: name || `ID ${id}` },
+        ap_destination_new: name || "",
+    };
+};
+
+/**
+ * Destination save fields — primary narvi_stock_destination plus destination_ids / destination_new.
+ */
+export const buildNarviDestinationSaveFields = (optionId, selectName, options = []) => {
+    const id = toStockLocationPayloadId(optionId);
+    if (id === false) {
+        return {
+            narvi_stock_destination: false,
+            destination_ids: false,
+            destination_new: "",
+        };
+    }
+    const name = resolveLocationOptionName(id, selectName, options);
+    return {
+        narvi_stock_destination: id,
+        destination_ids: { id, name: name || `ID ${id}` },
+        destination_new: name || "",
+    };
 };
 
 /**

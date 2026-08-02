@@ -96,15 +96,27 @@ export function inferTransportMode(stock = {}, legIndex = 0, totalLegs = 1) {
 
   const hasAirCw = Number(stock.cw_air_freight_new ?? stock.cw_air_freight) > 0;
   const hasAwb = Boolean(stock.awb_number || stock.shipping_doc);
+  const viaHub1 =
+    typeof stock.narvi_stock_via_hub1 === "object"
+      ? stock.narvi_stock_via_hub1?.name
+      : stock.narvi_stock_via_hub1;
+  const viaHub2 =
+    typeof stock.narvi_stock_via_hub2 === "object"
+      ? stock.narvi_stock_via_hub2?.name
+      : stock.narvi_stock_via_hub2;
   const fromAir = looksLikeAirportCode(stock.origin_text || stock.origin);
-  const viaAir = looksLikeAirportCode(stock.via_hub) || looksLikeAirportCode(stock.via_hub2);
+  const viaAir = looksLikeAirportCode(viaHub1) || looksLikeAirportCode(viaHub2);
 
   if (hasAirCw || hasAwb || fromAir || viaAir) {
     if (legIndex === 0 && stock.warehouse_new && totalLegs > 2) return "road";
     return "air";
   }
 
-  const dest = String(stock.destination_new || stock.destination || stock.vessel_destination || "").toLowerCase();
+  const destRaw =
+    typeof stock.narvi_stock_destination === "object"
+      ? stock.narvi_stock_destination?.name
+      : stock.narvi_stock_destination;
+  const dest = String(destRaw || stock.vessel_destination || "").toLowerCase();
   if (dest.includes("port") || dest.includes("vessel")) return "sea";
 
   if (legIndex === 0 && stock.warehouse_new) return "road";
@@ -113,13 +125,19 @@ export function inferTransportMode(stock = {}, legIndex = 0, totalLegs = 1) {
 }
 
 export function buildRoutePoints(stock = {}) {
+  const locName = (v) =>
+    v == null || v === false
+      ? ""
+      : typeof v === "object"
+        ? String(v.name ?? v.label ?? "").trim()
+        : String(v).trim();
   const points = [
     stock.origin_text || stock.origin,
     stock.warehouse_new || stock.warehouse_id || stock.stock_warehouse,
-    stock.via_hub,
-    stock.via_hub2,
-    stock.ap_destination_new || stock.ap_destination,
-    stock.destination_new || stock.destination || stock.vessel_destination,
+    locName(stock.narvi_stock_via_hub1),
+    locName(stock.narvi_stock_via_hub2),
+    locName(stock.narvi_stock_ap_destination),
+    locName(stock.narvi_stock_destination) || stock.vessel_destination,
   ]
     .map((p) => (p == null || p === false ? "" : String(p).trim()))
     .filter(Boolean);

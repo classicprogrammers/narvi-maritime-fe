@@ -113,15 +113,14 @@ import useStockDestinationOptions from "../../../hooks/useStockDestinationOption
 import useStockListOptionPins from "../../../hooks/useStockListOptionPins";
 import { stockUpdateValuesEqual } from "../../../utils/stockUpdatePayload";
 import {
-    buildStockDestinationIdsPayload,
-    buildStockDestinationNewPayload,
     formatStockDestinationDisplay,
-    getStockM2OId,
-    getStockM2OName,
 } from "../../../utils/stockDestinationOptions";
 import {
+    buildNarviApDestinationSaveFields,
+    buildNarviDestinationSaveFields,
     getStockLocationOptionName,
     getStockApDestinationSortValue,
+    getStockDestinationDisplay,
     getStockEffectiveHubSortValue,
     getStockViaHub1Display,
     getStockViaHub1SortValue,
@@ -772,8 +771,6 @@ export default function Stocks() {
     }, [stockViewOriginFilterId, stockOriginTextOptions, findOptionById, pinOption]);
 
     const seedLocationPinsFromItem = useCallback((item, rowData) => {
-        const pick = (val, fallback = "") =>
-            val === null || val === undefined || val === false ? fallback : String(val || fallback);
         seedOption(
             "viaHub1",
             rowData.narvi_stock_via_hub1_id,
@@ -791,9 +788,8 @@ export default function Stocks() {
         );
         seedOption(
             "destination",
-            rowData.destination_ids_id,
-            getStockM2OName(item.destination_ids) ||
-            pick(item.destination_new, pick(item.destination))
+            rowData.narvi_stock_destination_id,
+            getStockDestinationDisplay(item)
         );
         seedOption("origin", rowData.origin_id, rowData.origin_text);
     }, [seedOption]);
@@ -1786,7 +1782,7 @@ export default function Stocks() {
         const lwhText = item.lwh_text || "-";
         const viaHub1 = getStockViaHub1Display(item);
         const viaHub2 = getStockViaHub2Display(item);
-        const destination = formatStockDestinationDisplay(item, "destination") || item.destination_new || item.destination_id || item.destination || item.stock_destination || "-";
+        const destination = formatStockDestinationDisplay(item, "destination");
         const dgUn = item.dg_un || "-";
         const soNumber = item.so_id
             ? getSoNumberName(item.so_id)
@@ -1842,7 +1838,7 @@ export default function Stocks() {
                 getStockViaHub1Display(item),
                 getStockViaHub2Display(item),
                 formatStockDestinationDisplay(item, "ap"),
-                formatStockDestinationDisplay(item, "destination") || item.destination_new || item.destination_id || item.destination || item.stock_destination || "-",
+                formatStockDestinationDisplay(item, "destination"),
                 item.dg_un || "-",
                 soNumber,
             ];
@@ -1879,7 +1875,7 @@ export default function Stocks() {
                 getStockViaHub1Display(item),
                 getStockViaHub2Display(item),
                 formatStockDestinationDisplay(item, "ap"),
-                formatStockDestinationDisplay(item, "destination") || item.destination_new || item.destination_id || item.destination || item.stock_destination || "-",
+                formatStockDestinationDisplay(item, "destination"),
                 item.dg_un || "-",
                 soNumber,
                 getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-",
@@ -2798,11 +2794,8 @@ export default function Stocks() {
             ),
             narvi_stock_via_hub1_id: resolveStockLocationOptionId(item.narvi_stock_via_hub1),
             narvi_stock_via_hub2_id: resolveStockLocationOptionId(item.narvi_stock_via_hub2),
-            narvi_stock_ap_destination_id:
-                resolveStockLocationOptionId(item.narvi_stock_ap_destination) ??
-                getStockM2OId(item.ap_destination_ids),
-            destination_id: getFieldValue("destination_id", "destination", "stock_destination"),
-            destination_ids_id: getStockM2OId(item.destination_ids),
+            narvi_stock_ap_destination_id: resolveStockLocationOptionId(item.narvi_stock_ap_destination),
+            narvi_stock_destination_id: resolveStockLocationOptionId(item.narvi_stock_destination),
             warehouse_id: getFieldValue("warehouse_id", "stock_warehouse"),
             currency_id: getFieldValue("currency_id", "currency"),
             // Ensure numeric fields are preserved as strings for input compatibility
@@ -3015,9 +3008,8 @@ export default function Stocks() {
             { backend: "stock_items_quantity", original: ["stock_items_quantity", "items", "item_id"], edited: ["stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) },
             { backend: "currency_id", original: ["currency_id", "currency"], edited: ["currency_id"], transform: (v) => toValue(toId(v), false) },
             { backend: "origin_text", original: ["origin_text", "origin"], edited: ["origin_text"], transform: (v) => normalizeStockOriginHubText(v) },
-            { backend: "narvi_stock_via_hub1", original: ["narvi_stock_via_hub1", "narvi_stock_via_hub1_id", "via_hub"], edited: ["narvi_stock_via_hub1_id"], transform: (v) => toStockLocationPayloadId(v) },
-            { backend: "narvi_stock_via_hub2", original: ["narvi_stock_via_hub2", "narvi_stock_via_hub2_id", "via_hub2"], edited: ["narvi_stock_via_hub2_id"], transform: (v) => toStockLocationPayloadId(v) },
-            { backend: "narvi_stock_ap_destination", original: ["narvi_stock_ap_destination", "narvi_stock_ap_destination_id", "ap_destination_ids"], edited: ["narvi_stock_ap_destination_id"], transform: (v) => toStockLocationPayloadId(v) },
+            { backend: "narvi_stock_via_hub1", original: ["narvi_stock_via_hub1", "narvi_stock_via_hub1_id"], edited: ["narvi_stock_via_hub1_id"], transform: (v) => toStockLocationPayloadId(v) },
+            { backend: "narvi_stock_via_hub2", original: ["narvi_stock_via_hub2", "narvi_stock_via_hub2_id"], edited: ["narvi_stock_via_hub2_id"], transform: (v) => toStockLocationPayloadId(v) },
             { backend: "client_access", original: ["client_access"], edited: ["client_access"], transform: (v) => Boolean(v !== undefined ? v : false) },
             { backend: "remarks", original: ["remarks"], edited: ["remarks"], transform: (v) => v || "" },
             { backend: "internal_remark", original: ["internal_remark"], edited: ["internal_remark"], transform: (v) => v || "" },
@@ -3101,57 +3093,57 @@ export default function Stocks() {
             }
         }
 
-        const destIdEdited = Object.prototype.hasOwnProperty.call(editedData, "destination_ids_id");
-        const editedDestId = destIdEdited
-            ? editedData.destination_ids_id
-            : getStockM2OId(originalItem.destination_ids);
-        const destinationCleared =
-            destIdEdited &&
-            (editedDestId == null || editedDestId === "" || editedDestId === false);
-        const editedDestName = destinationCleared
-            ? ""
-            : (
-                findOptionById("destination", stockDestinationOptions, editedDestId)?.name ||
-                (!destIdEdited
-                    ? (
-                        getStockM2OName(originalItem.destination_ids) ||
-                        (originalItem.destination_new && originalItem.destination_new !== false
-                            ? String(originalItem.destination_new)
-                            : "")
-                    )
-                    : "")
+        const apIdEdited = Object.prototype.hasOwnProperty.call(editedData, "narvi_stock_ap_destination_id");
+        if (apIdEdited) {
+            const editedApId = editedData.narvi_stock_ap_destination_id;
+            const apCleared = editedApId == null || editedApId === "" || editedApId === false;
+            const editedApName = apCleared
+                ? ""
+                : (
+                    findOptionById("apDestination", stockNarviApDestinationOptions, editedApId)?.name ||
+                    getStockLocationOptionName(originalItem.narvi_stock_ap_destination) ||
+                    ""
+                );
+            const currentApFields = buildNarviApDestinationSaveFields(
+                editedApId,
+                editedApName,
+                stockNarviApDestinationOptions
             );
-        const currentDestinationNew = buildStockDestinationNewPayload(
-            editedDestId,
-            editedDestName,
-            stockDestinationOptions
-        );
-        const currentDestinationIds = buildStockDestinationIdsPayload(
-            editedDestId,
-            editedDestName,
-            stockDestinationOptions
-        );
-        const originalDestinationNew = buildStockDestinationNewPayload(
-            getStockM2OId(originalItem.destination_ids),
-            getStockM2OName(originalItem.destination_ids) ||
-            (originalItem.destination_new && originalItem.destination_new !== false
-                ? String(originalItem.destination_new)
-                : ""),
-            stockDestinationOptions
-        );
-        const originalDestinationIds = buildStockDestinationIdsPayload(
-            getStockM2OId(originalItem.destination_ids),
-            getStockM2OName(originalItem.destination_ids) ||
-            (originalItem.destination_new && originalItem.destination_new !== false
-                ? String(originalItem.destination_new)
-                : ""),
-            stockDestinationOptions
-        );
-        if (!valuesAreEqual(currentDestinationNew, originalDestinationNew)) {
-            payload.destination_new = currentDestinationNew;
+            const originalApFields = buildNarviApDestinationSaveFields(
+                resolveStockLocationOptionId(originalItem.narvi_stock_ap_destination),
+                getStockLocationOptionName(originalItem.narvi_stock_ap_destination),
+                stockNarviApDestinationOptions
+            );
+            if (!valuesAreEqual(currentApFields, originalApFields)) {
+                Object.assign(payload, currentApFields);
+            }
         }
-        if (!valuesAreEqual(currentDestinationIds, originalDestinationIds)) {
-            payload.destination_ids = currentDestinationIds;
+
+        const destIdEdited = Object.prototype.hasOwnProperty.call(editedData, "narvi_stock_destination_id");
+        if (destIdEdited) {
+            const editedDestId = editedData.narvi_stock_destination_id;
+            const destinationCleared =
+                editedDestId == null || editedDestId === "" || editedDestId === false;
+            const editedDestName = destinationCleared
+                ? ""
+                : (
+                    findOptionById("destination", stockDestinationOptions, editedDestId)?.name ||
+                    getStockLocationOptionName(originalItem.narvi_stock_destination) ||
+                    ""
+                );
+            const currentDestinationFields = buildNarviDestinationSaveFields(
+                editedDestId,
+                editedDestName,
+                stockDestinationOptions
+            );
+            const originalDestinationFields = buildNarviDestinationSaveFields(
+                resolveStockLocationOptionId(originalItem.narvi_stock_destination),
+                getStockLocationOptionName(originalItem.narvi_stock_destination),
+                stockDestinationOptions
+            );
+            if (!valuesAreEqual(currentDestinationFields, originalDestinationFields)) {
+                Object.assign(payload, currentDestinationFields);
+            }
         }
 
         return payload;
@@ -3303,7 +3295,7 @@ export default function Stocks() {
             lwh_text: item.lwh_text || "-",
             narvi_stock_via_hub1: getStockViaHub1Display(item),
             narvi_stock_via_hub2: getStockViaHub2Display(item),
-            destination: formatStockDestinationDisplay(item, "destination") || item.destination_new || item.destination_id || item.destination || item.stock_destination || "-",
+            destination: formatStockDestinationDisplay(item, "destination"),
             dg_un: item.dg_un || "-",
             so_number: soNumber,
             warehouse_id: getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-",
@@ -3460,7 +3452,7 @@ export default function Stocks() {
             let fieldsToCopy = assignFieldsOverride;
             if (!fieldsToCopy) {
                 if (type === "stock_destination_m2o") {
-                    fieldsToCopy = ["destination_ids_id"];
+                    fieldsToCopy = ["narvi_stock_destination_id"];
                 } else if (type === "stock_via_hub1") {
                     fieldsToCopy = ["narvi_stock_via_hub1_id"];
                 } else if (type === "stock_via_hub2") {
@@ -3584,9 +3576,9 @@ export default function Stocks() {
 
         if (type === "stock_destination_m2o") {
             const selectId =
-                rowEditingData.destination_ids_id !== undefined
-                    ? rowEditingData.destination_ids_id
-                    : getStockM2OId(item.destination_ids);
+                rowEditingData.narvi_stock_destination_id !== undefined
+                    ? rowEditingData.narvi_stock_destination_id
+                    : resolveStockLocationOptionId(item.narvi_stock_destination);
             return wrapAssign(
                 <Box position="relative" zIndex={10} minW="160px">
                     <RemoteSearchableSelect
@@ -3598,7 +3590,7 @@ export default function Stocks() {
                                 ...prev,
                                 [item.id]: {
                                     ...(prev[item.id] || normalizeItemForEditing(item)),
-                                    destination_ids_id: id,
+                                    narvi_stock_destination_id: id,
                                 },
                             }));
                         }}
@@ -3907,7 +3899,7 @@ export default function Stocks() {
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                             {isEditing ? (
-                                renderEditableCell(item, "destination_ids", null, "stock_destination_m2o")
+                                renderEditableCell(item, "narvi_stock_destination", null, "stock_destination_m2o")
                             ) : (
                                 <StockCellText {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</StockCellText>
                             )}
@@ -4187,7 +4179,7 @@ export default function Stocks() {
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                             {isEditing ? (
-                                renderEditableCell(item, "destination_ids", null, "stock_destination_m2o")
+                                renderEditableCell(item, "narvi_stock_destination", null, "stock_destination_m2o")
                             ) : (
                                 <StockCellText {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</StockCellText>
                             )}

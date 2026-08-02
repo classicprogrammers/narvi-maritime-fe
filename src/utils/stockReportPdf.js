@@ -536,7 +536,7 @@ export function mapFormRowToAdminItemForPdf(row, helpers = {}) {
         narvi_stock_via_hub1: row.narviStockViaHub1,
         narvi_stock_via_hub2: row.narviStockViaHub2,
         narvi_stock_ap_destination: row.narviStockApDestination,
-        destination_new: row.destination,
+        narvi_stock_destination: row.destinationId ?? row.destination,
         warehouse_new: row.warehouseId,
         date_on_stock: pickFormRowValue(row, "dateOnStock"),
         first_entry_date: pickFormRowValue(row, "dateOnStock", "firstEntryDate", "slCreateDate"),

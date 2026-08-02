@@ -1,6 +1,8 @@
-/** Helpers for stock list destination_ids / ap_destination_ids M2O fields */
+/** Helpers for stock destination option lists + display (narvi_stock_* fields only). */
 
 import {
+  getStockApDestinationDisplay,
+  getStockDestinationDisplay,
   getStockLocationOptionName,
   resolveStockLocationOptionId,
 } from "./stockLocationOptions";
@@ -25,10 +27,8 @@ export const normalizeStockDestinationOptions = (raw) => {
 
 const unwrapStockM2OField = (field) => {
   if (field == null || field === false || field === "") return null;
-  // One record in a list: [{id,name}] or [[id,"Name"]]
   if (Array.isArray(field)) {
     if (field.length === 0) return null;
-    // Odoo many2one tuple [id, "Name"] — keep as-is for id/name helpers
     if (
       field.length === 2 &&
       (typeof field[0] === "number" || typeof field[0] === "string") &&
@@ -66,7 +66,7 @@ export const getTextOptionIdByValue = (list, value) => {
   return Number(match.id);
 };
 
-/** Build API payload for destination_ids / ap_destination_ids */
+/** @deprecated Prefer buildNarviDestinationSaveFields / buildNarviApDestinationSaveFields */
 export const buildStockDestinationIdsPayload = (optionId, selectName, options = []) => {
   const name = String(selectName ?? "").trim();
   const id =
@@ -75,7 +75,6 @@ export const buildStockDestinationIdsPayload = (optionId, selectName, options = 
       : null;
 
   if (!name && id == null) return false;
-
   if (id != null) return id;
 
   const match = Array.isArray(options)
@@ -88,7 +87,7 @@ export const buildStockDestinationIdsPayload = (optionId, selectName, options = 
   return { name };
 };
 
-/** Build API payload for destination_new — text from selection or free text */
+/** @deprecated Prefer buildNarviDestinationSaveFields / buildNarviApDestinationSaveFields */
 export const buildStockDestinationNewPayload = (optionId, selectName, options = []) => {
   const name = String(selectName ?? "").trim();
   if (name) return name;
@@ -110,37 +109,8 @@ export const buildStockDestinationNewPayload = (optionId, selectName, options = 
 
 export const formatStockDestinationDisplay = (item, kind = "destination") => {
   if (!item) return "-";
-  if (kind === "ap") {
-    const narviName = getStockLocationOptionName(item.narvi_stock_ap_destination);
-    if (narviName) return narviName;
-    const narviId = resolveStockLocationOptionId(item.narvi_stock_ap_destination);
-    if (narviId != null) return String(narviId);
-    const m2oName = getStockM2OName(item.ap_destination_ids);
-    if (m2oName) return m2oName;
-    const m2oId = getStockM2OId(item.ap_destination_ids);
-    if (m2oId != null) return String(m2oId);
-    const text =
-      (item.ap_destination_new && item.ap_destination_new !== false
-        ? String(item.ap_destination_new)
-        : "") ||
-      item.ap_destination_id ||
-      item.ap_destination ||
-      "";
-    return text || "-";
-  }
-  const m2oName = getStockM2OName(item.destination_ids);
-  if (m2oName) return m2oName;
-  const m2oId = getStockM2OId(item.destination_ids);
-  if (m2oId != null) return String(m2oId);
-  const text =
-    (item.destination_new && item.destination_new !== false
-      ? String(item.destination_new)
-      : "") ||
-    item.destination_id ||
-    item.destination ||
-    item.stock_destination ||
-    "";
-  return text || "-";
+  if (kind === "ap") return getStockApDestinationDisplay(item);
+  return getStockDestinationDisplay(item);
 };
 
 export const mergeStockDestinationOptions = (options, selectedId, selectedName) => {
