@@ -16,7 +16,13 @@ export function isStockOriginHubFormField(field) {
 }
 
 export function isStockOriginHubBackendField(field) {
-  return field === "origin_text" || field === "origin_id" || field === "via_hub" || field === "via_hub2";
+  return (
+    field === "origin_text" ||
+    field === "narvi_stock_via_hub1" ||
+    field === "narvi_stock_via_hub2" ||
+    field === "narvi_stock_ap_destination" ||
+    field === "narvi_stock_destination"
+  );
 }
 
 export function normalizeStockOriginHubFieldValue(field, value) {

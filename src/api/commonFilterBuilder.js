@@ -74,12 +74,18 @@ export const buildCommonStockJobFilters = (params = {}, endpointType = "stock") 
   assign("max_value", params.max_value);
   assign("min_days", params.min_days);
   assign("max_days", params.max_days);
-  assign("origin", params.origin);
+  assign("origin_text", params.origin_text);
+  // Jobs list APIs still accept `origin`; stock list uses `origin_text` only.
+  if (endpointType !== "stock") {
+    assign("origin", params.origin);
+  }
   assign("so_number", params.so_number);
   assign("stock_item_id", params.stock_item_id);
   assign("remarks", params.remarks);
-  assign("effective_hub", params.effective_hub);
-  assign("hub", params.hub);
+  assign("narvi_stock_via_hub1", params.narvi_stock_via_hub1);
+  assign("narvi_stock_via_hub2", params.narvi_stock_via_hub2);
+  assign("narvi_stock_ap_destination", params.narvi_stock_ap_destination);
+  assign("narvi_stock_destination", params.narvi_stock_destination);
   assign("sort_by", params.sort_by);
   const resolvedSortBy = isPresent(params.sort_by) ? String(params.sort_by).trim() : "";
   if (!STOCK_SEMANTIC_SORTS.has(resolvedSortBy)) {

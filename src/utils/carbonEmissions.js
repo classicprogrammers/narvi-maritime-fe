@@ -104,7 +104,7 @@ export function inferTransportMode(stock = {}, legIndex = 0, totalLegs = 1) {
     typeof stock.narvi_stock_via_hub2 === "object"
       ? stock.narvi_stock_via_hub2?.name
       : stock.narvi_stock_via_hub2;
-  const fromAir = looksLikeAirportCode(stock.origin_text || stock.origin);
+  const fromAir = looksLikeAirportCode(stock.origin_text);
   const viaAir = looksLikeAirportCode(viaHub1) || looksLikeAirportCode(viaHub2);
 
   if (hasAirCw || hasAwb || fromAir || viaAir) {
@@ -132,7 +132,7 @@ export function buildRoutePoints(stock = {}) {
         ? String(v.name ?? v.label ?? "").trim()
         : String(v).trim();
   const points = [
-    stock.origin_text || stock.origin,
+    stock.origin_text,
     stock.warehouse_new || stock.warehouse_id || stock.stock_warehouse,
     locName(stock.narvi_stock_via_hub1),
     locName(stock.narvi_stock_via_hub2),

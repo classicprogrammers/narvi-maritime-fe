@@ -732,12 +732,6 @@ export default function Stocks() {
     const { pinOption, seedOption, getOptionsForValue, findOptionById } = useStockListOptionPins();
 
     const resolveOriginOptionId = useCallback((stock) => {
-        // Prefer explicit origin id (same as vessel/supplier), then name match.
-        const fromId =
-            resolveStockLocationOptionId(stock?.origin_id) ??
-            resolveStockLocationOptionId(stock?.origin);
-        if (fromId != null) return fromId;
-
         const rawText = stock?.origin_text;
         if (rawText == null || rawText === false || rawText === "") return null;
 
@@ -1794,7 +1788,7 @@ export default function Stocks() {
         const currency = getDisplayName(item.currency_id || item.currency) || "-";
         const value = formatStockValueDisplay(item.value);
         const dateOnStock = formatDate(item.date_on_stock) || item.date_on_stock || item.stock_date || item.create_date || "-";
-        const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || "-";
+        const origin = item.origin_text || "-";
         const apDestination = formatStockDestinationDisplay(item, "ap");
 
         if (viewType === "filter1") {
@@ -1834,7 +1828,7 @@ export default function Stocks() {
                 item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
                 item.weight_kg ?? item.weight_kgs ?? "-",
                 item.lwh_text || "-",
-                item.origin_text || item.origin || getDisplayName(item.origin_id) || "-",
+                item.origin_text || "-",
                 getStockViaHub1Display(item),
                 getStockViaHub2Display(item),
                 formatStockDestinationDisplay(item, "ap"),
@@ -1871,7 +1865,7 @@ export default function Stocks() {
                 item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
                 item.weight_kg ?? item.weight_kgs ?? "-",
                 item.lwh_text || "-",
-                item.origin_text || item.origin || getDisplayName(item.origin_id) || "-",
+                item.origin_text || "-",
                 getStockViaHub1Display(item),
                 getStockViaHub2Display(item),
                 formatStockDestinationDisplay(item, "ap"),
@@ -1939,7 +1933,7 @@ export default function Stocks() {
                 item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
                 item.weight_kg ?? item.weight_kgs ?? "-",
                 item.total_volume_cbm ?? item.cbm_total ?? item.cbm ?? "-",
-                item.origin_text || item.origin || getDisplayName(item.origin_id) || "-",
+                item.origin_text || "-",
                 getStockViaHub1Display(item),
                 getStockViaHub2Display(item),
                 formatStockDestinationDisplay(item, "ap"),
@@ -2785,11 +2779,8 @@ export default function Stocks() {
             di_no: getFieldValue("di_no") || "",
             origin_id: resolveOriginOptionId(item) ?? "",
             origin_text: normalizeStockOriginHubText(
-                getStockLocationOptionName(item.origin_id) ||
-                getStockLocationOptionName(item.origin) ||
                 getStockLocationOptionName(item.origin_text) ||
                 (typeof item.origin_text === "string" ? item.origin_text : "") ||
-                getDisplayName(item.origin_id) ||
                 ""
             ),
             narvi_stock_via_hub1_id: resolveStockLocationOptionId(item.narvi_stock_via_hub1),
@@ -3007,7 +2998,7 @@ export default function Stocks() {
             { backend: "item_id", original: ["item_id", "stock_items_quantity", "items"], edited: ["item_id", "stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) }, // Keep item_id for lines format
             { backend: "stock_items_quantity", original: ["stock_items_quantity", "items", "item_id"], edited: ["stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) },
             { backend: "currency_id", original: ["currency_id", "currency"], edited: ["currency_id"], transform: (v) => toValue(toId(v), false) },
-            { backend: "origin_text", original: ["origin_text", "origin"], edited: ["origin_text"], transform: (v) => normalizeStockOriginHubText(v) },
+            { backend: "origin_text", original: ["origin_text"], edited: ["origin_text"], transform: (v) => normalizeStockOriginHubText(v) },
             { backend: "narvi_stock_via_hub1", original: ["narvi_stock_via_hub1", "narvi_stock_via_hub1_id"], edited: ["narvi_stock_via_hub1_id"], transform: (v) => toStockLocationPayloadId(v) },
             { backend: "narvi_stock_via_hub2", original: ["narvi_stock_via_hub2", "narvi_stock_via_hub2_id"], edited: ["narvi_stock_via_hub2_id"], transform: (v) => toStockLocationPayloadId(v) },
             { backend: "client_access", original: ["client_access"], edited: ["client_access"], transform: (v) => Boolean(v !== undefined ? v : false) },
@@ -3095,24 +3086,9 @@ export default function Stocks() {
 
         const apIdEdited = Object.prototype.hasOwnProperty.call(editedData, "narvi_stock_ap_destination_id");
         if (apIdEdited) {
-            const editedApId = editedData.narvi_stock_ap_destination_id;
-            const apCleared = editedApId == null || editedApId === "" || editedApId === false;
-            const editedApName = apCleared
-                ? ""
-                : (
-                    findOptionById("apDestination", stockNarviApDestinationOptions, editedApId)?.name ||
-                    getStockLocationOptionName(originalItem.narvi_stock_ap_destination) ||
-                    ""
-                );
-            const currentApFields = buildNarviApDestinationSaveFields(
-                editedApId,
-                editedApName,
-                stockNarviApDestinationOptions
-            );
+            const currentApFields = buildNarviApDestinationSaveFields(editedData.narvi_stock_ap_destination_id);
             const originalApFields = buildNarviApDestinationSaveFields(
-                resolveStockLocationOptionId(originalItem.narvi_stock_ap_destination),
-                getStockLocationOptionName(originalItem.narvi_stock_ap_destination),
-                stockNarviApDestinationOptions
+                resolveStockLocationOptionId(originalItem.narvi_stock_ap_destination)
             );
             if (!valuesAreEqual(currentApFields, originalApFields)) {
                 Object.assign(payload, currentApFields);
@@ -3121,25 +3097,11 @@ export default function Stocks() {
 
         const destIdEdited = Object.prototype.hasOwnProperty.call(editedData, "narvi_stock_destination_id");
         if (destIdEdited) {
-            const editedDestId = editedData.narvi_stock_destination_id;
-            const destinationCleared =
-                editedDestId == null || editedDestId === "" || editedDestId === false;
-            const editedDestName = destinationCleared
-                ? ""
-                : (
-                    findOptionById("destination", stockDestinationOptions, editedDestId)?.name ||
-                    getStockLocationOptionName(originalItem.narvi_stock_destination) ||
-                    ""
-                );
             const currentDestinationFields = buildNarviDestinationSaveFields(
-                editedDestId,
-                editedDestName,
-                stockDestinationOptions
+                editedData.narvi_stock_destination_id
             );
             const originalDestinationFields = buildNarviDestinationSaveFields(
-                resolveStockLocationOptionId(originalItem.narvi_stock_destination),
-                getStockLocationOptionName(originalItem.narvi_stock_destination),
-                stockDestinationOptions
+                resolveStockLocationOptionId(originalItem.narvi_stock_destination)
             );
             if (!valuesAreEqual(currentDestinationFields, originalDestinationFields)) {
                 Object.assign(payload, currentDestinationFields);
@@ -3305,7 +3267,7 @@ export default function Stocks() {
             cur: currency,
             value,
             date_on_stock: formatDate(item.date_on_stock) || item.date_on_stock || item.stock_date || item.create_date || "-",
-            origin: item.origin_text || item.origin || getDisplayName(item.origin_id) || "-",
+            origin: item.origin_text || "-",
             narvi_stock_ap_destination: formatStockDestinationDisplay(item, "ap"),
         };
     };
@@ -3460,7 +3422,7 @@ export default function Stocks() {
                 } else if (type === "stock_narvi_ap_destination") {
                     fieldsToCopy = ["narvi_stock_ap_destination_id"];
                 } else if (field.includes("origin_id") || field === "origin_text") {
-                    fieldsToCopy = ["origin_id", "origin_text"];
+                    fieldsToCopy = ["origin_text", "origin_id"];
                 } else {
                     fieldsToCopy = field;
                 }
@@ -3527,9 +3489,7 @@ export default function Stocks() {
             const originText =
                 rowEditingData.origin_text !== undefined
                     ? rowEditingData.origin_text
-                    : normalizeStockOriginHubText(
-                        item.origin_text || item.origin || getStockLocationOptionName(item.origin_id) || ""
-                    );
+                    : normalizeStockOriginHubText(item.origin_text || "");
             return wrapAssign(
                 <Box position="relative" zIndex={10} minW="160px">
                     <StockOriginCountrySelect
@@ -3883,7 +3843,7 @@ export default function Stocks() {
                             )}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_text || item.origin_id, "text") : <StockCellText {...cellText}>{item.origin_text || getDisplayName(item.origin_id) || "-"}</StockCellText>}
+                            {isEditing ? renderEditableCell(item, "origin_text", item.origin_text, "text") : <StockCellText {...cellText}>{item.origin_text || "-"}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "narvi_stock_via_hub1", null, "stock_via_hub1") : (
@@ -4158,7 +4118,7 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "value", item.value, "number") : <StockCellText {...cellText}>{formatStockValueDisplay(item.value)}</StockCellText>}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_text || item.origin_id, "text") : <StockCellText {...cellText}>{item.origin_text || getDisplayName(item.origin_id) || "-"}</StockCellText>}
+                            {isEditing ? renderEditableCell(item, "origin_text", item.origin_text, "text") : <StockCellText {...cellText}>{item.origin_text || "-"}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "narvi_stock_via_hub1", null, "stock_via_hub1") : (
@@ -5776,7 +5736,7 @@ export default function Stocks() {
                                                                         {getStatusLabel(item.stock_status)}
                                                                     </Badge>
                                                                 </Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{item.origin_text || "-"}</StockCellText></Td>
                                                                 <Td {...cellProps}><StockCellText {...cellText}>{renderText(getStockViaHub1Display(item))}</StockCellText></Td>
                                                                 <Td {...cellProps}><StockCellText {...cellText}>{renderText(getStockViaHub2Display(item))}</StockCellText></Td>
                                                                 <Td {...cellProps}><StockCellText {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</StockCellText></Td>

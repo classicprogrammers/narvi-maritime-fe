@@ -26,12 +26,6 @@ export const STOCK_CREATE_LINE_KEYS = new Set([
   "origin_text",
   "state_id",
   "airport_code",
-  "destination",
-  "destination_new",
-  "destination_ids",
-  "ap_destination",
-  "ap_destination_new",
-  "ap_destination_ids",
   "narvi_stock_via_hub1",
   "narvi_stock_via_hub2",
   "narvi_stock_ap_destination",
@@ -51,7 +45,6 @@ export const STOCK_CREATE_LINE_KEYS = new Set([
   "si_combined",
   "stock_shipping_instruction",
   "stock_delivery_instruction",
-  "stock_destination",
   "stock_warehouse",
   "vessel_destination_text",
   "vessel_destination",
@@ -114,46 +107,6 @@ export const buildStockM2OField = (idValue, nameValue, options = []) => {
     return { id, name: name || `ID ${id}` };
   }
   return { name };
-};
-
-/** destination_ids — M2O object per API spec */
-export const buildStockDestinationIdsM2O = (optionId, selectName, options = []) => {
-  const name = String(selectName ?? "").trim();
-  const id =
-    optionId != null && optionId !== "" && Number.isFinite(Number(optionId))
-      ? Number(optionId)
-      : null;
-
-  if (!name && id == null) return undefined;
-
-  if (id != null) {
-    return { id, name: name || resolveNameFromList(id, options) || `ID ${id}` };
-  }
-
-  const match = Array.isArray(options)
-    ? options.find((opt) => String(opt.name || "").toLowerCase() === name.toLowerCase())
-    : null;
-  if (match?.id != null && Number.isFinite(Number(match.id))) {
-    return { id: Number(match.id), name: String(match.name || name) };
-  }
-
-  return name ? { name } : undefined;
-};
-
-/** ap_destination_ids — string name or M2O when id is known */
-export const buildStockApDestinationIds = (optionId, selectName, options = []) => {
-  const name = String(selectName ?? "").trim();
-  const id =
-    optionId != null && optionId !== "" && Number.isFinite(Number(optionId))
-      ? Number(optionId)
-      : null;
-
-  if (!name && id == null) return undefined;
-  if (id != null) {
-    const resolved = name || resolveNameFromList(id, options);
-    return resolved || `ID ${id}`;
-  }
-  return name;
 };
 
 const toNumber = (v) => {
@@ -224,8 +177,6 @@ export const buildStockCreateLinePayload = (rowData, context = {}) => {
     suppliers = [],
     currencies = [],
     pics = [],
-    destinationOptions = [],
-    narviApDestinationOptions = [],
     shippingOrders = [],
     normalizeStockStatusKey = (v) => v,
     removeSIPrefix = (v) => v,
@@ -271,28 +222,8 @@ export const buildStockCreateLinePayload = (rowData, context = {}) => {
     return String(removeDIPrefix(value));
   };
 
-  const destinationName =
-    String(rowData.destinationName || rowData.destinationSelect || "").trim() ||
-    (Array.isArray(destinationOptions)
-      ? destinationOptions.find((opt) => Number(opt.id) === Number(rowData.destinationId))?.name || ""
-      : "");
-  const apDestinationName =
-    String(rowData.narviStockApDestinationName || "").trim() ||
-    (Array.isArray(narviApDestinationOptions)
-      ? narviApDestinationOptions.find(
-          (opt) => Number(opt.id) === Number(rowData.narviStockApDestination)
-        )?.name || ""
-      : "");
-  const destinationFields = buildNarviDestinationSaveFields(
-    rowData.destinationId,
-    destinationName,
-    destinationOptions
-  );
-  const apDestinationFields = buildNarviApDestinationSaveFields(
-    rowData.narviStockApDestination,
-    apDestinationName,
-    narviApDestinationOptions
-  );
+  const destinationFields = buildNarviDestinationSaveFields(rowData.destinationId);
+  const apDestinationFields = buildNarviApDestinationSaveFields(rowData.narviStockApDestination);
 
   const soIdValue = buildStockSoIdPayloadValue(rowData.soId, shippingOrders);
 

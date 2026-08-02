@@ -141,55 +141,15 @@ export const toStockLocationPayloadId = (value) => {
     return id != null ? id : false;
 };
 
-const resolveLocationOptionName = (optionId, selectName, options = []) => {
-    const trimmed = String(selectName ?? "").trim();
-    if (trimmed) return trimmed;
-    const id = resolveStockLocationOptionId(optionId);
-    if (id == null) return "";
-    const match = (Array.isArray(options) ? options : []).find((o) => String(o?.id) === String(id));
-    return match?.name ? String(match.name) : "";
-};
+/** AP destination save — only narvi_stock_ap_destination (false clears). */
+export const buildNarviApDestinationSaveFields = (optionId) => ({
+    narvi_stock_ap_destination: toStockLocationPayloadId(optionId),
+});
 
-/**
- * AP destination save fields — primary narvi key plus legacy companions the backend still stores.
- * Clear sends: narvi_stock_ap_destination=false, ap_destination_ids=false, ap_destination_new="".
- */
-export const buildNarviApDestinationSaveFields = (optionId, selectName, options = []) => {
-    const id = toStockLocationPayloadId(optionId);
-    if (id === false) {
-        return {
-            narvi_stock_ap_destination: false,
-            ap_destination_ids: false,
-            ap_destination_new: "",
-        };
-    }
-    const name = resolveLocationOptionName(id, selectName, options);
-    return {
-        narvi_stock_ap_destination: id,
-        ap_destination_ids: { id, name: name || `ID ${id}` },
-        ap_destination_new: name || "",
-    };
-};
-
-/**
- * Destination save fields — primary narvi_stock_destination plus destination_ids / destination_new.
- */
-export const buildNarviDestinationSaveFields = (optionId, selectName, options = []) => {
-    const id = toStockLocationPayloadId(optionId);
-    if (id === false) {
-        return {
-            narvi_stock_destination: false,
-            destination_ids: false,
-            destination_new: "",
-        };
-    }
-    const name = resolveLocationOptionName(id, selectName, options);
-    return {
-        narvi_stock_destination: id,
-        destination_ids: { id, name: name || `ID ${id}` },
-        destination_new: name || "",
-    };
-};
+/** Destination save — only narvi_stock_destination (false clears). */
+export const buildNarviDestinationSaveFields = (optionId) => ({
+    narvi_stock_destination: toStockLocationPayloadId(optionId),
+});
 
 /**
  * Many2one / id fields for stock update: keep id when set, send `false` to clear (Odoo-style).

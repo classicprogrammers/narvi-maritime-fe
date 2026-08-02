@@ -158,7 +158,7 @@ export default function StockForm() {
         // Internal fields for API payload (auto-filled or calculated)
         vesselDestination: "", // Auto-filled from vessel
         vesselEta: "", // Auto-filled from vessel
-        destination: "", // Free text (destination_new)
+        destination: "",
         destinationId: null,
         destinationSelect: "",
         apDestination: "", // legacy display fallback
@@ -525,17 +525,13 @@ export default function StockForm() {
             value: normalizeStockValueForForm(getFieldValue(stock.value, "")),
             currency: normalizeId(stock.currency_id) || normalizeId(stock.currency) || "",
             origin_text: (() => {
-                // If origin_text is already text (from previous saves), use it directly
                 if (stock.origin_text && typeof stock.origin_text === 'string' && !/^\d+$/.test(stock.origin_text)) {
                     return normalizeStockOriginHubText(stock.origin_text);
                 }
-                // Backward compatibility: check origin field
-                if (stock.origin && typeof stock.origin === 'string' && !/^\d+$/.test(stock.origin)) {
-                    return normalizeStockOriginHubText(stock.origin);
-                }
-                // Numeric id — resolve name from origin_text_options when available
-                const oid = normalizeId(stock.origin_id) || normalizeId(stock.origin) || "";
-                if (oid) {
+                const fromName = getStockLocationOptionName(stock.origin_text);
+                if (fromName) return normalizeStockOriginHubText(fromName);
+                const oid = resolveStockLocationOptionId(stock.origin_text);
+                if (oid != null) {
                     const match = originTextOptions.find((o) => String(o.id) === String(oid));
                     if (match) return normalizeStockOriginHubText(match.name || "");
                 }
@@ -866,11 +862,7 @@ export default function StockForm() {
             origin_text: normalizeStockOriginHubText(rowData.origin_text),
             narvi_stock_via_hub1: toStockLocationPayloadId(rowData.narviStockViaHub1),
             narvi_stock_via_hub2: toStockLocationPayloadId(rowData.narviStockViaHub2),
-            ...buildNarviApDestinationSaveFields(
-                rowData.narviStockApDestination,
-                rowData.narviStockApDestinationName || "",
-                narviApDestinationOptions
-            ),
+            ...buildNarviApDestinationSaveFields(rowData.narviStockApDestination),
             attachments: rowData.attachments || [], // Include attachments in payload
             attachment_to_delete: rowData.attachmentsToDelete || [], // Include attachment IDs to delete
             client_access: Boolean(rowData.clientAccess),
@@ -891,11 +883,7 @@ export default function StockForm() {
             value: normalizeStockValueForSave(rowData.value),
             sl_create_datetime: new Date().toISOString().replace('T', ' ').slice(0, 19),
             extra: "",
-            ...buildNarviDestinationSaveFields(
-                rowData.destinationId,
-                rowData.destinationSelect || rowData.destinationName || "",
-                destinationOptions
-            ),
+            ...buildNarviDestinationSaveFields(rowData.destinationId),
             warehouse_new: rowData.warehouseId || "",
             shipping_doc: rowData.shippingDoc || "",
             export_doc: "",
@@ -962,11 +950,7 @@ export default function StockForm() {
             origin_text: normalizeStockOriginHubText(baselineRow.origin_text),
             narvi_stock_via_hub1: toStockLocationPayloadId(baselineRow.narviStockViaHub1),
             narvi_stock_via_hub2: toStockLocationPayloadId(baselineRow.narviStockViaHub2),
-            ...buildNarviApDestinationSaveFields(
-                baselineRow.narviStockApDestination,
-                baselineRow.narviStockApDestinationName || "",
-                narviApDestinationOptions
-            ),
+            ...buildNarviApDestinationSaveFields(baselineRow.narviStockApDestination),
             attachments: [],
             attachment_to_delete: [],
             client_access: Boolean(baselineRow.clientAccess),
@@ -989,11 +973,7 @@ export default function StockForm() {
             cw_freight: 0,
             value: normalizeStockValueForSave(baselineRow.value),
             extra: "",
-            ...buildNarviDestinationSaveFields(
-                baselineRow.destinationId,
-                baselineRow.destinationSelect || baselineRow.destinationName || "",
-                destinationOptions
-            ),
+            ...buildNarviDestinationSaveFields(baselineRow.destinationId),
             warehouse_new: baselineRow.warehouseId || "",
             shipping_doc: baselineRow.shippingDoc || "",
             export_doc: "",

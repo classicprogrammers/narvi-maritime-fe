@@ -422,7 +422,10 @@ export default function StockList() {
                     days_on_stock_min: filterDaysOnStock?.trim() || undefined,
                     date_on_stock_from: filterCreateDateFrom?.trim() || undefined,
                     date_on_stock_to: filterCreateDateTo?.trim() || undefined,
-                    effective_hub: hubParam != null ? String(hubParam).trim() : undefined,
+                    narvi_stock_via_hub1:
+                        hubParam != null && Number.isFinite(Number(hubParam))
+                            ? Number(hubParam)
+                            : undefined,
                     origin_text: selectedOrigin
                         ? normalizeStockOriginHubText(selectedOrigin)
                         : undefined,
@@ -627,7 +630,6 @@ export default function StockList() {
     const hubOptions = useMemo(() => {
         const hubSet = new Set();
         stockList.forEach(item => {
-            if (item.effective_hub) hubSet.add(String(item.effective_hub).trim());
             const hub1 = getStockViaHub1Display(item);
             const hub2 = getStockViaHub2Display(item);
             if (hub1 && hub1 !== "-") hubSet.add(String(hub1).trim());
@@ -649,9 +651,15 @@ export default function StockList() {
             filtered = filtered.filter(item => selectedIds.includes(item.id));
         }
 
-        // Apply filters (Server-side handling handles these, frontend doesn't need to re-filter)
-        // General search is handled server-side via searchFilter (passed as search API param)
-        // Specific field filters are passed via individual API params
+        // Hub name filter (dropdown uses display names; API filter uses narvi ids when numeric)
+        if (hubParam != null && String(hubParam).trim() !== "" && !Number.isFinite(Number(hubParam))) {
+            const hubName = String(hubParam).trim().toLowerCase();
+            filtered = filtered.filter((item) => {
+                const hub1 = String(getStockViaHub1Display(item) || "").trim().toLowerCase();
+                const hub2 = String(getStockViaHub2Display(item) || "").trim().toLowerCase();
+                return hub1 === hubName || hub2 === hubName;
+            });
+        }
 
         if (isApiDrivenStockSortOption(sortOption)) {
             return filtered;
@@ -682,19 +690,19 @@ export default function StockList() {
                 } else if (sortField === 'so_id' || sortField === 'so_number') {
                     aVal = a.so_id ? getSoNumberName(a.so_id) : (a.stock_so_number ? getSoNumberNameFromNumber(a.stock_so_number) : ensureSoPrefix(a.so_number));
                     bVal = b.so_id ? getSoNumberName(b.so_id) : (b.stock_so_number ? getSoNumberNameFromNumber(b.stock_so_number) : ensureSoPrefix(b.so_number));
-                } else if (sortField === 'origin_id' || sortField === 'origin_text') {
-                    aVal = a.origin_text || a.origin || getDisplayName(a.origin_id);
-                    bVal = b.origin_text || b.origin || getDisplayName(b.origin_id);
-                } else if (sortField === 'narvi_stock_ap_destination' || sortField === 'ap_destination_id' || sortField === 'ap_destination') {
-                    aVal = getStockApDestinationSortValue(a) || formatStockDestinationDisplay(a, "ap");
-                    bVal = getStockApDestinationSortValue(b) || formatStockDestinationDisplay(b, "ap");
-                } else if (sortField === 'narvi_stock_via_hub1' || sortField === 'via_hub') {
+                } else if (sortField === 'origin_text') {
+                    aVal = a.origin_text || "";
+                    bVal = b.origin_text || "";
+                } else if (sortField === 'narvi_stock_ap_destination') {
+                    aVal = getStockApDestinationSortValue(a);
+                    bVal = getStockApDestinationSortValue(b);
+                } else if (sortField === 'narvi_stock_via_hub1') {
                     aVal = getStockViaHub1SortValue(a);
                     bVal = getStockViaHub1SortValue(b);
-                } else if (sortField === 'narvi_stock_via_hub2' || sortField === 'via_hub2') {
+                } else if (sortField === 'narvi_stock_via_hub2') {
                     aVal = getStockViaHub2SortValue(a);
                     bVal = getStockViaHub2SortValue(b);
-                } else if (sortField === 'destination_id' || sortField === 'destination') {
+                } else if (sortField === 'narvi_stock_destination') {
                     aVal = formatStockDestinationDisplay(a, "destination");
                     bVal = formatStockDestinationDisplay(b, "destination");
                 } else if (sortField === 'days_on_stock') {
@@ -839,7 +847,7 @@ export default function StockList() {
         }
 
         return filtered;
-    }, [stockList, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterReqNo, sortField, sortDirection, sortOption, isViewingSelected, selectedRows]);
+    }, [stockList, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterReqNo, sortField, sortDirection, sortOption, isViewingSelected, selectedRows, hubParam]);
 
     // Get selected items for the view modal
     const viewSelectedItems = useMemo(() => {
@@ -2033,8 +2041,8 @@ export default function StockList() {
                                         PO NUMBER {sortField === "po_text" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
                                     <Th {...headerProps}>EXTRA 2</Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("origin_id")} _hover={{ bg: thHoverBg }}>
-                                        ORIGIN {sortField === "origin_id" && (sortDirection === "asc" ? "↑" : "↓")}
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("origin_text")} _hover={{ bg: thHoverBg }}>
+                                        ORIGIN {sortField === "origin_text" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
                                     <Th {...headerProps}>HUB 1</Th>
                                     <Th {...headerProps}>HUB 2</Th>
@@ -2139,7 +2147,7 @@ export default function StockList() {
                                             <Td {...cellProps}>{renderMultiLineLabels(item.req_no)}</Td>
                                             <Td {...cellProps}>{renderMultiLineLabels(item.po_text)}</Td>
                                             <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.extra_2 || item.extra)}</StockCellText></Td>
-                                            <Td {...cellProps}><StockCellText {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{item.origin_text || "-"}</StockCellText></Td>
                                             <Td {...cellProps}><StockCellText {...cellText}>{renderText(getStockViaHub1Display(item))}</StockCellText></Td>
                                             <Td {...cellProps}><StockCellText {...cellText}>{renderText(getStockViaHub2Display(item))}</StockCellText></Td>
                                             <Td {...cellProps}><StockCellText {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</StockCellText></Td>

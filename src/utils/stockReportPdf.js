@@ -119,11 +119,7 @@ export function mapAdminStockItemToPdfRow(item, helpers) {
             ? String(item.po_text).replace(/\r?\n/g, ", ").trim()
             : "-";
 
-    const firstEntryLocation =
-        item.first_entry_location ||
-        item.origin_text ||
-        getDisplayName(item.origin_id || item.origin) ||
-        "-";
+    const firstEntryLocation = item.origin_text || "-";
 
     const destination = formatStockDestinationDisplay(item, "destination");
 
@@ -270,7 +266,7 @@ export async function buildStockReportPdfDocument(row) {
     const stockDetailsRows = [
         ["PO NO", clean(row.poNo), "Stock Number", clean(row.stockNumber)],
         ["Supplier", clean(row.supplier), "Status", clean(row.stockStatus)],
-        ["Origin", clean(row.origin || row.firstEntryLocation), "First Entry Date", clean(row.firstEntryDate)],
+        ["Origin", clean(row.origin_text || row.origin || row.firstEntryLocation), "First Entry Date", clean(row.firstEntryDate)],
         ["Via HUB 1", clean(row.viaHub1), "Shipping docs", clean(row.shippingDoc)],
         ["Currency / Value", `${clean(row.currency)} ${clean(row.value)}`, "DG / UN Number", clean(row.dgUnNumber)],
     ];
@@ -531,12 +527,11 @@ export function mapFormRowToAdminItemForPdf(row, helpers = {}) {
         supplier_id: row.supplier,
         po_text: row.poNumber,
         origin_text: row.origin_text,
-        origin_id: row.origin_id ?? row.origin,
-        first_entry_location: pickFormRowValue(row, "firstEntryLocation", "origin_text"),
+        first_entry_location: row.origin_text,
         narvi_stock_via_hub1: row.narviStockViaHub1,
         narvi_stock_via_hub2: row.narviStockViaHub2,
         narvi_stock_ap_destination: row.narviStockApDestination,
-        narvi_stock_destination: row.destinationId ?? row.destination,
+        narvi_stock_destination: row.destinationId,
         warehouse_new: row.warehouseId,
         date_on_stock: pickFormRowValue(row, "dateOnStock"),
         first_entry_date: pickFormRowValue(row, "dateOnStock", "firstEntryDate", "slCreateDate"),

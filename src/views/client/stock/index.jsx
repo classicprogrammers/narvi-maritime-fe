@@ -188,14 +188,17 @@ function ClientStock() {
         boxes: toNumberDisplay(item.boxes ?? item.box ?? item.pieces ?? item.pcs?.count),
         weight: toNumberDisplay(item.weight ?? item.weight_kg),
         totalVolumeCbm: toNumberDisplay(item.total_volume_cbm),
-        origin: toDisplay(item.first_entry_location || item.origin),
-        location: toDisplay(item.first_entry_location || item.origin),
-        firstEntryLocation: toDisplay(item.first_entry_location || item.origin),
+        origin: toDisplay(item.origin_text),
+        location: toDisplay(item.origin_text),
+        firstEntryLocation: toDisplay(item.origin_text),
         viaHub1: toDisplay(getStockViaHub1Display(item)),
         viaHub2: toDisplay(getStockViaHub2Display(item)),
-        effectiveHub: toDisplay(item.effective_hub ?? item.hub),
+        effectiveHub: (() => {
+          const hub2 = getStockViaHub2Display(item);
+          return toDisplay(hub2 !== "-" ? hub2 : getStockViaHub1Display(item));
+        })(),
         apDestination: toDisplay(formatStockDestinationDisplay(item, "ap")),
-        destination: toDisplay(item.destination),
+        destination: toDisplay(formatStockDestinationDisplay(item, "destination")),
         stockStatus: toDisplay(stockStatusRaw),
         stockStatusRaw,
         soNumber: toDisplay(item.so_number),
@@ -313,9 +316,9 @@ function ClientStock() {
     if (isStockHubSortOption(clientSortOption)) {
       const hubSortField = getStockHubSortField(clientSortOption);
       const getHubSortValue = (row) => {
-        if (hubSortField === "narvi_stock_via_hub1" || hubSortField === "via_hub") return getViaHub1(row);
-        if (hubSortField === "narvi_stock_via_hub2" || hubSortField === "via_hub2") return getViaHub2(row);
-        if (hubSortField === "narvi_stock_ap_destination" || hubSortField === "ap_destination_new") {
+        if (hubSortField === "narvi_stock_via_hub1") return getViaHub1(row);
+        if (hubSortField === "narvi_stock_via_hub2") return getViaHub2(row);
+        if (hubSortField === "narvi_stock_ap_destination") {
           return getApDestination(row);
         }
         return getEffectiveHub(row);

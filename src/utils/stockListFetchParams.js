@@ -31,12 +31,11 @@ export function stockListHasSearchFilters(params = {}) {
     date_on_stock_to,
     create_date_from,
     create_date_to,
-    effective_hub,
-    hub,
-    via_hub,
     narvi_stock_via_hub1,
     narvi_stock_via_hub2,
     narvi_stock_ap_destination,
+    narvi_stock_destination,
+    origin_text,
     supplier_id,
     warehouse_id,
     warehouse_new,
@@ -54,8 +53,13 @@ export function stockListHasSearchFilters(params = {}) {
   if (isNonEmpty(days_on_stock_min) || isNonEmpty(days_on_stock_max)) return true;
   if (isNonEmpty(date_on_stock_from) || isNonEmpty(date_on_stock_to)) return true;
   if (isNonEmpty(create_date_from) || isNonEmpty(create_date_to)) return true;
-  if (isNonEmpty(effective_hub) || isNonEmpty(hub) || isNonEmpty(via_hub)) return true;
-  if (isNonEmpty(narvi_stock_via_hub1) || isNonEmpty(narvi_stock_via_hub2) || isNonEmpty(narvi_stock_ap_destination)) {
+  if (
+    isNonEmpty(narvi_stock_via_hub1) ||
+    isNonEmpty(narvi_stock_via_hub2) ||
+    isNonEmpty(narvi_stock_ap_destination) ||
+    isNonEmpty(narvi_stock_destination) ||
+    isNonEmpty(origin_text)
+  ) {
     return true;
   }
   if (isNonEmpty(supplier_id) || isNonEmpty(warehouse_id) || isNonEmpty(warehouse_new) || isNonEmpty(currency_id)) return true;

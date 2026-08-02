@@ -66,47 +66,6 @@ export const getTextOptionIdByValue = (list, value) => {
   return Number(match.id);
 };
 
-/** @deprecated Prefer buildNarviDestinationSaveFields / buildNarviApDestinationSaveFields */
-export const buildStockDestinationIdsPayload = (optionId, selectName, options = []) => {
-  const name = String(selectName ?? "").trim();
-  const id =
-    optionId != null && optionId !== "" && Number.isFinite(Number(optionId))
-      ? Number(optionId)
-      : null;
-
-  if (!name && id == null) return false;
-  if (id != null) return id;
-
-  const match = Array.isArray(options)
-    ? options.find((opt) => String(opt.name || "").toLowerCase() === name.toLowerCase())
-    : null;
-  if (match?.id != null && Number.isFinite(Number(match.id))) {
-    return Number(match.id);
-  }
-
-  return { name };
-};
-
-/** @deprecated Prefer buildNarviDestinationSaveFields / buildNarviApDestinationSaveFields */
-export const buildStockDestinationNewPayload = (optionId, selectName, options = []) => {
-  const name = String(selectName ?? "").trim();
-  if (name) return name;
-
-  const id =
-    optionId != null && optionId !== "" && Number.isFinite(Number(optionId))
-      ? Number(optionId)
-      : null;
-
-  if (id != null) {
-    const match = Array.isArray(options)
-      ? options.find((opt) => Number(opt.id) === id)
-      : null;
-    if (match?.name) return String(match.name);
-  }
-
-  return "";
-};
-
 export const formatStockDestinationDisplay = (item, kind = "destination") => {
   if (!item) return "-";
   if (kind === "ap") return getStockApDestinationDisplay(item);

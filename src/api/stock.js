@@ -51,7 +51,6 @@ export const getStockListOptionsApi = async (params = {}) => {
   try {
     const {
       q_destination = "",
-      q_destination_ids,
       q_narvi_stock_via_hub1 = "",
       q_narvi_stock_via_hub2 = "",
       q_narvi_stock_ap_destination = "",
@@ -65,9 +64,7 @@ export const getStockListOptionsApi = async (params = {}) => {
     const destQ =
       q_destination != null && String(q_destination).trim() !== ""
         ? String(q_destination).trim()
-        : q_destination_ids != null && String(q_destination_ids).trim() !== ""
-          ? String(q_destination_ids).trim()
-          : "";
+        : "";
     if (destQ) payload.q_destination = destQ;
 
     const viaHub1Q =
@@ -181,12 +178,10 @@ export const getStockListApi = async (params = {}) => {
       days_on_stock = "",
       days_on_stock_min = "",
       days_on_stock_max = "",
-      via_hub = "",
-      effective_hub = "",
-      hub = "",
       narvi_stock_via_hub1,
       narvi_stock_via_hub2,
       narvi_stock_ap_destination,
+      narvi_stock_destination,
       origin_text = "",
       supplier_id,
       warehouse_id,
@@ -274,16 +269,6 @@ export const getStockListApi = async (params = {}) => {
     if (days_on_stock_max != null && String(days_on_stock_max).trim() !== "") {
       requestParams.days_on_stock_max = String(days_on_stock_max).trim();
     }
-    // Resolved hub filter (effective_hub or hub alias).
-    if (effective_hub != null && String(effective_hub).trim() !== "") {
-      requestParams.effective_hub = String(effective_hub).trim();
-    } else if (hub != null && String(hub).trim() !== "") {
-      requestParams.hub = String(hub).trim();
-    }
-    // Explicit Via Hub 1 field filter (legacy text).
-    if (via_hub != null && String(via_hub).trim() !== "") {
-      requestParams.via_hub = String(via_hub).trim();
-    }
     if (narvi_stock_via_hub1 != null && narvi_stock_via_hub1 !== "") {
       requestParams.narvi_stock_via_hub1 = narvi_stock_via_hub1;
     }
@@ -292,6 +277,9 @@ export const getStockListApi = async (params = {}) => {
     }
     if (narvi_stock_ap_destination != null && narvi_stock_ap_destination !== "") {
       requestParams.narvi_stock_ap_destination = narvi_stock_ap_destination;
+    }
+    if (narvi_stock_destination != null && narvi_stock_destination !== "") {
+      requestParams.narvi_stock_destination = narvi_stock_destination;
     }
     if (origin_text != null && String(origin_text).trim() !== "") {
       requestParams.origin_text = String(origin_text).trim();
