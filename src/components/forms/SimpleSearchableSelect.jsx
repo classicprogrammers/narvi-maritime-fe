@@ -40,6 +40,8 @@ const SimpleSearchableSelect = ({
   autoWidthMin = 12,
   autoWidthMax = 60,
   autoWidthPadding = 2,
+  // Shown when value is set but the matching option is not in the current options list
+  fallbackDisplay = "",
   ...props
 }) => {
   const fieldName = useId();
@@ -58,8 +60,14 @@ const SimpleSearchableSelect = ({
   const highlightBg = useColorModeValue("blue.50", "blue.900");
 
   // Find selected option to display
-  const selectedOption = options.find(option => String(option[valueKey]) === String(value));
-  const displayValue = selectedOption ? formatOption(selectedOption) : "";
+  const selectedOption =
+    value != null && value !== ""
+      ? options.find((option) => String(option[valueKey]) === String(value))
+      : null;
+  const fallbackLabel = String(fallbackDisplay || "").trim();
+  const displayValue = selectedOption
+    ? formatOption(selectedOption)
+    : (value != null && value !== "" && fallbackLabel ? fallbackLabel : "");
 
   // Value shown inside the input
   const inputValue = isOpen ? searchValue : displayValue;
@@ -188,6 +196,7 @@ const SimpleSearchableSelect = ({
   };
 
   const isStaleNoResultsState = isOpen && !isLoading && filteredOptions.length === 0 && hasSearchQuery;
+  const prefillLabel = displayValue || fallbackLabel;
 
   const handleInputChange = (e) => {
     const newValue = e.target.value;
@@ -204,17 +213,17 @@ const SimpleSearchableSelect = ({
     if (isStaleNoResultsState) {
       closeAndClearSearch();
     }
-    openDropdown(prefillOnFocus && value ? displayValue : "");
+    openDropdown(prefillOnFocus && prefillLabel ? prefillLabel : "");
   };
 
   const handleClick = () => {
     if (isStaleNoResultsState) {
       closeAndClearSearch();
-      requestAnimationFrame(() => openDropdown(""));
+      requestAnimationFrame(() => openDropdown(prefillOnFocus && prefillLabel ? prefillLabel : ""));
       return;
     }
     if (!isOpen) {
-      openDropdown(prefillOnFocus && value ? displayValue : "");
+      openDropdown(prefillOnFocus && prefillLabel ? prefillLabel : "");
     }
   };
 

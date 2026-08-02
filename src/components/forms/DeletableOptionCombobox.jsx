@@ -53,7 +53,9 @@ export default function DeletableOptionCombobox({
   const dropdownBg = useColorModeValue("white", "gray.800");
   const highlightBg = useColorModeValue("blue.50", "blue.900");
 
-  const inputValue = isOpen ? searchValue : value || "";
+  // Always prefer committed value when closed so remote option reloads can't blank the field
+  const committedValue = value == null || value === false ? "" : String(value);
+  const inputValue = isOpen ? searchValue : committedValue;
 
   const filteredOptions = useMemo(() => {
     const q = String(isOpen ? searchValue : value || "").trim().toLowerCase();

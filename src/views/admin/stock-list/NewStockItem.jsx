@@ -67,6 +67,7 @@ import useStockFormRemoteSelects from "../../../hooks/useStockFormRemoteSelects"
 import useStockListOptionPins from "../../../hooks/useStockListOptionPins";
 import { mergeSelectedIntoOptions } from "../../../utils/stockFormSelectUtils";
 import {
+    buildStockDestinationIdsPayload,
     buildStockDestinationNewPayload,
     formatStockDestinationDisplay,
     getStockM2OId,
@@ -105,6 +106,8 @@ import {
     getStockViaHub2Display,
     mergeStockIdNameOptions,
     resolveStockLocationOptionId,
+    toClearableDateValue,
+    toClearableRelationId,
     toStockLocationPayloadId,
 } from "../../../utils/stockLocationOptions";
 import { normalizeStockValueForForm, normalizeStockValueForSave } from "../../../utils/stockValue";
@@ -632,7 +635,17 @@ export default function StockForm() {
         });
     }, [originTextOptions, seedOption, findOptionById]);
 
-    // Fill hub/destination display names + pins once option lists load
+    // Fill hub/destination display names + pins once option lists load / row location ids change
+    const locationIdsKey = formRows
+        .map((row) =>
+            [
+                row.narviStockViaHub1,
+                row.narviStockViaHub2,
+                row.narviStockApDestination,
+                row.destinationId,
+            ].join(":")
+        )
+        .join("|");
     useEffect(() => {
         if (
             !viaHub1Options.length &&
@@ -652,7 +665,15 @@ export default function StockForm() {
                     const match = findOptionById(poolKey, pool, id);
                     const label = (match?.name || currentName || "").trim();
                     seedOption(poolKey, id, label || `#${id}`);
-                    if (match?.name && String(currentName || "").trim() !== String(match.name).trim()) {
+                    // Fill missing labels only — never blank out an existing name
+                    if (match?.name && !String(currentName || "").trim()) {
+                        changed = true;
+                        updated = { ...updated, [nameKey]: match.name };
+                    } else if (
+                        match?.name &&
+                        String(currentName || "").trim() &&
+                        (/^#\d+$/.test(String(currentName).trim()) || /^Option \d+$/i.test(String(currentName).trim()))
+                    ) {
                         changed = true;
                         updated = { ...updated, [nameKey]: match.name };
                     }
@@ -691,7 +712,7 @@ export default function StockForm() {
             return changed ? next : prevRows;
         });
     }, [
-        formRows,
+        locationIdsKey,
         viaHub1Options,
         viaHub2Options,
         narviApDestinationOptions,
@@ -699,27 +720,6 @@ export default function StockForm() {
         findOptionById,
         seedOption,
     ]);
-
-    // Prefetch option lists by current labels so remote search can resolve selected values
-    const hasPrefetchedLocationOptionsRef = React.useRef(false);
-    useEffect(() => {
-        if (!isEditing || hasPrefetchedLocationOptionsRef.current || !formRows.length) return;
-        const row = formRows[0];
-        const hasAnyLabel = Boolean(
-            row?.origin_text ||
-            row?.narviStockViaHub1Name ||
-            row?.narviStockViaHub2Name ||
-            row?.narviStockApDestinationName ||
-            row?.destinationName
-        );
-        if (!row || !hasAnyLabel) return;
-        hasPrefetchedLocationOptionsRef.current = true;
-        if (row.origin_text) setQOriginText(String(row.origin_text));
-        if (row.narviStockViaHub1Name) setQViaHub1(String(row.narviStockViaHub1Name));
-        if (row.narviStockViaHub2Name) setQViaHub2(String(row.narviStockViaHub2Name));
-        if (row.narviStockApDestinationName) setQNarviApDestination(String(row.narviStockApDestinationName));
-        if (row.destinationName) setQDestination(String(row.destinationName));
-    }, [isEditing, formRows, setQOriginText, setQViaHub1, setQViaHub2, setQNarviApDestination, setQDestination]);
 
     useEffect(() => {
         const uniqueClientIds = [...new Set(formRows.map((row) => row.client).filter(Boolean).map((clientId) => String(clientId)))];
@@ -749,7 +749,7 @@ export default function StockForm() {
         );
     }, [formRows]);
 
-    // Normalize vessel IDs when formRows load and auto-fill vessel_destination and vessel_eta
+    // Normalize vessel IDs when formRows load and auto-fill vessel_eta (do not overwrite stock destination/hubs)
     useEffect(() => {
         if (!formRows.length) return;
         const vesselsList = getCached(MASTER_KEYS.VESSELS) ?? [];
@@ -760,48 +760,31 @@ export default function StockForm() {
                 if (!row.vessel || row.vessel === "" || row.vessel === false) return row;
                 const normalizedValue = String(row.vessel);
                 const exactMatch = vesselsList.find((vessel) => String(vessel.id) === normalizedValue);
-                if (exactMatch) {
-                    const updatedRow = { ...row, vessel: String(exactMatch.id) };
-                    const vesselDestId = exactMatch.destination_id || exactMatch.destination;
-                    if (vesselDestId) {
-                        const destId = String(vesselDestId);
-                        updatedRow.destinationId = Number.isFinite(Number(destId)) ? Number(destId) : null;
-                        updatedRow.vesselDestination = destId;
-                        if (Number.isFinite(Number(destId))) {
-                            updatedRow.narviStockApDestination = Number(destId);
-                        }
-                    }
-                    if (exactMatch.eta || exactMatch.eta_date) {
-                        const etaDate = exactMatch.eta_date || exactMatch.eta;
-                        updatedRow.vesselEta = etaDate instanceof Date
-                            ? etaDate.toISOString().split('T')[0]
-                            : (typeof etaDate === 'string' ? etaDate.split(' ')[0] : "");
-                    }
-                    return updatedRow;
+                const fallbackMatch = !exactMatch
+                    ? vesselsList.find(
+                        (vessel) => String(vessel.name)?.toLowerCase() === normalizedValue.toLowerCase()
+                    )
+                    : null;
+                const match = exactMatch || fallbackMatch;
+                if (!match) return row;
+
+                const updatedRow = { ...row, vessel: String(match.id) };
+                // Only fill vessel metadata when missing — never clobber stock destination / AP destination
+                if (!updatedRow.vesselDestination) {
+                    const vesselDest =
+                        match.destination_name ||
+                        getStockLocationOptionName(match.destination_id) ||
+                        getStockLocationOptionName(match.destination) ||
+                        "";
+                    if (vesselDest) updatedRow.vesselDestination = vesselDest;
                 }
-                const fallbackMatch = vesselsList.find(
-                    (vessel) => String(vessel.name)?.toLowerCase() === normalizedValue.toLowerCase()
-                );
-                if (fallbackMatch) {
-                    const updatedRow = { ...row, vessel: String(fallbackMatch.id) };
-                    const vesselDestId = fallbackMatch.destination_id || fallbackMatch.destination;
-                    if (vesselDestId) {
-                        const destId = String(vesselDestId);
-                        updatedRow.destinationId = Number.isFinite(Number(destId)) ? Number(destId) : null;
-                        updatedRow.vesselDestination = destId;
-                        if (Number.isFinite(Number(destId))) {
-                            updatedRow.narviStockApDestination = Number(destId);
-                        }
-                    }
-                    if (fallbackMatch.eta || fallbackMatch.eta_date) {
-                        const etaDate = fallbackMatch.eta_date || fallbackMatch.eta;
-                        updatedRow.vesselEta = etaDate instanceof Date
-                            ? etaDate.toISOString().split('T')[0]
-                            : (typeof etaDate === 'string' ? etaDate.split(' ')[0] : "");
-                    }
-                    return updatedRow;
+                if (!updatedRow.vesselEta && (match.eta || match.eta_date)) {
+                    const etaDate = match.eta_date || match.eta;
+                    updatedRow.vesselEta = etaDate instanceof Date
+                        ? etaDate.toISOString().split("T")[0]
+                        : (typeof etaDate === "string" ? etaDate.split(" ")[0] : "");
                 }
-                return row;
+                return updatedRow;
             })
         );
     }, [formRows]);
@@ -1264,28 +1247,27 @@ export default function StockForm() {
                 if (previousClient !== nextClient) {
                     updatedRow.vessel = "";
                     updatedRow.destinationId = null;
+                    updatedRow.destinationName = "";
                     updatedRow.vesselDestination = "";
                     updatedRow.vesselEta = "";
                     updatedRow.narviStockApDestination = null;
+                    updatedRow.narviStockApDestinationName = "";
                 }
             }
 
-            // Auto-fill vessel-related fields when vessel is selected
+            // Auto-fill vessel-related fields when vessel is selected by the user
             if (field === "vessel" && value) {
                 const selectedVessel =
                     getVesselOptionsForClient(updatedRow.client).find((v) => String(v.id) === String(value)) ||
                     vessels.find((v) => String(v.id) === String(value));
                 if (selectedVessel) {
-                    // Auto-fill destination from vessel
-                    const vesselDestinationId = selectedVessel.destination_id || selectedVessel.destination;
-                    const vesselDestinationName = selectedVessel.destination_name || selectedVessel.destination; // Try to get name
-                    if (vesselDestinationId) {
-                        const destId = String(vesselDestinationId);
-                        updatedRow.destinationId = Number.isFinite(Number(destId)) ? Number(destId) : null;
-                    }
-                    // vessel_destination is now free text - fill with name if available, or leave empty
-                    if (vesselDestinationName && typeof vesselDestinationName === 'string') {
-                        updatedRow.vesselDestination = vesselDestinationName; // Free text field
+                    const vesselDestinationName =
+                        selectedVessel.destination_name ||
+                        getStockLocationOptionName(selectedVessel.destination_id) ||
+                        getStockLocationOptionName(selectedVessel.destination) ||
+                        "";
+                    if (vesselDestinationName) {
+                        updatedRow.vesselDestination = vesselDestinationName;
                     }
                     // Auto-fill vessel_eta from vessel
                     if (selectedVessel.eta || selectedVessel.eta_date) {
@@ -1429,27 +1411,35 @@ export default function StockForm() {
         const reqArray = splitLines(rowData.reqNo);
         const lwhArray = splitLines(rowData.lwhText);
 
+        const resolveOriginTextForPayload = (row) => {
+            const text = normalizeStockOriginHubText(row.origin_text);
+            // Prefer explicit form text (including clear → "") over resolving a stale originId
+            if (text || row.originId == null) return text;
+            const match = findOptionById("origin", originTextOptions, row.originId);
+            return normalizeStockOriginHubText(match?.name || "");
+        };
+        const resolveDestinationNameForPayload = (row) =>
+            String(row.destinationName || "").trim() ||
+            findOptionById("destination", destinationOptions, row.destinationId)?.name ||
+            "";
+
         // Update payload (partial/changed fields) — create uses buildStockCreateLinePayload
         const payload = {
             stock_status: normalizeStockStatusKey(rowData.stockStatus) || "",
             stock_status_changed_by: rowData.stockStatusChangedBy || "",
             stock_status_previous: rowData.stockStatusPreviousForPayload ?? "",
-            client_id: rowData.client ? String(rowData.client) : "",
-            supplier_id: rowData.supplier ? String(rowData.supplier) : "",
-            vessel_id: rowData.vessel ? String(rowData.vessel) : "",
+            client_id: toClearableRelationId(rowData.client),
+            supplier_id: toClearableRelationId(rowData.supplier),
+            vessel_id: toClearableRelationId(rowData.vessel),
             // PO numbers: raw text + array of lines
             po_text: rowData.poNumber || "",
             req_no: rowData.reqNo || "",
-            pic_new: rowData.pic ? String(rowData.pic) : false,
-            item_id: rowData.itemId ? String(rowData.itemId) : "", // Keep item_id for lines format
-            stock_items_quantity: rowData.itemId ? String(rowData.itemId) : "", // Also include stock_items_quantity
+            pic_new: toClearableRelationId(rowData.pic),
+            item_id: toClearableRelationId(rowData.itemId),
+            stock_items_quantity: toClearableRelationId(rowData.itemId),
             item: rowData.item !== "" && rowData.item !== null && rowData.item !== undefined ? toNumber(rowData.item) || 0 : 0,
-            currency_id: rowData.currency ? String(rowData.currency) : "",
-            origin_text: (() => {
-                const match = findOptionById("origin", originTextOptions, rowData.originId);
-                if (match) return normalizeStockOriginHubText(match.name || "");
-                return normalizeStockOriginHubText(rowData.origin_text);
-            })(),
+            currency_id: toClearableRelationId(rowData.currency),
+            origin_text: resolveOriginTextForPayload(rowData),
             narvi_stock_via_hub1: toStockLocationPayloadId(rowData.narviStockViaHub1),
             narvi_stock_via_hub2: toStockLocationPayloadId(rowData.narviStockViaHub2),
             narvi_stock_ap_destination: toStockLocationPayloadId(rowData.narviStockApDestination),
@@ -1470,24 +1460,29 @@ export default function StockForm() {
             extra: rowData.extra2 || "",
             destination_new: buildStockDestinationNewPayload(
                 rowData.destinationId,
-                findOptionById("destination", destinationOptions, rowData.destinationId)?.name || "",
+                resolveDestinationNameForPayload(rowData),
+                destinationOptions
+            ),
+            destination_ids: buildStockDestinationIdsPayload(
+                rowData.destinationId,
+                resolveDestinationNameForPayload(rowData),
                 destinationOptions
             ),
             warehouse_new: rowData.warehouseId || "", // Warehouse - Free text
             shipping_doc: rowData.shippingDoc || "",
             export_doc: rowData.exportDoc || "",
             export_doc_2: rowData.exportDoc2 || "",
-            date_on_stock: rowData.dateOnStock || "",
-            exp_ready_in_stock: rowData.expReadyInStock || "",
-            shipped_date: rowData.shippedDate || null,
-            delivered_date: rowData.deliveredDate || "",
+            date_on_stock: toClearableDateValue(rowData.dateOnStock),
+            exp_ready_in_stock: toClearableDateValue(rowData.expReadyInStock),
+            shipped_date: toClearableDateValue(rowData.shippedDate),
+            delivered_date: toClearableDateValue(rowData.deliveredDate),
             details: rowData.details || "",
             dg_un: rowData.dgUn || "", // DG/UN Number - Free text
             attachments: rowData.attachments || [], // Include attachments in payload
             attachment_to_delete: rowData.attachmentsToDelete || [], // Include attachment IDs to delete
             dimensions: undefined, // filled below with create/update/delete ops
             vessel_destination: rowData.vesselDestination ? String(rowData.vesselDestination) : "", // Free text field
-            vessel_eta: rowData.vesselEta || "",
+            vessel_eta: toClearableDateValue(rowData.vesselEta),
             so_id: buildStockSoIdPayloadValue(rowData.soId, shippingOrders),
             si_number: rowData.siNumber ? (() => {
                 let value = String(rowData.siNumber);
@@ -1562,23 +1557,19 @@ export default function StockForm() {
             stock_status: normalizeStockStatusKey(baselineRow.stockStatus) || "",
             stock_status_changed_by: "",
             stock_status_previous: "",
-            client_id: baselineRow.client ? String(baselineRow.client) : "",
-            supplier_id: baselineRow.supplier ? String(baselineRow.supplier) : "",
-            vessel_id: baselineRow.vessel ? String(baselineRow.vessel) : "",
+            client_id: toClearableRelationId(baselineRow.client),
+            supplier_id: toClearableRelationId(baselineRow.supplier),
+            vessel_id: toClearableRelationId(baselineRow.vessel),
             po_text: baselineRow.poNumber || "",
             req_no: baselineRow.reqNo || "",
-            pic_new: baselineRow.pic ? String(baselineRow.pic) : false,
-            item_id: baselineRow.itemId ? String(baselineRow.itemId) : "",
-            stock_items_quantity: baselineRow.itemId ? String(baselineRow.itemId) : "",
+            pic_new: toClearableRelationId(baselineRow.pic),
+            item_id: toClearableRelationId(baselineRow.itemId),
+            stock_items_quantity: toClearableRelationId(baselineRow.itemId),
             item: baselineRow.item !== "" && baselineRow.item !== null && baselineRow.item !== undefined
                 ? toNumber(baselineRow.item) || 0
                 : 0,
-            currency_id: baselineRow.currency ? String(baselineRow.currency) : "",
-            origin_text: (() => {
-                const match = findOptionById("origin", originTextOptions, baselineRow.originId);
-                if (match) return normalizeStockOriginHubText(match.name || "");
-                return normalizeStockOriginHubText(baselineRow.origin_text);
-            })(),
+            currency_id: toClearableRelationId(baselineRow.currency),
+            origin_text: resolveOriginTextForPayload(baselineRow),
             narvi_stock_via_hub1: toStockLocationPayloadId(baselineRow.narviStockViaHub1),
             narvi_stock_via_hub2: toStockLocationPayloadId(baselineRow.narviStockViaHub2),
             narvi_stock_ap_destination: toStockLocationPayloadId(baselineRow.narviStockApDestination),
@@ -1599,17 +1590,22 @@ export default function StockForm() {
             extra: baselineRow.extra2 || "",
             destination_new: buildStockDestinationNewPayload(
                 baselineRow.destinationId,
-                findOptionById("destination", destinationOptions, baselineRow.destinationId)?.name || "",
+                resolveDestinationNameForPayload(baselineRow),
+                destinationOptions
+            ),
+            destination_ids: buildStockDestinationIdsPayload(
+                baselineRow.destinationId,
+                resolveDestinationNameForPayload(baselineRow),
                 destinationOptions
             ),
             warehouse_new: baselineRow.warehouseId || "",
             shipping_doc: baselineRow.shippingDoc || "",
             export_doc: baselineRow.exportDoc || "",
             export_doc_2: baselineRow.exportDoc2 || "",
-            date_on_stock: baselineRow.dateOnStock || "",
-            exp_ready_in_stock: baselineRow.expReadyInStock || "",
-            shipped_date: baselineRow.shippedDate || null,
-            delivered_date: baselineRow.deliveredDate || "",
+            date_on_stock: toClearableDateValue(baselineRow.dateOnStock),
+            exp_ready_in_stock: toClearableDateValue(baselineRow.expReadyInStock),
+            shipped_date: toClearableDateValue(baselineRow.shippedDate),
+            delivered_date: toClearableDateValue(baselineRow.deliveredDate),
             details: baselineRow.details || "",
             dg_un: baselineRow.dgUn || "",
             attachments: [],
@@ -1617,7 +1613,7 @@ export default function StockForm() {
             // No dimension ops on baseline — candidate already holds only changed ops
             dimensions: undefined,
             vessel_destination: baselineRow.vesselDestination ? String(baselineRow.vesselDestination) : "",
-            vessel_eta: baselineRow.vesselEta || "",
+            vessel_eta: toClearableDateValue(baselineRow.vesselEta),
             so_id: buildStockSoIdPayloadValue(baselineRow.soId, shippingOrders),
             si_number: baselineRow.siNumber
                 ? String(removeSIPrefix(
@@ -2332,14 +2328,32 @@ export default function StockForm() {
                                                 <StockOriginCountrySelect
                                                     value={row.origin_text || ""}
                                                     selectedId={row.originId}
-                                                    onChange={(name) => {
+                                                    onChange={(name, option) => {
                                                         const text = normalizeStockOriginHubText(name || "");
-                                                        const match = originTextOptions.find(
-                                                            (o) => normalizeStockOriginHubText(o.name || "") === text
-                                                        );
-                                                        if (match) pinOption("origin", match);
-                                                        handleInputChange(rowIndex, "origin_text", text);
-                                                        handleInputChange(rowIndex, "originId", match?.id ?? null);
+                                                        const match =
+                                                            (option?.id != null && !String(option.id).startsWith("legacy-")
+                                                                ? option
+                                                                : null) ||
+                                                            originTextOptions.find(
+                                                                (o) =>
+                                                                    normalizeStockOriginHubText(o.name || "") === text
+                                                            );
+                                                        const nextId =
+                                                            match?.id != null && !String(match.id).startsWith("legacy-")
+                                                                ? match.id
+                                                                : null;
+                                                        if (nextId != null) pinOption("origin", match);
+                                                        // Single state update so origin_text is not lost to a stale overwrite
+                                                        setFormRows((prev) => {
+                                                            const next = [...prev];
+                                                            const current = next[rowIndex] || {};
+                                                            next[rowIndex] = {
+                                                                ...current,
+                                                                origin_text: text,
+                                                                originId: nextId,
+                                                            };
+                                                            return next;
+                                                        });
                                                     }}
                                                     options={getOptionsForValue(
                                                         "origin",
@@ -2352,7 +2366,7 @@ export default function StockForm() {
                                                     )}
                                                     onSearchChange={setQOriginText}
                                                     isLoading={isLoadingDestinationOptions}
-                                                    placeholder="Select origin..."
+                                                    placeholder="Select or type origin..."
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -2371,8 +2385,15 @@ export default function StockForm() {
                                                         if (id != null && name) {
                                                             pinOption("viaHub1", { id, name });
                                                         }
-                                                        handleInputChange(rowIndex, "narviStockViaHub1", id);
-                                                        handleInputChange(rowIndex, "narviStockViaHub1Name", name || "");
+                                                        setFormRows((prev) => {
+                                                            const next = [...prev];
+                                                            next[rowIndex] = {
+                                                                ...(next[rowIndex] || {}),
+                                                                narviStockViaHub1: id,
+                                                                narviStockViaHub1Name: name || "",
+                                                            };
+                                                            return next;
+                                                        });
                                                     }}
                                                     onSearchChange={setQViaHub1}
                                                     options={getOptionsForValue(
@@ -2404,8 +2425,15 @@ export default function StockForm() {
                                                         if (id != null && name) {
                                                             pinOption("viaHub2", { id, name });
                                                         }
-                                                        handleInputChange(rowIndex, "narviStockViaHub2", id);
-                                                        handleInputChange(rowIndex, "narviStockViaHub2Name", name || "");
+                                                        setFormRows((prev) => {
+                                                            const next = [...prev];
+                                                            next[rowIndex] = {
+                                                                ...(next[rowIndex] || {}),
+                                                                narviStockViaHub2: id,
+                                                                narviStockViaHub2Name: name || "",
+                                                            };
+                                                            return next;
+                                                        });
                                                     }}
                                                     onSearchChange={setQViaHub2}
                                                     options={getOptionsForValue(
@@ -2437,8 +2465,15 @@ export default function StockForm() {
                                                         if (id != null && name) {
                                                             pinOption("apDestination", { id, name });
                                                         }
-                                                        handleInputChange(rowIndex, "narviStockApDestination", id);
-                                                        handleInputChange(rowIndex, "narviStockApDestinationName", name || "");
+                                                        setFormRows((prev) => {
+                                                            const next = [...prev];
+                                                            next[rowIndex] = {
+                                                                ...(next[rowIndex] || {}),
+                                                                narviStockApDestination: id,
+                                                                narviStockApDestinationName: name || "",
+                                                            };
+                                                            return next;
+                                                        });
                                                     }}
                                                     onSearchChange={setQNarviApDestination}
                                                     options={getOptionsForValue(
@@ -2470,8 +2505,15 @@ export default function StockForm() {
                                                         if (id != null && name) {
                                                             pinOption("destination", { id, name });
                                                         }
-                                                        handleInputChange(rowIndex, "destinationId", id);
-                                                        handleInputChange(rowIndex, "destinationName", name || "");
+                                                        setFormRows((prev) => {
+                                                            const next = [...prev];
+                                                            next[rowIndex] = {
+                                                                ...(next[rowIndex] || {}),
+                                                                destinationId: id,
+                                                                destinationName: name || "",
+                                                            };
+                                                            return next;
+                                                        });
                                                     }}
                                                     onSearchChange={setQDestination}
                                                     options={getOptionsForValue(

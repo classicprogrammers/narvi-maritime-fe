@@ -1,11 +1,11 @@
 import React, { useMemo } from "react";
-import RemoteSearchableSelect from "./RemoteSearchableSelect";
+import DeletableOptionCombobox from "./DeletableOptionCombobox";
 import { normalizeStockOriginHubText } from "../../utils/stockOriginHubText";
 import { mergeStockIdNameOptions } from "../../utils/stockLocationOptions";
 
 /**
- * Origin select backed by `/api/stock/list/options` `origin_text_options`.
- * Value/onChange use the origin name string (`origin_text`).
+ * Origin combobox backed by `/api/stock/list/options` `origin_text_options`.
+ * Supports selecting an option or typing a free-text origin (`origin_text`).
  */
 export default function StockOriginCountrySelect({
     value,
@@ -23,64 +23,46 @@ export default function StockOriginCountrySelect({
     autoWidthMin = 18,
     autoWidthMax = 60,
     selectedId = null,
+    placeholder = "Select or type origin...",
     ...rest
 }) {
     const normalizedValue = value ? normalizeStockOriginHubText(value) : "";
 
-    const matched = useMemo(() => {
-        const list = Array.isArray(options) ? options : [];
-        if (selectedId != null && selectedId !== "") {
-            const byId = list.find((opt) => String(opt.id) === String(selectedId));
-            if (byId) return byId;
-        }
-        if (!normalizedValue) return null;
-        return list.find(
-            (opt) => normalizeStockOriginHubText(opt.name || "") === normalizedValue
-        ) || null;
-    }, [options, normalizedValue, selectedId]);
-
     const selectOptions = useMemo(
-        () => mergeStockIdNameOptions(options, matched?.id ?? selectedId, normalizedValue),
-        [options, matched?.id, selectedId, normalizedValue]
+        () => mergeStockIdNameOptions(options, selectedId, normalizedValue),
+        [options, selectedId, normalizedValue]
     );
 
-    const selectValue = matched?.id != null
-        ? String(matched.id)
-        : (selectedId != null && selectedId !== ""
-            ? String(selectedId)
-            : (normalizedValue ? `legacy-${normalizedValue}` : null));
+    const computedHtmlSize = (() => {
+        if (!autoWidth) return undefined;
+        const valueLen = String(normalizedValue || "").length;
+        const placeholderLen = String(placeholder || "").length;
+        const desired = Math.max(valueLen, placeholderLen) + 2;
+        const min = Number(autoWidthMin || 0);
+        const max = Number(autoWidthMax || 0);
+        if (max > 0) return Math.min(max, Math.max(min, desired));
+        return Math.max(min, desired);
+    })();
 
     return (
-        <RemoteSearchableSelect
-            value={selectValue}
-            onChange={(id) => {
-                if (id == null || id === "") {
-                    onChange?.("");
-                    onSearchChange?.("");
-                    return;
-                }
-                if (String(id).startsWith("legacy-")) return;
-                const match = (Array.isArray(options) ? options : []).find(
-                    (opt) => String(opt.id) === String(id)
-                );
-                onChange?.(normalizeStockOriginHubText(match?.name || ""));
+        <DeletableOptionCombobox
+            value={normalizedValue}
+            onChange={(nextValue, option) => {
+                const text = normalizeStockOriginHubText(nextValue || "");
+                onChange?.(text, option || null);
             }}
-            options={selectOptions}
-            placeholder="Select origin..."
-            displayKey="name"
-            valueKey="id"
-            formatOption={(option) => option.name || ""}
-            isLoading={isLoading}
             onSearchChange={onSearchChange}
+            options={selectOptions}
+            formatOption={(option) => option?.name || ""}
+            placeholder={placeholder}
+            isLoading={isLoading}
             size={size}
             bg={bg}
             color={color}
             borderColor={borderColor}
             minW={minW}
             w={w}
-            autoWidth={autoWidth}
-            autoWidthMin={autoWidthMin}
-            autoWidthMax={autoWidthMax}
+            htmlSize={computedHtmlSize}
             {...rest}
         />
     );

@@ -106,12 +106,14 @@ function collectShippingOrdersFromStockItems(items = []) {
 }
 import { useMasterData } from "../../../hooks/useMasterData";
 import RemoteSearchableSelect from "../../../components/forms/RemoteSearchableSelect";
+import StockOriginCountrySelect from "../../../components/forms/StockOriginCountrySelect";
 import { CellWithAssignMenu } from "../../../components/forms/AssignToRowsBelowMenu";
 import StockValueInput from "../../../components/forms/StockValueInput";
 import useStockDestinationOptions from "../../../hooks/useStockDestinationOptions";
 import useStockListOptionPins from "../../../hooks/useStockListOptionPins";
 import { stockUpdateValuesEqual } from "../../../utils/stockUpdatePayload";
 import {
+    buildStockDestinationIdsPayload,
     buildStockDestinationNewPayload,
     formatStockDestinationDisplay,
     getStockM2OId,
@@ -125,6 +127,7 @@ import {
     getStockViaHub1SortValue,
     getStockViaHub2Display,
     getStockViaHub2SortValue,
+    mergeStockIdNameOptions,
     resolveStockLocationOptionId,
     toStockLocationPayloadId,
 } from "../../../utils/stockLocationOptions";
@@ -2983,13 +2986,15 @@ export default function Stocks() {
             return null;
         };
 
-        // Helper to get edited value (handles field variations)
+        // Helper to get edited value (handles field variations).
+        // Treat explicit null/"" as intentional clears when the key is present.
         const getEditedValue = (fieldVariations) => {
             for (const field of fieldVariations) {
-                const val = editedData[field];
-                if (val !== undefined && val !== null) return val;
+                if (Object.prototype.hasOwnProperty.call(editedData, field)) {
+                    return editedData[field];
+                }
             }
-            return null;
+            return undefined;
         };
 
         // Start with stock_id for update operations (DO NOT include id field)
@@ -3074,7 +3079,10 @@ export default function Stocks() {
         // Check each field for changes
         fieldMappings.forEach(({ backend, original, edited, transform }) => {
             const originalVal = transform(getOriginalValue(original));
-            const editedVal = transform(getEditedValue(edited));
+            const rawEdited = getEditedValue(edited);
+            // If the edit buffer doesn't contain the field, treat as unchanged
+            if (rawEdited === undefined) return;
+            const editedVal = transform(rawEdited);
 
             // Only include if the value has changed
             if (!valuesAreEqual(originalVal, editedVal)) {
@@ -3085,19 +3093,40 @@ export default function Stocks() {
         const originalSoId = normalizeStockFormSoId(
             resolveStockSoIdForForm(originalItem, shippingOrdersFromStock)
         );
-        const editedSoId = normalizeStockFormSoId(getEditedValue(["so_id"]));
-        if (!stockSoIdPayloadValuesEqual(editedSoId, originalSoId, shippingOrdersFromStock)) {
-            payload.so_id = buildStockSoIdPayloadValue(editedSoId, shippingOrdersFromStock);
+        const rawEditedSoId = getEditedValue(["so_id"]);
+        if (rawEditedSoId !== undefined) {
+            const editedSoId = normalizeStockFormSoId(rawEditedSoId);
+            if (!stockSoIdPayloadValuesEqual(editedSoId, originalSoId, shippingOrdersFromStock)) {
+                payload.so_id = buildStockSoIdPayloadValue(editedSoId, shippingOrdersFromStock);
+            }
         }
 
-        const editedDestId = getEditedValue(["destination_ids_id"]);
-        const editedDestName =
-            findOptionById("destination", stockDestinationOptions, editedDestId)?.name ||
-            getStockM2OName(originalItem.destination_ids) ||
-            (originalItem.destination_new && originalItem.destination_new !== false
-                ? String(originalItem.destination_new)
-                : "");
+        const destIdEdited = Object.prototype.hasOwnProperty.call(editedData, "destination_ids_id");
+        const editedDestId = destIdEdited
+            ? editedData.destination_ids_id
+            : getStockM2OId(originalItem.destination_ids);
+        const destinationCleared =
+            destIdEdited &&
+            (editedDestId == null || editedDestId === "" || editedDestId === false);
+        const editedDestName = destinationCleared
+            ? ""
+            : (
+                findOptionById("destination", stockDestinationOptions, editedDestId)?.name ||
+                (!destIdEdited
+                    ? (
+                        getStockM2OName(originalItem.destination_ids) ||
+                        (originalItem.destination_new && originalItem.destination_new !== false
+                            ? String(originalItem.destination_new)
+                            : "")
+                    )
+                    : "")
+            );
         const currentDestinationNew = buildStockDestinationNewPayload(
+            editedDestId,
+            editedDestName,
+            stockDestinationOptions
+        );
+        const currentDestinationIds = buildStockDestinationIdsPayload(
             editedDestId,
             editedDestName,
             stockDestinationOptions
@@ -3110,8 +3139,19 @@ export default function Stocks() {
                 : ""),
             stockDestinationOptions
         );
+        const originalDestinationIds = buildStockDestinationIdsPayload(
+            getStockM2OId(originalItem.destination_ids),
+            getStockM2OName(originalItem.destination_ids) ||
+            (originalItem.destination_new && originalItem.destination_new !== false
+                ? String(originalItem.destination_new)
+                : ""),
+            stockDestinationOptions
+        );
         if (!valuesAreEqual(currentDestinationNew, originalDestinationNew)) {
             payload.destination_new = currentDestinationNew;
+        }
+        if (!valuesAreEqual(currentDestinationIds, originalDestinationIds)) {
+            payload.destination_ids = currentDestinationIds;
         }
 
         return payload;
@@ -3492,33 +3532,52 @@ export default function Stocks() {
                 rowEditingData.origin_id !== undefined
                     ? rowEditingData.origin_id
                     : resolveOriginOptionId(item);
+            const originText =
+                rowEditingData.origin_text !== undefined
+                    ? rowEditingData.origin_text
+                    : normalizeStockOriginHubText(
+                        item.origin_text || item.origin || getStockLocationOptionName(item.origin_id) || ""
+                    );
             return wrapAssign(
                 <Box position="relative" zIndex={10} minW="160px">
-                    <RemoteSearchableSelect
-                        value={selectId != null && selectId !== "" ? String(selectId) : null}
-                        onChange={(id) => {
-                            const match = findOptionById("origin", stockOriginTextOptions, id);
-                            if (match) pinOption("origin", match);
+                    <StockOriginCountrySelect
+                        value={originText || ""}
+                        selectedId={selectId}
+                        onChange={(name, option) => {
+                            const text = normalizeStockOriginHubText(name || "");
+                            const match =
+                                (option?.id != null && !String(option.id).startsWith("legacy-")
+                                    ? option
+                                    : null) ||
+                                stockOriginTextOptions.find(
+                                    (o) => normalizeStockOriginHubText(o.name || "") === text
+                                );
+                            const nextId =
+                                match?.id != null && !String(match.id).startsWith("legacy-")
+                                    ? match.id
+                                    : null;
+                            if (nextId != null) pinOption("origin", match);
                             setEditingRowData((prev) => ({
                                 ...prev,
                                 [item.id]: {
                                     ...(prev[item.id] || normalizeItemForEditing(item)),
-                                    origin_id: id,
-                                    origin_text: normalizeStockOriginHubText(match?.name || ""),
+                                    origin_id: nextId,
+                                    origin_text: text,
                                 },
                             }));
                         }}
-                        options={getOptionsForValue("origin", stockOriginTextOptions, selectId)}
-                        placeholder="Select origin..."
-                        displayKey="name"
-                        valueKey="id"
-                        formatOption={(option) => option.name || `Origin ${option.id}`}
+                        options={getOptionsForValue(
+                            "origin",
+                            mergeStockIdNameOptions(stockOriginTextOptions, selectId, originText),
+                            selectId
+                        )}
+                        placeholder="Select or type origin..."
                         onSearchChange={setQOriginText}
                         isLoading={isLoadingDestinationOptions}
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
-                        />
+                    />
                 </Box>
             );
         }

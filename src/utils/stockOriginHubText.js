@@ -1,7 +1,7 @@
-/** Origin + HUB free-text fields (airport codes) — always stored/displayed in uppercase. */
+/** Origin + HUB text fields — keep API/option casing as-is (trim only). */
 export function normalizeStockOriginHubText(value) {
-  if (value == null || value === "") return "";
-  return String(value).toUpperCase();
+  if (value == null || value === "" || value === false) return "";
+  return String(value).trim();
 }
 
 export function isStockOriginHubFormField(field) {
@@ -9,7 +9,9 @@ export function isStockOriginHubFormField(field) {
     field === "origin_text" ||
     field === "viaHub" ||
     field === "viaHub1" ||
-    field === "viaHub2"
+    field === "viaHub2" ||
+    field === "narviStockViaHub1Name" ||
+    field === "narviStockViaHub2Name"
   );
 }
 

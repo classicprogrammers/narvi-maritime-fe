@@ -23,8 +23,18 @@ export default function useStockListOptionPins() {
     const name = String(option.name ?? option.label ?? "").trim();
     if (!name) return;
     const list = pinnedRef.current[key] || [];
-    if (!list.some((o) => o && String(o.id) === id)) {
+    const existingIdx = list.findIndex((o) => o && String(o.id) === id);
+    if (existingIdx < 0) {
       pinnedRef.current[key] = [{ id: option.id, name }, ...list];
+      return;
+    }
+    // Upgrade placeholder labels (#123 / Option 123) when a real name arrives
+    const existingName = String(list[existingIdx]?.name ?? "").trim();
+    const isPlaceholder = !existingName || /^#\d+$/.test(existingName) || /^Option \d+$/i.test(existingName);
+    if (isPlaceholder && name && name !== existingName) {
+      const next = [...list];
+      next[existingIdx] = { id: option.id, name };
+      pinnedRef.current[key] = next;
     }
   }, []);
 

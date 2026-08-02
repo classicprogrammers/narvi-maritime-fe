@@ -52,6 +52,7 @@ import StockIdNameSearchableSelect from "../../../components/forms/StockIdNameSe
 import StockValueInput from "../../../components/forms/StockValueInput";
 import useStockDestinationOptions from "../../../hooks/useStockDestinationOptions";
 import {
+    buildStockDestinationIdsPayload,
     buildStockDestinationNewPayload,
     getStockM2OId,
     getStockM2OName,
@@ -60,6 +61,8 @@ import {
     getStockLocationOptionName,
     mergeStockIdNameOptions,
     resolveStockLocationOptionId,
+    toClearableDateValue,
+    toClearableRelationId,
     toStockLocationPayloadId,
 } from "../../../utils/stockLocationOptions";
 import { normalizeStockValueForForm, normalizeStockValueForSave } from "../../../utils/stockValue";
@@ -872,17 +875,17 @@ export default function StockForm() {
             stock_status: normalizeStockStatusKey(rowData.stockStatus) || "",
             stock_status_changed_by: rowData.stockStatusChangedBy || "",
             stock_status_previous: rowData.stockStatusPreviousForPayload ?? "",
-            client_id: rowData.client ? String(rowData.client) : "",
-            supplier_id: rowData.supplier ? String(rowData.supplier) : "",
-            vessel_id: rowData.vessel ? String(rowData.vessel) : "",
+            client_id: toClearableRelationId(rowData.client),
+            supplier_id: toClearableRelationId(rowData.supplier),
+            vessel_id: toClearableRelationId(rowData.vessel),
             // Send raw text plus parsed array of PO numbers (one per line)
             // PO numbers: raw text + array of lines
             po_text: rowData.poNumber || "",
             req_no: rowData.reqNo || "",
-            pic_new: rowData.pic ? String(rowData.pic) : false,
-            item_id: rowData.itemId ? String(rowData.itemId) : "",
+            pic_new: toClearableRelationId(rowData.pic),
+            item_id: toClearableRelationId(rowData.itemId),
             item: rowData.item !== "" && rowData.item !== null && rowData.item !== undefined ? toNumber(rowData.item) || 0 : 0,
-            currency_id: rowData.currency ? String(rowData.currency) : "",
+            currency_id: toClearableRelationId(rowData.currency),
             origin_text: normalizeStockOriginHubText(rowData.origin_text),
             narvi_stock_via_hub1: toStockLocationPayloadId(rowData.narviStockViaHub1),
             narvi_stock_via_hub2: toStockLocationPayloadId(rowData.narviStockViaHub2),
@@ -909,18 +912,23 @@ export default function StockForm() {
             extra: "",
             destination_new: buildStockDestinationNewPayload(
                 rowData.destinationId,
-                rowData.destinationSelect,
+                rowData.destinationSelect || rowData.destinationName || "",
+                destinationOptions
+            ),
+            destination_ids: buildStockDestinationIdsPayload(
+                rowData.destinationId,
+                rowData.destinationSelect || rowData.destinationName || "",
                 destinationOptions
             ),
             warehouse_new: rowData.warehouseId || "",
             shipping_doc: rowData.shippingDoc || "",
             export_doc: "",
-            exp_ready_in_stock: rowData.expReadyInStock || "",
-            shipped_date: null,
-            delivered_date: "",
+            exp_ready_in_stock: toClearableDateValue(rowData.expReadyInStock),
+            shipped_date: false,
+            delivered_date: false,
             details: rowData.details || "",
             vessel_destination: rowData.vesselDestination ? String(rowData.vesselDestination) : "",
-            vessel_eta: rowData.vesselEta || "",
+            vessel_eta: toClearableDateValue(rowData.vesselEta),
         };
 
         // Also send parsed arrays so backend can use them as needed
@@ -964,17 +972,17 @@ export default function StockForm() {
             stock_status: normalizeStockStatusKey(baselineRow.stockStatus) || "",
             stock_status_changed_by: "",
             stock_status_previous: "",
-            client_id: baselineRow.client ? String(baselineRow.client) : "",
-            supplier_id: baselineRow.supplier ? String(baselineRow.supplier) : "",
-            vessel_id: baselineRow.vessel ? String(baselineRow.vessel) : "",
+            client_id: toClearableRelationId(baselineRow.client),
+            supplier_id: toClearableRelationId(baselineRow.supplier),
+            vessel_id: toClearableRelationId(baselineRow.vessel),
             po_text: baselineRow.poNumber || "",
             req_no: baselineRow.reqNo || "",
-            pic_new: baselineRow.pic ? String(baselineRow.pic) : false,
-            item_id: baselineRow.itemId ? String(baselineRow.itemId) : "",
+            pic_new: toClearableRelationId(baselineRow.pic),
+            item_id: toClearableRelationId(baselineRow.itemId),
             item: baselineRow.item !== "" && baselineRow.item !== null && baselineRow.item !== undefined
                 ? toNumber(baselineRow.item) || 0
                 : 0,
-            currency_id: baselineRow.currency ? String(baselineRow.currency) : "",
+            currency_id: toClearableRelationId(baselineRow.currency),
             origin_text: normalizeStockOriginHubText(baselineRow.origin_text),
             narvi_stock_via_hub1: toStockLocationPayloadId(baselineRow.narviStockViaHub1),
             narvi_stock_via_hub2: toStockLocationPayloadId(baselineRow.narviStockViaHub2),
@@ -1003,18 +1011,23 @@ export default function StockForm() {
             extra: "",
             destination_new: buildStockDestinationNewPayload(
                 baselineRow.destinationId,
-                baselineRow.destinationSelect,
+                baselineRow.destinationSelect || baselineRow.destinationName || "",
+                destinationOptions
+            ),
+            destination_ids: buildStockDestinationIdsPayload(
+                baselineRow.destinationId,
+                baselineRow.destinationSelect || baselineRow.destinationName || "",
                 destinationOptions
             ),
             warehouse_new: baselineRow.warehouseId || "",
             shipping_doc: baselineRow.shippingDoc || "",
             export_doc: "",
-            exp_ready_in_stock: baselineRow.expReadyInStock || "",
-            shipped_date: null,
-            delivered_date: "",
+            exp_ready_in_stock: toClearableDateValue(baselineRow.expReadyInStock),
+            shipped_date: false,
+            delivered_date: false,
             details: baselineRow.details || "",
             vessel_destination: baselineRow.vesselDestination ? String(baselineRow.vesselDestination) : "",
-            vessel_eta: baselineRow.vesselEta || "",
+            vessel_eta: toClearableDateValue(baselineRow.vesselEta),
             po_text_array: splitLines(baselineRow.poNumber),
             req_no_array: splitLines(baselineRow.reqNo),
             lwh_text_array: splitLines(baselineRow.lwhText),
@@ -1798,6 +1811,7 @@ export default function StockForm() {
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
+                                            placeholder="Select or type origin..."
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">

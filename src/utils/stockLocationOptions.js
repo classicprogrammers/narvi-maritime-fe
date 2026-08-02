@@ -102,7 +102,7 @@ export const mergeStockIdNameOptions = (options, selectedId, selectedName) => {
     const name = String(selectedName ?? "").trim();
     if (id == null && !name) return list;
 
-    const existingIdx = id != null ? list.findIndex((o) => Number(o.id) === id) : -1;
+    const existingIdx = id != null ? list.findIndex((o) => String(o?.id) === String(id)) : -1;
     if (existingIdx >= 0) {
         // Prefer a real label over placeholder names injected by pin/merge helpers
         const existing = list[existingIdx];
@@ -111,7 +111,7 @@ export const mergeStockIdNameOptions = (options, selectedId, selectedName) => {
             !existingName ||
             /^#\d+$/.test(existingName) ||
             /^Option \d+$/i.test(existingName);
-        if (name && isPlaceholder) {
+        if (name && (isPlaceholder || !existingName)) {
             list[existingIdx] = { ...existing, name, key: existing.key || `id-${id}` };
         }
         return list;
@@ -145,4 +145,27 @@ export const getStockLocationDisplay = (item, fieldKey, legacyTextFields = []) =
 export const toStockLocationPayloadId = (value) => {
     const id = resolveStockLocationOptionId(value);
     return id != null ? id : false;
+};
+
+/**
+ * Many2one / id fields for stock update: keep id when set, send `false` to clear (Odoo-style).
+ * Prefer this over empty string so clears actually unlink on the backend.
+ */
+export const toClearableRelationId = (value) => {
+    if (value == null || value === "" || value === false) return false;
+    if (typeof value === "object") {
+        const rawId = value.id ?? value.value_id ?? null;
+        if (rawId == null || rawId === "" || rawId === false) return false;
+        const text = String(rawId).trim();
+        return text === "" ? false : text;
+    }
+    const text = String(value).trim();
+    return text === "" ? false : text;
+};
+
+/** Date / optional scalar clear: empty → false. */
+export const toClearableDateValue = (value) => {
+    if (value == null || value === false || value === "") return false;
+    const text = String(value).trim();
+    return text === "" ? false : text;
 };

@@ -43,7 +43,7 @@ export default function StockIdNameSearchableSelect({
             onChange?.(null, "");
             return;
         }
-        const match = selectOptions.find((o) => Number(o.id) === id);
+        const match = selectOptions.find((o) => String(o.id) === String(id));
         onChange?.(id, match?.name ? String(match.name) : "");
     };
 
@@ -62,8 +62,12 @@ export default function StockIdNameSearchableSelect({
             displayKey="name"
             valueKey="id"
             formatOption={(option) => option.name || ""}
+            fallbackDisplay={normalizedSelectedName}
             isLoading={isLoading}
             onSearchChange={onSearchChange}
+            // Keep selected label visible; don't wipe value when the search box is cleared for filtering
+            prefillOnFocus
+            clearOnEmptySearch={false}
             size={size}
             bg={bg}
             color={color}

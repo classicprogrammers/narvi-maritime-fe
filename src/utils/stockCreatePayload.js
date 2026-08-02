@@ -4,7 +4,10 @@
  */
 
 import { buildStockSoIdPayloadValue } from "./shippingOrderListState";
-import { buildStockDestinationNewPayload } from "./stockDestinationOptions";
+import {
+  buildStockDestinationIdsPayload,
+  buildStockDestinationNewPayload,
+} from "./stockDestinationOptions";
 import { normalizeStockOriginHubText } from "./stockOriginHubText";
 import { toStockLocationPayloadId } from "./stockLocationOptions";
 import { normalizeStockValueForSave } from "./stockValue";
@@ -266,12 +269,19 @@ export const buildStockCreateLinePayload = (rowData, context = {}) => {
     return String(removeDIPrefix(value));
   };
 
+  const destinationName =
+    String(rowData.destinationName || rowData.destinationSelect || "").trim() ||
+    (Array.isArray(destinationOptions)
+      ? destinationOptions.find((opt) => Number(opt.id) === Number(rowData.destinationId))?.name || ""
+      : "");
   const destinationNew = buildStockDestinationNewPayload(
     rowData.destinationId,
-    (Array.isArray(destinationOptions)
-      ? destinationOptions.find((opt) => Number(opt.id) === Number(rowData.destinationId))
-      : null
-    )?.name || "",
+    destinationName,
+    destinationOptions
+  );
+  const destinationIds = buildStockDestinationIdsPayload(
+    rowData.destinationId,
+    destinationName,
     destinationOptions
   );
 
@@ -306,24 +316,25 @@ export const buildStockCreateLinePayload = (rowData, context = {}) => {
     cw_air_freight_new: toNumber(rowData.cwAirfreight),
     value: normalizeStockValueForSave(rowData.value),
     destination_new: destinationNew,
+    destination_ids: destinationIds,
     warehouse_new: rowData.warehouseId || "",
     po_text: rowData.poNumber || "",
     req_no: rowData.reqNo || "",
     shipping_doc: rowData.shippingDoc || "",
     export_doc: rowData.exportDoc || "",
     export_doc_2: rowData.exportDoc2 || "",
-    date_on_stock: rowData.dateOnStock || "",
-    exp_ready_in_stock: rowData.expReadyInStock || "",
-    shipped_date: rowData.shippedDate || null,
-    delivered_date: rowData.deliveredDate || "",
+    date_on_stock: rowData.dateOnStock || false,
+    exp_ready_in_stock: rowData.expReadyInStock || false,
+    shipped_date: rowData.shippedDate || false,
+    delivered_date: rowData.deliveredDate || false,
     dg_un: rowData.dgUn || "",
     extra: rowData.extra2 || "",
     vessel_destination: rowData.vesselDestination
       ? buildStockM2OField(rowData.vesselDestination, rowData.vesselDestination, vessels)
       : undefined,
     vessel_destination_text: rowData.vesselDestination || "",
-    vessel_eta: rowData.vesselEta || "",
-    ...(soIdValue !== false ? { so_id: soIdValue } : {}),
+    vessel_eta: rowData.vesselEta || false,
+    ...(soIdValue !== false ? { so_id: soIdValue } : { so_id: false }),
     si_number: formatSi(rowData.siNumber),
     si_combined: formatSiCombined(rowData.siCombined),
     di_no: formatDi(rowData.diNumber),
