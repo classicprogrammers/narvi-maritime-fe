@@ -27,6 +27,7 @@ import { getStockViaHub1Display, getStockViaHub2Display } from "./stockLocationO
 import { getDimensionVolumeCbm, sumDimensionsVolumeCbm } from "./stockVolume";
 import { applyStockReportAttachmentOnStatusChange } from "./stockReportAttachmentsUi";
 import { formatStockValueDisplay } from "./stockValue";
+import { captureFormRowUpdateBaseline } from "./stockUpdatePayload";
 
 export function formatStatusForPdf(status) {
     const key = normalizeStockStatusKey(status);
@@ -674,7 +675,7 @@ export function extractStockLineFromSaveResponse(response, lineIndex = 0) {
 
 export function mergeSavedStockIdsIntoRow(row, savedPatch) {
     if (!row || !savedPatch) return row;
-    return {
+    const merged = {
         ...row,
         ...(savedPatch.stockId != null && savedPatch.stockId !== false
             ? { stockId: savedPatch.stockId }
@@ -683,6 +684,9 @@ export function mergeSavedStockIdsIntoRow(row, savedPatch) {
             ? { stockItemId: savedPatch.stockItemId, stockNumber: savedPatch.stockItemId }
             : {}),
     };
+    // Refresh after each successful create/update so later updates only send deltas
+    merged.updateBaselineRow = captureFormRowUpdateBaseline(merged);
+    return merged;
 }
 
 function assertStockSaveSucceeded(response) {

@@ -63,7 +63,7 @@ import {
 } from "../../../utils/stockLocationOptions";
 import { normalizeStockValueForForm, normalizeStockValueForSave } from "../../../utils/stockValue";
 import { buildStockCreateLinePayload } from "../../../utils/stockCreatePayload";
-import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps } from "../../../utils/stockUpdatePayload";
+import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps, captureFormRowUpdateBaseline } from "../../../utils/stockUpdatePayload";
 import {
     createAppendStockReportPdfOnStatusChange,
     createSaveRowBeforeStockReportPdf,
@@ -916,9 +916,12 @@ export default function StockForm() {
                 ? stockList.find((s) => String(s.id) === String(rowData.stockId))
                 : null);
 
+        const baselineFormRow = originalStock ? null : (rowData.updateBaselineRow || null);
+        const originalDimensions = originalStock?.dimensions || baselineFormRow?.dimensions || [];
+
         const dimensionOps = buildStockUpdateDimensionsOps(
             rowData.dimensions,
-            originalStock?.dimensions || []
+            originalDimensions
         );
         if (dimensionOps) {
             payload.dimensions = dimensionOps;
@@ -926,16 +929,29 @@ export default function StockForm() {
             delete payload.dimensions;
         }
 
-        if (!originalStock) {
-            return payload;
+        const baselineRow = originalStock
+            ? loadFormDataFromStock(originalStock, true)
+            : baselineFormRow;
+
+        if (!baselineRow) {
+            delete payload.dimensions;
+            delete payload.sl_create_datetime;
+            return {
+                stock_id: payload.stock_id,
+                ...(payload.stock_item_id ? { stock_item_id: payload.stock_item_id } : {}),
+                stock_status: payload.stock_status,
+                stock_status_changed_by: payload.stock_status_changed_by,
+                stock_status_previous: payload.stock_status_previous,
+                attachments: payload.attachments,
+                attachment_to_delete: payload.attachment_to_delete,
+            };
         }
 
-        const baselineRow = loadFormDataFromStock(originalStock, true);
         const baselinePayload = {
-            stock_id: originalStock.id,
+            stock_id: originalStock?.id ?? rowData.stockId,
             stock_status: normalizeStockStatusKey(baselineRow.stockStatus) || "",
-            stock_status_changed_by: "",
-            stock_status_previous: "",
+            stock_status_changed_by: originalStock ? "" : (baselineRow.stockStatusChangedBy || ""),
+            stock_status_previous: originalStock ? "" : (baselineRow.stockStatusPreviousForPayload ?? ""),
             client_id: toClearableRelationId(baselineRow.client),
             supplier_id: toClearableRelationId(baselineRow.supplier),
             vessel_id: toClearableRelationId(baselineRow.vessel),
@@ -951,8 +967,12 @@ export default function StockForm() {
             narvi_stock_via_hub1: toStockLocationPayloadId(baselineRow.narviStockViaHub1),
             narvi_stock_via_hub2: toStockLocationPayloadId(baselineRow.narviStockViaHub2),
             ...buildNarviApDestinationSaveFields(baselineRow.narviStockApDestination),
-            attachments: [],
-            attachment_to_delete: [],
+            attachments: originalStock
+                ? []
+                : (Array.isArray(baselineRow.attachments) ? baselineRow.attachments : []),
+            attachment_to_delete: originalStock
+                ? []
+                : (Array.isArray(baselineRow.attachmentsToDelete) ? baselineRow.attachmentsToDelete : []),
             client_access: Boolean(baselineRow.clientAccess),
             remarks: baselineRow.remarks || "",
             weight_kg: toNumber(baselineRow.weightKgs) || 0,

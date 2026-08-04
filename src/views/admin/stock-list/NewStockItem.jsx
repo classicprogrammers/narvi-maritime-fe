@@ -67,7 +67,7 @@ import useStockFormRemoteSelects from "../../../hooks/useStockFormRemoteSelects"
 import useStockListOptionPins from "../../../hooks/useStockListOptionPins";
 import { mergeSelectedIntoOptions } from "../../../utils/stockFormSelectUtils";
 import { buildStockCreateLinePayload } from "../../../utils/stockCreatePayload";
-import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps } from "../../../utils/stockUpdatePayload";
+import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps, captureFormRowUpdateBaseline } from "../../../utils/stockUpdatePayload";
 import {
     filterItemsWithBulkSaveFailures,
     filterRowsWithBulkSaveFailures,
@@ -1444,7 +1444,7 @@ export default function StockForm() {
             // DO NOT include id field - only stock_id is needed for update
         }
 
-        // Diff against original stock — API only needs stock_id + changed fields
+        // Diff against original stock or post-create form baseline — API only needs stock_id + changed fields
         const originalStock =
             selectedItems.find((s) => String(s.id) === String(rowData.stockId)) ||
             selectedItemsFromState.find((s) => String(s.id) === String(rowData.stockId)) ||
@@ -1452,10 +1452,14 @@ export default function StockForm() {
                 ? stockList.find((s) => String(s.id) === String(rowData.stockId))
                 : null);
 
-        // Dimensions: create / update / delete ops (never re-create existing rows as create)
+        const baselineFormRow = originalStock ? null : (rowData.updateBaselineRow || null);
+
+        const originalDimensions = originalStock?.dimensions || baselineFormRow?.dimensions || [];
+
+        // Dimensions: create / update / delete ops (never re-create unchanged existing rows)
         const dimensionOps = buildStockUpdateDimensionsOps(
             rowData.dimensions,
-            originalStock?.dimensions || []
+            originalDimensions
         );
         if (dimensionOps) {
             payload.dimensions = dimensionOps;
@@ -1463,16 +1467,29 @@ export default function StockForm() {
             delete payload.dimensions;
         }
 
-        if (!originalStock) {
-            return payload;
+        const baselineRow = originalStock
+            ? loadFormDataFromStock(originalStock, true)
+            : baselineFormRow;
+
+        if (!baselineRow) {
+            // No baseline yet (should be rare) — never re-send full create payload / dimensions
+            delete payload.dimensions;
+            return {
+                stock_id: payload.stock_id,
+                ...(payload.stock_item_id ? { stock_item_id: payload.stock_item_id } : {}),
+                stock_status: payload.stock_status,
+                stock_status_changed_by: payload.stock_status_changed_by,
+                stock_status_previous: payload.stock_status_previous,
+                attachments: payload.attachments,
+                attachment_to_delete: payload.attachment_to_delete,
+            };
         }
 
-        const baselineRow = loadFormDataFromStock(originalStock, true);
         const baselinePayload = {
-            stock_id: originalStock.id,
+            stock_id: originalStock?.id ?? rowData.stockId,
             stock_status: normalizeStockStatusKey(baselineRow.stockStatus) || "",
-            stock_status_changed_by: "",
-            stock_status_previous: "",
+            stock_status_changed_by: originalStock ? "" : (baselineRow.stockStatusChangedBy || ""),
+            stock_status_previous: originalStock ? "" : (baselineRow.stockStatusPreviousForPayload ?? ""),
             client_id: toClearableRelationId(baselineRow.client),
             supplier_id: toClearableRelationId(baselineRow.supplier),
             vessel_id: toClearableRelationId(baselineRow.vessel),
@@ -1515,8 +1532,12 @@ export default function StockForm() {
             delivered_date: toClearableDateValue(baselineRow.deliveredDate),
             details: baselineRow.details || "",
             dg_un: baselineRow.dgUn || "",
-            attachments: [],
-            attachment_to_delete: [],
+            attachments: originalStock
+                ? []
+                : (Array.isArray(baselineRow.attachments) ? baselineRow.attachments : []),
+            attachment_to_delete: originalStock
+                ? []
+                : (Array.isArray(baselineRow.attachmentsToDelete) ? baselineRow.attachmentsToDelete : []),
             // No dimension ops on baseline — candidate already holds only changed ops
             dimensions: undefined,
             vessel_destination: baselineRow.vesselDestination ? String(baselineRow.vesselDestination) : "",
