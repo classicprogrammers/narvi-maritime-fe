@@ -146,7 +146,7 @@ import {
     normalizeStockStatusKey,
     resolveStockListActiveParam,
 } from "../../../constants/stockStatus";
-import { withStockListFetchMode } from "../../../utils/stockListFetchParams";
+import { stockListHasSearchFilters, withStockListFetchMode } from "../../../utils/stockListFetchParams";
 import StockListAttachmentsCell from "../../../components/stock-list/StockListAttachmentsCell";
 import StockCellText from "../../../components/stock-list/StockCellText";
 import StockSoNumberLink from "../../../components/stock-list/StockSoNumberLink";
@@ -856,10 +856,97 @@ export default function Stocks() {
         return digits;
     };
 
-    // fetch_all is only sent when the user checks "Fetch all" — filters still paginate otherwise
-    const listUsesFetchAll = fetchAllStockList;
-    const stockViewUsesFetchAll = fetchAllStockList;
-    const clientViewUsesFetchAll = fetchAllStockList;
+    // Fetch all is only allowed when at least one non-default filter is active
+    const canFetchAllStockList = useMemo(() => {
+        const hasId = (val) => {
+            if (val == null || val === "" || val === false) return false;
+            if (typeof val === "object") return val.id != null && val.id !== "";
+            return true;
+        };
+        if (activeTab === 0) {
+            return stockListHasSearchFilters({
+                client_id: hasId(stockViewClient) || hasId(vesselViewClient) ? 1 : undefined,
+                vessel_id: hasId(stockViewVessel) || hasId(vesselViewVessel) ? 1 : undefined,
+                stock_status:
+                    (vesselViewStatuses && vesselViewStatuses.size > 0
+                        ? Array.from(vesselViewStatuses)
+                        : stockViewStatus?.trim()) || undefined,
+                search: stockViewSearchFilter?.trim() || undefined,
+                so_id: stockViewFilterSO?.trim() || undefined,
+                si_number: stockViewFilterSI?.trim() || undefined,
+                si_combined: stockViewFilterSICombined?.trim() || undefined,
+                di_no: stockViewFilterDI?.trim() || undefined,
+                po_text: stockViewFilterPO?.trim() || undefined,
+                req_no: stockViewFilterReqNo?.trim() || undefined,
+                warehouse_new: stockViewFilterWarehouseNew?.trim() || undefined,
+                stock_item_id: stockViewStockItemId?.trim() || undefined,
+                date_on_stock: stockViewDateOnStock?.trim() || undefined,
+                days_on_stock: stockViewDaysOnStock?.trim() || undefined,
+                days_on_stock_min: daysRangeFrom?.trim() || undefined,
+                days_on_stock_max: daysRangeTo?.trim() || undefined,
+                date_on_stock_from: createDateFrom?.trim() || undefined,
+                date_on_stock_to: createDateTo?.trim() || undefined,
+                narvi_stock_via_hub1: stockViewViaHub1 ?? undefined,
+                narvi_stock_via_hub2: stockViewViaHub2 ?? undefined,
+                narvi_stock_ap_destination: stockViewApDestination ?? undefined,
+                origin_text: stockViewOrigin?.trim() || undefined,
+                active: stockViewActiveFilter,
+            });
+        }
+        return stockListHasSearchFilters({
+            client_id: clientViewClient ?? undefined,
+            vessel_id: clientViewVesselFilter ?? undefined,
+            stock_status: clientViewStatuses.size > 0 ? Array.from(clientViewStatuses) : undefined,
+            search: [clientViewSearchClient, clientViewSearchVessel].filter(Boolean).join(" ") || undefined,
+            date_on_stock_from: createDateFrom?.trim() || undefined,
+            date_on_stock_to: createDateTo?.trim() || undefined,
+        });
+    }, [
+        activeTab,
+        stockViewClient,
+        stockViewVessel,
+        stockViewStatus,
+        stockViewStockItemId,
+        stockViewDateOnStock,
+        stockViewDaysOnStock,
+        stockViewFilterSO,
+        stockViewFilterSI,
+        stockViewFilterSICombined,
+        stockViewFilterDI,
+        stockViewFilterPO,
+        stockViewFilterReqNo,
+        stockViewFilterWarehouseNew,
+        stockViewSearchFilter,
+        stockViewViaHub1,
+        stockViewViaHub2,
+        stockViewApDestination,
+        stockViewOrigin,
+        stockViewActiveFilter,
+        vesselViewClient,
+        vesselViewVessel,
+        vesselViewStatuses,
+        clientViewClient,
+        clientViewVesselFilter,
+        clientViewSearchClient,
+        clientViewSearchVessel,
+        clientViewStatuses,
+        createDateFrom,
+        createDateTo,
+        daysRangeFrom,
+        daysRangeTo,
+    ]);
+
+    // Auto-uncheck Fetch all when all filters are cleared
+    useEffect(() => {
+        if (!canFetchAllStockList && fetchAllStockList) {
+            setFetchAllStockList(false);
+        }
+    }, [canFetchAllStockList, fetchAllStockList]);
+
+    // fetch_all is only sent when checked AND filters are active
+    const listUsesFetchAll = fetchAllStockList && canFetchAllStockList;
+    const stockViewUsesFetchAll = listUsesFetchAll;
+    const clientViewUsesFetchAll = listUsesFetchAll;
 
     const filterRef = useRef({});
     filterRef.current = {
@@ -5451,15 +5538,17 @@ export default function Stocks() {
                                                 : "Showing active items"}
                                         </Text>
                                     </HStack>
-                                    <HStack spacing="2" align="center">
+                                    <HStack spacing="2" align="center" opacity={canFetchAllStockList ? 1 : 0.5}>
                                         <Text fontSize="sm" color={textColor} fontWeight="600">
                                             Fetch all
                                         </Text>
                                         <Switch
                                             size="md"
                                             colorScheme="green"
-                                            isChecked={fetchAllStockList}
+                                            isChecked={listUsesFetchAll}
+                                            isDisabled={!canFetchAllStockList}
                                             onChange={(e) => {
+                                                if (!canFetchAllStockList) return;
                                                 setFetchAllStockList(e.target.checked);
                                                 setStockViewPage(1);
                                                 setClientViewPage(1);
@@ -5467,9 +5556,11 @@ export default function Stocks() {
                                             }}
                                         />
                                         <Text fontSize="xs" color={tableTextColorSecondary}>
-                                            {fetchAllStockList
-                                                ? "Loading all matching records"
-                                                : "Loading 40 records per page"}
+                                            {!canFetchAllStockList
+                                                ? "Apply a filter to enable fetch all"
+                                                : listUsesFetchAll
+                                                    ? "Loading all matching records"
+                                                    : "Loading 40 records per page"}
                                         </Text>
                                     </HStack>
                                     {allFilteredItems.length > 0 && (
@@ -6100,15 +6191,17 @@ export default function Stocks() {
                                                         {filteredAndSortedStock.length} of {total_count > 0 ? total_count : stockList.length} stock items
                                                         {(clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel || createDateFrom || createDateTo || clientViewStatuses.size > 0) && " (filtered)"}
                                                     </Text>
-                                                    <HStack spacing="2" align="center">
+                                                    <HStack spacing="2" align="center" opacity={canFetchAllStockList ? 1 : 0.5}>
                                                         <Text fontSize="sm" color={textColor} fontWeight="600">
                                                             Fetch all
                                                         </Text>
                                                         <Switch
                                                             size="md"
                                                             colorScheme="green"
-                                                            isChecked={fetchAllStockList}
+                                                            isChecked={listUsesFetchAll}
+                                                            isDisabled={!canFetchAllStockList}
                                                             onChange={(e) => {
+                                                                if (!canFetchAllStockList) return;
                                                                 setFetchAllStockList(e.target.checked);
                                                                 setStockViewPage(1);
                                                                 setClientViewPage(1);
@@ -6116,9 +6209,11 @@ export default function Stocks() {
                                                             }}
                                                         />
                                                         <Text fontSize="xs" color={tableTextColorSecondary}>
-                                                            {fetchAllStockList
-                                                                ? "Loading all matching records"
-                                                                : "Loading 40 records per page"}
+                                                            {!canFetchAllStockList
+                                                                ? "Apply a filter to enable fetch all"
+                                                                : listUsesFetchAll
+                                                                    ? "Loading all matching records"
+                                                                    : "Loading 40 records per page"}
                                                         </Text>
                                                     </HStack>
                                                 </HStack>

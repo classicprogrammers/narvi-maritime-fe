@@ -81,7 +81,7 @@ import {
     normalizeStockStatusKey,
     resolveStockListActiveParam,
 } from "../../../constants/stockStatus";
-import { withStockListFetchMode } from "../../../utils/stockListFetchParams";
+import { stockListHasSearchFilters, withStockListFetchMode } from "../../../utils/stockListFetchParams";
 
 function mapStockSoFieldToOrder(soField) {
     if (!soField || typeof soField !== "object" || soField.id == null) return null;
@@ -393,6 +393,67 @@ export default function StockList() {
         return digits;
     };
 
+    const canFetchAllStockList = useMemo(() => {
+        return stockListHasSearchFilters({
+            search: searchFilter?.trim() || undefined,
+            client_id: getIdParam(selectedClient),
+            vessel_id: getIdParam(selectedVessel),
+            stock_status: selectedStatus?.trim() || undefined,
+            so_id: normalizeSoNumber(filterSO) || undefined,
+            si_number: filterSI?.trim() || undefined,
+            si_combined: filterSICombined?.trim() || undefined,
+            di_no: filterDI?.trim() || undefined,
+            po_text: filterPO?.trim() || undefined,
+            req_no: filterReqNo?.trim() || undefined,
+            remarks: filterRemarks?.trim() || undefined,
+            days_on_stock_min: filterDaysOnStock?.trim() || undefined,
+            date_on_stock_from: filterCreateDateFrom?.trim() || undefined,
+            date_on_stock_to: filterCreateDateTo?.trim() || undefined,
+            narvi_stock_via_hub1:
+                hubParam != null && (Number.isFinite(Number(hubParam)) || String(hubParam).trim() !== "")
+                    ? hubParam
+                    : undefined,
+            origin_text: selectedOrigin
+                ? normalizeStockOriginHubText(selectedOrigin)
+                : undefined,
+            supplier_id: getIdParam(selectedSupplier),
+            warehouse_id: getIdParam(selectedWarehouse),
+            currency_id: getIdParam(selectedCurrency),
+            active: resolveStockListActiveParam(activeFilter),
+        });
+    }, [
+        searchFilter,
+        selectedClient,
+        selectedVessel,
+        selectedStatus,
+        filterSO,
+        filterSI,
+        filterSICombined,
+        filterDI,
+        filterPO,
+        filterReqNo,
+        filterRemarks,
+        filterDaysOnStock,
+        filterCreateDateFrom,
+        filterCreateDateTo,
+        selectedHub,
+        selectedOrigin,
+        selectedSupplier,
+        selectedWarehouse,
+        selectedCurrency,
+        activeFilter,
+        hubParam,
+    ]);
+
+    // Auto-uncheck Fetch all when all filters are cleared
+    useEffect(() => {
+        if (!canFetchAllStockList && fetchAllStockList) {
+            setFetchAllStockList(false);
+        }
+    }, [canFetchAllStockList, fetchAllStockList]);
+
+    const stockListUsesFetchAll = fetchAllStockList && canFetchAllStockList;
+
     const fetchStockList = useCallback(() => {
         // Map high-level sortOption to backend sort_by when set;
         // otherwise fall back to the manual column sortBy state.
@@ -434,12 +495,10 @@ export default function StockList() {
                     currency_id: getIdParam(selectedCurrency),
                     active: resolveStockListActiveParam(activeFilter),
                 },
-                { page, page_size: PAGE_SIZE, fetchAll: fetchAllStockList }
+                { page, page_size: PAGE_SIZE, fetchAll: stockListUsesFetchAll }
             )
         );
-    }, [getStockList, page, sortBy, sortOrder, sortOption, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterReqNo, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, selectedHub, selectedOrigin, selectedSupplier, selectedWarehouse, selectedCurrency, activeFilter, fetchAllStockList, hubParam]);
-
-    const stockListUsesFetchAll = fetchAllStockList;
+    }, [getStockList, page, sortBy, sortOrder, sortOption, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterReqNo, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, selectedHub, selectedOrigin, selectedSupplier, selectedWarehouse, selectedCurrency, activeFilter, stockListUsesFetchAll, hubParam]);
 
     const statusFilterOptions = useMemo(
         () => getStatusOptionsForActiveFilter(stockStatusOptions, activeFilter),
@@ -1259,24 +1318,28 @@ export default function StockList() {
                                         <Icon as={MdFilterList} color="blue.500" />
                                         <Text fontSize="md" fontWeight="700" color={textColor}>Filters</Text>
                                     </HStack>
-                                    <HStack spacing="2" align="center">
+                                    <HStack spacing="2" align="center" opacity={canFetchAllStockList ? 1 : 0.5}>
                                         <Text fontSize="sm" color={textColor} fontWeight="600">
                                             Fetch all
                                         </Text>
                                         <Switch
                                             size="md"
                                             colorScheme="green"
-                                            isChecked={fetchAllStockList}
+                                            isChecked={stockListUsesFetchAll}
+                                            isDisabled={!canFetchAllStockList}
                                             onChange={(e) => {
+                                                if (!canFetchAllStockList) return;
                                                 setFetchAllStockList(e.target.checked);
                                                 setPage(1);
                                                 setFetchTrigger((t) => t + 1);
                                             }}
                                         />
                                         <Text fontSize="xs" color={tableTextColorSecondary}>
-                                            {fetchAllStockList
-                                                ? "Loading all matching records"
-                                                : "Loading 40 records per page"}
+                                            {!canFetchAllStockList
+                                                ? "Apply a filter to enable fetch all"
+                                                : stockListUsesFetchAll
+                                                    ? "Loading all matching records"
+                                                    : "Loading 40 records per page"}
                                         </Text>
                                     </HStack>
                                 </HStack>
