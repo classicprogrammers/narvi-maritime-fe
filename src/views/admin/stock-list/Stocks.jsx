@@ -228,6 +228,7 @@ const PDF_EXPORT_HEADERS = [
     "DESTINATION",
     "DG/UN",
     "SO NUMBER",
+    "WAREHOUSE ID",
 ];
 
 /** Column count for the primary (dark blue) PDF row per export type */
@@ -1922,6 +1923,7 @@ export default function Stocks() {
                 formatStockDestinationDisplay(item, "destination"),
                 item.dg_un || "-",
                 soNumber,
+                item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-",
             ];
         });
 
