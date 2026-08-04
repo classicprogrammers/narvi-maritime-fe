@@ -1655,52 +1655,106 @@ export default function StockForm() {
                     throw new Error(resultData?.message || result?.message || "Failed to update stock item");
                 }
             } else {
-                // Create new - save all rows (one record per row)
-                if (formRows.length === 0) {
+                // Create / update: rows may already have stockId if saved during stock-report generation
+                // Prefer ref so we see ids written after status-change PDF create before React re-renders.
+                const rowsForSave =
+                    Array.isArray(formRowsRef.current) && formRowsRef.current.length > 0
+                        ? formRowsRef.current
+                        : formRows;
+
+                if (rowsForSave.length === 0) {
                     throw new Error('No data to save');
                 }
 
-                let successCount = 0;
-                let errorCount = 0;
-                const errors = [];
+                const hasExistingStockId = (row) =>
+                    row?.stockId != null && row.stockId !== false && String(row.stockId).trim() !== "";
+                const hasExistingStockItemId = (row) =>
+                    row?.stockItemId != null &&
+                    row.stockItemId !== false &&
+                    String(row.stockItemId).trim() !== "";
+                // Already persisted by status-change PDF create — never create again
+                const isAlreadyCreated = (row) => hasExistingStockId(row) || hasExistingStockItemId(row);
 
-                // Build lines array from all form rows
-                const lines = formRows.map((row) => {
-                    // Ensure row doesn't have stockId (should be new record)
-                    const rowData = {
-                        ...row,
-                        stockId: null, // Ensure it's a new record
-                        stockItemId: row.stockItemId || "", // Clear for new records
-                    };
-                    return getPayload(rowData);
-                });
+                const rowsToUpdate = rowsForSave.filter(hasExistingStockId);
+                const rowsToCreate = rowsForSave.filter((row) => !isAlreadyCreated(row));
+                const orphanCreatedRows = rowsForSave.filter(
+                    (row) => !hasExistingStockId(row) && hasExistingStockItemId(row)
+                );
 
-                // Send all lines in a single payload
-                const payload = { lines };
-                const result = await createStockItemApi(payload);
+                if (orphanCreatedRows.length > 0 && rowsToUpdate.length === 0 && rowsToCreate.length === 0) {
+                    throw new Error(
+                        "Stock item was already created but is missing its internal id. Refresh the page and edit the record to save changes."
+                    );
+                }
 
-                if (result && result.result) {
-                    const resultData = result.result;
+                let navigatedAway = false;
 
-                    if (resultData.status === "success") {
+                if (rowsToUpdate.length > 0) {
+                    const lines = rowsToUpdate.map((row) => getPayload(row, true));
+                    const payload = { lines };
+                    const result = await updateStockItemApi(rowsToUpdate[0].stockId, payload);
+                    const resultData = getStockBulkSaveResultData(result);
+
+                    if (resultData?.status === "success") {
                         showStockBulkSaveToasts(resultData, toast, {
-                            fallbackSummary: "Stock items created successfully",
+                            fallbackSummary: `${lines.length} stock item(s) updated successfully`,
                         });
-                        if (!hasStockBulkSaveErrors(resultData)) {
+                        getStockList();
+                        if (!hasStockBulkSaveErrors(resultData) && rowsToCreate.length === 0) {
                             setAddStockHasDataFlag(false);
-                            getStockList();
                             history.push("/admin/stock-list/stocks");
-                        } else {
-                            getStockList();
-                            const failedRows = filterRowsWithBulkSaveFailures(formRows, resultData, {
-                                getRowId: () => null,
-                            });
-                            if (failedRows.length > 0) {
-                                setFormRows(failedRows);
+                            navigatedAway = true;
+                        } else if (hasStockBulkSaveErrors(resultData)) {
+                            const failedRows = filterRowsWithBulkSaveFailures(rowsToUpdate, resultData);
+                            if (failedRows.length > 0 || rowsToCreate.length > 0) {
+                                setFormRows([...failedRows, ...rowsToCreate]);
                             }
                         }
                     } else {
-                        const errorMsg = resultData.message || result?.message || 'Failed to create stock items';
+                        throw new Error(resultData?.message || result?.message || "Failed to update stock items");
+                    }
+                }
+
+                if (navigatedAway) return;
+
+                if (rowsToCreate.length > 0) {
+                    const lines = rowsToCreate.map((row) => getPayload(row));
+                    const payload = { lines };
+                    const result = await createStockItemApi(payload);
+
+                    if (result && result.result) {
+                        const resultData = result.result;
+
+                        if (resultData.status === "success") {
+                            showStockBulkSaveToasts(resultData, toast, {
+                                fallbackSummary: "Stock items created successfully",
+                            });
+                            if (!hasStockBulkSaveErrors(resultData)) {
+                                setAddStockHasDataFlag(false);
+                                getStockList();
+                                history.push("/admin/stock-list/stocks");
+                            } else {
+                                getStockList();
+                                const failedRows = filterRowsWithBulkSaveFailures(rowsToCreate, resultData, {
+                                    getRowId: () => null,
+                                });
+                                if (failedRows.length > 0) {
+                                    setFormRows(failedRows);
+                                }
+                            }
+                        } else {
+                            const errorMsg = resultData.message || result?.message || 'Failed to create stock items';
+                            toast({
+                                title: 'Error',
+                                description: errorMsg,
+                                status: 'error',
+                                duration: 5000,
+                                isClosable: true,
+                            });
+                            throw new Error(errorMsg);
+                        }
+                    } else {
+                        const errorMsg = result?.result?.message || result?.message || 'Failed to create stock items';
                         toast({
                             title: 'Error',
                             description: errorMsg,
@@ -1710,16 +1764,6 @@ export default function StockForm() {
                         });
                         throw new Error(errorMsg);
                     }
-                } else {
-                    const errorMsg = result?.result?.message || result?.message || 'Failed to create stock items';
-                    toast({
-                        title: 'Error',
-                        description: errorMsg,
-                        status: 'error',
-                        duration: 5000,
-                        isClosable: true,
-                    });
-                    throw new Error(errorMsg);
                 }
             }
         } catch (error) {

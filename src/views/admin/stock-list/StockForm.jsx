@@ -1090,46 +1090,74 @@ export default function StockForm() {
                     throw new Error(result?.error || 'Failed to update stock item');
                 }
             } else {
-                // Create new - save all rows
+                // Create / update: rows may already have stockId if saved during stock-report generation
+                // Prefer ref so we see ids written after status-change PDF create before React re-renders.
+                const rowsForSave =
+                    Array.isArray(formRowsRef.current) && formRowsRef.current.length > 0
+                        ? formRowsRef.current
+                        : formRows;
+
                 let successCount = 0;
                 let errorCount = 0;
 
-                for (const row of formRows) {
+                for (const row of rowsForSave) {
+                    const hasExistingStockId =
+                        row?.stockId != null && row.stockId !== false && String(row.stockId).trim() !== "";
+                    const hasExistingStockItemId =
+                        row?.stockItemId != null &&
+                        row.stockItemId !== false &&
+                        String(row.stockItemId).trim() !== "";
                     try {
-                        const payload = getPayload(row);
-                        const result = await createStockItemApi(payload);
-                        if (result && result.result) {
-                            const resultData = result.result;
-
-                            // Check for errors even if status is "success"
-                            if ((resultData.error_count && resultData.error_count > 0) ||
-                                (resultData.errors && Array.isArray(resultData.errors) && resultData.errors.length > 0)) {
-                                errorCount++;
-                                // Extract error messages for logging
-                                const errorMessages = resultData.errors
-                                    ? resultData.errors.map(err => err.message || `${err.field}: ${err.message || 'Unknown error'}`).join('; ')
-                                    : resultData.message || 'Failed to create stock item';
-                                console.error('Failed to create stock item:', errorMessages);
-                            } else if (resultData.status === 'success') {
+                        if (hasExistingStockId) {
+                            const payload = getPayload(row, true);
+                            const result = await updateStockItem(row.stockId, payload, {});
+                            if (result && result.success) {
                                 successCount++;
                             } else {
                                 errorCount++;
-                                console.error('Failed to create stock item:', resultData.message || 'Unknown error');
+                                console.error("Failed to update stock item:", result?.error);
                             }
-                        } else {
+                        } else if (hasExistingStockItemId) {
+                            // Already created during status-report flow but missing stockId — do not create again
                             errorCount++;
-                            console.error('Failed to create stock item: Invalid response');
+                            console.error(
+                                "Stock item already created but missing stockId; skipping duplicate create:",
+                                row.stockItemId
+                            );
+                        } else {
+                            const payload = getPayload(row);
+                            const result = await createStockItemApi(payload);
+                            if (result && result.result) {
+                                const resultData = result.result;
+
+                                if ((resultData.error_count && resultData.error_count > 0) ||
+                                    (resultData.errors && Array.isArray(resultData.errors) && resultData.errors.length > 0)) {
+                                    errorCount++;
+                                    const errorMessages = resultData.errors
+                                        ? resultData.errors.map(err => err.message || `${err.field}: ${err.message || 'Unknown error'}`).join('; ')
+                                        : resultData.message || 'Failed to create stock item';
+                                    console.error('Failed to create stock item:', errorMessages);
+                                } else if (resultData.status === 'success') {
+                                    successCount++;
+                                } else {
+                                    errorCount++;
+                                    console.error('Failed to create stock item:', resultData.message || 'Unknown error');
+                                }
+                            } else {
+                                errorCount++;
+                                console.error('Failed to create stock item: Invalid response');
+                            }
                         }
                     } catch (err) {
                         errorCount++;
-                        console.error('Failed to create stock item:', err.message || err);
+                        console.error('Failed to save stock item:', err.message || err);
                     }
                 }
 
                 if (successCount > 0) {
                     toast({
                         title: 'Success',
-                        description: `${successCount} stock item(s) created successfully${errorCount > 0 ? `. ${errorCount} failed.` : ''}`,
+                        description: `${successCount} stock item(s) saved successfully${errorCount > 0 ? `. ${errorCount} failed.` : ''}`,
                         status: 'success',
                         duration: 3000,
                         isClosable: true,
@@ -1137,7 +1165,7 @@ export default function StockForm() {
                     getStockList();
                     history.push("/admin/stock-list/main-db");
                 } else {
-                    throw new Error(result?.result?.message || 'Failed to create stock item');
+                    throw new Error('Failed to save stock item');
                 }
             }
         } catch (error) {

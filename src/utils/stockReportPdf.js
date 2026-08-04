@@ -602,16 +602,64 @@ export function extractStockLineFromSaveResponse(response, lineIndex = 0) {
         pickLineFromResponseCollection(result.items, lineIndex),
         pickLineFromResponseCollection(result.data?.stock_list, lineIndex),
         pickLineFromResponseCollection(result.data?.lines, lineIndex),
+        pickLineFromResponseCollection(result.data?.created, lineIndex),
         pickLineFromResponseCollection(result.data, lineIndex),
         lineIndex === 0 ? result.data : null,
         lineIndex === 0 ? result : null
     );
 
-    if (!line) return null;
+    const scalarIdCandidates = [
+        line?.record_id,
+        line?.recordId,
+        line?.id,
+        line?.stock_id,
+        line?.stockId,
+        result.record_id,
+        result.recordId,
+        result.id,
+        result.stock_id,
+        result.stockId,
+        Array.isArray(result.created_ids) ? result.created_ids[lineIndex] ?? result.created_ids[0] : null,
+        Array.isArray(result.ids) ? result.ids[lineIndex] ?? result.ids[0] : null,
+        Array.isArray(result.stock_ids) ? result.stock_ids[lineIndex] ?? result.stock_ids[0] : null,
+        Array.isArray(result.created) &&
+        (typeof result.created[lineIndex] === "number" || typeof result.created[lineIndex] === "string")
+            ? result.created[lineIndex]
+            : null,
+        Array.isArray(result.data?.created_ids)
+            ? result.data.created_ids[lineIndex] ?? result.data.created_ids[0]
+            : null,
+        Array.isArray(result.data?.ids) ? result.data.ids[lineIndex] ?? result.data.ids[0] : null,
+        result.data?.record_id,
+        result.data?.recordId,
+        result.data?.id,
+        result.data?.stock_id,
+        result.data?.stockId,
+    ];
 
-    const stockId = line.id ?? line.stock_id ?? line.stockId ?? null;
+    let stockId = null;
+    for (const candidate of scalarIdCandidates) {
+        if (candidate == null || candidate === false || candidate === "") continue;
+        const n = Number(candidate);
+        if (Number.isFinite(n)) {
+            stockId = n;
+            break;
+        }
+        const text = String(candidate).trim();
+        if (text) {
+            stockId = text;
+            break;
+        }
+    }
+
     const stockNumberRaw =
-        line.stock_number ?? line.stock_item_id ?? line.stockNumber ?? line.stockItemId ?? null;
+        line?.stock_number ??
+        line?.stock_item_id ??
+        line?.stockNumber ??
+        line?.stockItemId ??
+        result.stock_number ??
+        result.stock_item_id ??
+        null;
     const stockItemId =
         stockNumberRaw != null && stockNumberRaw !== false ? String(stockNumberRaw).trim() : "";
 
@@ -666,28 +714,48 @@ export function createSaveRowBeforeStockReportPdf({ getLinePayload, formRowsRef 
     return async function saveRowBeforeStockReportPdf(rowIndex, rowSnapshot) {
         const refRow = formRowsRef?.current?.[rowIndex];
         const row = refRow ? { ...rowSnapshot, ...refRow } : { ...rowSnapshot };
-        const isUpdate = row.stockId != null && row.stockId !== false && String(row.stockId).trim() !== "";
-        const linePayload = getLinePayload(row, { isUpdate, rowIndex });
+        const canUpdate =
+            row.stockId != null && row.stockId !== false && String(row.stockId).trim() !== "";
+        const alreadyHasStockItemId =
+            row.stockItemId != null &&
+            row.stockItemId !== false &&
+            String(row.stockItemId).trim() !== "";
+
+        // Already created earlier (e.g. status-report PDF) but missing record id — never create again
+        if (!canUpdate && alreadyHasStockItemId) {
+            throw new Error(
+                "Stock item was already created but is missing its internal id. Refresh and edit the record instead of creating a duplicate."
+            );
+        }
+
+        const linePayload = getLinePayload(row, { isUpdate: canUpdate, rowIndex });
         const payload = { lines: [linePayload] };
 
-        const response = isUpdate
+        const response = canUpdate
             ? await updateStockItemApi(row.stockId, payload)
             : await createStockItemApi(payload);
 
         assertStockSaveSucceeded(response);
 
         const saved = extractStockLineFromSaveResponse(response, 0);
-        if (saved) return saved;
+        const hasSavedStockId =
+            saved?.stockId != null && saved.stockId !== false && String(saved.stockId).trim() !== "";
 
-        if (isUpdate) {
+        if (hasSavedStockId) return saved;
+
+        if (canUpdate) {
             return {
                 stockId: row.stockId,
-                stockItemId: row.stockItemId ? String(row.stockItemId) : "",
-                stock_number: row.stockItemId ? String(row.stockItemId) : "",
+                stockItemId:
+                    (saved?.stockItemId && String(saved.stockItemId)) ||
+                    (row.stockItemId ? String(row.stockItemId) : ""),
+                stock_number:
+                    (saved?.stockItemId && String(saved.stockItemId)) ||
+                    (row.stockItemId ? String(row.stockItemId) : ""),
             };
         }
 
-        throw new Error("Stock item saved but no stock number was returned by the API");
+        throw new Error("Stock item saved but no stock id was returned by the API");
     };
 }
 
@@ -731,11 +799,13 @@ export function createAppendStockReportPdfOnStatusChange({
                 savedPatch = await saveRowBeforePdf(rowIndex, latestRow);
                 if (savedPatch) {
                     latestRow = mergeSavedStockIdsIntoRow(latestRow, savedPatch);
-                    setFormRows((prev) =>
-                        prev.map((r, i) =>
+                    setFormRows((prev) => {
+                        const next = prev.map((r, i) =>
                             i === rowIndex ? mergeSavedStockIdsIntoRow(r, savedPatch) : r
-                        )
-                    );
+                        );
+                        if (formRowsRef) formRowsRef.current = next;
+                        return next;
+                    });
                 }
             }
 
@@ -750,13 +820,15 @@ export function createAppendStockReportPdfOnStatusChange({
                 previousStatus: previousStatus || latestRow.stockStatusPreviousForPayload || "",
                 newStatus: newStatus || latestRow.stockStatus || "",
             });
-            setFormRows((prev) =>
-                prev.map((r, i) => {
+            setFormRows((prev) => {
+                const next = prev.map((r, i) => {
                     if (i !== rowIndex) return r;
                     const withIds = mergeSavedStockIdsIntoRow(r, savedPatch);
                     return applyStockReportAttachmentOnStatusChange(withIds, att);
-                })
-            );
+                });
+                if (formRowsRef) formRowsRef.current = next;
+                return next;
+            });
         } catch (err) {
             console.error("Stock report PDF:", err);
             toast({
