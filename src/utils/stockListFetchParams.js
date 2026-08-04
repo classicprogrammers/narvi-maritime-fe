@@ -41,6 +41,7 @@ export function stockListHasSearchFilters(params = {}) {
     warehouse_new,
     currency_id,
     active,
+    has_destination,
   } = params;
 
   if (isNonEmpty(search) || isNonEmpty(name)) return true;
@@ -63,6 +64,7 @@ export function stockListHasSearchFilters(params = {}) {
     return true;
   }
   if (isNonEmpty(supplier_id) || isNonEmpty(warehouse_id) || isNonEmpty(warehouse_new) || isNonEmpty(currency_id)) return true;
+  if (has_destination === true || has_destination === "true") return true;
   if (active != null && String(active).trim() !== "" && String(active) !== "true") return true;
   return false;
 }

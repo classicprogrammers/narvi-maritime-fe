@@ -487,6 +487,7 @@ function readPersistedStockViewEditState() {
             stockViewFilterReqNo: typeof p.stockViewFilterReqNo === "string" ? p.stockViewFilterReqNo : "",
             stockViewFilterWarehouseNew: typeof p.stockViewFilterWarehouseNew === "string" ? p.stockViewFilterWarehouseNew : "",
             stockViewSearchFilter: typeof p.stockViewSearchFilter === "string" ? p.stockViewSearchFilter : "",
+            stockViewHasDestination: p.stockViewHasDestination === true,
             stockViewViaHub1: p.stockViewViaHub1 != null ? p.stockViewViaHub1 : null,
             stockViewViaHub2: p.stockViewViaHub2 != null ? p.stockViewViaHub2 : null,
             stockViewApDestination: p.stockViewApDestination != null ? p.stockViewApDestination : null,
@@ -551,6 +552,7 @@ const defaultStockViewEditState = {
     stockViewFilterReqNo: "",
     stockViewFilterWarehouseNew: "",
     stockViewSearchFilter: "",
+    stockViewHasDestination: false,
     stockViewViaHub1: null,
     stockViewViaHub2: null,
     stockViewApDestination: null,
@@ -650,6 +652,7 @@ export default function Stocks() {
     const [stockViewFilterReqNo, setStockViewFilterReqNo] = useState(savedState.stockViewFilterReqNo);
     const [stockViewFilterWarehouseNew, setStockViewFilterWarehouseNew] = useState(savedState.stockViewFilterWarehouseNew);
     const [stockViewSearchFilter, setStockViewSearchFilter] = useState(savedState.stockViewSearchFilter);
+    const [stockViewHasDestination, setStockViewHasDestination] = useState(Boolean(savedState.stockViewHasDestination));
     const [stockViewViaHub1, setStockViewViaHub1] = useState(savedState.stockViewViaHub1);
     const [stockViewViaHub2, setStockViewViaHub2] = useState(savedState.stockViewViaHub2);
     const [stockViewApDestination, setStockViewApDestination] = useState(savedState.stockViewApDestination);
@@ -691,6 +694,7 @@ export default function Stocks() {
             stockViewFilterReqNo,
             stockViewFilterWarehouseNew,
             stockViewSearchFilter,
+            stockViewHasDestination,
             stockViewViaHub1,
             stockViewViaHub2,
             stockViewApDestination,
@@ -699,7 +703,7 @@ export default function Stocks() {
             sortOption,
             clientSortOption,
         });
-    }, [activeTab, stockViewPage, clientViewPage, vesselViewClient, vesselViewVessel, vesselViewStatuses, clientViewClient, clientViewStatuses, clientViewFilterType, clientViewSearchClient, clientViewSearchVessel, clientViewVesselFilter, stockViewClient, stockViewVessel, stockViewStatus, stockViewStockItemId, stockViewDateOnStock, stockViewDaysOnStock, stockViewFilterSO, stockViewFilterSI, stockViewFilterSICombined, stockViewFilterDI, stockViewFilterPO, stockViewFilterReqNo, stockViewFilterWarehouseNew, stockViewSearchFilter, stockViewViaHub1, stockViewViaHub2, stockViewApDestination, stockViewOrigin, stockViewActiveFilter, sortOption, clientSortOption]);
+    }, [activeTab, stockViewPage, clientViewPage, vesselViewClient, vesselViewVessel, vesselViewStatuses, clientViewClient, clientViewStatuses, clientViewFilterType, clientViewSearchClient, clientViewSearchVessel, clientViewVesselFilter, stockViewClient, stockViewVessel, stockViewStatus, stockViewStockItemId, stockViewDateOnStock, stockViewDaysOnStock, stockViewFilterSO, stockViewFilterSI, stockViewFilterSICombined, stockViewFilterDI, stockViewFilterPO, stockViewFilterReqNo, stockViewFilterWarehouseNew, stockViewSearchFilter, stockViewHasDestination, stockViewViaHub1, stockViewViaHub2, stockViewApDestination, stockViewOrigin, stockViewActiveFilter, sortOption, clientSortOption]);
 
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
@@ -892,6 +896,7 @@ export default function Stocks() {
                 narvi_stock_ap_destination: stockViewApDestination ?? undefined,
                 origin_text: stockViewOrigin?.trim() || undefined,
                 active: stockViewActiveFilter,
+                has_destination: stockViewHasDestination || undefined,
             });
         }
         return stockListHasSearchFilters({
@@ -918,6 +923,7 @@ export default function Stocks() {
         stockViewFilterReqNo,
         stockViewFilterWarehouseNew,
         stockViewSearchFilter,
+        stockViewHasDestination,
         stockViewViaHub1,
         stockViewViaHub2,
         stockViewApDestination,
@@ -966,6 +972,7 @@ export default function Stocks() {
         stockViewFilterReqNo,
         stockViewFilterWarehouseNew,
         stockViewSearchFilter,
+        stockViewHasDestination,
         stockViewViaHub1,
         stockViewViaHub2,
         stockViewApDestination,
@@ -1029,6 +1036,7 @@ export default function Stocks() {
         stockViewFilterReqNo,
         stockViewFilterWarehouseNew,
         stockViewSearchFilter,
+        stockViewHasDestination,
         stockViewViaHub1,
         stockViewViaHub2,
         stockViewApDestination,
@@ -1094,6 +1102,7 @@ export default function Stocks() {
                         narvi_stock_via_hub2: viaHub2Id ?? undefined,
                         narvi_stock_ap_destination: apDestId ?? undefined,
                         origin_text: originText || undefined,
+                        has_destination: f.stockViewHasDestination ? true : undefined,
                         sort_by,
                     },
                     { page, page_size: PAGE_SIZE, fetchAll: listUsesFetchAll }
@@ -1151,6 +1160,7 @@ export default function Stocks() {
             if (filterState.stockViewFilterReqNo !== undefined) setStockViewFilterReqNo(filterState.stockViewFilterReqNo);
             if (filterState.stockViewFilterWarehouseNew !== undefined) setStockViewFilterWarehouseNew(filterState.stockViewFilterWarehouseNew);
             if (filterState.stockViewSearchFilter !== undefined) setStockViewSearchFilter(filterState.stockViewSearchFilter);
+            if (filterState.stockViewHasDestination !== undefined) setStockViewHasDestination(Boolean(filterState.stockViewHasDestination));
             if (filterState.stockViewActiveFilter !== undefined) setStockViewActiveFilter(filterState.stockViewActiveFilter);
             // Clear location.state to prevent restoring on subsequent renders
             history.replace(location.pathname, {});
@@ -1254,6 +1264,7 @@ export default function Stocks() {
             stockViewFilterReqNo,
             stockViewFilterWarehouseNew,
             stockViewSearchFilter,
+            stockViewHasDestination,
             stockViewActiveFilter,
         };
         const editState = { selectedItems: [item], isBulkEdit: false, filterState, sourcePage: 'stocks' };
@@ -1288,6 +1299,7 @@ export default function Stocks() {
                 stockViewStockItemId,
                 stockViewDateOnStock,
                 stockViewDaysOnStock,
+                stockViewHasDestination,
                 stockViewActiveFilter,
             };
             const editState = { selectedItems: selectedItemsData, isBulkEdit: selectedItemsData.length > 1, filterState, sourcePage: 'stocks' };
@@ -4947,7 +4959,7 @@ export default function Stocks() {
                                                             <Text fontSize="md" fontWeight="700" color={textColor}>Basic Filters</Text>
                                                         </HStack>
                                                         <HStack>
-                                                            {(stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewOrigin || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || createDateFrom || createDateTo || daysRangeFrom || daysRangeTo || vesselViewStatuses.size > 0) && (
+                                                            {(stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewOrigin || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || stockViewHasDestination || createDateFrom || createDateTo || daysRangeFrom || daysRangeTo || vesselViewStatuses.size > 0) && (
                                                                 <Button
                                                                     size="xs"
                                                                     leftIcon={<Icon as={MdClose} />}
@@ -4976,6 +4988,7 @@ export default function Stocks() {
                                                                         setStockViewFilterReqNo("");
                                                                         setStockViewFilterWarehouseNew("");
                                                                         setStockViewSearchFilter("");
+                                                                        setStockViewHasDestination(false);
                                                                         setVesselViewStatuses(new Set());
                                                                     }}
                                                                 >
@@ -5481,6 +5494,19 @@ export default function Stocks() {
                                                                 )}
                                                             </HStack>
                                                         </Box>
+                                                        {/* Has Destination Filter */}
+                                                        <Box w="220px" minW="200px" display="flex" alignItems="center">
+                                                            <Checkbox
+                                                                size="md"
+                                                                colorScheme="blue"
+                                                                isChecked={stockViewHasDestination}
+                                                                onChange={(e) => setStockViewHasDestination(e.target.checked)}
+                                                            >
+                                                                <Text fontSize="sm" color={textColor} fontWeight="500">
+                                                                    Has destination
+                                                                </Text>
+                                                            </Checkbox>
+                                                        </Box>
                                                     </Flex>
                                                     <StatusFilterRow
                                                         statusEntries={Object.entries(STATUS_CONFIG).filter(([statusKey]) => {
@@ -5509,7 +5535,7 @@ export default function Stocks() {
                                                 {/* Results Count */}
                                                 <Text fontSize="sm" color={tableTextColorSecondary}>
                                                     {allFilteredItems.length} of {total_count > 0 ? total_count : stockList.length} stock items
-                                                    {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewOrigin || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || vesselViewStatuses.size > 0 || isViewingSelected) && " (filtered)"}
+                                                    {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewOrigin || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || stockViewHasDestination || vesselViewStatuses.size > 0 || isViewingSelected) && " (filtered)"}
                                                 </Text>
                                             </VStack>
                                         </Card>
@@ -6598,7 +6624,7 @@ export default function Stocks() {
                                             </Text>
                                             <Text color={tableTextColorSecondary} fontSize="sm" textAlign="center">
                                                 {(() => {
-                                                    const hasStockViewFilters = stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewOrigin || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || vesselViewVessel || vesselViewClient || vesselViewStatuses.size > 0 || isViewingSelected;
+                                                    const hasStockViewFilters = stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewOrigin || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || stockViewHasDestination || vesselViewVessel || vesselViewClient || vesselViewStatuses.size > 0 || isViewingSelected;
                                                     const hasClientViewFilters = clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel || clientViewStatuses.size > 0 || isViewingSelected;
                                                     if (activeTab === 0) {
                                                         return hasStockViewFilters

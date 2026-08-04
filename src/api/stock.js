@@ -188,6 +188,7 @@ export const getStockListApi = async (params = {}) => {
       warehouse_new,
       currency_id,
       active, // no default; only include if caller explicitly passes it
+      has_destination,
       create_date_from = "",
       create_date_to = "",
       date_on_stock_from = "",
@@ -293,6 +294,9 @@ export const getStockListApi = async (params = {}) => {
       requestParams.warehouse_new = String(warehouse_new).trim();
     }
     if (currency_id != null && currency_id !== "") requestParams.currency_id = currency_id;
+    if (has_destination === true || has_destination === "true") {
+      requestParams.has_destination = true;
+    }
 
     const response = await api.get(getApiEndpoint("STOCK_LIST"), {
       params: requestParams,
