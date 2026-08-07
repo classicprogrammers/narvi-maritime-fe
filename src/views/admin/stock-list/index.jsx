@@ -226,6 +226,7 @@ export default function StockList() {
 
     // View selected items - filter table instead of modal
     const [isViewingSelected, setIsViewingSelected] = useState(false);
+    const [isLoadingAttachment, setIsLoadingAttachment] = useState(false);
 
     // Filter section visibility - default to open
     const [isFiltersOpen, setIsFiltersOpen] = useState(true);

@@ -20,15 +20,60 @@ export function isPreviewableInBrowser(mimeType) {
     return String(mimeType || "").startsWith("image/") || mimeType === "application/pdf";
 }
 
-function base64ToBlobUrl(base64Data, mimeType) {
+function createNamedPreviewFromBlob(blob, filename, mimeType) {
+    const safeName = filename || "File";
+    const type = mimeType || blob?.type || "application/octet-stream";
+    const namedFile =
+        typeof File !== "undefined"
+            ? new File([blob], safeName, { type })
+            : null;
+    const source = namedFile || blob;
+    return {
+        fileUrl: URL.createObjectURL(source),
+        mimeType: type,
+        filename: safeName,
+        blob,
+        shouldRevoke: true,
+    };
+}
+
+function base64ToBlob(base64Data, mimeType) {
     const byteCharacters = atob(base64Data);
     const byteNumbers = new Array(byteCharacters.length);
     for (let i = 0; i < byteCharacters.length; i += 1) {
         byteNumbers[i] = byteCharacters.charCodeAt(i);
     }
     const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], { type: mimeType });
-    return URL.createObjectURL(blob);
+    return new Blob([byteArray], { type: mimeType });
+}
+
+/** Trigger a browser download using the document's display name (not a blob UUID). */
+export function downloadStockAttachmentPreview(preview) {
+    if (!preview) return;
+    const filename = preview.filename || "download";
+    let url = preview.fileUrl;
+    let shouldRevoke = false;
+
+    if (preview.blob instanceof Blob) {
+        const namedFile =
+            typeof File !== "undefined"
+                ? new File([preview.blob], filename, {
+                      type: preview.mimeType || preview.blob.type || "application/octet-stream",
+                  })
+                : preview.blob;
+        url = URL.createObjectURL(namedFile);
+        shouldRevoke = true;
+    }
+
+    if (!url) return;
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    if (shouldRevoke) URL.revokeObjectURL(url);
 }
 
 async function resolveFromLegacyAttachmentsApi(attachment, stockItemId) {
@@ -37,12 +82,11 @@ async function resolveFromLegacyAttachmentsApi(attachment, stockItemId) {
 
     if (response.data instanceof Blob) {
         const mimeType = response.type || attachment.mimetype || "application/octet-stream";
-        return {
-            fileUrl: URL.createObjectURL(response.data),
-            mimeType,
-            filename: getStockAttachmentLabel(attachment),
-            shouldRevoke: true,
-        };
+        return createNamedPreviewFromBlob(
+            response.data,
+            response.filename || getStockAttachmentLabel(attachment),
+            mimeType
+        );
     }
 
     if (response.result?.attachments && Array.isArray(response.result.attachments)) {
@@ -65,12 +109,11 @@ async function resolveFromLegacyAttachmentsApi(attachment, stockItemId) {
 
     if (attachmentData.datas) {
         const mimeType = attachmentData.mimetype || attachment.mimetype || "application/octet-stream";
-        return {
-            fileUrl: base64ToBlobUrl(attachmentData.datas, mimeType),
-            mimeType,
-            filename: getStockAttachmentLabel(attachmentData),
-            shouldRevoke: true,
-        };
+        return createNamedPreviewFromBlob(
+            base64ToBlob(attachmentData.datas, mimeType),
+            getStockAttachmentLabel(attachmentData),
+            mimeType
+        );
     }
 
     if (attachmentData.url && !attachmentData.url.includes("/api/stock/list/")) {
@@ -84,12 +127,11 @@ async function resolveFromLegacyAttachmentsApi(attachment, stockItemId) {
 
     if (attachmentData.file || attachmentData.blob) {
         const file = attachmentData.file || attachmentData.blob;
-        return {
-            fileUrl: URL.createObjectURL(file),
-            mimeType: getStockAttachmentMimeType(attachmentData),
-            filename: getStockAttachmentLabel(attachmentData),
-            shouldRevoke: true,
-        };
+        return createNamedPreviewFromBlob(
+            file,
+            getStockAttachmentLabel(attachmentData),
+            getStockAttachmentMimeType(attachmentData)
+        );
     }
 
     throw new Error("Attachment data format not supported");
@@ -103,24 +145,17 @@ export async function resolveStockAttachmentPreviewUrl(attachment, stockItemId =
 
     if (attachment instanceof File || attachment instanceof Blob) {
         const mimeType = attachment.type || "application/octet-stream";
-        return {
-            fileUrl: URL.createObjectURL(attachment),
-            mimeType,
-            filename: attachment.name || "File",
-            shouldRevoke: true,
-        };
+        const filename = attachment.name || "File";
+        return createNamedPreviewFromBlob(attachment, filename, mimeType);
     }
 
     if (stockItemId && attachment.id) {
         const response = await downloadStockItemAttachmentApi(stockItemId, attachment.id, false);
         if (response.data instanceof Blob) {
             const mimeType = response.type || attachment.mimetype || "application/octet-stream";
-            return {
-                fileUrl: URL.createObjectURL(response.data),
-                mimeType,
-                filename: getStockAttachmentLabel(attachment),
-                shouldRevoke: true,
-            };
+            const filename =
+                response.filename || getStockAttachmentLabel(attachment);
+            return createNamedPreviewFromBlob(response.data, filename, mimeType);
         }
         throw new Error("Invalid response format from server");
     }
@@ -143,12 +178,11 @@ export async function resolveStockAttachmentPreviewUrl(attachment, stockItemId =
 
     if (attachment.datas) {
         const mimeType = getStockAttachmentMimeType(attachment);
-        return {
-            fileUrl: base64ToBlobUrl(attachment.datas, mimeType),
-            mimeType,
-            filename: getStockAttachmentLabel(attachment),
-            shouldRevoke: true,
-        };
+        return createNamedPreviewFromBlob(
+            base64ToBlob(attachment.datas, mimeType),
+            getStockAttachmentLabel(attachment),
+            mimeType
+        );
     }
 
     if (attachment.url) {

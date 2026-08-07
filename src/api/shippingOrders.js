@@ -283,6 +283,42 @@ export const downloadShippingOrderAttachmentApi = async (
   }
 };
 
+/** GET /api/shipping/order/:orderId/cipl/:ciplId/download */
+export const downloadShippingOrderCiplApi = async (orderId, ciplId, forceDownload = false) => {
+  try {
+    const url = `${getApiEndpoint("SHIPPING_ORDER")}/${orderId}/cipl/${ciplId}/download${
+      forceDownload ? "?download=true" : ""
+    }`;
+    const response = await api.get(url, { responseType: "blob" });
+
+    if (response.data instanceof Blob && response.data.type === "application/json") {
+      const text = await response.data.text();
+      const jsonData = JSON.parse(text);
+      if (jsonData.result && jsonData.result.status === "error") {
+        throw new Error(jsonData.result.message || "Failed to download CIPL file");
+      }
+      return jsonData;
+    }
+
+    const disposition = response.headers["content-disposition"];
+    return {
+      data: response.data,
+      type: response.headers["content-type"] || "application/pdf",
+      filename: parseContentDispositionFilename(disposition),
+      contentDisposition: disposition,
+    };
+  } catch (error) {
+    if (error.response?.data instanceof Blob && error.response.data.type === "application/json") {
+      const text = await error.response.data.text();
+      const jsonData = JSON.parse(text);
+      if (jsonData.result?.status === "error") {
+        throw new Error(jsonData.result.message || "Failed to download CIPL file");
+      }
+    }
+    throw error;
+  }
+};
+
 /** Build absolute download URL when API returns a relative download_url. */
 export const buildShippingOrderAttachmentUrl = (orderId, attachment, forceDownload = false) => {
   const base = (API_CONFIG.BASE_URL || "").replace(/\/$/, "");

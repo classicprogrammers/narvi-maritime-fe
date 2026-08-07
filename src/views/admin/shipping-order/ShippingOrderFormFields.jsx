@@ -60,6 +60,14 @@ export default function ShippingOrderFormFields({
       ? formData.so_delivery_date.split(" ")[0]
       : formData.so_delivery_date)
     : "";
+  const etaDateVal = formData.eta_date && formData.eta_date !== false
+    ? (typeof formData.eta_date === "string" ? formData.eta_date.split(" ")[0] : formData.eta_date)
+    : "";
+  const nextActionVal = formData.next_action && formData.next_action !== false
+    ? (typeof formData.next_action === "string"
+      ? formData.next_action.split(" ")[0]
+      : formData.next_action)
+    : "";
 
   return (
     <VStack spacing="6" align="stretch">
@@ -300,9 +308,12 @@ export default function ShippingOrderFormFields({
             <FormLabel>Next Action</FormLabel>
             <Input
               type="date"
-              value={formData.next_action || ""}
+              value={nextActionVal}
               onChange={(e) =>
-                setFormData((prev) => ({ ...prev, next_action: e.target.value }))
+                setFormData((prev) => ({
+                  ...prev,
+                  next_action: e.target.value || false,
+                }))
               }
             />
           </FormControl>
@@ -316,9 +327,12 @@ export default function ShippingOrderFormFields({
             <FormLabel>ETA</FormLabel>
             <Input
               type="date"
-              value={formData.eta_date || ""}
+              value={etaDateVal}
               onChange={(e) =>
-                setFormData((prev) => ({ ...prev, eta_date: e.target.value }))
+                setFormData((prev) => ({
+                  ...prev,
+                  eta_date: e.target.value || false,
+                }))
               }
             />
           </FormControl>
@@ -440,7 +454,10 @@ export default function ShippingOrderFormFields({
               type="date"
               value={soDeliveryDateVal}
               onChange={(e) =>
-                setFormData((prev) => ({ ...prev, so_delivery_date: e.target.value }))
+                setFormData((prev) => ({
+                  ...prev,
+                  so_delivery_date: e.target.value || false,
+                }))
               }
             />
           </FormControl>

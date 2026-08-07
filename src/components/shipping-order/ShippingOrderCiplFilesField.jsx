@@ -14,7 +14,7 @@ import {
   useToast,
 } from "@chakra-ui/react";
 import { MdAttachFile, MdClose as MdRemove, MdDownload } from "react-icons/md";
-import { downloadShippingOrderAttachmentApi } from "../../api/shippingOrders";
+import { downloadShippingOrderCiplApi } from "../../api/shippingOrders";
 import {
   filesToShippingAttachments,
   resolveShippingOrderDownloadFilename,
@@ -126,7 +126,7 @@ export default function ShippingOrderCiplFilesField({
 
     try {
       setLoadingFileId(att.id);
-      const response = await downloadShippingOrderAttachmentApi(resolvedOrderId, att.id, true);
+      const response = await downloadShippingOrderCiplApi(resolvedOrderId, att.id, true);
       if (response?.data instanceof Blob) {
         const filename = resolveShippingOrderDownloadFilename(att, response);
         triggerBlobDownload(response.data, filename);
@@ -134,7 +134,7 @@ export default function ShippingOrderCiplFilesField({
     } catch (err) {
       toast({
         title: "Error",
-        description: err?.message || "Failed to download file",
+        description: err?.message || "Failed to download CIPL file",
         status: "error",
         duration: 3000,
         isClosable: true,

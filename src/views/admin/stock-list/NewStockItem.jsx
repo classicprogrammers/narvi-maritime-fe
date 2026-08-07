@@ -2296,7 +2296,7 @@ export default function StockForm() {
                                             )}
                                         </Td>
                                         <Td {...cellProps} position="relative" overflow="visible">
-                                            {assignCell(rowIndex, "originId",
+                                            {assignCell(rowIndex, ["originId", "origin_text"],
                                                 <StockOriginCountrySelect
                                                     value={row.origin_text || ""}
                                                     selectedId={row.originId}
@@ -2349,7 +2349,7 @@ export default function StockForm() {
                                             )}
                                         </Td>
                                         <Td {...cellProps} position="relative" overflow="visible">
-                                            {assignCell(rowIndex, "narviStockViaHub1",
+                                            {assignCell(rowIndex, ["narviStockViaHub1", "narviStockViaHub1Name"],
                                                 <StockIdNameSearchableSelect
                                                     value={row.narviStockViaHub1}
                                                     selectedName={row.narviStockViaHub1Name}
@@ -2389,7 +2389,7 @@ export default function StockForm() {
                                             )}
                                         </Td>
                                         <Td {...cellProps} position="relative" overflow="visible">
-                                            {assignCell(rowIndex, "narviStockViaHub2",
+                                            {assignCell(rowIndex, ["narviStockViaHub2", "narviStockViaHub2Name"],
                                                 <StockIdNameSearchableSelect
                                                     value={row.narviStockViaHub2}
                                                     selectedName={row.narviStockViaHub2Name}
@@ -2429,7 +2429,7 @@ export default function StockForm() {
                                             )}
                                         </Td>
                                         <Td {...cellProps} position="relative" overflow="visible" zIndex={1}>
-                                            {assignCell(rowIndex, "narviStockApDestination",
+                                            {assignCell(rowIndex, ["narviStockApDestination", "narviStockApDestinationName"],
                                                 <StockIdNameSearchableSelect
                                                     value={row.narviStockApDestination}
                                                     selectedName={row.narviStockApDestinationName}
@@ -2469,7 +2469,7 @@ export default function StockForm() {
                                             )}
                                         </Td>
                                         <Td {...cellProps} position="relative" overflow="visible" zIndex={1}>
-                                            {assignCell(rowIndex, "destinationId",
+                                            {assignCell(rowIndex, ["destinationId", "destinationName"],
                                                 <StockIdNameSearchableSelect
                                                     value={row.destinationId}
                                                     selectedName={row.destinationName}

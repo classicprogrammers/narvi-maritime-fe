@@ -163,24 +163,50 @@ export function buildPayloadFromForm(data, isUpdate = false, originalData = {}) 
     };
 
     const fields = [
-      { key: "client_id", value: data.client_id || null, originalValue: originalData.client_id || null },
-      { key: "vessel_id", value: data.vessel_id || null, originalValue: originalData.vessel_id || null },
-      { key: "destination_type", value: data.destination_type || null, originalValue: originalData.destination_type || null },
-      { key: "destination", value: data.destination || null, originalValue: originalData.destination || null },
-      { key: "country_id", value: data.country_id || null, originalValue: originalData.country_id || null },
-      { key: "destination_id", value: data.destination_id || null, originalValue: originalData.destination_id || null },
+      { key: "client_id", value: data.client_id || false, originalValue: originalData.client_id || null },
+      { key: "vessel_id", value: data.vessel_id || false, originalValue: originalData.vessel_id || null },
+      {
+        key: "destination_type",
+        value: data.destination_type || false,
+        originalValue: originalData.destination_type || null,
+      },
+      {
+        key: "destination",
+        value: data.destination ? data.destination : false,
+        originalValue: originalData.destination || null,
+        compareValue: data.destination ? String(data.destination).trim() : null,
+      },
+      { key: "country_id", value: data.country_id || false, originalValue: originalData.country_id || null },
+      {
+        key: "destination_id",
+        value: data.destination_id || false,
+        originalValue: originalData.destination_id || null,
+      },
       { key: "done", value: data.done || "active", originalValue: originalData.done || null },
-      { key: "pic_new", value: data.pic_new || null, originalValue: originalData.pic_new || null },
+      { key: "pic_new", value: data.pic_new || false, originalValue: originalData.pic_new || null },
       {
         key: "quotation_id",
-        value: data.quotation_id === null || data.quotation_id === undefined ? "" : data.quotation_id,
-        originalValue: originalData.quotation_id === null || originalData.quotation_id === undefined ? "" : originalData.quotation_id,
+        value: data.quotation_id === null || data.quotation_id === undefined || data.quotation_id === "" || data.quotation_id === false
+          ? ""
+          : data.quotation_id,
+        originalValue:
+          originalData.quotation_id === null ||
+          originalData.quotation_id === undefined ||
+          originalData.quotation_id === false
+            ? ""
+            : originalData.quotation_id,
       },
       {
         key: "eta_date",
-        value: toDateTime(data.eta_date),
+        value:
+          data.eta_date && data.eta_date !== false
+            ? toDateTime(String(data.eta_date).split(" ")[0])
+            : false,
         originalValue: normalizeOriginalDateTime(originalData.eta_date),
-        compareValue: data.eta_date ? data.eta_date.split(" ")[0] : null,
+        compareValue:
+          data.eta_date && data.eta_date !== false
+            ? String(data.eta_date).split(" ")[0]
+            : null,
       },
       {
         key: "etb",
@@ -196,35 +222,76 @@ export function buildPayloadFromForm(data, isUpdate = false, originalData = {}) 
       },
       {
         key: "so_delivery_date",
-        value: data.so_delivery_date ? toDateOnly(data.so_delivery_date) : null,
+        value: data.so_delivery_date && data.so_delivery_date !== false
+          ? toDateOnly(data.so_delivery_date)
+          : false,
         originalValue: normalizeOriginalDate(originalData.so_delivery_date),
-        compareValue: data.so_delivery_date ? toDateOnly(data.so_delivery_date) : null,
+        compareValue: data.so_delivery_date && data.so_delivery_date !== false
+          ? toDateOnly(data.so_delivery_date)
+          : null,
       },
       {
         key: "date_order",
-        value: toDateTime(data.date_created || data.date_order),
+        value:
+          data.date_created || data.date_order
+            ? toDateTime(data.date_created || data.date_order)
+            : false,
         originalValue: normalizeOriginalDateTime(originalData.date_order || originalData.date_created),
-        compareValue: data.date_created || data.date_order ? (data.date_created || data.date_order).split(" ")[0] : null,
+        compareValue: data.date_created || data.date_order
+          ? String(data.date_created || data.date_order).split(" ")[0]
+          : null,
       },
       {
         key: "next_action",
-        value: data.next_action ? toDateOnly(data.next_action) : null,
+        value: data.next_action && data.next_action !== false
+          ? toDateOnly(data.next_action)
+          : false,
         originalValue: normalizeOriginalDate(originalData.next_action),
-        compareValue: data.next_action ? toDateOnly(data.next_action) : null,
+        compareValue: data.next_action && data.next_action !== false
+          ? toDateOnly(data.next_action)
+          : null,
       },
-      { key: "internal_remark", value: data.internal_remark || null, originalValue: originalData.internal_remark || null },
-      { key: "client_case_invoice_ref", value: data.client_case_invoice_ref || null, originalValue: originalData.client_case_invoice_ref || null },
-      { key: "vsls_agent_dtls", value: data.vsls_agent_dtls || null, originalValue: originalData.vsls_agent_dtls || null },
+      {
+        key: "internal_remark",
+        value: data.internal_remark ? data.internal_remark : false,
+        originalValue: originalData.internal_remark || null,
+        compareValue: data.internal_remark ? String(data.internal_remark).trim() : null,
+      },
+      {
+        key: "client_case_invoice_ref",
+        value: data.client_case_invoice_ref ? data.client_case_invoice_ref : false,
+        originalValue: originalData.client_case_invoice_ref || null,
+        compareValue: data.client_case_invoice_ref
+          ? String(data.client_case_invoice_ref).trim()
+          : null,
+      },
+      {
+        key: "vsls_agent_dtls",
+        value: data.vsls_agent_dtls ? data.vsls_agent_dtls : false,
+        originalValue: originalData.vsls_agent_dtls || null,
+        compareValue: data.vsls_agent_dtls ? String(data.vsls_agent_dtls).trim() : null,
+      },
     ];
 
     fields.forEach(({ key, value, originalValue, compareValue }) => {
       const newValueToCompare = compareValue !== undefined ? compareValue : value;
-      if (hasChanged(newValueToCompare, originalValue)) {
-        if (value !== null && value !== undefined && value !== "" && value !== false) {
-          payload[key] = value;
-        } else if (key === "quotation_id" && value === "") {
-          payload[key] = "";
-        }
+      if (!hasChanged(newValueToCompare, originalValue)) return;
+
+      const isEmpty =
+        value === null || value === undefined || value === "" || value === false;
+
+      if (!isEmpty) {
+        payload[key] = value;
+        return;
+      }
+
+      // Cleared fields must still be sent so the backend updates/clears them
+      if (key === "quotation_id") {
+        payload[key] = "";
+      } else if (key === "done") {
+        payload[key] = "active";
+      } else {
+        payload[key] = false;
       }
     });
 

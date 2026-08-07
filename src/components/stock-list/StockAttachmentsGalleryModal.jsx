@@ -18,11 +18,12 @@ import {
     HStack,
     useToast,
 } from "@chakra-ui/react";
-import { MdChevronLeft, MdChevronRight } from "react-icons/md";
+import { MdChevronLeft, MdChevronRight, MdDownload } from "react-icons/md";
 import {
     getStockAttachmentLabel,
     isPreviewableInBrowser,
     resolveStockAttachmentPreviewUrl,
+    downloadStockAttachmentPreview,
 } from "../../utils/stockAttachmentPreview";
 
 const getAttachmentCacheKey = (att, idx) => {
@@ -143,6 +144,24 @@ export default function StockAttachmentsGalleryModal({
 
     const currentLabel = preview?.filename || getStockAttachmentLabel(list[index]);
 
+    const handleDownload = () => {
+        if (!preview) return;
+        try {
+            downloadStockAttachmentPreview({
+                ...preview,
+                filename: currentLabel,
+            });
+        } catch (error) {
+            toast({
+                title: "Error",
+                description: error?.message || "Failed to download file",
+                status: "error",
+                duration: 3000,
+                isClosable: true,
+            });
+        }
+    };
+
     return (
         <Modal isOpen={isOpen} onClose={handleClose} size="full" scrollBehavior="inside">
             <ModalOverlay bg="rgba(0, 0, 0, 0.75)" />
@@ -243,7 +262,7 @@ export default function StockAttachmentsGalleryModal({
                                 ) : (
                                     <Box w="100%" h="calc(100vh - 140px)" px={list.length > 1 ? 16 : 4}>
                                         <iframe
-                                            src={preview.fileUrl}
+                                            src={`${preview.fileUrl}#toolbar=0&navpanes=0`}
                                             title={preview.filename}
                                             style={{ width: "100%", height: "100%", border: "none" }}
                                         />
@@ -270,9 +289,19 @@ export default function StockAttachmentsGalleryModal({
                     </Flex>
                 </ModalBody>
                 <ModalFooter bg="gray.800" borderTop="1px solid" borderColor="gray.700">
-                    <Button variant="ghost" color="white" onClick={handleClose}>
-                        Close
-                    </Button>
+                    <HStack spacing={3} w="100%" justify="flex-end">
+                        <Button
+                            leftIcon={<Icon as={MdDownload} />}
+                            colorScheme="green"
+                            onClick={handleDownload}
+                            isDisabled={!preview || loading}
+                        >
+                            Download
+                        </Button>
+                        <Button variant="ghost" color="white" onClick={handleClose}>
+                            Close
+                        </Button>
+                    </HStack>
                 </ModalFooter>
             </ModalContent>
         </Modal>

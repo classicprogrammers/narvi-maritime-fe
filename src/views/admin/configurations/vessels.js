@@ -315,7 +315,11 @@ export default function Vessels() {
       if (response.vessels && Array.isArray(response.vessels)) {
         setVessels(response.vessels);
         if (Array.isArray(response.vessel_type_selec_options) && response.vessel_type_selec_options.length > 0) {
-          setVesselTypeSelecOptions(response.vessel_type_selec_options);
+          setVesselTypeSelecOptions(
+            response.vessel_type_selec_options.filter(
+              (option) => option?.value != null && String(option.value).trim() !== ""
+            )
+          );
         }
         setTotalCount(response.total_count || 0);
         setTotalPages(response.total_pages || 0);
@@ -946,7 +950,6 @@ export default function Vessels() {
                 borderRadius="8px"
                 placeholder="All vessel types"
               >
-                <option value="">All vessel types</option>
                 {vesselTypeSelecOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}

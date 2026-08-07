@@ -54,7 +54,7 @@ import {
   MdVisibilityOff,
 } from "react-icons/md";
 import Card from "components/card/Card";
-import { listUsersApi, signupUserApi, updateUserApi, forgotPasswordApi } from "api/users";
+import { listUsersApi, signupUserApi, updateUserApi } from "api/users";
 import {
   createClientLoginApi,
   deleteClientLoginApi,
@@ -131,16 +131,24 @@ export default function Users() {
     email: "",
     active: true,
     password: "",
+    confirm_password: "",
     user_type: "user",
   });
 
   const { user: currentUser } = useUser();
   const isAdmin = currentUser?.user_type === "admin";
 
+  const isClientPortalUser = (u) => {
+    const type = u?.user_type ?? u?.user_types;
+    // Client portal accounts: user_type false (or "client") — belong in Client Access only
+    return type === false || type === "false" || type === "client" || type === 0;
+  };
+
   const filteredUsers = useMemo(() => {
+    const staffUsers = users.filter((u) => !isClientPortalUser(u));
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return users;
-    return users.filter((u) =>
+    if (!term) return staffUsers;
+    return staffUsers.filter((u) =>
       [u.name, u.email, u.active ? "active" : "inactive"].some((v) =>
         String(v).toLowerCase().includes(term)
       )
@@ -161,14 +169,16 @@ export default function Users() {
               ? data.data
               : [];
       setUsers(
-        list.map((u, idx) => ({
-          id: u.id ?? u.user_id ?? idx + 1,
-          name: u.name ?? u.full_name ?? "",
-          email: u.email ?? u.login ?? "",
-          active: typeof u.active === "boolean" ? u.active : (u.status ? String(u.status).toLowerCase() === "active" : true),
-          user_type: u.user_type || "user",
-          ...u,
-        }))
+        list
+          .filter((u) => !isClientPortalUser(u))
+          .map((u, idx) => ({
+            ...u,
+            id: u.id ?? u.user_id ?? idx + 1,
+            name: u.name ?? u.full_name ?? "",
+            email: u.email ?? u.login ?? "",
+            active: typeof u.active === "boolean" ? u.active : (u.status ? String(u.status).toLowerCase() === "active" : true),
+            user_type: u.user_type === "admin" ? "admin" : "user",
+          }))
       );
     } catch (e) {
       // handled in API layer
@@ -223,8 +233,10 @@ export default function Users() {
       email: "",
       active: true,
       password: "",
+      confirm_password: "",
       user_type: "user",
     });
+    setShowPassword(false);
     setEditingUser(null);
   };
 
@@ -253,8 +265,10 @@ export default function Users() {
       email: user.email,
       active: Boolean(user.active),
       password: "",
+      confirm_password: "",
       user_type: user.user_type || "user",
     });
+    setShowPassword(false);
     openModal();
   };
 
@@ -272,8 +286,61 @@ export default function Users() {
     const save = async () => {
       try {
         if (editingUser) {
-          const payload = { id: editingUser.id, name: formData.name, active: formData.active, user_type: formData.user_type };
+          const newPassword = String(formData.password || "").trim();
+          const confirmPassword = String(formData.confirm_password || "").trim();
+          if (newPassword || confirmPassword) {
+            if (!newPassword) {
+              toast({
+                title: "Password required",
+                description: "Enter a new password, or leave both password fields blank.",
+                status: "warning",
+                duration: 4000,
+                isClosable: true,
+              });
+              return;
+            }
+            if (newPassword.length < 6) {
+              toast({
+                title: "Invalid password",
+                description: "Password must be at least 6 characters long",
+                status: "error",
+                duration: 4000,
+                isClosable: true,
+              });
+              return;
+            }
+            if (newPassword !== confirmPassword) {
+              toast({
+                title: "Passwords do not match",
+                description: "New password and confirm password must be the same.",
+                status: "warning",
+                duration: 4000,
+                isClosable: true,
+              });
+              return;
+            }
+          }
+
+          const payload = {
+            id: editingUser.id,
+            name: formData.name,
+            active: formData.active,
+            user_type: formData.user_type,
+          };
+          if (newPassword) {
+            payload.password = newPassword;
+          }
           const res = await updateUserApi(payload);
+          if (res?.result?.status === "error" || res?.status === "error") {
+            toast({
+              title: "Update failed",
+              description: res?.result?.message || res?.message || "Failed to update user",
+              status: "error",
+              duration: 5000,
+              isClosable: true,
+            });
+            return;
+          }
           await fetchUsers();
           toast({
             title: "Success",
@@ -283,6 +350,17 @@ export default function Users() {
             isClosable: true,
           });
         } else {
+          const createPassword = String(formData.password || "").trim();
+          if (createPassword.length < 6) {
+            toast({
+              title: "Invalid password",
+              description: "Password must be at least 6 characters long",
+              status: "error",
+              duration: 4000,
+              isClosable: true,
+            });
+            return;
+          }
           const payload = {
             name: formData.name,
             email: formData.email,
@@ -291,6 +369,16 @@ export default function Users() {
             user_type: formData.user_type,
           };
           const res = await signupUserApi(payload);
+          if (res?.result?.status === "error" || res?.status === "error") {
+            toast({
+              title: "Create failed",
+              description: res?.result?.message || res?.message || "Failed to create user",
+              status: "error",
+              duration: 5000,
+              isClosable: true,
+            });
+            return;
+          }
           await fetchUsers();
           toast({
             title: "Success",
@@ -303,7 +391,13 @@ export default function Users() {
         closeModal();
         resetForm();
       } catch (e) {
-        // handled in API layer
+        toast({
+          title: "Error",
+          description: e?.message || "Something went wrong",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
       }
     };
     save();
@@ -699,30 +793,6 @@ export default function Users() {
                 isDisabled={Boolean(editingUser)}
               />
             </FormControl>
-            {editingUser && (
-              <Button
-                size="sm"
-                variant="link"
-                colorScheme="blue"
-                mb="12px"
-                onClick={async () => {
-                  try {
-                    const res = await forgotPasswordApi(formData.email);
-                    toast({
-                      title: "Email Sent",
-                      description: res?.result?.message || res?.message || "A new password has been sent to your email",
-                      status: "success",
-                      duration: 4000,
-                      isClosable: true,
-                    });
-                  } catch (e) {
-                    // handled in API layer
-                  }
-                }}
-              >
-                Forgot Password
-              </Button>
-            )}
             {!editingUser && (
               <FormControl mb="12px" isRequired>
                 <FormLabel>Password</FormLabel>
@@ -744,6 +814,39 @@ export default function Users() {
                   </InputRightElement>
                 </InputGroup>
               </FormControl>
+            )}
+            {editingUser && (
+              <>
+                <FormControl mb="12px">
+                  <FormLabel>New Password</FormLabel>
+                  <InputGroup>
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      onChange={(e) => handleFormChange("password", e.target.value)}
+                      placeholder="Leave blank to keep current password"
+                    />
+                    <InputRightElement width="3rem">
+                      <IconButton
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setShowPassword((v) => !v)}
+                        icon={showPassword ? <MdVisibilityOff /> : <MdVisibility />}
+                      />
+                    </InputRightElement>
+                  </InputGroup>
+                </FormControl>
+                <FormControl mb="12px">
+                  <FormLabel>Confirm New Password</FormLabel>
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    value={formData.confirm_password}
+                    onChange={(e) => handleFormChange("confirm_password", e.target.value)}
+                    placeholder="Leave blank if password unchanged"
+                  />
+                </FormControl>
+              </>
             )}
             <FormControl mb="12px" isRequired>
               <FormLabel>User Type</FormLabel>

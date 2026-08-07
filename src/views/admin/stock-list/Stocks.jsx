@@ -633,6 +633,7 @@ export default function Stocks() {
     const [pdfPreviewTitle, setPdfPreviewTitle] = useState("");
     const [pdfDownloadFilePrefix, setPdfDownloadFilePrefix] = useState("");
     const [isPdfPreviewLoading, setIsPdfPreviewLoading] = useState(false);
+    const [isLoadingAttachment, setIsLoadingAttachment] = useState(false);
     const pdfPreviewBlobUrlRef = useRef(null);
     const pdfPreviewIframeRef = useRef(null);
     const pdfDocRef = useRef(null);
@@ -2085,6 +2086,34 @@ export default function Stocks() {
         const { headers, rows } = buildData(selectedItems);
         if (!headers.length) return;
 
+        const normalizeCopyHeader = (header) =>
+            String(header || "")
+                .toUpperCase()
+                .replace(/\s+/g, " ")
+                .trim();
+
+        // Keep Req / PO / LWH readable when pasted into Excel/Word (they wrap when too narrow)
+        const getCopyColumnMinWidthPx = (header) => {
+            const h = normalizeCopyHeader(header);
+            if (h === "REQ NO") return 200;
+            if (h === "PO #" || h === "PO#" || h === "PO NUMBER") return 260;
+            if (h === "LWH" || h === "LWH TEXT") return 180;
+            return 90;
+        };
+
+        const getCopyColumnMaxWidthPx = (header) => {
+            const h = normalizeCopyHeader(header);
+            if (h === "LWH" || h === "LWH TEXT") return 480;
+            const minW = getCopyColumnMinWidthPx(header);
+            return minW > 90 ? 420 : 320;
+        };
+
+        const getCopyColumnExtraStyle = (header) => {
+            const minW = getCopyColumnMinWidthPx(header);
+            if (minW <= 90) return "";
+            return `min-width:${minW}px;width:${minW}px;white-space:nowrap;`;
+        };
+
         const thStyle = 'border:1px solid #333;padding:6px 8px;background:#f0f0f0;font-weight:700;text-align:left;vertical-align:top;';
         const tdStyle = 'border:1px solid #333;padding:6px 8px;text-align:left;vertical-align:top;';
         const escapeHtml = (value) => String(value ?? "-")
@@ -2095,15 +2124,15 @@ export default function Stocks() {
 
         let htmlTable = '<table style="border-collapse:collapse;font-family:Arial,sans-serif;border:1px solid #333;"><thead><tr>';
         headers.forEach((header) => {
-            htmlTable += `<th style="${thStyle}">${escapeHtml(header)}</th>`;
+            htmlTable += `<th style="${thStyle}${getCopyColumnExtraStyle(header)}">${escapeHtml(header)}</th>`;
         });
         htmlTable += '</tr></thead><tbody>';
 
         rows.forEach((row) => {
             htmlTable += '<tr>';
-            row.forEach((cell) => {
+            row.forEach((cell, colIdx) => {
                 const cellHtml = escapeHtml(cell).replace(/\n/g, '<br>');
-                htmlTable += `<td style="${tdStyle}">${cellHtml}</td>`;
+                htmlTable += `<td style="${tdStyle}${getCopyColumnExtraStyle(headers[colIdx])}">${cellHtml}</td>`;
             });
             htmlTable += '</tr>';
         });
@@ -2127,9 +2156,11 @@ export default function Stocks() {
 
             const charWidth = 7;
             const basePadding = 20;
-            const colWidths = headers.map((_, colIdx) => {
+            const colWidths = headers.map((header, colIdx) => {
                 const maxLen = Math.max(...normalizedRows.map((r) => (r[colIdx] || "").length));
-                return Math.max(90, Math.min(320, maxLen * charWidth + basePadding));
+                const minW = getCopyColumnMinWidthPx(header);
+                const maxW = getCopyColumnMaxWidthPx(header);
+                return Math.max(minW, Math.min(maxW, maxLen * charWidth + basePadding));
             });
 
             const headerHeight = 30;

@@ -32,11 +32,22 @@ const handleApiError = (error, operation) => {
   throw new Error(errorMessage);
 };
 
+/** Throw when JSON-RPC / API body reports status error on HTTP 200. */
+const assertUsersApiSuccess = (data, fallbackMessage) => {
+  if (data?.result?.status === "error") {
+    throw new Error(data.result.message || fallbackMessage);
+  }
+  if (data?.status === "error") {
+    throw new Error(data.message || fallbackMessage);
+  }
+  return data;
+};
+
 // GET /api/list/users
 export const listUsersApi = async () => {
   try {
     const res = await api.get("/api/list/users");
-    return res.data;
+    return assertUsersApiSuccess(res.data, "Failed to fetch users");
   } catch (error) {
     return handleApiError(error, "Fetch Users");
   }
@@ -46,7 +57,7 @@ export const listUsersApi = async () => {
 export const signupUserApi = async (payload) => {
   try {
     const res = await api.post("/api/signup", payload);
-    return res.data;
+    return assertUsersApiSuccess(res.data, "Failed to create user");
   } catch (error) {
     return handleApiError(error, "Create User");
   }
@@ -56,7 +67,7 @@ export const signupUserApi = async (payload) => {
 export const updateUserApi = async (payload) => {
   try {
     const res = await api.post("/api/users/update", payload);
-    return res.data;
+    return assertUsersApiSuccess(res.data, "Failed to update user");
   } catch (error) {
     return handleApiError(error, "Update User");
   }
@@ -66,7 +77,7 @@ export const updateUserApi = async (payload) => {
 export const forgotPasswordApi = async (email) => {
   try {
     const res = await api.post(getApiEndpoint("FORGOT_PASSWORD"), { email });
-    return res.data;
+    return assertUsersApiSuccess(res.data, "Failed to send password reset");
   } catch (error) {
     return handleApiError(error, "Forgot Password");
   }
