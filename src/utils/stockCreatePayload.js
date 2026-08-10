@@ -56,6 +56,7 @@ export const STOCK_CREATE_LINE_KEYS = new Set([
   "dg_un",
   "remarks",
   "internal_remark",
+  "cancel_text",
   "extra",
   "client_access",
   "blank",
@@ -114,6 +115,19 @@ const toNumber = (v) => {
   const num = Number(v);
   return Number.isNaN(num) ? 0 : num;
 };
+
+/** API expects `false` when cancel reason is empty. */
+export function normalizeCancelTextForSave(value) {
+  if (value === false || value == null) return false;
+  const text = String(value).trim();
+  return text === "" ? false : text;
+}
+
+/** Form/UI string from API `cancel_text` (false → ""). */
+export function normalizeCancelTextForForm(value) {
+  if (value === false || value == null || value === undefined) return "";
+  return String(value);
+}
 
 const mapCreateDimensions = (dimensions) => {
   if (!Array.isArray(dimensions) || dimensions.length === 0) return undefined;
@@ -246,6 +260,7 @@ export const buildStockCreateLinePayload = (rowData, context = {}) => {
     client_access: Boolean(rowData.clientAccess),
     remarks: rowData.remarks || "",
     internal_remark: rowData.internalRemark || "",
+    cancel_text: normalizeCancelTextForSave(rowData.cancelText),
     weight_kg: toNumber(rowData.weightKgs),
     width_cm: lwhDim ? toNumber(lwhDim.width_cm) : toNumber(rowData.widthCm),
     length_cm: lwhDim ? toNumber(lwhDim.length_cm) : toNumber(rowData.lengthCm),

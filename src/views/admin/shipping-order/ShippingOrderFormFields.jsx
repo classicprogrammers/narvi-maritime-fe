@@ -104,9 +104,14 @@ export default function ShippingOrderFormFields({
               color={inputText}
               borderColor={borderColor}
               value={formData.done || "active"}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, done: e.target.value }))
-              }
+              onChange={(e) => {
+                const nextDone = e.target.value;
+                setFormData((prev) => ({
+                  ...prev,
+                  done: nextDone,
+                  ...(nextDone !== "cancelled" ? { cancel_text: "" } : null),
+                }));
+              }}
             >
               <option value="active">Active</option>
               <option value="archive">Archive</option>
@@ -117,6 +122,22 @@ export default function ShippingOrderFormFields({
             </Select>
           </FormControl>
         </Flex>
+        {formData.done === "cancelled" && (
+          <FormControl mt="4">
+            <FormLabel>Cancel Reason</FormLabel>
+            <Textarea
+              value={formData.cancel_text || ""}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, cancel_text: e.target.value }))
+              }
+              placeholder="Reason for cancellation..."
+              rows={3}
+              bg={inputBg}
+              color={inputText}
+              borderColor={borderColor}
+            />
+          </FormControl>
+        )}
       </Box>
 
       {/* Party & Vessel */}

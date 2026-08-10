@@ -140,6 +140,7 @@ const SHIPPING_ORDER_TABLE_COLUMNS = [
   { label: "Package Link", field: null, sortable: false },
   { label: "Quotation", field: "quotation", sortable: false },
   { label: "Date Created", field: "date_created", sortable: false },
+  { label: "Cancel Reason", field: "cancel_text", sortable: false },
 ];
 
 const SHIPPING_ORDER_TABLE_COLUMN_COUNT = SHIPPING_ORDER_TABLE_COLUMNS.length;
@@ -356,6 +357,7 @@ const SoNumberTab = () => {
       date_created: todayDate,
       // Default status when creating a new SO
       done: "active",
+      cancel_text: "",
       pic_new: null,
       client: "",
       client_id: null,
@@ -993,6 +995,16 @@ const SoNumberTab = () => {
         </Td>
         <Td {...tableCellProps}><Text {...cellText}>{order.quotation || "-"}</Text></Td>
         <Td {...tableCellProps}><Text {...cellText}>{formatDateTime(order.create_date || order.date_created || order.date_order)}</Text></Td>
+        <Td {...tableCellProps} maxW="240px">
+          <Tooltip
+            label={order.cancel_text || "-"}
+            isDisabled={!order.cancel_text}
+          >
+            <Text noOfLines={2}>
+              {order.cancel_text ? String(order.cancel_text) : "-"}
+            </Text>
+          </Tooltip>
+        </Td>
       </Tr>
     ));
   };

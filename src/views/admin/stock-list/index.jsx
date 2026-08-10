@@ -2161,6 +2161,9 @@ export default function StockList() {
                                         VESSEL ETA {sortField === "vessel_eta" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
                                     <Th {...headerProps}>FILES</Th>
+                                    {activeFilter === "false" && (
+                                        <Th {...headerProps}>CANCEL REASON</Th>
+                                    )}
                                     <Th {...headerProps}>ACTIONS</Th>
                                 </Tr>
                             </Thead>
@@ -2286,6 +2289,15 @@ export default function StockList() {
                                                     }
                                                 />
                                             </Td>
+                                            {activeFilter === "false" && (
+                                                <Td {...cellProps}>
+                                                    <StockCellText {...cellText}>
+                                                        {item.cancel_text && item.cancel_text !== false
+                                                            ? String(item.cancel_text)
+                                                            : "-"}
+                                                    </StockCellText>
+                                                </Td>
+                                            )}
                                             <Td {...cellProps}>
                                                 <IconButton
                                                     icon={<Icon as={MdEdit} />}

@@ -29,6 +29,14 @@ import {
     Td,
     Card,
     IconButton,
+    Modal,
+    ModalOverlay,
+    ModalContent,
+    ModalHeader,
+    ModalFooter,
+    ModalBody,
+    ModalCloseButton,
+    useDisclosure,
 } from "@chakra-ui/react";
 import {
     MdChevronLeft,
@@ -62,7 +70,7 @@ import {
     toStockLocationPayloadId,
 } from "../../../utils/stockLocationOptions";
 import { normalizeStockValueForForm, normalizeStockValueForSave } from "../../../utils/stockValue";
-import { buildStockCreateLinePayload } from "../../../utils/stockCreatePayload";
+import { buildStockCreateLinePayload, normalizeCancelTextForForm, normalizeCancelTextForSave } from "../../../utils/stockCreatePayload";
 import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps, captureFormRowUpdateBaseline } from "../../../utils/stockUpdatePayload";
 import {
     createAppendStockReportPdfOnStatusChange,
@@ -155,6 +163,7 @@ export default function StockForm() {
         remarks: "",
         blank: "",
         clientAccess: true,
+        cancelText: "",
         // Internal fields for API payload (auto-filled or calculated)
         vesselDestination: "", // Auto-filled from vessel
         vesselEta: "", // Auto-filled from vessel
@@ -181,6 +190,16 @@ export default function StockForm() {
     const [stockReportPdfLoadingRowIndex, setStockReportPdfLoadingRowIndex] = useState(null);
     const [stockReportHistoryRowIndex, setStockReportHistoryRowIndex] = useState(null);
     const statusPdfScheduleDedupeRef = useRef(null);
+    const {
+        isOpen: isCancelReasonModalOpen,
+        onOpen: onCancelReasonModalOpen,
+        onClose: onCancelReasonModalClose,
+    } = useDisclosure();
+    const [cancelReasonModal, setCancelReasonModal] = useState({
+        rowIndex: null,
+        previousStatus: "",
+        text: "",
+    });
 
     useEffect(() => {
         formRowsRef.current = formRows;
@@ -550,6 +569,7 @@ export default function StockForm() {
             remarks: getFieldValue(stock.remarks),
             blank: getFieldValue(stock.blank, ""),
             clientAccess: Boolean(stock.client_access),
+            cancelText: normalizeCancelTextForForm(stock.cancel_text),
             // Internal fields for API payload (auto-filled or from data)
             vesselDestination: normalizeId(stock.vessel_destination) || "",
             vesselEta: getFieldValue(stock.vessel_eta),
@@ -738,6 +758,55 @@ export default function StockForm() {
         });
     };
 
+    const openCancelReasonModal = (rowIndex) => {
+        const row = formRowsRef.current?.[rowIndex] || formRows[rowIndex];
+        setCancelReasonModal({
+            rowIndex,
+            previousStatus: row?.stockStatus ?? "",
+            text: normalizeCancelTextForForm(row?.cancelText),
+        });
+        onCancelReasonModalOpen();
+    };
+
+    const handleCancelReasonModalDismiss = () => {
+        setCancelReasonModal({ rowIndex: null, previousStatus: "", text: "" });
+        onCancelReasonModalClose();
+    };
+
+    const handleCancelReasonModalConfirm = () => {
+        const { rowIndex, text } = cancelReasonModal;
+        if (rowIndex == null) {
+            handleCancelReasonModalDismiss();
+            return;
+        }
+        const reason = normalizeCancelTextForForm(text);
+        setFormRows((prev) => {
+            const newRows = [...prev];
+            const oldStatus = prev[rowIndex]?.stockStatus ?? "";
+            const updatedRow = {
+                ...prev[rowIndex],
+                stockStatus: "cancelled",
+                cancelText: reason,
+            };
+            if (String(oldStatus) !== "cancelled") {
+                updatedRow.stockStatusChangedBy = statusChangeActorName;
+                updatedRow.stockStatusPreviousForPayload = oldStatus;
+            }
+            newRows[rowIndex] = updatedRow;
+            return newRows;
+        });
+        handleCancelReasonModalDismiss();
+    };
+
+    const handleStockStatusSelectChange = (rowIndex, nextStatus) => {
+        const normalized = normalizeStockStatusKey(nextStatus) || "";
+        if (normalized === "cancelled") {
+            openCancelReasonModal(rowIndex);
+            return;
+        }
+        handleInputChange(rowIndex, "stockStatus", nextStatus);
+    };
+
     // Add new row
     const handleAddRow = () => {
         setFormRows(prev => [...prev, getEmptyRow()]);
@@ -867,6 +936,7 @@ export default function StockForm() {
             attachment_to_delete: rowData.attachmentsToDelete || [], // Include attachment IDs to delete
             client_access: Boolean(rowData.clientAccess),
             remarks: rowData.remarks || "",
+            cancel_text: normalizeCancelTextForSave(rowData.cancelText),
             weight_kg: toNumber(rowData.weightKgs) || 0,
             // Dimensions filled below with create/update/delete ops
             dimensions: undefined,
@@ -942,6 +1012,7 @@ export default function StockForm() {
                 stock_status: payload.stock_status,
                 stock_status_changed_by: payload.stock_status_changed_by,
                 stock_status_previous: payload.stock_status_previous,
+                cancel_text: payload.cancel_text,
                 attachments: payload.attachments,
                 attachment_to_delete: payload.attachment_to_delete,
             };
@@ -975,6 +1046,7 @@ export default function StockForm() {
                 : (Array.isArray(baselineRow.attachmentsToDelete) ? baselineRow.attachmentsToDelete : []),
             client_access: Boolean(baselineRow.clientAccess),
             remarks: baselineRow.remarks || "",
+            cancel_text: normalizeCancelTextForSave(baselineRow.cancelText),
             weight_kg: toNumber(baselineRow.weightKgs) || 0,
             dimensions: undefined,
             width_cm: baselineRow.dimensions?.[0]?.calculation_method === "lwh"
@@ -1376,6 +1448,7 @@ export default function StockForm() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client Access</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Stock Status</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Files</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Cancel Reason</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Actions</Th>
                             </Tr>
                         </Thead>
@@ -1905,7 +1978,7 @@ export default function StockForm() {
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
                                         <Select
                                             value={row.stockStatus}
-                                            onChange={(e) => handleInputChange(rowIndex, "stockStatus", e.target.value)}
+                                            onChange={(e) => handleStockStatusSelectChange(rowIndex, e.target.value)}
                                             size="sm"
                                             bg={inputBg}
                                             color={inputText}
@@ -2064,6 +2137,27 @@ export default function StockForm() {
                                             })()}
                                         </VStack>
                                     </Td>
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        {normalizeStockStatusKey(row.stockStatus) === "cancelled" ? (
+                                            <Textarea
+                                                value={row.cancelText || ""}
+                                                onChange={(e) => handleInputChange(rowIndex, "cancelText", e.target.value)}
+                                                onClick={() => openCancelReasonModal(rowIndex)}
+                                                size="sm"
+                                                rows={2}
+                                                minW="180px"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                                placeholder="Cancel reason..."
+                                                readOnly
+                                                cursor="pointer"
+                                                title="Click to edit cancel reason"
+                                            />
+                                        ) : (
+                                            <Text fontSize="sm" color="gray.500">-</Text>
+                                        )}
+                                    </Td>
                                     <Td px="8px" py="8px">
                                         <HStack spacing="2">
                                             <IconButton
@@ -2093,6 +2187,41 @@ export default function StockForm() {
                     </Table>
                 </Card>
             </Box>
+            <Modal
+                isOpen={isCancelReasonModalOpen}
+                onClose={handleCancelReasonModalDismiss}
+                size="lg"
+                isCentered
+            >
+                <ModalOverlay />
+                <ModalContent>
+                    <ModalHeader>Cancel reason</ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody>
+                        <Text fontSize="sm" mb={3} color="gray.600">
+                            Please enter the reason for changing status to Cancelled.
+                        </Text>
+                        <Textarea
+                            value={cancelReasonModal.text}
+                            onChange={(e) =>
+                                setCancelReasonModal((prev) => ({ ...prev, text: e.target.value }))
+                            }
+                            placeholder="Cancel reason..."
+                            rows={6}
+                            resize="vertical"
+                            autoFocus
+                        />
+                    </ModalBody>
+                    <ModalFooter>
+                        <Button variant="ghost" mr={3} onClick={handleCancelReasonModalDismiss}>
+                            Cancel
+                        </Button>
+                        <Button colorScheme="blue" onClick={handleCancelReasonModalConfirm}>
+                            Confirm
+                        </Button>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
             <StockReportHistoryModal
                 isOpen={stockReportHistoryRowIndex !== null}
                 onClose={() => setStockReportHistoryRowIndex(null)}

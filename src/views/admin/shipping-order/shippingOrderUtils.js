@@ -52,6 +52,10 @@ export function normalizeOrder(order) {
         : order.done === true
           ? "active"
           : "active",
+    cancel_text:
+      order.cancel_text === false || order.cancel_text == null || order.cancel_text === undefined
+        ? ""
+        : String(order.cancel_text),
     pic_new: (picVal && typeof picVal === "object" ? picVal.id : picVal) ?? null,
     pic_name: (picVal && typeof picVal === "object" ? picVal.name : null) || order.pic_name || order.pic || "",
     client: (clientVal && typeof clientVal === "object" ? clientVal.name : null) || order.client || order.client_name || "",
@@ -183,6 +187,21 @@ export function buildPayloadFromForm(data, isUpdate = false, originalData = {}) 
         originalValue: originalData.destination_id || null,
       },
       { key: "done", value: data.done || "active", originalValue: originalData.done || null },
+      {
+        key: "cancel_text",
+        value:
+          data.cancel_text === false || data.cancel_text == null
+            ? ""
+            : String(data.cancel_text),
+        originalValue:
+          originalData.cancel_text === false || originalData.cancel_text == null
+            ? ""
+            : String(originalData.cancel_text),
+        compareValue:
+          data.cancel_text === false || data.cancel_text == null
+            ? ""
+            : String(data.cancel_text).trim(),
+      },
       { key: "pic_new", value: data.pic_new || false, originalValue: originalData.pic_new || null },
       {
         key: "quotation_id",
@@ -286,7 +305,7 @@ export function buildPayloadFromForm(data, isUpdate = false, originalData = {}) 
       }
 
       // Cleared fields must still be sent so the backend updates/clears them
-      if (key === "quotation_id") {
+      if (key === "quotation_id" || key === "cancel_text") {
         payload[key] = "";
       } else if (key === "done") {
         payload[key] = "active";
@@ -309,6 +328,11 @@ export function buildPayloadFromForm(data, isUpdate = false, originalData = {}) 
   if (hasValue(data.country_id)) payload.country_id = data.country_id;
   if (hasValue(data.destination_id)) payload.destination_id = data.destination_id;
   if (hasValue(data.done)) payload.done = data.done || "active";
+  // Always include cancel_text (API expects "" when empty)
+  payload.cancel_text =
+    data.cancel_text === false || data.cancel_text == null
+      ? ""
+      : String(data.cancel_text);
   if (hasValue(data.pic_new)) payload.pic_new = data.pic_new;
   if (data.quotation_id !== null && data.quotation_id !== undefined) {
     payload.quotation_id = data.quotation_id;

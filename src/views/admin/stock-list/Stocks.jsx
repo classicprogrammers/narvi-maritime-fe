@@ -5814,6 +5814,9 @@ export default function Stocks() {
                                                     <Th {...headerProps}>CLIENT</Th>
                                                     <Th {...headerProps}>INTERNAL REMARKS</Th>
                                                     <Th {...headerProps}>FILES</Th>
+                                                    {stockViewActiveFilter === "false" && (
+                                                        <Th {...headerProps}>CANCEL REASON</Th>
+                                                    )}
                                                     <Th {...headerProps}>ACTIONS</Th>
                                                 </Tr>
                                             </Thead>
@@ -5956,6 +5959,15 @@ export default function Stocks() {
                                                                         }
                                                                     />
                                                                 </Td>
+                                                                {stockViewActiveFilter === "false" && (
+                                                                    <Td {...cellProps}>
+                                                                        <StockCellText {...cellText}>
+                                                                            {item.cancel_text && item.cancel_text !== false
+                                                                                ? String(item.cancel_text)
+                                                                                : "-"}
+                                                                        </StockCellText>
+                                                                    </Td>
+                                                                )}
                                                                 <Td {...cellProps}>
                                                                     <IconButton
                                                                         icon={<Icon as={MdEdit} />}
