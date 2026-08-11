@@ -67,7 +67,7 @@ import useStockFormRemoteSelects from "../../../hooks/useStockFormRemoteSelects"
 import useStockListOptionPins from "../../../hooks/useStockListOptionPins";
 import { mergeSelectedIntoOptions } from "../../../utils/stockFormSelectUtils";
 import { buildStockCreateLinePayload, normalizeCancelTextForForm, normalizeCancelTextForSave } from "../../../utils/stockCreatePayload";
-import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps, captureFormRowUpdateBaseline } from "../../../utils/stockUpdatePayload";
+import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps, resolveDimensionsBaseline, filterNewPendingAttachments, filterNewAttachmentDeletes } from "../../../utils/stockUpdatePayload";
 import {
     filterItemsWithBulkSaveFailures,
     filterRowsWithBulkSaveFailures,
@@ -1456,8 +1456,8 @@ export default function StockForm() {
             delivered_date: toClearableDateValue(rowData.deliveredDate),
             details: rowData.details || "",
             dg_un: rowData.dgUn || "", // DG/UN Number - Free text
-            attachments: rowData.attachments || [], // Include attachments in payload
-            attachment_to_delete: rowData.attachmentsToDelete || [], // Include attachment IDs to delete
+            attachments: [], // filled below — only new pending files vs baseline
+            attachment_to_delete: [], // filled below
             dimensions: undefined, // filled below with create/update/delete ops
             vessel_destination: rowData.vesselDestination ? String(rowData.vesselDestination) : "", // Free text field
             vessel_eta: toClearableDateValue(rowData.vesselEta),
@@ -1514,9 +1514,23 @@ export default function StockForm() {
                 ? stockList.find((s) => String(s.id) === String(rowData.stockId))
                 : null);
 
-        const baselineFormRow = originalStock ? null : (rowData.updateBaselineRow || null);
+        // Prefer post-status-save snapshot when present (list items often have empty dimensions [])
+        const baselineFormRow = rowData.updateBaselineRow || null;
 
-        const originalDimensions = originalStock?.dimensions || baselineFormRow?.dimensions || [];
+        // Only send attachments not already uploaded in a prior status-change / save
+        payload.attachments = filterNewPendingAttachments(
+            rowData.attachments,
+            baselineFormRow?.attachments
+        );
+        payload.attachment_to_delete = filterNewAttachmentDeletes(
+            rowData.attachmentsToDelete,
+            baselineFormRow?.attachmentsToDelete
+        );
+
+        const originalDimensions = resolveDimensionsBaseline(
+            originalStock?.dimensions,
+            baselineFormRow?.dimensions
+        );
 
         // Dimensions: create / update / delete ops (never re-create unchanged existing rows)
         const dimensionOps = buildStockUpdateDimensionsOps(
@@ -1529,9 +1543,8 @@ export default function StockForm() {
             delete payload.dimensions;
         }
 
-        const baselineRow = originalStock
-            ? loadFormDataFromStock(originalStock, true)
-            : baselineFormRow;
+        const baselineRow = baselineFormRow
+            || (originalStock ? loadFormDataFromStock(originalStock, true) : null);
 
         if (!baselineRow) {
             // No baseline yet (should be rare) — never re-send full create payload / dimensions
@@ -1596,12 +1609,9 @@ export default function StockForm() {
             delivered_date: toClearableDateValue(baselineRow.deliveredDate),
             details: baselineRow.details || "",
             dg_un: baselineRow.dgUn || "",
-            attachments: originalStock
-                ? []
-                : (Array.isArray(baselineRow.attachments) ? baselineRow.attachments : []),
-            attachment_to_delete: originalStock
-                ? []
-                : (Array.isArray(baselineRow.attachmentsToDelete) ? baselineRow.attachmentsToDelete : []),
+            // Candidate already filtered to new pending only — empty baseline means "send if any"
+            attachments: [],
+            attachment_to_delete: [],
             // No dimension ops on baseline — candidate already holds only changed ops
             dimensions: undefined,
             vessel_destination: baselineRow.vesselDestination ? String(baselineRow.vesselDestination) : "",

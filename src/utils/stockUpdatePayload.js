@@ -174,6 +174,25 @@ export function buildStockUpdateDimensionsOps(currentDims = [], originalDims = [
       return;
     }
 
+    // Same content already exists in original (any index) — never create again
+    const contentMatch = originalList.find((original) => dimensionFieldsEqual(dim, original));
+    if (contentMatch) {
+      const matchedId = resolveDimensionId(contentMatch);
+      if (matchedId != null) keptIds.add(String(matchedId));
+      return;
+    }
+
+    // Dim already has a server id that wasn't in original list — update, don't create
+    if (id != null) {
+      keptIds.add(String(id));
+      ops.push({
+        op: "update",
+        id,
+        ...mapDimensionBody(dim),
+      });
+      return;
+    }
+
     // Truly new dimension row beyond the baseline
     if (hasDimensionData(dim)) {
       ops.push({
@@ -193,6 +212,137 @@ export function buildStockUpdateDimensionsOps(currentDims = [], originalDims = [
   });
 
   return ops.length > 0 ? ops : undefined;
+}
+
+/**
+ * Prefer dimension lists that still have server ids / real rows.
+ * Important: `[]` is truthy in JS, so callers must not use `stock.dimensions || baseline`.
+ */
+export function resolveDimensionsBaseline(stockDimensions, baselineDimensions) {
+  const stock = Array.isArray(stockDimensions) ? stockDimensions : null;
+  const baseline = Array.isArray(baselineDimensions) ? baselineDimensions : null;
+  const stockHasIds = Boolean(stock?.some((d) => resolveDimensionId(d) != null));
+  const baselineHasIds = Boolean(baseline?.some((d) => resolveDimensionId(d) != null));
+
+  if (stockHasIds) return stock;
+  if (baselineHasIds) return baseline;
+  if (stock && stock.length > 0) return stock;
+  if (baseline && baseline.length > 0) return baseline;
+  // Post-create snapshot may be [] — still prefer it over a missing stock list payload
+  if (baseline) return baseline;
+  if (stock) return stock;
+  return [];
+}
+
+/** Stable fingerprint for a pending attachment (avoids re-uploading the same file). */
+export function attachmentFingerprint(att) {
+  if (!att || typeof att !== "object") return "";
+  const name = String(att.filename || att.name || "")
+    .trim()
+    .toLowerCase();
+  const mime = String(att.mimetype || "")
+    .trim()
+    .toLowerCase();
+  const datas = typeof att.datas === "string" ? att.datas : "";
+  return `${name}|${mime}|${datas.length}|${datas.slice(0, 24)}|${datas.slice(-24)}`;
+}
+
+/** Baseline snapshot of pending uploads (fingerprints only — no base64 retained). */
+export function normalizeAttachmentsForBaseline(attachments) {
+  if (!Array.isArray(attachments)) return [];
+  return attachments
+    .filter((att) => att && typeof att === "object")
+    .map((att) => {
+      const fp = att._fp || attachmentFingerprint(att);
+      return {
+        filename: att.filename || att.name || "",
+        mimetype: att.mimetype || "",
+        _fp: fp,
+      };
+    })
+    .filter((att) => att._fp);
+}
+
+/**
+ * Pending attachments that are not already in the baseline (already uploaded / accounted for).
+ * Skips rows that already have a server id.
+ */
+export function filterNewPendingAttachments(current = [], baseline = []) {
+  const baselineFps = new Set(
+    (Array.isArray(baseline) ? baseline : [])
+      .map((att) => att?._fp || attachmentFingerprint(att))
+      .filter(Boolean)
+  );
+  return (Array.isArray(current) ? current : []).filter((att) => {
+    if (!att || typeof att !== "object") return false;
+    if (att.id != null && att.id !== false && String(att.id).trim() !== "") return false;
+    if (!att.datas) return false;
+    const fp = att._fp || attachmentFingerprint(att);
+    if (!fp) return false;
+    return !baselineFps.has(fp);
+  });
+}
+
+/** Attachment delete ids not already recorded in the baseline. */
+export function filterNewAttachmentDeletes(current = [], baseline = []) {
+  const baselineSet = new Set((Array.isArray(baseline) ? baseline : []).map((id) => String(id)));
+  return (Array.isArray(current) ? current : []).filter((id) => {
+    if (id == null || id === false || id === "") return false;
+    return !baselineSet.has(String(id));
+  });
+}
+
+function dedupeAttachmentFingerprints(list = []) {
+  const seen = new Set();
+  const out = [];
+  (Array.isArray(list) ? list : []).forEach((att) => {
+    const fp = att?._fp || attachmentFingerprint(att);
+    if (!fp || seen.has(fp)) return;
+    seen.add(fp);
+    out.push(att._fp ? att : { ...att, _fp: fp });
+  });
+  return out;
+}
+
+/**
+ * After a successful create/update that included pending files, drop their base64
+ * (so they cannot be re-uploaded) and remember fingerprints in the update baseline.
+ * Filenames stay on the row for UI until the user navigates away / reloads.
+ */
+export function clearUploadedPendingAttachmentsFromRow(row, uploadedAttachments = null) {
+  if (!row || typeof row !== "object") return row;
+  const uploaded = Array.isArray(uploadedAttachments) ? uploadedAttachments : row.attachments;
+  const uploadedNormalized = normalizeAttachmentsForBaseline(uploaded);
+  const uploadedFps = new Set(uploadedNormalized.map((att) => att._fp).filter(Boolean));
+
+  const nextAttachments = (Array.isArray(row.attachments) ? row.attachments : []).map((att) => {
+    const fp = attachmentFingerprint(att);
+    if (!fp || !uploadedFps.has(fp)) return att;
+    // Keep metadata for display; strip datas so filterNewPendingAttachments skips it
+    const { datas, ...rest } = att || {};
+    return { ...rest, _fp: fp };
+  });
+
+  const next = {
+    ...row,
+    attachments: nextAttachments,
+    // Deletes that were already sent should not be resent
+    attachmentsToDelete: [],
+  };
+  const baseline = captureFormRowUpdateBaseline(next);
+  baseline.attachments = dedupeAttachmentFingerprints([
+    ...(Array.isArray(row.updateBaselineRow?.attachments) ? row.updateBaselineRow.attachments : []),
+    ...uploadedNormalized,
+    ...normalizeAttachmentsForBaseline(nextAttachments),
+  ]);
+  baseline.attachmentsToDelete = [
+    ...(Array.isArray(row.updateBaselineRow?.attachmentsToDelete)
+      ? row.updateBaselineRow.attachmentsToDelete
+      : []),
+    ...(Array.isArray(row.attachmentsToDelete) ? row.attachmentsToDelete : []),
+  ].filter((id, idx, arr) => id != null && id !== false && id !== "" && arr.indexOf(id) === idx);
+  next.updateBaselineRow = baseline;
+  return next;
 }
 
 /**
@@ -223,6 +373,7 @@ export function captureFormRowUpdateBaseline(row) {
     clientAccess: row.clientAccess,
     remarks: row.remarks || "",
     internalRemark: row.internalRemark || "",
+    cancelText: row.cancelText || "",
     weightKgs: row.weightKgs,
     widthCm: row.widthCm,
     lengthCm: row.lengthCm,
@@ -251,7 +402,10 @@ export function captureFormRowUpdateBaseline(row) {
     dimensions: Array.isArray(row.dimensions)
       ? row.dimensions.map((dim) => ({ ...(dim || {}) }))
       : [],
-    attachments: [],
-    attachmentsToDelete: [],
+    // Fingerprints of pending uploads already accounted for (prevents re-upload)
+    attachments: normalizeAttachmentsForBaseline(row.attachments),
+    attachmentsToDelete: Array.isArray(row.attachmentsToDelete)
+      ? [...row.attachmentsToDelete]
+      : [],
   };
 }

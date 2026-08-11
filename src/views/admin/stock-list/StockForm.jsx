@@ -71,7 +71,7 @@ import {
 } from "../../../utils/stockLocationOptions";
 import { normalizeStockValueForForm, normalizeStockValueForSave } from "../../../utils/stockValue";
 import { buildStockCreateLinePayload, normalizeCancelTextForForm, normalizeCancelTextForSave } from "../../../utils/stockCreatePayload";
-import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps, captureFormRowUpdateBaseline } from "../../../utils/stockUpdatePayload";
+import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps, resolveDimensionsBaseline, filterNewPendingAttachments, filterNewAttachmentDeletes } from "../../../utils/stockUpdatePayload";
 import {
     createAppendStockReportPdfOnStatusChange,
     createSaveRowBeforeStockReportPdf,
@@ -932,8 +932,8 @@ export default function StockForm() {
             narvi_stock_via_hub1: toStockLocationPayloadId(rowData.narviStockViaHub1),
             narvi_stock_via_hub2: toStockLocationPayloadId(rowData.narviStockViaHub2),
             ...buildNarviApDestinationSaveFields(rowData.narviStockApDestination),
-            attachments: rowData.attachments || [], // Include attachments in payload
-            attachment_to_delete: rowData.attachmentsToDelete || [], // Include attachment IDs to delete
+            attachments: [], // filled below — only new pending files vs baseline
+            attachment_to_delete: [], // filled below
             client_access: Boolean(rowData.clientAccess),
             remarks: rowData.remarks || "",
             cancel_text: normalizeCancelTextForSave(rowData.cancelText),
@@ -986,8 +986,23 @@ export default function StockForm() {
                 ? stockList.find((s) => String(s.id) === String(rowData.stockId))
                 : null);
 
-        const baselineFormRow = originalStock ? null : (rowData.updateBaselineRow || null);
-        const originalDimensions = originalStock?.dimensions || baselineFormRow?.dimensions || [];
+        // Prefer post-status-save snapshot when present (list items often have empty dimensions [])
+        const baselineFormRow = rowData.updateBaselineRow || null;
+
+        // Only send attachments not already uploaded in a prior status-change / save
+        payload.attachments = filterNewPendingAttachments(
+            rowData.attachments,
+            baselineFormRow?.attachments
+        );
+        payload.attachment_to_delete = filterNewAttachmentDeletes(
+            rowData.attachmentsToDelete,
+            baselineFormRow?.attachmentsToDelete
+        );
+
+        const originalDimensions = resolveDimensionsBaseline(
+            originalStock?.dimensions,
+            baselineFormRow?.dimensions
+        );
 
         const dimensionOps = buildStockUpdateDimensionsOps(
             rowData.dimensions,
@@ -999,9 +1014,8 @@ export default function StockForm() {
             delete payload.dimensions;
         }
 
-        const baselineRow = originalStock
-            ? loadFormDataFromStock(originalStock, true)
-            : baselineFormRow;
+        const baselineRow = baselineFormRow
+            || (originalStock ? loadFormDataFromStock(originalStock, true) : null);
 
         if (!baselineRow) {
             delete payload.dimensions;
@@ -1038,12 +1052,9 @@ export default function StockForm() {
             narvi_stock_via_hub1: toStockLocationPayloadId(baselineRow.narviStockViaHub1),
             narvi_stock_via_hub2: toStockLocationPayloadId(baselineRow.narviStockViaHub2),
             ...buildNarviApDestinationSaveFields(baselineRow.narviStockApDestination),
-            attachments: originalStock
-                ? []
-                : (Array.isArray(baselineRow.attachments) ? baselineRow.attachments : []),
-            attachment_to_delete: originalStock
-                ? []
-                : (Array.isArray(baselineRow.attachmentsToDelete) ? baselineRow.attachmentsToDelete : []),
+            // Candidate already filtered to new pending only — empty baseline means "send if any"
+            attachments: [],
+            attachment_to_delete: [],
             client_access: Boolean(baselineRow.clientAccess),
             remarks: baselineRow.remarks || "",
             cancel_text: normalizeCancelTextForSave(baselineRow.cancelText),

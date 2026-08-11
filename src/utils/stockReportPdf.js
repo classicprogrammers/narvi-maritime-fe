@@ -27,7 +27,7 @@ import { getStockViaHub1Display, getStockViaHub2Display } from "./stockLocationO
 import { getDimensionVolumeCbm, sumDimensionsVolumeCbm } from "./stockVolume";
 import { applyStockReportAttachmentOnStatusChange } from "./stockReportAttachmentsUi";
 import { formatStockValueDisplay } from "./stockValue";
-import { captureFormRowUpdateBaseline } from "./stockUpdatePayload";
+import { clearUploadedPendingAttachmentsFromRow } from "./stockUpdatePayload";
 
 export function formatStatusForPdf(status) {
     const key = normalizeStockStatusKey(status);
@@ -684,9 +684,9 @@ export function mergeSavedStockIdsIntoRow(row, savedPatch) {
             ? { stockItemId: savedPatch.stockItemId, stockNumber: savedPatch.stockItemId }
             : {}),
     };
-    // Refresh after each successful create/update so later updates only send deltas
-    merged.updateBaselineRow = captureFormRowUpdateBaseline(merged);
-    return merged;
+    // Pending files were included in this save — clear them and fingerprint so later
+    // Saves (and the pending status PDF) do not re-upload the same attachments.
+    return clearUploadedPendingAttachmentsFromRow(merged);
 }
 
 function assertStockSaveSucceeded(response) {
