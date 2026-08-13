@@ -208,6 +208,10 @@ export const createVessel = async (vesselData) => {
           : "",
       vessel_email: vesselData.vessel_email || "",
       team: vesselData.team || "",
+      invoice_address:
+        vesselData.invoice_address && vesselData.invoice_address !== false
+          ? String(vesselData.invoice_address)
+          : false,
     };
 
     // Add attachments if provided
@@ -241,7 +245,7 @@ export const updateVessel = async (idOrData, maybeData, originalVesselData) => {
 
     // Helper function to normalize values for comparison (treat null, undefined, empty string as equivalent)
     const normalizeValue = (value) => {
-      if (value === null || value === undefined || value === "") return "";
+      if (value === null || value === undefined || value === "" || value === false) return "";
       // Convert to string for consistent comparison (handles number/string differences)
       return String(value);
     };
@@ -319,6 +323,12 @@ export const updateVessel = async (idOrData, maybeData, originalVesselData) => {
       if (hasChanged(vesselData.team, originalVesselData.team)) {
         payload.team = vesselData.team || "";
       }
+      if (hasChanged(vesselData.invoice_address, originalVesselData.invoice_address)) {
+        payload.invoice_address =
+          vesselData.invoice_address && vesselData.invoice_address !== false
+            ? String(vesselData.invoice_address)
+            : false;
+      }
 
       // Check if attachments have changed (new files added)
       if (attachmentsChanged(vesselData.attachments, originalVesselData.attachments)) {
@@ -346,6 +356,10 @@ export const updateVessel = async (idOrData, maybeData, originalVesselData) => {
           : "";
       payload.vessel_email = vesselData.vessel_email || "";
       payload.team = vesselData.team || "";
+      payload.invoice_address =
+        vesselData.invoice_address && vesselData.invoice_address !== false
+          ? String(vesselData.invoice_address)
+          : false;
 
       // Add attachments if provided
       if (vesselData.attachments && vesselData.attachments.length > 0) {

@@ -29,6 +29,7 @@ import {
   useDisclosure,
   FormControl,
   FormLabel,
+  Textarea,
   useToast,
   Tooltip,
   Select,
@@ -247,6 +248,7 @@ export default function Vessels() {
     procurement_email: "",
     vessel_email: "",
     team: "",
+    invoice_address: "",
     attachments: [],
     // For updates: IDs of existing attachments the user removed
     attachment_to_delete: [],
@@ -440,6 +442,7 @@ export default function Vessels() {
       procurement_email: "",
       vessel_email: "",
       team: "",
+      invoice_address: "",
       attachments: [],
       attachment_to_delete: [],
     });
@@ -512,6 +515,10 @@ export default function Vessels() {
             ),
         vessel_email: vesselInfo.vessel_email || "",
         team: vesselInfo.team || "",
+        invoice_address:
+          vesselInfo.invoice_address && vesselInfo.invoice_address !== false
+            ? String(vesselInfo.invoice_address)
+            : "",
         attachments: vesselInfo.attachments || [],
         attachment_to_delete: [],
       });
@@ -558,6 +565,10 @@ export default function Vessels() {
     procurement_email: formData.procurement_email || "",
     vessel_email: formData.vessel_email || "",
     team: formData.team || "",
+    invoice_address:
+      formData.invoice_address && String(formData.invoice_address).trim()
+        ? formData.invoice_address
+        : false,
     attachments: formData.attachments || [],
     attachment_to_delete: formData.attachment_to_delete || [],
   }), [formData]);
@@ -1352,6 +1363,21 @@ export default function Vessels() {
                   onChange={(e) => handleInputChange("team", e.target.value)}
                   placeholder="Enter team"
                   borderRadius="md"
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
+                  Invoice Address
+                </FormLabel>
+                <Textarea
+                  size="md"
+                  value={formData.invoice_address}
+                  onChange={(e) => handleInputChange("invoice_address", e.target.value)}
+                  placeholder="Enter invoice address"
+                  borderRadius="md"
+                  rows={4}
+                  resize="vertical"
                 />
               </FormControl>
 

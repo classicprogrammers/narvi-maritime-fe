@@ -31,7 +31,7 @@ import Card from "components/card/Card";
 import vesselsAPI from "../../../api/vessels";
 
 const prettyValue = (value) => {
-  if (value === null || value === undefined || value === "") {
+  if (value === null || value === undefined || value === "" || value === false) {
     return "-";
   }
   return value;
@@ -457,6 +457,25 @@ const VesselDetail = () => {
                 >
                   <Text fontSize="sm" color={valueColor} fontWeight="500">
                     {prettyValue(vessel.id)}
+                  </Text>
+                </GridItem>
+                <GridItem
+                  px={4}
+                  py={2}
+                  borderColor={borderColor}
+                  borderTop={`1px solid ${borderColor}`}
+                  colSpan={{ base: 1, md: 2 }}
+                  display="flex"
+                  flexDirection="column"
+                  justifyContent="flex-start"
+                  alignItems="flex-start"
+                  gap={1}
+                >
+                  <Text fontSize="xs" color={labelColor} fontWeight="600">
+                    Invoice Address
+                  </Text>
+                  <Text fontSize="sm" color={valueColor} fontWeight="500" whiteSpace="pre-wrap">
+                    {prettyValue(vessel.invoice_address)}
                   </Text>
                 </GridItem>
               </Grid>
