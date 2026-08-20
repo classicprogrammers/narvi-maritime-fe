@@ -215,6 +215,9 @@ function ClientStock() {
             ? item.dimensions
             : [],
         pcsCount: item.pcs?.count ?? item.pieces ?? item.boxes ?? item.box ?? 0,
+        shippingDoc: toDisplay(item.shipping_doc),
+        exportDoc1: toDisplay(item.export_doc),
+        exportDoc2: toDisplay(item.export_doc_2),
       };
       });
       setStockRows(normalizedRows);
@@ -728,6 +731,9 @@ function ClientStock() {
       "Via Hub 2",
       "AP Destination",
       "Destination",
+      "Shipping Docs",
+      "Export Docs 1",
+      "Export Docs 2",
       "Stock Status",
       "Date On Stock",
       "SO Number",
@@ -749,6 +755,9 @@ function ClientStock() {
       row.viaHub2 || "-",
       row.apDestination || "-",
       row.destination || "-",
+      row.shippingDoc || "-",
+      row.exportDoc1 || "-",
+      row.exportDoc2 || "-",
       formatStatus(row.stockStatus),
       row.dateOnStock || "-",
       row.soNumber || "-",

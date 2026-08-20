@@ -202,6 +202,9 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
         { key: "narvi_stock_via_hub2", label: "HUB2" },
         { key: "narvi_stock_ap_destination", label: "AP DESTINATION" },
         { key: "destination", label: "DESTINATION" },
+        { key: "shipping_docs", label: "SHIPPING DOCS" },
+        { key: "export_doc_1", label: "EXPORT DOCS 1" },
+        { key: "export_doc_2", label: "EXPORT DOCS 2" },
         { key: "dg_un", label: "DG/UN" },
         { key: "so_number", label: "SO NUMBER" },
         { key: "warehouse_id", label: "WAREHOUSE ID" },
@@ -273,6 +276,9 @@ const EXCEL_EXPORT_HEADERS = [
     "HUB2",
     "AP DESTINATION",
     "DESTINATION",
+    "SHIPPING DOCS",
+    "EXPORT DOCS 1",
+    "EXPORT DOCS 2",
     "DG/UN",
     "SO NUMBER",
     "WAREHOUSE ID",
@@ -1901,7 +1907,8 @@ export default function Stocks() {
         if (viewType === "filter3") {
             return [
                 vessel, supplier, reqNo, poNumber, stockStatus, currency, value, dateOnStock, boxes, kg, lwhText,
-                origin, viaHub1, viaHub2, apDestination, destination, dgUn, soNumber, warehouseId,
+                origin, viaHub1, viaHub2, apDestination, destination, shippingDocs, exportDoc1, exportDoc2,
+                dgUn, soNumber, warehouseId,
             ];
         }
         return [];
@@ -1972,6 +1979,9 @@ export default function Stocks() {
                 getStockViaHub2Display(item),
                 formatStockDestinationDisplay(item, "ap"),
                 formatStockDestinationDisplay(item, "destination"),
+                item.shipping_doc || "-",
+                item.export_doc || "-",
+                item.export_doc_2 || "-",
                 item.dg_un || "-",
                 soNumber,
                 getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-",
@@ -1986,7 +1996,9 @@ export default function Stocks() {
         filter2: ["VESSEL", "SUPPLIER", "REQ NO", "PO #", "SO NUMBER", "DESTINATION", "WAREHOUSE ID", "BOXES", "KG", "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2", "LWH TEXT"],
         filter3: [
             "VESSEL", "SUPPLIER", "REQ NO", "PO #", "STOCK STATUS", "CUR", "VALUE", "DATE ON STOCK", "BOXES", "KG", "LWH TEXT",
-            "ORIGIN", "HUB1", "HUB2", "AP DESTINATION", "DESTINATION", "DG/UN", "SO NUMBER", "WAREHOUSE ID",
+            "ORIGIN", "HUB1", "HUB2", "AP DESTINATION", "DESTINATION",
+            "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2",
+            "DG/UN", "SO NUMBER", "WAREHOUSE ID",
         ],
     };
 
@@ -2018,6 +2030,9 @@ export default function Stocks() {
                 "VIA HUB 2",
                 "AP DESTINATION",
                 "DESTINATION",
+                "SHIPPING DOCS",
+                "EXPORT DOCS 1",
+                "EXPORT DOCS 2",
                 "STOCK STATUS",
                 "DATE ON STOCK",
                 "SO NUMBER",
@@ -2040,6 +2055,9 @@ export default function Stocks() {
                 getStockViaHub2Display(item),
                 formatStockDestinationDisplay(item, "ap"),
                 formatStockDestinationDisplay(item, "destination"),
+                item.shipping_doc || "-",
+                item.export_doc || "-",
+                item.export_doc_2 || "-",
                 getStatusLabel(item.stock_status) || "-",
                 formatDate(item.date_on_stock) || "-",
                 item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number)),
@@ -3983,6 +4001,11 @@ export default function Stocks() {
                             )}
                         </Td>
                         <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "narvi_stock_via_hub2", null, "stock_via_hub2") : (
+                                <StockCellText {...cellText}>{renderText(getStockViaHub2Display(item))}</StockCellText>
+                            )}
+                        </Td>
+                        <Td {...cellProps}>
                             {isEditing ? (
                                 renderEditableCell(item, "narvi_stock_ap_destination", null, "stock_narvi_ap_destination")
                             ) : (
@@ -3995,6 +4018,15 @@ export default function Stocks() {
                             ) : (
                                 <StockCellText {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</StockCellText>
                             )}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "shipping_doc", item.shipping_doc, "textarea") : <StockCellText {...cellText}>{renderText(item.shipping_doc)}</StockCellText>}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "export_doc", item.export_doc, "textarea") : <StockCellText {...cellText}>{renderText(item.export_doc)}</StockCellText>}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "export_doc_2", item.export_doc_2, "textarea") : <StockCellText {...cellText}>{renderText(item.export_doc_2)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "warehouse_new", item.warehouse_new || item.warehouse_id || item.stock_warehouse) : <StockCellText {...cellText}>{renderText(item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-")}</StockCellText>}
@@ -4016,15 +4048,6 @@ export default function Stocks() {
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "dg_un", item.dg_un) : <StockCellText {...cellText}>{renderText(item.dg_un)}</StockCellText>}
-                        </Td>
-                        <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "shipping_doc", item.shipping_doc, "textarea") : <StockCellText {...cellText}>{renderText(item.shipping_doc)}</StockCellText>}
-                        </Td>
-                        <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "export_doc", item.export_doc, "textarea") : <StockCellText {...cellText}>{renderText(item.export_doc)}</StockCellText>}
-                        </Td>
-                        <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "export_doc_2", item.export_doc_2, "textarea") : <StockCellText {...cellText}>{renderText(item.export_doc_2)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "remarks", item.remarks, "textarea") : <StockCellText {...cellText}>{renderText(item.remarks)}</StockCellText>}
@@ -5793,6 +5816,9 @@ export default function Stocks() {
                                                     <Th {...headerProps}>VIA HUB 2</Th>
                                                     <Th {...headerProps}>AP DESTINATION</Th>
                                                     <Th {...headerProps}>DESTINATION</Th>
+                                                    <Th {...headerProps}>SHIPPING DOCS</Th>
+                                                    <Th {...headerProps}>EXPORT DOC 1</Th>
+                                                    <Th {...headerProps}>EXPORT DOC 2</Th>
                                                     <Th {...headerProps}>WAREHOUSE ID</Th>
                                                     <Th {...headerProps}>EXP READY FROM SUPPLIER</Th>
                                                     <Th {...headerProps}>DATE ON STOCK</Th>
@@ -5800,9 +5826,6 @@ export default function Stocks() {
                                                     <Th {...headerProps}>SHIPPED DATE</Th>
                                                     <Th {...headerProps}>DELIVERED DATE</Th>
                                                     <Th {...headerProps}>DG/UN NUMBER</Th>
-                                                    <Th {...headerProps}>SHIPPING DOCS</Th>
-                                                    <Th {...headerProps}>EXPORT DOC 1</Th>
-                                                    <Th {...headerProps}>EXPORT DOC 2</Th>
                                                     <Th {...headerProps}>REMARKS</Th>
                                                     <Th {...headerProps}>BOXES</Th>
                                                     <Th {...headerProps}>WEIGHT KGS</Th>
@@ -5894,6 +5917,9 @@ export default function Stocks() {
                                                                 <Td {...cellProps}><StockCellText {...cellText}>{renderText(getStockViaHub2Display(item))}</StockCellText></Td>
                                                                 <Td {...cellProps}><StockCellText {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</StockCellText></Td>
                                                                 <Td {...cellProps}><StockCellText {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.shipping_doc)}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.export_doc)}</StockCellText></Td>
+                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.export_doc_2)}</StockCellText></Td>
                                                                 <Td {...cellProps}><StockCellText {...cellText}>{item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-"}</StockCellText></Td>
                                                                 <Td {...cellProps}><StockCellText {...cellText}>{formatDate(item.exp_ready_in_stock)}</StockCellText></Td>
                                                                 <Td {...cellProps}><StockCellText {...cellText}>{formatDate(item.date_on_stock)}</StockCellText></Td>
@@ -5901,9 +5927,6 @@ export default function Stocks() {
                                                                 <Td {...cellProps}><StockCellText {...cellText}>{formatDate(item.shipped_date)}</StockCellText></Td>
                                                                 <Td {...cellProps}><StockCellText {...cellText}>{formatDate(item.delivered_date)}</StockCellText></Td>
                                                                 <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.dg_un)}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.shipping_doc)}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.export_doc)}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.export_doc_2)}</StockCellText></Td>
                                                                 <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.remarks)}</StockCellText></Td>
                                                                 <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</StockCellText></Td>
                                                                 <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</StockCellText></Td>
@@ -6735,6 +6758,9 @@ export default function Stocks() {
                                                     <Th {...headerProps}>HUB 2</Th>
                                                     <Th {...headerProps}>AP DESTINATION</Th>
                                                     <Th {...headerProps}>DESTINATION</Th>
+                                                    <Th {...headerProps}>SHIPPING DOCS</Th>
+                                                    <Th {...headerProps}>EXPORT DOC 1</Th>
+                                                    <Th {...headerProps}>EXPORT DOC 2</Th>
                                                     <Th {...headerProps}>WAREHOUSE ID</Th>
                                                     <Th {...headerProps}>EXP READY FROM SUPPLIER</Th>
                                                     <Th {...headerProps}>DATE ON STOCK</Th>
@@ -6742,9 +6768,6 @@ export default function Stocks() {
                                                     <Th {...headerProps}>SHIPPED DATE</Th>
                                                     <Th {...headerProps}>DELIVERED DATE</Th>
                                                     <Th {...headerProps}>DG/UN NUMBER</Th>
-                                                    <Th {...headerProps}>SHIPPING DOCS</Th>
-                                                    <Th {...headerProps}>EXPORT DOC 1</Th>
-                                                    <Th {...headerProps}>EXPORT DOC 2</Th>
                                                     <Th {...headerProps}>REMARKS</Th>
                                                     <Th {...headerProps}>BOXES</Th>
                                                     <Th {...headerProps}>WEIGHT KGS</Th>
