@@ -61,6 +61,7 @@ import {
   MdClear,
   MdContentCopy,
   MdSort,
+  MdDownload,
 } from "react-icons/md";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import { getNarviQuotations } from "../../../api/narviQuotation";
@@ -73,6 +74,7 @@ import {
   resolveShippingPackageDownloadUrl,
 } from "../../../api/shippingOrders";
 import { useHistory, Link, useLocation } from "react-router-dom";
+import * as XLSX from "xlsx";
 import { normalizeOrder, buildPayloadFromForm, getOrderAttachmentsForDisplay } from "./shippingOrderUtils";
 import {
   applyShippingOrderFilesToPayload,
@@ -118,6 +120,15 @@ const formatCurrency = (value) => {
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(numberValue);
+};
+
+const formatStatusLabel = (done) => {
+  if (done === "pending_pod") return "Pending POD";
+  if (done === "ready_for_invoice") return "Ready for Invoice";
+  if (done === "done") return "Done";
+  if (done === "cancelled") return "Cancelled";
+  if (done === "archive") return "Archive";
+  return "Active";
 };
 
 const SHIPPING_ORDER_TABLE_COLUMNS = [
@@ -177,6 +188,7 @@ const SoNumberTab = () => {
   const location = useLocation();
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const [savedState] = useState(() => getInitialShippingOrderListState(location.search));
@@ -394,40 +406,65 @@ const SoNumberTab = () => {
     vslsAgentDtlsDisclosure.onOpen();
   }, [vslsAgentDtlsDisclosure]);
 
+  const buildListRequestParams = useCallback((options = {}) => {
+    const {
+      fetchAll = false,
+      page: pageOverride = page,
+      page_size: pageSizeOverride = pageSize,
+    } = options;
+    const advancedParams = buildShippingOrderListQueryParams({
+      activeFilters,
+      activeATHPics,
+      activeSINPics,
+      athReadyForInvoicePics,
+      sinReadyForInvoicePics,
+      activeClientFilter,
+      readyForInvoiceClientFilter,
+      searchClientFilter,
+      searchPicFilter,
+      searchStatusFilter,
+    });
+
+    const vesselId = searchVesselFilter != null && typeof searchVesselFilter === "object"
+      ? (searchVesselFilter.id ?? searchVesselFilter.value)
+      : searchVesselFilter;
+    const countryId = searchCountryFilter != null && typeof searchCountryFilter === "object"
+      ? (searchCountryFilter.id ?? searchCountryFilter.value)
+      : searchCountryFilter;
+
+    const soId = searchQuery && searchQuery.trim() !== "" ? searchQuery.trim() : undefined;
+
+    return {
+      ...(fetchAll ? { fetch_all: true } : { page: pageOverride, page_size: pageSizeOverride }),
+      ...(soId != null && soId !== "" && { so_id: soId }),
+      ...advancedParams,
+      ...buildShippingOrderListSortParams(nextActionSortOption),
+      ...(vesselId != null && vesselId !== "" && { vessel_id: vesselId }),
+      ...(countryId != null && countryId !== "" && { country_id: countryId }),
+    };
+  }, [
+    page,
+    pageSize,
+    searchQuery,
+    activeFilters,
+    activeATHPics,
+    activeSINPics,
+    athReadyForInvoicePics,
+    sinReadyForInvoicePics,
+    activeClientFilter,
+    readyForInvoiceClientFilter,
+    searchClientFilter,
+    searchPicFilter,
+    searchStatusFilter,
+    searchVesselFilter,
+    searchCountryFilter,
+    nextActionSortOption,
+  ]);
+
   const fetchOrders = useCallback(async () => {
     try {
       setIsLoading(true);
-      const advancedParams = buildShippingOrderListQueryParams({
-        activeFilters,
-        activeATHPics,
-        activeSINPics,
-        athReadyForInvoicePics,
-        sinReadyForInvoicePics,
-        activeClientFilter,
-        readyForInvoiceClientFilter,
-        searchClientFilter,
-        searchPicFilter,
-        searchStatusFilter,
-      });
-
-      const vesselId = searchVesselFilter != null && typeof searchVesselFilter === "object"
-        ? (searchVesselFilter.id ?? searchVesselFilter.value)
-        : searchVesselFilter;
-      const countryId = searchCountryFilter != null && typeof searchCountryFilter === "object"
-        ? (searchCountryFilter.id ?? searchCountryFilter.value)
-        : searchCountryFilter;
-
-      const soId = searchQuery && searchQuery.trim() !== "" ? searchQuery.trim() : undefined;
-
-      const data = await getShippingOrders({
-        page,
-        page_size: pageSize,
-        ...(soId != null && soId !== "" && { so_id: soId }),
-        ...advancedParams,
-        ...buildShippingOrderListSortParams(nextActionSortOption),
-        ...(vesselId != null && vesselId !== "" && { vessel_id: vesselId }),
-        ...(countryId != null && countryId !== "" && { country_id: countryId }),
-      });
+      const data = await getShippingOrders(buildListRequestParams({ page, page_size: pageSize }));
 
       const list = Array.isArray(data.orders)
         ? data.orders
@@ -470,22 +507,9 @@ const SoNumberTab = () => {
       setIsLoading(false);
     }
   }, [
+    buildListRequestParams,
     page,
     pageSize,
-    searchQuery,
-    activeFilters,
-    activeATHPicsKey,
-    activeSINPicsKey,
-    athReadyForInvoicePicsKey,
-    sinReadyForInvoicePicsKey,
-    activeClientFilter,
-    readyForInvoiceClientFilter,
-    searchClientFilter,
-    searchPicFilter,
-    searchStatusFilter,
-    searchVesselFilter,
-    searchCountryFilter,
-    nextActionSortOption,
     toast,
   ]);
 
@@ -728,6 +752,113 @@ const SoNumberTab = () => {
   const getSoNumber = (order) => {
     if (order.so_number) return order.so_number;
     return order.id ? `SO-${order.id}` : "-";
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      setIsExportingExcel(true);
+      const data = await getShippingOrders(buildListRequestParams({ fetchAll: true }));
+      const list = Array.isArray(data.orders)
+        ? data.orders
+        : Array.isArray(data)
+          ? data
+          : Array.isArray(data?.result)
+            ? data.result
+            : Array.isArray(data?.data)
+              ? data.data
+              : [];
+      const rows = list.map(normalizeOrder).filter(Boolean);
+      if (rows.length === 0) {
+        toast({
+          title: "No data",
+          description: "No shipping orders match the current filters.",
+          status: "warning",
+          duration: 2200,
+          isClosable: true,
+        });
+        return;
+      }
+
+      const headers = [
+        "SO Number",
+        "Status",
+        "Next Action date",
+        "SO Delivery date",
+        "Vessel Name",
+        "Destination",
+        "Internal remarks",
+        "Vessels Agent details",
+        "Client Code",
+        "Person in Charge",
+        "ETA",
+        "ETB",
+        "ETD",
+        "Client case / Invoice Ref",
+        "Files",
+        "Quotation",
+        "Date Created",
+        "Cancel Reason",
+      ];
+
+      const excelRows = rows.map((order) => {
+        const files = getOrderAttachmentsForDisplay(order);
+        const fileSummary = files.length
+          ? files.map((f) => f.filename || f.name).filter(Boolean).join("; ") || `${files.length} files`
+          : "-";
+        const clientCode =
+          order.client_code != null && order.client_code !== false && order.client_code !== ""
+            ? String(order.client_code)
+            : (order.client || "-");
+        return [
+          getSoNumber(order),
+          formatStatusLabel(order.done),
+          order.next_action ? formatDate(order.next_action) : "-",
+          order.so_delivery_date ? formatDate(order.so_delivery_date) : "-",
+          order.vessel_name || "-",
+          getDestinationDisplay(order),
+          order.internal_remark || "-",
+          order.vsls_agent_dtls || "-",
+          clientCode,
+          order.pic_name || "-",
+          order.eta_date ? formatDate(order.eta_date) : "-",
+          order.etb && order.etb !== false ? formatDate(order.etb) : "-",
+          order.etd && order.etd !== false ? formatDate(order.etd) : "-",
+          order.client_case_invoice_ref || "-",
+          fileSummary,
+          order.quotation || "-",
+          formatDateTime(order.create_date || order.date_created || order.date_order),
+          order.cancel_text ? String(order.cancel_text) : "-",
+        ];
+      });
+
+      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...excelRows]);
+      worksheet["!autofilter"] = {
+        ref: XLSX.utils.encode_range({
+          s: { c: 0, r: 0 },
+          e: { c: headers.length - 1, r: Math.max(excelRows.length, 1) },
+        }),
+      };
+      worksheet["!cols"] = headers.map(() => ({ wch: 22 }));
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Shipping Orders");
+      const dateTag = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(workbook, `shipping-orders-${dateTag}.xlsx`);
+    } catch (error) {
+      console.error("Failed to export shipping orders", error);
+      toast({
+        title: "Export failed",
+        description:
+          error?.response?.data?.message ||
+          error?.response?.data?.result?.message ||
+          error.message ||
+          "Unable to export shipping orders",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsExportingExcel(false);
+    }
   };
 
   const handleGeneratePackageLink = async (order) => {
@@ -1431,22 +1562,35 @@ const SoNumberTab = () => {
               </Tag>
             </WrapItem>
           </Wrap>
-            <Menu>
-              <MenuButton
-                as={Button}
+            <HStack spacing="3" flexShrink={0}>
+              <Button
                 size="sm"
-                variant={nextActionSortOption === "next_action" ? "solid" : "outline"}
-                colorScheme={nextActionSortOption === "next_action" ? "blue" : "gray"}
-                leftIcon={<Icon as={MdSort} />}
-                flexShrink={0}
+                leftIcon={<Icon as={MdDownload} />}
+                colorScheme="green"
+                variant="outline"
+                onClick={handleExportExcel}
+                isLoading={isExportingExcel}
+                isDisabled={isLoading}
               >
-                Sort: {nextActionSortLabel}
-              </MenuButton>
-              <MenuList>
-                <MenuItem onClick={() => setNextActionSort("so_number")}>SO #</MenuItem>
-                <MenuItem onClick={() => setNextActionSort("next_action")}>Next Action</MenuItem>
-              </MenuList>
-            </Menu>
+                Export Excel
+              </Button>
+              <Menu>
+                <MenuButton
+                  as={Button}
+                  size="sm"
+                  variant={nextActionSortOption === "next_action" ? "solid" : "outline"}
+                  colorScheme={nextActionSortOption === "next_action" ? "blue" : "gray"}
+                  leftIcon={<Icon as={MdSort} />}
+                  flexShrink={0}
+                >
+                  Sort: {nextActionSortLabel}
+                </MenuButton>
+                <MenuList>
+                  <MenuItem onClick={() => setNextActionSort("so_number")}>SO #</MenuItem>
+                  <MenuItem onClick={() => setNextActionSort("next_action")}>Next Action</MenuItem>
+                </MenuList>
+              </Menu>
+            </HStack>
           </Flex>
 
           {/* Client selection when Active Client or Ready for Invoice Client chip is on */}

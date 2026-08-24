@@ -23,7 +23,11 @@ async function loadLetterheadOnPdf(doc) {
 
 import { formatStockStatusLabel, normalizeStockStatusKey } from "../constants/stockStatus";
 import { formatStockDestinationDisplay } from "./stockDestinationOptions";
-import { getStockViaHub1Display, getStockViaHub2Display } from "./stockLocationOptions";
+import {
+    getStockViaHub1Display,
+    getStockViaHub2Display,
+    toStockLocationDisplayValue,
+} from "./stockLocationOptions";
 import { getDimensionVolumeCbm, sumDimensionsVolumeCbm } from "./stockVolume";
 import { applyStockReportAttachmentOnStatusChange } from "./stockReportAttachmentsUi";
 import { formatStockValueDisplay } from "./stockValue";
@@ -529,10 +533,22 @@ export function mapFormRowToAdminItemForPdf(row, helpers = {}) {
         po_text: row.poNumber,
         origin_text: row.origin_text,
         first_entry_location: row.origin_text,
-        narvi_stock_via_hub1: row.narviStockViaHub1,
-        narvi_stock_via_hub2: row.narviStockViaHub2,
-        narvi_stock_ap_destination: row.narviStockApDestination,
-        narvi_stock_destination: row.destinationId,
+        narvi_stock_via_hub1: toStockLocationDisplayValue(
+            row.narviStockViaHub1,
+            row.narviStockViaHub1Name
+        ),
+        narvi_stock_via_hub2: toStockLocationDisplayValue(
+            row.narviStockViaHub2,
+            row.narviStockViaHub2Name
+        ),
+        narvi_stock_ap_destination: toStockLocationDisplayValue(
+            row.narviStockApDestination,
+            row.narviStockApDestinationName
+        ),
+        narvi_stock_destination: toStockLocationDisplayValue(
+            row.destinationId,
+            row.destinationName
+        ),
         warehouse_new: row.warehouseId,
         date_on_stock: pickFormRowValue(row, "dateOnStock"),
         first_entry_date: pickFormRowValue(row, "dateOnStock", "firstEntryDate", "slCreateDate"),

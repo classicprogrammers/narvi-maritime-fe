@@ -291,7 +291,7 @@ const STATUS_CONFIG = {
         label: "Released",
         color: "cyan",
         bgColor: "#cfe2f3",
-        textColor: "blue.900",
+        textColor: "#000000",
         lightBg: "#cfe2f3",
     },
     // Pending = #c9daf7
@@ -299,7 +299,7 @@ const STATUS_CONFIG = {
         label: "Pending",
         color: "blue",
         bgColor: "#c9daf7",
-        textColor: "blue.900",
+        textColor: "#000000",
         lightBg: "#c9daf7"
     },
     // Stock = #d8d8d8
@@ -307,7 +307,7 @@ const STATUS_CONFIG = {
         label: "Stock",
         color: "gray",
         bgColor: "#d8d8d8",
-        textColor: "gray.800",
+        textColor: "#000000",
         lightBg: "#d8d8d8"
     },
     // On a Shipping Instr = #fec02e
@@ -315,7 +315,7 @@ const STATUS_CONFIG = {
         label: "On Shipping Instr",
         color: "orange",
         bgColor: "#fec02e",
-        textColor: "orange.900",
+        textColor: "#000000",
         lightBg: "#fec02e"
     },
     // On a Delivery Instr = #b7e1cd
@@ -323,7 +323,7 @@ const STATUS_CONFIG = {
         label: "On Delivery Instr",
         color: "teal",
         bgColor: "#b7e1cd",
-        textColor: "teal.900",
+        textColor: "#000000",
         lightBg: "#b7e1cd"
     },
     // In Transit = #92d059
@@ -331,7 +331,7 @@ const STATUS_CONFIG = {
         label: "In Transit",
         color: "green",
         bgColor: "#92d059",
-        textColor: "green.800",
+        textColor: "#000000",
         lightBg: "#92d059"
     },
     // Arrived Destination = #a5a5a5
@@ -339,15 +339,16 @@ const STATUS_CONFIG = {
         label: "Arrived Dest",
         color: "gray",
         bgColor: "#a5a5a5",
-        textColor: "white",
-        lightBg: "#a5a5a5"
+        textColor: "#000000",
+        lightBg: "#a5a5a5",
+        useDarkText: true,
     },
     // Shipped = #fce5ce
     shipped: {
         label: "Shipped",
         color: "orange",
         bgColor: "#fce5ce",
-        textColor: "orange.800",
+        textColor: "#000000",
         lightBg: "#fce5ce"
     },
     // Delivered = #f4cccd
@@ -355,7 +356,7 @@ const STATUS_CONFIG = {
         label: "Delivered",
         color: "pink",
         bgColor: "#f4cccd",
-        textColor: "pink.900",
+        textColor: "#000000",
         lightBg: "#f4cccd"
     },
     // Irregularities = #fe001b
@@ -363,18 +364,57 @@ const STATUS_CONFIG = {
         label: "Irregularities",
         color: "red",
         bgColor: "#fe001b",
-        textColor: "white",
-        lightBg: "#fe001b"
+        textColor: "#000000",
+        lightBg: "#fe001b",
+        useDarkText: true,
     },
     // Cancelled = #9a00fb82 (with alpha converted to rgba)
     cancelled: {
         label: "Cancelled",
         color: "purple",
         bgColor: "#9a00fb82",
-        textColor: "white",
-        lightBg: "#9a00fb82"
+        textColor: "#000000",
+        lightBg: "#9a00fb82",
+        useDarkText: true,
     },
 };
+
+const ROW_HOVER_BORDER = "#2B6CB0";
+
+function getColoredStatusRowSx(statusStyle, fallbackTextColor) {
+    const rowTextColor = "#000000";
+    return {
+        color: rowTextColor,
+        "& .chakra-text": { color: `${rowTextColor} !important` },
+        _hover: {
+            "& > td": {
+                boxShadow: `inset 0 2px 0 0 ${ROW_HOVER_BORDER}, inset 0 -2px 0 0 ${ROW_HOVER_BORDER}`,
+            },
+            "& > td:first-of-type": {
+                boxShadow: `inset 3px 0 0 0 ${ROW_HOVER_BORDER}, inset 0 2px 0 0 ${ROW_HOVER_BORDER}, inset 0 -2px 0 0 ${ROW_HOVER_BORDER}`,
+            },
+            "& > td:last-of-type": {
+                boxShadow: `inset -3px 0 0 0 ${ROW_HOVER_BORDER}, inset 0 2px 0 0 ${ROW_HOVER_BORDER}, inset 0 -2px 0 0 ${ROW_HOVER_BORDER}`,
+            },
+        },
+    };
+}
+
+function StockStatusBadge({ statusStyle, children }) {
+    return (
+        <Badge
+            size="sm"
+            borderRadius="full"
+            px="3"
+            py="1"
+            bg={statusStyle.bgColor}
+            color={statusStyle.textColor}
+            sx={{ color: statusStyle.textColor }}
+        >
+            {children}
+        </Badge>
+    );
+}
 
 function StatusFilterChip({ config, isChecked, onToggle, borderColor }) {
     return (
@@ -391,6 +431,7 @@ function StatusFilterChip({ config, isChecked, onToggle, borderColor }) {
                 isChecked={isChecked}
                 onChange={onToggle}
                 size="sm"
+                color="#000000"
                 colorScheme={config.color}
                 borderColor="gray.600"
                 sx={{
@@ -400,13 +441,15 @@ function StatusFilterChip({ config, isChecked, onToggle, borderColor }) {
                             borderColor: `${config.color}.500`,
                         },
                     },
+                    "& .chakra-checkbox__label": {
+                        color: "#000000 !important",
+                        fontWeight: "400",
+                    },
                 }}
             >
                 <Text
                     as="span"
-                    fontSize="xs"
-                    fontWeight="600"
-                    color={config.textColor}
+                    fontSize="sm"
                     lineHeight="short"
                 >
                     {config.label}
@@ -804,14 +847,12 @@ export default function Stocks() {
     const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
     const tableRowBg = useColorModeValue("white", "gray.800");
     const tableRowBgAlt = useColorModeValue("gray.50", "gray.700");
-    const tableRowHoverBg = useColorModeValue("gray.100", "gray.700");
     const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
     const tableTextColor = useColorModeValue("gray.600", "gray.300");
     const tableTextColorSecondary = useColorModeValue("gray.500", "gray.400");
     const inputBg = useColorModeValue("gray.100", "gray.800");
     const inputText = useColorModeValue("gray.700", "gray.100");
     const borderColor = useColorModeValue("gray.200", "gray.700");
-    const tableLoadingOverlayBg = useColorModeValue("whiteAlpha.850", "blackAlpha.650");
     const cardBg = useColorModeValue("white", "navy.800");
     const sortInfoBg = useColorModeValue("blue.50", "blue.900");
     const sortInfoBorder = useColorModeValue("blue.200", "blue.700");
@@ -829,7 +870,7 @@ export default function Stocks() {
         px: "16px",
         fontSize: "12px",
         fontWeight: "600",
-        color: tableTextColor,
+        color: "#000000",
         textTransform: "uppercase",
         whiteSpace: "nowrap",
         maxW: "240px",
@@ -845,15 +886,24 @@ export default function Stocks() {
         maxW: "240px",
         overflow: "hidden",
         textOverflow: "ellipsis",
+        color: "inherit",
     };
     const cellText = {
-        color: tableTextColor,
+        color: "inherit",
         fontSize: "sm",
         overflow: "hidden",
         textOverflow: "ellipsis",
         whiteSpace: "nowrap",
         display: "block",
     };
+    const stockTableLoading = (
+        <Center w="100%" minH="400px" py="80px">
+            <VStack spacing="3">
+                <Spinner size="lg" color="#1c4a95" />
+                <Text fontSize="sm" color={tableTextColorSecondary}>Loading stock list...</Text>
+            </VStack>
+        </Center>
+    );
 
     const filterDebounceRef = useRef(null);
     const [apiFetchTrigger, setApiFetchTrigger] = useState(0);
@@ -1364,7 +1414,10 @@ export default function Stocks() {
             };
         }
 
-        let statusKey = status.toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
+        let statusKey = normalizeStockStatusKey(status);
+        if (!statusKey) {
+            statusKey = String(status).toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
+        }
 
         // Map variations to filter keys (old keys -> new keys)
         if (STATUS_VARIATIONS[statusKey]) {
@@ -3425,17 +3478,9 @@ export default function Stocks() {
     const renderClientViewTableCell = (item, column, statusStyle, rowBg) => {
         if (column.type === "status") {
             return (
-                <Badge
-                    colorScheme={statusStyle.color}
-                    size="sm"
-                    borderRadius="full"
-                    px="3"
-                    py="1"
-                    bg={statusStyle.bgColor}
-                    color={statusStyle.textColor}
-                >
+                <StockStatusBadge statusStyle={statusStyle}>
                     {getStatusLabel(item.stock_status)}
-                </Badge>
+                </StockStatusBadge>
             );
         }
         if (column.type === "po") {
@@ -3449,7 +3494,7 @@ export default function Stocks() {
             const display = renderText(fieldValue);
             return (
                 <Text
-                    color={tableTextColor}
+                    color="inherit"
                     fontSize="sm"
                     whiteSpace="pre-wrap"
                     wordBreak="break-word"
@@ -3500,7 +3545,7 @@ export default function Stocks() {
         return { ...cellProps, bg: rowBg };
     };
 
-    // Note: Loading state is now shown inside the tables instead of blocking the entire page
+    // Loading replaces the table (including headers) instead of overlaying it
 
     const showFatalLoadError = Boolean(error && stockList.length === 0);
 
@@ -3891,7 +3936,7 @@ export default function Stocks() {
                         bg={rowBg}
                         borderBottom="1px"
                         borderColor={tableBorderColor}
-                        _hover={{ opacity: 0.9 }}
+                        sx={getColoredStatusRowSx(statusStyle, tableTextColor)}
                     >
                         <Td
                             borderRight="1px"
@@ -3987,9 +4032,9 @@ export default function Stocks() {
                                     </Select>
                                 )
                             ) : (
-                                <Badge colorScheme={statusStyle.color} size="sm" borderRadius="full" px="3" py="1">
+                                <StockStatusBadge statusStyle={statusStyle}>
                                     {getStatusLabel(item.stock_status)}
-                                </Badge>
+                                </StockStatusBadge>
                             )}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
@@ -4068,7 +4113,6 @@ export default function Stocks() {
                                 setSelectedDimensions(item.dimensions || []);
                                 onDimensionsModalOpen();
                             } : undefined}
-                            _hover={!isEditing ? { bg: tableRowHoverBg } : {}}
                         >
                             {isEditing ? (
                                 <StockCellText {...cellText}>{formatVolumeCbm(item.total_volume_cbm)}</StockCellText>
@@ -4090,7 +4134,6 @@ export default function Stocks() {
                                 setSelectedDimensions(item.dimensions || []);
                                 onDimensionsModalOpen();
                             } : undefined}
-                            _hover={!isEditing ? { bg: tableRowHoverBg } : {}}
                         >
                             {isEditing ? (
                                 renderEditableCell(item, "total_cw_air_freight", item.total_cw_air_freight, "number")
@@ -4171,7 +4214,7 @@ export default function Stocks() {
                         bg={rowBg}
                         borderBottom="1px"
                         borderColor={tableBorderColor}
-                        _hover={{ opacity: 0.9 }}
+                        sx={getColoredStatusRowSx(statusStyle, tableTextColor)}
                     >
                         <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="8px" width="40px" minW="40px" maxW="40px">
                             <Checkbox
@@ -4215,9 +4258,9 @@ export default function Stocks() {
                                     </Select>
                                 )
                             ) : (
-                                <Badge colorScheme={statusStyle.color} size="sm" borderRadius="full" px="3" py="1">
+                                <StockStatusBadge statusStyle={statusStyle}>
                                     {getStatusLabel(item.stock_status)}
-                                </Badge>
+                                </StockStatusBadge>
                             )}
                         </Td>
                         <Td {...cellProps}>
@@ -5741,22 +5784,9 @@ export default function Stocks() {
                                         "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
                                     }}
                                 >
-                                    {isLoading && (
-                                        <Flex
-                                            position="absolute"
-                                            inset={0}
-                                            zIndex={2}
-                                            align="center"
-                                            justify="center"
-                                            bg={tableLoadingOverlayBg}
-                                        >
-                                            <VStack spacing="3">
-                                                <Spinner size="lg" color="#1c4a95" />
-                                                <Text fontSize="sm" color={tableTextColorSecondary}>Loading stock list...</Text>
-                                            </VStack>
-                                        </Flex>
-                                    )}
-                                    {!isLoading && getFilteredStockByStatus().length === 0 ? (
+                                    {isLoading ? (
+                                        stockTableLoading
+                                    ) : getFilteredStockByStatus().length === 0 ? (
                                         <Center py="60px" px="25px">
                                             <VStack spacing="4" maxW="400px" p="6" bg={tableRowBgAlt} borderRadius="lg" border="1px" borderColor={borderColor}>
                                                 <Icon as={MdInventory2} boxSize="14" color={emptyPanelIconColor} />
@@ -5781,7 +5811,7 @@ export default function Stocks() {
                                                         width="40px"
                                                         minW="40px"
                                                         maxW="40px"
-                                                        color={tableTextColor}
+                                                        color="#000000"
                                                     >
                                                         <Checkbox
                                                             isChecked={allItemsSelected}
@@ -5851,7 +5881,7 @@ export default function Stocks() {
                                                             <Tr
                                                                 key={item.id}
                                                                 bg={rowBg}
-                                                                _hover={{ bg: tableRowHoverBg }}
+                                                                sx={getColoredStatusRowSx(statusStyle, tableTextColor)}
                                                             >
                                                                 <Td
                                                                     borderRight="1px"
@@ -5900,17 +5930,9 @@ export default function Stocks() {
                                                                     return renderText(item.di_no) || "-";
                                                                 })()}</StockCellText></Td>
                                                                 <Td {...cellProps}>
-                                                                    <Badge
-                                                                        colorScheme={statusStyle.color}
-                                                                        size="sm"
-                                                                        borderRadius="full"
-                                                                        px="3"
-                                                                        py="1"
-                                                                        bg={statusStyle.bgColor}
-                                                                        color={statusStyle.textColor}
-                                                                    >
+                                                                    <StockStatusBadge statusStyle={statusStyle}>
                                                                         {getStatusLabel(item.stock_status)}
-                                                                    </Badge>
+                                                                    </StockStatusBadge>
                                                                 </Td>
                                                                 <Td {...cellProps}><StockCellText {...cellText}>{item.origin_text || "-"}</StockCellText></Td>
                                                                 <Td {...cellProps}><StockCellText {...cellText}>{renderText(getStockViaHub1Display(item))}</StockCellText></Td>
@@ -5938,7 +5960,6 @@ export default function Stocks() {
                                                                         setSelectedDimensions(item.dimensions || []);
                                                                         onDimensionsModalOpen();
                                                                     }}
-                                                                    _hover={{ bg: tableRowHoverBg }}
                                                                 >
                                                                     <HStack spacing={2} align="center" justify="flex-start">
                                                                         <StockCellText {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
@@ -5956,7 +5977,6 @@ export default function Stocks() {
                                                                         setSelectedDimensions(item.dimensions || []);
                                                                         onDimensionsModalOpen();
                                                                     }}
-                                                                    _hover={{ bg: tableRowHoverBg }}
                                                                 >
                                                                     <HStack spacing={2} align="center" justify="flex-start">
                                                                         <StockCellText {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
@@ -6392,22 +6412,9 @@ export default function Stocks() {
                                         "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
                                     }}
                                 >
-                                    {isLoading && (
-                                        <Flex
-                                            position="absolute"
-                                            inset={0}
-                                            zIndex={2}
-                                            align="center"
-                                            justify="center"
-                                            bg={tableLoadingOverlayBg}
-                                        >
-                                            <VStack spacing="3">
-                                                <Spinner size="lg" color="#1c4a95" />
-                                                <Text fontSize="sm" color={tableTextColorSecondary}>Loading stock list...</Text>
-                                            </VStack>
-                                        </Flex>
-                                    )}
-                                    {!isLoading && filteredAndSortedStock.length === 0 ? (
+                                    {isLoading ? (
+                                        stockTableLoading
+                                    ) : filteredAndSortedStock.length === 0 ? (
                                         <Center py="60px" px="25px">
                                             <VStack spacing="4" maxW="400px" p="6" bg={tableRowBgAlt} borderRadius="lg" border="1px" borderColor={borderColor}>
                                                 <Icon as={MdInventory2} boxSize="14" color={emptyPanelIconColor} />
@@ -6444,7 +6451,7 @@ export default function Stocks() {
                                                             <Tr
                                                                 key={itemId}
                                                                 bg={rowBg}
-                                                                _hover={{ bg: tableRowHoverBg }}
+                                                                sx={getColoredStatusRowSx(statusStyle, tableTextColor)}
                                                             >
                                                                 <Td {...cellProps} bg={rowBg} w="40px">
                                                                     <Checkbox
@@ -6657,22 +6664,9 @@ export default function Stocks() {
 
                         {/* Table Container */}
                         <Box pr="25px" overflowX="auto" position="relative" minH="400px">
-                            {isLoading && (
-                                <Flex
-                                    position="absolute"
-                                    inset={0}
-                                    zIndex={2}
-                                    align="center"
-                                    justify="center"
-                                    bg={tableLoadingOverlayBg}
-                                >
-                                    <VStack spacing="3">
-                                        <Spinner size="lg" color="#1c4a95" />
-                                        <Text fontSize="sm" color={tableTextColorSecondary}>Loading stock list...</Text>
-                                    </VStack>
-                                </Flex>
-                            )}
-                            {!isLoading && filteredAndSortedStock.length === 0 ? (
+                            {isLoading ? (
+                                stockTableLoading
+                            ) : filteredAndSortedStock.length === 0 ? (
                                 <Center py="80px" px="25px">
                                     <VStack
                                         spacing="5"
@@ -6721,7 +6715,7 @@ export default function Stocks() {
                                                 width="40px"
                                                 minW="40px"
                                                 maxW="40px"
-                                                color={tableTextColor}
+                                                color="#000000"
                                             >
                                                 <Checkbox
                                                     isChecked={allPageItemsSelected}

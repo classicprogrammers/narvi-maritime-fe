@@ -8,6 +8,8 @@ export const getShippingOrders = async (params = {}) => {
     const {
       page = 1,
       page_size = 80,
+      fetch_all,
+      fetchAll,
       sort_by,
       sort_order,
       search = "",
@@ -22,10 +24,17 @@ export const getShippingOrders = async (params = {}) => {
       pic_id,
     } = params;
 
-    const requestParams = {
-      page,
-      page_size,
-    };
+    const fetchAllRequested =
+      fetchAll === true ||
+      fetch_all === true ||
+      fetch_all === 1 ||
+      fetch_all === "1" ||
+      String(fetch_all).toLowerCase() === "true" ||
+      String(fetch_all).toLowerCase() === "yes";
+
+    const requestParams = fetchAllRequested
+      ? { fetch_all: true }
+      : { page, page_size };
 
     // Include search parameter if provided (only search, not name)
     const trimmedSearch = search ? search.trim() : "";

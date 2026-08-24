@@ -126,11 +126,45 @@ export const mergeStockIdNameOptions = (options, selectedId, selectedName) => {
     return list;
 };
 
+const STOCK_LOCATION_NAME_ALIASES = {
+    narvi_stock_via_hub1: ["narviStockViaHub1Name", "narvi_stock_via_hub1_name"],
+    narvi_stock_via_hub2: ["narviStockViaHub2Name", "narvi_stock_via_hub2_name"],
+    narvi_stock_ap_destination: ["narviStockApDestinationName", "narvi_stock_ap_destination_name"],
+    narvi_stock_destination: ["destinationName", "narvi_stock_destination_name"],
+};
+
+const getCompanionLocationName = (item, fieldKey) => {
+    const aliases = STOCK_LOCATION_NAME_ALIASES[fieldKey] || [];
+    for (const key of aliases) {
+        const name = getStockLocationOptionName(item[key]);
+        if (name) return name;
+    }
+    return "";
+};
+
+/**
+ * Combine a stored location id + display name into a many2one-like value for PDF/list display.
+ * Form rows keep these separately (e.g. narviStockViaHub1 / narviStockViaHub1Name).
+ */
+export const toStockLocationDisplayValue = (idOrValue, name) => {
+    const resolvedName = String(name ?? "").trim();
+    const resolvedId = resolveStockLocationOptionId(idOrValue);
+    const nameFromValue = getStockLocationOptionName(idOrValue);
+    const displayName = resolvedName || nameFromValue;
+    if (displayName && resolvedId != null) {
+        return { id: resolvedId, name: displayName };
+    }
+    if (displayName) return displayName;
+    return idOrValue;
+};
+
 export const getStockLocationDisplay = (item, fieldKey) => {
     if (!item) return "-";
     const direct = item[fieldKey];
     const nameFromM2O = getStockLocationOptionName(direct);
     if (nameFromM2O) return nameFromM2O;
+    const companionName = getCompanionLocationName(item, fieldKey);
+    if (companionName) return companionName;
     const id = resolveStockLocationOptionId(direct);
     if (id != null) return String(id);
     return "-";
