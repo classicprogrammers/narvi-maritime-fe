@@ -195,10 +195,17 @@ export default function DeletableOptionCombobox({
         setIsOpen(false);
         setSearchValue("");
         break;
-      case "Tab":
+      case "Tab": {
+        const option = filteredOptions[highlightedIndex] ?? filteredOptions[0];
+        if (option) {
+          const nextValue = formatOption(option);
+          onChange?.(nextValue, option);
+          onSearchChange?.(nextValue);
+        }
         setIsOpen(false);
         setSearchValue("");
         break;
+      }
       default:
         break;
     }

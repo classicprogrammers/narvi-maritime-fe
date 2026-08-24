@@ -151,9 +151,15 @@ const SearchableSelect = ({
         e.preventDefault();
         setIsOpen(false);
         break;
-      case 'Tab':
-        setIsOpen(false);
+      case 'Tab': {
+        const option = filteredOptions[highlightedIndex] ?? filteredOptions[0];
+        if (option) {
+          handleSelect(option);
+        } else {
+          setIsOpen(false);
+        }
         break;
+      }
       default:
         break;
     }

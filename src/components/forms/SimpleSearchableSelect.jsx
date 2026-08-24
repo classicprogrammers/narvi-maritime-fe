@@ -263,9 +263,18 @@ const SimpleSearchableSelect = ({
         e.preventDefault();
         closeAndClearSearch();
         break;
-      case 'Tab':
-        closeAndClearSearch();
+      case 'Tab': {
+        const option = filteredOptions[highlightedIndex] ?? filteredOptions[0];
+        if (option) {
+          onChange(option[valueKey]);
+          setSearchValue("");
+          if (typeof onSearchChange === "function") {
+            onSearchChange("");
+          }
+        }
+        setIsOpen(false);
         break;
+      }
       default:
         break;
     }
