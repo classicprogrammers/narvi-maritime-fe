@@ -1166,7 +1166,6 @@ export default function StockForm() {
                         duration: 3000,
                         isClosable: true,
                     });
-                    getStockList();
                     history.push("/admin/stock-list/main-db");
                 } else {
                     throw new Error('Failed to update stock items');
@@ -1187,7 +1186,6 @@ export default function StockForm() {
                         duration: 3000,
                         isClosable: true,
                     });
-                    getStockList();
                     history.push("/admin/stock-list/main-db");
                 } else {
                     throw new Error(result?.error || 'Failed to update stock item');
@@ -1265,7 +1263,6 @@ export default function StockForm() {
                         duration: 3000,
                         isClosable: true,
                     });
-                    getStockList();
                     history.push("/admin/stock-list/main-db");
                 } else {
                     throw new Error('Failed to save stock item');

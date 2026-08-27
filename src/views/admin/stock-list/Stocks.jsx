@@ -1189,9 +1189,15 @@ export default function Stocks() {
         ? [apiFetchTrigger, getStockList, activeTab, sortOption, clientSortOption, listUsesFetchAll]
         : [apiFetchTrigger, getStockList, activeTab, sortOption, clientSortOption, listUsesFetchAll, currentApiPage]);
 
-    // Restore filter state from location.state when returning from edit mode
+    // Restore filter state from location.state when returning from edit mode.
+    // When coming back from edit, filters are already loaded from sessionStorage,
+    // so only clear location.state — re-applying them would fire extra list fetches.
     useEffect(() => {
         if (location.state && location.state.filterState) {
+            if (location.state.fromEdit) {
+                history.replace(location.pathname, {});
+                return;
+            }
             const { filterState } = location.state;
             if (filterState.activeTab !== undefined) setActiveTab(filterState.activeTab);
             if (filterState.vesselViewClient !== undefined) setVesselViewClient(filterState.vesselViewClient);
@@ -3343,7 +3349,7 @@ export default function Stocks() {
                     return newData;
                 });
 
-                getStockList({ page: 1, page_size: PAGE_SIZE });
+                setApiFetchTrigger((t) => t + 1);
             } else if (resultData?.status === "success") {
                 showStockBulkSaveToasts(resultData, toast, {
                     fallbackSummary: "Stock item updated successfully",
@@ -3404,7 +3410,7 @@ export default function Stocks() {
                 });
 
                 if (succeededIds.length > 0 || failedStockIds.size === 0) {
-                    getStockList({ page: 1, page_size: PAGE_SIZE });
+                    setApiFetchTrigger((t) => t + 1);
                 }
             } else {
                 throw new Error(resultData?.message || result?.message || "Failed to update stock items");
@@ -4445,7 +4451,7 @@ export default function Stocks() {
                             <AlertDescription>{error}</AlertDescription>
                         </Box>
                         <Button
-                            onClick={() => getStockList({ page: 1, page_size: PAGE_SIZE })}
+                            onClick={() => setApiFetchTrigger((t) => t + 1)}
                             leftIcon={<Icon as={MdRefresh} />}
                             size="sm"
                             ml="4"
@@ -4553,7 +4559,7 @@ export default function Stocks() {
                             icon={<Icon as={MdRefresh} />}
                             variant="ghost"
                             aria-label="Refresh"
-                            onClick={() => getStockList({ page: 1, page_size: PAGE_SIZE })}
+                            onClick={() => setApiFetchTrigger((t) => t + 1)}
                         />
                     </HStack>
                 </Flex>

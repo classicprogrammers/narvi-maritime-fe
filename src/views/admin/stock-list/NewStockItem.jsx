@@ -1703,7 +1703,6 @@ export default function StockForm() {
                     showStockBulkSaveToasts(resultData, toast, {
                         fallbackSummary: `${lines.length} stock item(s) updated successfully`,
                     });
-                    getStockList();
                     if (!hasStockBulkSaveErrors(resultData)) {
                         if (isEditFromList) {
                             navigateBackFromEdit();
@@ -1738,7 +1737,6 @@ export default function StockForm() {
                     showStockBulkSaveToasts(resultData, toast, {
                         fallbackSummary: "Stock item updated successfully",
                     });
-                    getStockList();
                     if (!hasStockBulkSaveErrors(resultData)) {
                         if (isEditFromList) {
                             navigateBackFromEdit();
@@ -1794,7 +1792,6 @@ export default function StockForm() {
                         showStockBulkSaveToasts(resultData, toast, {
                             fallbackSummary: `${lines.length} stock item(s) updated successfully`,
                         });
-                        getStockList();
                         if (!hasStockBulkSaveErrors(resultData) && rowsToCreate.length === 0) {
                             setAddStockHasDataFlag(false);
                             history.push("/admin/stock-list/stocks");
@@ -1826,10 +1823,8 @@ export default function StockForm() {
                             });
                             if (!hasStockBulkSaveErrors(resultData)) {
                                 setAddStockHasDataFlag(false);
-                                getStockList();
                                 history.push("/admin/stock-list/stocks");
                             } else {
-                                getStockList();
                                 const failedRows = filterRowsWithBulkSaveFailures(rowsToCreate, resultData, {
                                     getRowId: () => null,
                                 });

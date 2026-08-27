@@ -33,14 +33,6 @@ export const updateStockItem = (stockId, stockData, originalData = {}) => async 
     dispatch(updateStockItemStart());
     const response = await updateStockItemApi(stockId, stockData, originalData);
     dispatch(updateStockItemSuccess(response));
-    
-    // Auto-refresh stock list after successful update (use current pagination state)
-    if (response.result && response.result.status === 'success') {
-      // Note: This will use default params if called without arguments
-      // In a real scenario, you might want to preserve current pagination state
-      dispatch(getStockList());
-    }
-    
     return { success: true, data: response };
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message || "Failed to update stock item";
