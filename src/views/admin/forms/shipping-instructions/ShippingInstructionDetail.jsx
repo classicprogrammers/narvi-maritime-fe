@@ -1584,11 +1584,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             ? String(it.si_number)
             : "",
         poNumber:
-          it.po_number != null && it.po_number !== false
-            ? String(it.po_number)
-            : it.po_text != null && it.po_text !== false
-              ? String(it.po_text)
-              : "",
+          resolveApiText(it.po_number) ||
+          resolveApiText(it.req_no) ||
+          resolveApiText(it.po_text) ||
+          "",
         dg_un:
           it.dg_un != null && it.dg_un !== false
             ? String(it.dg_un)
