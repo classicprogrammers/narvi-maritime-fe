@@ -81,6 +81,24 @@ const resolveApiText = (value) => {
   return text === "" ? "" : text;
 };
 
+const resolveCargoLineText = (value) => {
+  if (value == null || value === false) return "";
+  if (Array.isArray(value)) {
+    return value.map((item) => resolveCargoLineText(item)).filter(Boolean).join("\n");
+  }
+  if (typeof value === "object") {
+    return resolveApiText(value.name);
+  }
+  return resolveApiText(value);
+};
+
+const resolveCargoPoNumber = (item) =>
+  resolveCargoLineText(item?.po_number) ||
+  resolveCargoLineText(item?.req_no) ||
+  resolveCargoLineText(item?.po_text) ||
+  resolveCargoLineText(item?.po) ||
+  "";
+
 const resolveMany2oneLabel = (value, options = []) => {
   if (value == null || value === false) return "";
   if (typeof value === "object") {
@@ -782,12 +800,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         ...buildHeaderMasterOptionFields({
           data,
           savedHeader: lastSavedAutosaveRef.current.header,
-          shippedByOptions,
           fromOptions,
           toOptions,
           variant: "advise",
-          fields: ["shippedBy", "from", "to"],
+          fields: ["from", "to"],
         }),
+        awb_number: toNullIfEmpty(data.shippedBy),
         eta_text: formatDateForApi(data.deadline),
         date: formatDateForApi(data.date),
         transport_details: toNullIfEmpty(data.transportDetails),
@@ -866,12 +884,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       return {
         si_number_id: toIdOrNull(form.si_number_id),
         sic_number_id: toIdOrNull(form.sic_number_id),
-        si_shipped_by_id: toIdOrNull(form.si_shipped_by_id),
         siform_from_id: toIdOrNull(form.siform_from_id),
         siform_to_id: toIdOrNull(form.siform_to_id),
         from_text: toNullIfEmpty(form.from_text),
         to_text: toNullIfEmpty(form.to_text ?? form.destination_text),
-        to_be_shipped_by: toNullIfEmpty(form.to_be_shipped_by ?? form.awb_number),
+        awb_number: toNullIfEmpty(form.awb_number ?? form.to_be_shipped_by),
         eta_text: formatDateForApi(form.eta_text),
         date: formatDateForApi(form.date),
         job_no: toNullIfEmpty(form.job_no),
@@ -1310,21 +1327,22 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         : prev.siNumber,
       siNumberId: isDeliveryLike ? toIdOrNull(form.si_number_id) : prev.siNumberId,
       shippedBy: isShippingAdvise
-        ? (form.to_be_shipped_by != null && form.to_be_shipped_by !== false
-          ? String(form.to_be_shipped_by)
-          : form.awb_number != null && form.awb_number !== false
-            ? String(form.awb_number)
+        ? (form.awb_number != null && form.awb_number !== false
+          ? String(form.awb_number)
+          : form.to_be_shipped_by != null && form.to_be_shipped_by !== false
+            ? String(form.to_be_shipped_by)
             : "")
         : (shippedByName ||
           (form.si_shipped_by_id != null && form.si_shipped_by_id !== false && form.si_shipped_by_id !== ""
             ? (getOptionNameById(shippedByOptions, form.si_shipped_by_id) || String(form.si_shipped_by_id))
             : String(lastSubmittedHeaderRef.current.to_be_shipped_by || ""))),
-      shippedById:
-        form.si_shipped_by_id && typeof form.si_shipped_by_id === "object" && form.si_shipped_by_id.id != null
+      shippedById: isShippingAdvise
+        ? null
+        : (form.si_shipped_by_id && typeof form.si_shipped_by_id === "object" && form.si_shipped_by_id.id != null
           ? Number(form.si_shipped_by_id.id)
           : form.si_shipped_by_id != null && form.si_shipped_by_id !== false && form.si_shipped_by_id !== ""
             ? (Number.isFinite(Number(form.si_shipped_by_id)) ? Number(form.si_shipped_by_id) : null)
-            : null,
+            : null),
       from: isShippingAdvise
         ? (form.from_text != null && form.from_text !== false ? String(form.from_text) : "")
         : (fromName ||
@@ -1583,11 +1601,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           isDeliveryLike && it.si_number != null && it.si_number !== false
             ? String(it.si_number)
             : "",
-        poNumber:
-          resolveApiText(it.po_number) ||
-          resolveApiText(it.req_no) ||
-          resolveApiText(it.po_text) ||
-          "",
+        poNumber: resolveCargoPoNumber(it),
         dg_un:
           it.dg_un != null && it.dg_un !== false
             ? String(it.dg_un)
@@ -1932,6 +1946,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     formData.siNo,
     formData.sicNo,
     formData.jobNo,
+    formData.shippedBy,
     formData.deadline,
     formData.pic,
     formData.date,
@@ -2895,14 +2910,30 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                   {!isDeliveryLike && (
                     <FormControl display="contents">
                       <FormLabel
-                        htmlFor="shippedBy"
+                        htmlFor={isShippingAdvise ? "awb-number" : "shippedBy"}
                         fontWeight="bold"
                         textTransform="uppercase"
                         m={0}
                       >
                         {isShippingAdvise ? "AWB NO:" : isDeliveryForm ? "AWB:" : "TO BE SHIPPED BY:"}
                       </FormLabel>
-                      {(isShippingInstruction || isShippingAdvise) ? (
+                      {isShippingAdvise ? (
+                        <Input
+                          id="awb-number"
+                          value={formData.shippedBy}
+                          onChange={(e) => {
+                            headerUserEditedRef.current = true;
+                            handleInputChange("shippedBy", e.target.value);
+                          }}
+                          size="sm"
+                          fontWeight="medium"
+                          variant="unstyled"
+                          bg="transparent"
+                          color="white"
+                          placeholder="Type AWB number..."
+                          _placeholder={{ color: "whiteAlpha.800" }}
+                        />
+                      ) : isShippingInstruction ? (
                         <MasterOptionPicker
                           id="shipped-by-field"
                           savedName={formData.shippedBy}
@@ -2918,7 +2949,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           onSearchChange={setQShipBy}
                           isLoading={isOptionsLoading || isSiFormLoading}
                           onOptionsRefresh={refreshFormOptions}
-                          placeholder={isShippingAdvise ? "Select or add AWB..." : "Select shipped by..."}
+                          placeholder="Select shipped by..."
                           color="white"
                           bg="transparent"
                           borderColor="transparent"
