@@ -1690,7 +1690,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           page_size: 200,
           q_to: qTo,
         };
-        if (!isShippingAdvise) {
+        if (!isDeliveryLike) {
           optionsParams.q_cnee = qCnee;
           optionsParams.q_agent = qAgent;
           optionsParams.agent_id = formData.selectAgent || undefined;
