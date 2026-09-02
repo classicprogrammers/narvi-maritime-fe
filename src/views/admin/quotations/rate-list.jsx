@@ -1,12 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useHistory } from "react-router-dom";
+import { useHistory, useLocation } from "react-router-dom";
 import {
   Box,
   Button,
   Checkbox,
   Flex,
-  FormControl,
-  FormLabel,
   HStack,
   Icon,
   IconButton,
@@ -26,7 +24,6 @@ import {
   Tbody,
   Td,
   Text,
-  Textarea,
   Th,
   Thead,
   Spinner,
@@ -50,11 +47,13 @@ import {
 import Card from "components/card/Card";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import api from "../../../api/axios";
-import { updateRateListApi } from "../../../api/rate";
+import { deleteRateListApi } from "../../../api/rate";
 import { useMasterData } from "../../../hooks/useMasterData";
-import { emptyToNull, mapRateItemToFormRow } from "../../../utils/rateListForm";
 import {
+  buildRateListFilterSnapshot,
+  clearPersistedRateListState,
   defaultRateListState,
+  RATE_LIST_DEFAULT_SORT,
   readPersistedRateListState,
   writePersistedRateListState,
 } from "../../../utils/rateListState";
@@ -71,26 +70,7 @@ const RATE_TYPE_FILTER_OPTIONS = [
   { id: "client_specific", name: "Client Specific" },
 ];
 
-const DEFAULT_FORM = {
-  rate_type: "general",
-  client_id: "",
-  location_text: "",
-  agent_id: "",
-  currency_id: "",
-  rate_name: "",
-  rate_text: "",
-  rate_float: "",
-  rate_calculation: "",
-  fixed_sales_rate: "",
-  valid_until: "",
-  remarks: "",
-  sort_order: "",
-  incl_in_tariff: false,
-  import_group: "",
-  last_update: "",
-  active: true,
-  rate_id: "",
-};
+const RATE_FORM_ROUTE = "/admin/quotations/rate-list/rate";
 
 const DEFAULT_FILTERS = {
   rate_type: "",
@@ -99,7 +79,14 @@ const DEFAULT_FILTERS = {
   currency_id: "",
   rate_name: "",
   import_group: "",
+  active: "",
+  incl_in_tariff: "",
 };
+
+const BOOLEAN_FILTER_OPTIONS = [
+  { id: "true", name: "Yes" },
+  { id: "false", name: "No" },
+];
 
 function intFilterToParam(value) {
   if (value === "" || value == null) return undefined;
@@ -153,9 +140,14 @@ function displayText(value) {
 export default function RateList() {
   const toast = useToast();
   const history = useHistory();
-  const savedListState = useMemo(() => readPersistedRateListState(), []);
+  const location = useLocation();
+  const savedListState = useMemo(() => {
+    if (location.state?.filterState) {
+      return buildRateListFilterSnapshot(location.state.filterState);
+    }
+    return readPersistedRateListState();
+  }, []);
   const { clients, agents, currencies } = useMasterData();
-  const { isOpen, onOpen, onClose } = useDisclosure();
   const {
     isOpen: isPdfPreviewOpen,
     onOpen: onPdfPreviewOpen,
@@ -177,9 +169,6 @@ export default function RateList() {
   const tableTextColor = useColorModeValue("gray.600", "gray.300");
   const tableTextColorSecondary = useColorModeValue("gray.500", "gray.400");
   const placeholderColor = useColorModeValue("gray.400", "gray.500");
-  const modalBg = useColorModeValue("white", "gray.800");
-  const modalHeaderBg = useColorModeValue("gray.50", "gray.700");
-  const modalBorder = useColorModeValue("gray.200", "whiteAlpha.200");
   const scrollbarTrack = useColorModeValue("#f1f1f1", "#2d3748");
   const scrollbarThumb = useColorModeValue("#c1c1c1", "#4a5568");
   const scrollbarThumbHover = useColorModeValue("#a8a8a8", "#718096");
@@ -226,10 +215,6 @@ export default function RateList() {
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [isEdit, setIsEdit] = useState(false);
-  const [formData, setFormData] = useState(DEFAULT_FORM);
-  const [editAgentOption, setEditAgentOption] = useState(null);
 
   const [search, setSearch] = useState(() => savedListState?.search ?? "");
   const [debouncedSearch, setDebouncedSearch] = useState(
@@ -249,7 +234,9 @@ export default function RateList() {
     filters.agent_id ||
     filters.currency_id ||
     filters.rate_name ||
-    filters.import_group
+    filters.import_group ||
+    filters.active ||
+    filters.incl_in_tariff
   );
   const hasAnyFilter = Boolean(search || hasAnyAdvanceFilter);
   const [showFilterFields, setShowFilterFields] = useState(
@@ -282,13 +269,56 @@ export default function RateList() {
       currency_id: intFilterToParam(filters.currency_id),
       rate_name: filters.rate_name.trim() || undefined,
       import_group: filters.import_group.trim() || undefined,
+      active: filters.active === "" ? undefined : filters.active === "true",
+      incl_in_tariff: filters.incl_in_tariff === "" ? undefined : filters.incl_in_tariff === "true",
+      sort_by: RATE_LIST_DEFAULT_SORT.sort_by,
+      sort_order: RATE_LIST_DEFAULT_SORT.sort_order,
     }),
     [debouncedSearch, filters]
   );
 
+  const getFilterStateSnapshot = useCallback(
+    () =>
+      buildRateListFilterSnapshot({
+        search,
+        debouncedSearch,
+        filters,
+        page,
+        pageSize,
+        showFilterFields,
+        selectedRates,
+      }),
+    [search, debouncedSearch, filters, page, pageSize, showFilterFields, selectedRates]
+  );
+
+  const applyFilterState = useCallback((nextState) => {
+    if (!nextState) return;
+    const snapshot = buildRateListFilterSnapshot(nextState);
+    setSearch(snapshot.search);
+    setDebouncedSearch(snapshot.debouncedSearch);
+    setFilters(snapshot.filters);
+    setPage(snapshot.page);
+    setPageSize(snapshot.pageSize);
+    setShowFilterFields(snapshot.showFilterFields);
+    setSelectedRates(snapshot.selectedRates);
+    skipSelectionClearRef.current = true;
+    writePersistedRateListState(snapshot);
+  }, []);
+
   useEffect(() => {
     if (hasAnyAdvanceFilter) setShowFilterFields(true);
   }, [hasAnyAdvanceFilter]);
+
+  useEffect(() => {
+    if (location.state?.filterState && location.state?.fromRateForm) {
+      applyFilterState(location.state.filterState);
+      history.replace({
+        pathname: location.pathname,
+        search: location.search,
+        state: {},
+      });
+    }
+  }, [applyFilterState, history, location.pathname, location.search, location.state]);
 
   useEffect(() => {
     writePersistedRateListState({
@@ -303,6 +333,10 @@ export default function RateList() {
   }, [search, debouncedSearch, filters, page, pageSize, showFilterFields, selectedRates]);
 
   useEffect(() => {
+    if (skipSelectionClearRef.current) {
+      skipSelectionClearRef.current = false;
+      return;
+    }
     if (isFirstFilterChangeRun.current) {
       isFirstFilterChangeRun.current = false;
       return;
@@ -312,6 +346,7 @@ export default function RateList() {
 
   const isFirstSearchRun = useRef(true);
   const isFirstFilterChangeRun = useRef(true);
+  const skipSelectionClearRef = useRef(false);
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
@@ -409,125 +444,40 @@ export default function RateList() {
     });
   };
 
+  const navigateToRateForm = (selectedItems = [], isBulkEdit = false) => {
+    history.push({
+      pathname: RATE_FORM_ROUTE,
+      state: {
+        selectedItems,
+        isBulkEdit,
+        filterState: getFilterStateSnapshot(),
+      },
+    });
+  };
+
   const openCreate = () => {
-    setIsEdit(false);
-    setEditAgentOption(null);
-    setFormData(DEFAULT_FORM);
-    onOpen();
+    history.push({
+      pathname: RATE_FORM_ROUTE,
+      state: {
+        filterState: getFilterStateSnapshot(),
+      },
+    });
   };
 
   const openEdit = (item) => {
-    setIsEdit(true);
-    const agentId = item.agent_id?.id ?? item.agent_id ?? "";
-    const agentName = item.agent_id?.name || item.agent || item.agent_text || "";
-    setEditAgentOption(
-      agentId
-        ? {
-          id: agentId,
-          name: agentName,
-          company_name: agentName,
-        }
-        : null
-    );
-    setFormData(mapRateItemToFormRow(item));
-    onOpen();
+    navigateToRateForm([item], false);
   };
 
   const handleNavigateToEdit = () => {
     const selectedItems = Object.values(selectedRates);
     if (!selectedItems.length) return;
 
-    history.push({
-      pathname: "/admin/quotations/rate-list/edit",
-      state: {
-        selectedItems,
-        isBulkEdit: selectedItems.length > 1,
-      },
-    });
-  };
-
-  const validateForm = () => {
-    if (!formData.rate_type) return "Rate type is required.";
-    if (formData.rate_type === "client_specific" && !formData.client_id) {
-      return "Client is required for client specific rates.";
-    }
-    if (!formData.currency_id) return "Currency is required.";
-    if (!formData.rate_name) return "Rate name is required.";
-    return "";
-  };
-
-  const saveRate = async () => {
-    const validationError = validateForm();
-    if (validationError) {
-      toast({
-        title: "Validation Error",
-        description: validationError,
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const payload = {
-        ...formData,
-        client_id: formData.rate_type === "client_specific" ? Number(formData.client_id) : null,
-        currency_id: Number(formData.currency_id),
-        agent_id: formData.agent_id ? Number(formData.agent_id) : null,
-        // Backend expects date-like nullable fields as null, not empty string.
-        valid_until: emptyToNull(formData.valid_until),
-        last_update: emptyToNull(formData.last_update),
-      };
-
-      delete payload.agent_text;
-
-      if (!isEdit) {
-        delete payload.id;
-        delete payload.rate_id;
-      }
-
-      if (!isEdit) {
-        delete payload.id;
-        delete payload.rate_id;
-        await api.post("/api/rate/list/create", payload);
-      } else {
-        await updateRateListApi(payload);
-      }
-
-      toast({
-        title: isEdit ? "Rate updated" : "Rate created",
-        status: "success",
-        duration: 2500,
-        isClosable: true,
-      });
-
-      onClose();
-      setPage(1);
-      await loadData();
-    } catch (error) {
-      const backendMessage =
-        error?.response?.data?.result?.message ||
-        error?.response?.data?.message ||
-        error?.message ||
-        "";
-      toast({
-        title: "Error",
-        description:
-          backendMessage || (isEdit ? "Failed to update rate." : "Failed to create rate."),
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-    } finally {
-      setSaving(false);
-    }
+    navigateToRateForm(selectedItems, selectedItems.length > 1);
   };
 
   const deleteOne = async (id) => {
     try {
-      await api.post("/api/rate/list/delete", { id });
+      await deleteRateListApi(id);
       toast({
         title: "Rate deleted",
         status: "success",
@@ -665,11 +615,6 @@ export default function RateList() {
     borderColor: borderColor,
   };
 
-  const modalAgentOptions = useMemo(() => {
-    if (!editAgentOption) return agents;
-    const exists = agents.some((agent) => String(agent.id) === String(editAgentOption.id));
-    return exists ? agents : [editAgentOption, ...agents];
-  }, [agents, editAgentOption]);
 
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
@@ -891,6 +836,36 @@ export default function RateList() {
                       onChange={(e) => handleFilterChange("import_group", e.target.value)}
                     />
                   </Box>
+                  <Box minW="160px" flex="1">
+                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                      Active
+                    </Text>
+                    <SimpleSearchableSelect
+                      value={filters.active}
+                      onChange={(value) => handleFilterChange("active", value || "")}
+                      options={BOOLEAN_FILTER_OPTIONS}
+                      placeholder="All"
+                      displayKey="name"
+                      valueKey="id"
+                      formatOption={(option) => option.name}
+                      {...searchableSelectProps}
+                    />
+                  </Box>
+                  <Box minW="160px" flex="1">
+                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                      In Tariff
+                    </Text>
+                    <SimpleSearchableSelect
+                      value={filters.incl_in_tariff}
+                      onChange={(value) => handleFilterChange("incl_in_tariff", value || "")}
+                      options={BOOLEAN_FILTER_OPTIONS}
+                      placeholder="All"
+                      displayKey="name"
+                      valueKey="id"
+                      formatOption={(option) => option.name}
+                      {...searchableSelectProps}
+                    />
+                  </Box>
                 </HStack>
               </Box>
             )}
@@ -986,7 +961,7 @@ export default function RateList() {
               },
             }}
           >
-            <Table variant="unstyled" size="sm" layout="fixed" w="100%" minW="1380px">
+            <Table variant="unstyled" size="sm" layout="fixed" w="100%" minW="1540px">
               <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
                 <Tr>
                   <Th w="36px" {...thStyle} textAlign="center">
@@ -1004,6 +979,9 @@ export default function RateList() {
                   </Th>
                   <Th w="100px" {...thStyle}>
                     Location
+                  </Th>
+                  <Th w="160px" {...thStyle}>
+                    Client
                   </Th>
                   <Th w="180px" {...thStyle}>
                     Agent
@@ -1029,7 +1007,7 @@ export default function RateList() {
               <Tbody>
                 {loading ? (
                   <Tr>
-                    <Td colSpan={11} textAlign="center" py="40px" {...tdStyle}>
+                    <Td colSpan={12} textAlign="center" py="40px" {...tdStyle}>
                       <Text color={tableTextColorSecondary} fontSize="sm">
                         Loading rates...
                       </Text>
@@ -1037,7 +1015,7 @@ export default function RateList() {
                   </Tr>
                 ) : items.length === 0 ? (
                   <Tr>
-                    <Td colSpan={11} textAlign="center" py="40px" {...tdStyle}>
+                    <Td colSpan={12} textAlign="center" py="40px" {...tdStyle}>
                       <Text color={tableTextColorSecondary} fontSize="sm">
                         {hasAnyFilter ? "No rates match your search criteria." : "No rates available."}
                       </Text>
@@ -1082,6 +1060,13 @@ export default function RateList() {
                       <TruncatedCell
                         value={item.location_text || item.location}
                         maxW="100px"
+                        textColor={textColor}
+                        cellText={cellText}
+                        tdStyle={tdStyle}
+                      />
+                      <TruncatedCell
+                        value={item.client_id?.name || item.client_name || item.client}
+                        maxW="160px"
                         textColor={textColor}
                         cellText={cellText}
                         tdStyle={tdStyle}
@@ -1229,219 +1214,6 @@ export default function RateList() {
           </Flex>
         </Card>
       </VStack>
-
-      <Modal isOpen={isOpen} onClose={onClose} size="3xl">
-        <ModalOverlay bg="rgba(0, 0, 0, 0.6)" />
-        <ModalContent bg={modalBg} border="1px" borderColor={modalBorder}>
-          <ModalHeader
-            bg={modalHeaderBg}
-            borderBottom="1px"
-            borderColor={modalBorder}
-          >
-            {isEdit ? "Edit Rate" : "New Rate"}
-          </ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            <VStack spacing={4} align="stretch">
-              {isEdit && (
-                <FormControl>
-                  <FormLabel>Rate ID (Read only)</FormLabel>
-                  <Input value={formData.rate_id || ""} isReadOnly />
-                </FormControl>
-              )}
-
-              <HStack align="start" spacing={4}>
-                <FormControl isRequired>
-                  <FormLabel>Rate Type</FormLabel>
-                  <Select
-                    value={formData.rate_type}
-                    onChange={(e) => {
-                      const nextType = e.target.value;
-                      setFormData((prev) => ({
-                        ...prev,
-                        rate_type: nextType,
-                        client_id: nextType === "general" ? "" : prev.client_id,
-                      }));
-                    }}
-                  >
-                    <option value="general">General</option>
-                    <option value="client_specific">Client Specific</option>
-                  </Select>
-                </FormControl>
-
-                {formData.rate_type === "client_specific" && (
-                  <FormControl isRequired>
-                    <FormLabel>Client</FormLabel>
-                    <Select
-                      value={formData.client_id}
-                      onChange={(e) => setFormData((p) => ({ ...p, client_id: e.target.value }))}
-                    >
-                      <option value="">Select Client</option>
-                      {clients.map((client) => (
-                        <option key={client.id} value={client.id}>
-                          {client.name}
-                        </option>
-                      ))}
-                    </Select>
-                  </FormControl>
-                )}
-
-                <FormControl isRequired>
-                  <FormLabel>Currency</FormLabel>
-                  <Select
-                    value={formData.currency_id}
-                    onChange={(e) => setFormData((p) => ({ ...p, currency_id: e.target.value }))}
-                  >
-                    <option value="">Select Currency</option>
-                    {currencies.map((currency) => (
-                      <option key={currency.id} value={currency.id}>
-                        {currency.name}
-                      </option>
-                    ))}
-                  </Select>
-                </FormControl>
-              </HStack>
-
-              <HStack align="start" spacing={4}>
-                <FormControl>
-                  <FormLabel>Location Text</FormLabel>
-                  <Input
-                    value={formData.location_text}
-                    onChange={(e) => setFormData((p) => ({ ...p, location_text: e.target.value }))}
-                  />
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Agent</FormLabel>
-                  <SimpleSearchableSelect
-                    value={formData.agent_id}
-                    onChange={(value) => setFormData((p) => ({ ...p, agent_id: value || "" }))}
-                    options={modalAgentOptions}
-                    placeholder="Select agent"
-                    formatOption={formatAgentOption}
-                    {...searchableSelectProps}
-                  />
-                </FormControl>
-              </HStack>
-
-              <HStack align="start" spacing={4}>
-                <FormControl isRequired>
-                  <FormLabel>Rate Name</FormLabel>
-                  <Input
-                    value={formData.rate_name}
-                    onChange={(e) => setFormData((p) => ({ ...p, rate_name: e.target.value }))}
-                  />
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Rate Float</FormLabel>
-                  <Input
-                    value={formData.rate_float}
-                    onChange={(e) => setFormData((p) => ({ ...p, rate_float: e.target.value }))}
-                  />
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Fixed Sales Rate</FormLabel>
-                  <Input
-                    value={formData.fixed_sales_rate}
-                    onChange={(e) =>
-                      setFormData((p) => ({ ...p, fixed_sales_rate: e.target.value }))
-                    }
-                  />
-                </FormControl>
-              </HStack>
-
-              <HStack align="start" spacing={4}>
-                <FormControl>
-                  <FormLabel>Rate Calculation</FormLabel>
-                  <Input
-                    value={formData.rate_calculation}
-                    onChange={(e) =>
-                      setFormData((p) => ({ ...p, rate_calculation: e.target.value }))
-                    }
-                  />
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Valid Until</FormLabel>
-                  <Input
-                    placeholder="31-12-2026 or 2026-12-31"
-                    value={formData.valid_until}
-                    onChange={(e) => setFormData((p) => ({ ...p, valid_until: e.target.value }))}
-                  />
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Last Update</FormLabel>
-                  <Input
-                    value={formData.last_update}
-                    onChange={(e) => setFormData((p) => ({ ...p, last_update: e.target.value }))}
-                  />
-                </FormControl>
-              </HStack>
-
-              <HStack align="start" spacing={4}>
-                <FormControl>
-                  <FormLabel>Sort Order</FormLabel>
-                  <Input
-                    value={formData.sort_order}
-                    onChange={(e) => setFormData((p) => ({ ...p, sort_order: e.target.value }))}
-                  />
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Group Name</FormLabel>
-                  <Input
-                    value={formData.import_group}
-                    onChange={(e) => setFormData((p) => ({ ...p, import_group: e.target.value }))}
-                  />
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Include in Tariff</FormLabel>
-                  <Select
-                    value={String(formData.incl_in_tariff)}
-                    onChange={(e) =>
-                      setFormData((p) => ({ ...p, incl_in_tariff: e.target.value === "true" }))
-                    }
-                  >
-                    <option value="true">Yes</option>
-                    <option value="false">No</option>
-                  </Select>
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Active</FormLabel>
-                  <Select
-                    value={String(formData.active)}
-                    onChange={(e) => setFormData((p) => ({ ...p, active: e.target.value === "true" }))}
-                  >
-                    <option value="true">Yes</option>
-                    <option value="false">No</option>
-                  </Select>
-                </FormControl>
-              </HStack>
-
-              <FormControl>
-                <FormLabel>Rate Text</FormLabel>
-                <Textarea
-                  value={formData.rate_text}
-                  onChange={(e) => setFormData((p) => ({ ...p, rate_text: e.target.value }))}
-                />
-              </FormControl>
-              <FormControl>
-                <FormLabel>Remarks</FormLabel>
-                <Textarea
-                  value={formData.remarks}
-                  onChange={(e) => setFormData((p) => ({ ...p, remarks: e.target.value }))}
-                />
-              </FormControl>
-            </VStack>
-          </ModalBody>
-
-          <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onClose}>
-              Cancel
-            </Button>
-            <Button colorScheme="blue" onClick={saveRate} isLoading={saving}>
-              {isEdit ? "Update" : "Create"}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
 
       <Modal isOpen={isPdfPreviewOpen} onClose={handleClosePdfPreview} size="full" scrollBehavior="inside">
         <ModalOverlay />

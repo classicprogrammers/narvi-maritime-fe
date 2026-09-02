@@ -1,5 +1,10 @@
 export const RATE_LIST_STORAGE_KEY = "narvi_rate_list_state";
 
+export const RATE_LIST_DEFAULT_SORT = {
+  sort_by: "id",
+  sort_order: "desc",
+};
+
 export const defaultRateListState = {
   search: "",
   debouncedSearch: "",
@@ -10,12 +15,50 @@ export const defaultRateListState = {
     currency_id: "",
     rate_name: "",
     import_group: "",
+    active: "",
+    incl_in_tariff: "",
   },
   page: 1,
   pageSize: 50,
   showFilterFields: false,
   selectedRates: {},
 };
+
+export function buildRateListFilterSnapshot(state = {}) {
+  const defaultFilters = defaultRateListState.filters;
+  return {
+    search: typeof state.search === "string" ? state.search : "",
+    debouncedSearch:
+      typeof state.debouncedSearch === "string"
+        ? state.debouncedSearch
+        : typeof state.search === "string"
+          ? state.search
+          : "",
+    filters: {
+      rate_type:
+        typeof state.filters?.rate_type === "string" ? state.filters.rate_type : defaultFilters.rate_type,
+      client_id: state.filters?.client_id ?? defaultFilters.client_id,
+      agent_id: state.filters?.agent_id ?? defaultFilters.agent_id,
+      currency_id: state.filters?.currency_id ?? defaultFilters.currency_id,
+      rate_name:
+        typeof state.filters?.rate_name === "string" ? state.filters.rate_name : defaultFilters.rate_name,
+      import_group:
+        typeof state.filters?.import_group === "string"
+          ? state.filters.import_group
+          : defaultFilters.import_group,
+      active: typeof state.filters?.active === "string" ? state.filters.active : defaultFilters.active,
+      incl_in_tariff:
+        typeof state.filters?.incl_in_tariff === "string"
+          ? state.filters.incl_in_tariff
+          : defaultFilters.incl_in_tariff,
+    },
+    page: typeof state.page === "number" && state.page >= 1 ? state.page : 1,
+    pageSize: typeof state.pageSize === "number" && state.pageSize >= 1 ? state.pageSize : 50,
+    showFilterFields: Boolean(state.showFilterFields),
+    selectedRates:
+      state.selectedRates && typeof state.selectedRates === "object" ? state.selectedRates : {},
+  };
+}
 
 export function readPersistedRateListState() {
   try {
@@ -25,34 +68,7 @@ export function readPersistedRateListState() {
         : null;
     if (!raw) return null;
     const p = JSON.parse(raw);
-    const defaultFilters = defaultRateListState.filters;
-    return {
-      search: typeof p.search === "string" ? p.search : "",
-      debouncedSearch:
-        typeof p.debouncedSearch === "string"
-          ? p.debouncedSearch
-          : typeof p.search === "string"
-            ? p.search
-            : "",
-      filters: {
-        rate_type:
-          typeof p.filters?.rate_type === "string" ? p.filters.rate_type : defaultFilters.rate_type,
-        client_id: p.filters?.client_id ?? defaultFilters.client_id,
-        agent_id: p.filters?.agent_id ?? defaultFilters.agent_id,
-        currency_id: p.filters?.currency_id ?? defaultFilters.currency_id,
-        rate_name:
-          typeof p.filters?.rate_name === "string" ? p.filters.rate_name : defaultFilters.rate_name,
-        import_group:
-          typeof p.filters?.import_group === "string"
-            ? p.filters.import_group
-            : defaultFilters.import_group,
-      },
-      page: typeof p.page === "number" && p.page >= 1 ? p.page : 1,
-      pageSize: typeof p.pageSize === "number" && p.pageSize >= 1 ? p.pageSize : 50,
-      showFilterFields: Boolean(p.showFilterFields),
-      selectedRates:
-        p.selectedRates && typeof p.selectedRates === "object" ? p.selectedRates : {},
-    };
+    return buildRateListFilterSnapshot(p);
   } catch {
     return null;
   }

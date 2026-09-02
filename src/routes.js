@@ -48,7 +48,7 @@ import Phonebook from "views/admin/phonebook";
 import Quotations from "views/admin/quotations";
 import QuotationForm from "views/admin/quotations/QuotationForm";
 import RateList from "views/admin/quotations/rate-list";
-import RateListEdit from "views/admin/quotations/RateListEdit";
+import RateListForm from "views/admin/quotations/RateListForm";
 import ClientTariffs from "views/admin/quotations/client-tariffs";
 import Invoice from "views/admin/quotations/Invoice";
 import ShippingOrder from "views/admin/shipping-order";
@@ -464,11 +464,11 @@ const hiddenRoutes = [
     component: ClientDetail,
   },
   {
-    name: "Rate List Edit",
+    name: "Rate List Form",
     layout: "/admin",
-    path: "/quotations/rate-list/edit",
+    path: "/quotations/rate-list/rate",
     exact: true,
-    component: RateListEdit,
+    component: RateListForm,
   },
   {
     name: "Stock Form",

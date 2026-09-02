@@ -102,6 +102,15 @@ export default function Dashboard(props) {
     const hasBulkIds = Boolean(new URLSearchParams(location?.search || "").get("ids"));
     return hasSelectedItems || hasBulkIds ? "Edit Stock" : "Add Stock";
   };
+  const getRateManagePageTitle = (pathname, location) => {
+    const normalizedPath = (pathname || "").replace(/\/$/, "") || "/";
+    if (normalizedPath !== "/admin/quotations/rate-list/rate") {
+      return null;
+    }
+    const state = location?.state || {};
+    const hasSelectedItems = Array.isArray(state.selectedItems) && state.selectedItems.length > 0;
+    return hasSelectedItems ? "Edit Rate" : "Add Rate";
+  };
   const getActiveRoute = (routes, location = {}) => {
     const pathname = location.pathname || window.location.pathname;
     if (isQuotationFormPath(pathname)) {
@@ -110,6 +119,10 @@ export default function Dashboard(props) {
     const stockManageTitle = getStockManagePageTitle(pathname, location);
     if (stockManageTitle) {
       return stockManageTitle;
+    }
+    const rateManageTitle = getRateManagePageTitle(pathname, location);
+    if (rateManageTitle) {
+      return rateManageTitle;
     }
     let activeRoute = "Dashboard";
     for (let i = 0; i < routes.length; i++) {
