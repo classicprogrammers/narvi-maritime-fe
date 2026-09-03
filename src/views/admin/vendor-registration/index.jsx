@@ -1952,29 +1952,39 @@ function VendorRegistration() {
                                                     >
                                                         CNEE Text
                                                     </Text>
-                                                    <Box
-                                                        w={gridInputWidth}
-                                                        minH="80px"
-                                                        px={3}
-                                                        py={2}
-                                                        borderRadius="md"
-                                                        border="1px solid"
-                                                        borderColor={borderColor}
-                                                        bg={inputBg}
-                                                        cursor="pointer"
-                                                        _hover={{ borderColor: "blue.400", bg: "whiteAlpha.50" }}
-                                                        _focusWithin={{ borderColor: "blue.500", boxShadow: "0 0 0 1px var(--chakra-colors-blue-500)" }}
-                                                        onClick={() => openCneeTextModal(rowIndex)}
+                                                    <Tooltip
+                                                        label={row.cnee_text?.trim() || ""}
+                                                        placement="top"
+                                                        hasArrow
+                                                        isDisabled={!row.cnee_text?.trim()}
+                                                        maxW="420px"
+                                                        whiteSpace="pre-wrap"
+                                                        openDelay={200}
                                                     >
-                                                        <Text
-                                                            fontSize="sm"
-                                                            color={row.cnee_text ? textColor : "gray.500"}
-                                                            noOfLines={3}
-                                                            whiteSpace="pre-wrap"
+                                                        <Box
+                                                            w={gridInputWidth}
+                                                            minH="80px"
+                                                            px={3}
+                                                            py={2}
+                                                            borderRadius="md"
+                                                            border="1px solid"
+                                                            borderColor={borderColor}
+                                                            bg={inputBg}
+                                                            cursor="pointer"
+                                                            _hover={{ borderColor: "blue.400", bg: "whiteAlpha.50" }}
+                                                            _focusWithin={{ borderColor: "blue.500", boxShadow: "0 0 0 1px var(--chakra-colors-blue-500)" }}
+                                                            onClick={() => openCneeTextModal(rowIndex)}
                                                         >
-                                                            {row.cnee_text?.trim() || "Click to enter CNEE notes / free text..."}
-                                                        </Text>
-                                                    </Box>
+                                                            <Text
+                                                                fontSize="sm"
+                                                                color={row.cnee_text ? textColor : "gray.500"}
+                                                                noOfLines={3}
+                                                                whiteSpace="pre-wrap"
+                                                            >
+                                                                {row.cnee_text?.trim() || "Click to enter CNEE notes / free text..."}
+                                                            </Text>
+                                                        </Box>
+                                                    </Tooltip>
                                                 </Box>
 
                                                 {/* Warnings */}

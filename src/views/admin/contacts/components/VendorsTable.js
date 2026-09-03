@@ -1202,41 +1202,71 @@ export default function VendorsTable(props) {
                       borderColor={tableBorderColor}
                     >
                       {row.cells.map((cell, index) => {
+                        const renderTruncatedText = (value, fontWeight = "400") => {
+                          const display = value && String(value).trim() !== "" ? String(value) : "-";
+                          const hasContent = display !== "-";
+                          return (
+                            <Tooltip
+                              label={display}
+                              placement="top"
+                              hasArrow
+                              isDisabled={!hasContent}
+                              maxW="360px"
+                              whiteSpace="pre-wrap"
+                              openDelay={150}
+                            >
+                              <Text
+                                color={textColor}
+                                fontSize="sm"
+                                fontWeight={fontWeight}
+                                {...cellText}
+                              >
+                                {display}
+                              </Text>
+                            </Tooltip>
+                          );
+                        };
+
                         let data = "";
                         if (cell.column.Header === "AGENT ID") {
-                          data = (
-                            <Text
-                              color={textColor}
-                              fontSize="sm"
-                              fontWeight="500"
-                              {...cellText}
-                            >
-                              {cell.value || "-"}
-                            </Text>
-                          );
+                          data = renderTruncatedText(cell.value, "500");
                         } else if (cell.column.Header === "COMPANY NAME") {
-                          data = (
-                            <Text
-                              color={textColor}
-                              fontSize="sm"
-                              fontWeight="600"
-                              {...cellText}
-                            >
-                              {cell.value || "-"}
-                            </Text>
-                          );
+                          data = renderTruncatedText(cell.value, "600");
                         } else if (cell.column.Header === "AGENT TYPE") {
-                          data = (
-                            <Text color={textColor} fontSize="sm" {...cellText}>
-                              {row.original.type_client || "-"}
-                            </Text>
-                          );
+                          data = renderTruncatedText(row.original.type_client);
                         } else if (cell.column.Header === "CITY / COUNTRY") {
-                          const value = row.original.city_country || "-";
+                          data = renderTruncatedText(row.original.city_country);
+                        } else if (cell.column.Header === "REMARKS" || cell.column.Header === "WARNINGS") {
+                          const rawValue =
+                            cell.column.Header === "REMARKS"
+                              ? row.original.remarks
+                              : row.original.warnings;
+                          const display =
+                            rawValue && String(rawValue).trim() !== ""
+                              ? String(rawValue)
+                              : "-";
+                          const hasContent = display !== "-";
                           data = (
-                            <Text color={textColor} fontSize="sm" {...cellText}>
-                              {value}
-                            </Text>
+                            <Tooltip
+                              label={display}
+                              placement="top"
+                              hasArrow
+                              isDisabled={!hasContent}
+                              maxW="420px"
+                              whiteSpace="pre-wrap"
+                              openDelay={150}
+                            >
+                              <Text
+                                color={hasContent && cell.column.Header === "WARNINGS" ? "orange.600" : textColor}
+                                fontSize="sm"
+                                noOfLines={2}
+                                whiteSpace="pre-wrap"
+                                wordBreak="break-word"
+                                maxW="240px"
+                              >
+                                {display}
+                              </Text>
+                            </Tooltip>
                           );
                         } else if (cell.column.Header === "CNEE COUNT") {
                           const rawCount = Number(row.original.cnee_count ?? 0);
@@ -1437,11 +1467,7 @@ export default function VendorsTable(props) {
                             </HStack>
                           );
                         } else {
-                          data = (
-                            <Text color={textColor} fontSize="sm" {...cellText}>
-                              {cell.value || "-"}
-                            </Text>
-                          );
+                          data = renderTruncatedText(cell.value);
                         }
                         return (
                           <Td

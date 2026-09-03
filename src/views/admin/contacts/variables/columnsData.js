@@ -68,6 +68,16 @@ export const columnsDataAgents = [
     minWidth: 140,
   },
   {
+    Header: "REMARKS",
+    accessor: "remarks",
+    minWidth: 180,
+  },
+  {
+    Header: "WARNINGS",
+    accessor: "warnings",
+    minWidth: 180,
+  },
+  {
     Header: "ACTIONS",
     accessor: "actions",
     minWidth: 120,

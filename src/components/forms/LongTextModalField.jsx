@@ -11,6 +11,7 @@ import {
     ModalBody,
     ModalFooter,
     ModalCloseButton,
+    Tooltip,
     useDisclosure,
     useColorModeValue,
 } from "@chakra-ui/react";
@@ -33,6 +34,8 @@ export default function LongTextModalField({
     const borderColor = useColorModeValue("gray.200", "whiteAlpha.300");
     const inputBg = useColorModeValue("white", "navy.800");
     const textColor = useColorModeValue("gray.800", "white");
+    const trimmedValue = value?.trim() || "";
+    const hasValue = Boolean(trimmedValue);
 
     React.useEffect(() => {
         if (isOpen) {
@@ -56,29 +59,39 @@ export default function LongTextModalField({
 
     return (
         <>
-            <Box
-                w={boxWidth}
-                minH={minH}
-                px={3}
-                py={2}
-                borderRadius="md"
-                border="1px solid"
-                borderColor={borderColor}
-                bg={inputBg}
-                cursor="pointer"
-                _hover={{ borderColor: "blue.400", bg: "whiteAlpha.50" }}
-                _focusWithin={{ borderColor: "blue.500", boxShadow: "0 0 0 1px var(--chakra-colors-blue-500)" }}
-                onClick={onOpen}
+            <Tooltip
+                label={trimmedValue}
+                placement="top"
+                hasArrow
+                isDisabled={!hasValue || isOpen}
+                maxW="420px"
+                whiteSpace="pre-wrap"
+                openDelay={200}
             >
-                <Text
-                    fontSize="sm"
-                    color={value?.trim() ? textColor : "gray.500"}
-                    noOfLines={3}
-                    whiteSpace="pre-wrap"
+                <Box
+                    w={boxWidth}
+                    minH={minH}
+                    px={3}
+                    py={2}
+                    borderRadius="md"
+                    border="1px solid"
+                    borderColor={borderColor}
+                    bg={inputBg}
+                    cursor="pointer"
+                    _hover={{ borderColor: "blue.400", bg: "whiteAlpha.50" }}
+                    _focusWithin={{ borderColor: "blue.500", boxShadow: "0 0 0 1px var(--chakra-colors-blue-500)" }}
+                    onClick={onOpen}
                 >
-                    {value?.trim() || placeholder}
-                </Text>
-            </Box>
+                    <Text
+                        fontSize="sm"
+                        color={hasValue ? textColor : "gray.500"}
+                        noOfLines={3}
+                        whiteSpace="pre-wrap"
+                    >
+                        {trimmedValue || placeholder}
+                    </Text>
+                </Box>
+            </Tooltip>
 
             <Modal isOpen={isOpen} onClose={handleCancel} size="2xl" scrollBehavior="inside">
                 <ModalOverlay />

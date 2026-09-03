@@ -47,8 +47,7 @@ import {
 import Card from "components/card/Card";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import api from "../../../api/axios";
-import { deleteRateListApi } from "../../../api/rate";
-import { useMasterData } from "../../../hooks/useMasterData";
+import { deleteRateListApi, getRateListOptionsApi } from "../../../api/rate";
 import {
   buildRateListFilterSnapshot,
   clearPersistedRateListState,
@@ -74,6 +73,7 @@ const RATE_FORM_ROUTE = "/admin/quotations/rate-list/rate";
 
 const DEFAULT_FILTERS = {
   rate_type: "",
+  location_text: "",
   client_id: "",
   agent_id: "",
   currency_id: "",
@@ -88,6 +88,24 @@ const BOOLEAN_FILTER_OPTIONS = [
   { id: "false", name: "No" },
 ];
 
+const EMPTY_FILTER_OPTIONS = {
+  rateTypes: RATE_TYPE_FILTER_OPTIONS,
+  clients: [],
+  agents: [],
+  currencies: [],
+  rateNames: [],
+  groups: [],
+};
+
+const EMPTY_OPTION_QUERIES = {
+  q_rate_type: "",
+  q_client: "",
+  q_agent: "",
+  q_currency: "",
+  q_rate_name: "",
+  q_group: "",
+};
+
 function intFilterToParam(value) {
   if (value === "" || value == null) return undefined;
   const parsed = Number(value);
@@ -96,10 +114,76 @@ function intFilterToParam(value) {
 
 function formatAgentOption(agent) {
   if (!agent) return "";
-  const code = agent.name || "";
+  const code = agent.name || agent.agentid || "";
   const company = agent.company_name || "";
   if (code && company) return `${code} — ${company}`;
   return code || company || `Agent ${agent.id}`;
+}
+
+function formatClientOption(client) {
+  if (!client) return "";
+  return client.name || client.company_name || `Client ${client.id}`;
+}
+
+function formatCurrencyOption(currency) {
+  if (!currency) return "";
+  if (currency.symbol) return `${currency.name || currency.id} (${currency.symbol})`;
+  return currency.name || `Currency ${currency.id}`;
+}
+
+function normalizeRateTypeOptions(raw) {
+  if (!Array.isArray(raw) || !raw.length) return [...RATE_TYPE_FILTER_OPTIONS];
+  return raw
+    .map((option) => {
+      const id = option?.value ?? option?.id ?? option?.rate_type ?? "";
+      if (!id) return null;
+      const name =
+        option?.label ||
+        option?.name ||
+        RATE_TYPE_FILTER_OPTIONS.find((item) => item.id === id)?.name ||
+        String(id);
+      return { id: String(id), name };
+    })
+    .filter(Boolean);
+}
+
+function normalizeIdNameOptions(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((option) => {
+      const id = option?.id;
+      if (id == null || id === "") return null;
+      return { ...option, id };
+    })
+    .filter(Boolean);
+}
+
+function normalizeNamedOptions(raw, valueKeys = ["name"]) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((option) => {
+      let name = "";
+      for (const key of valueKeys) {
+        if (option?.[key]) {
+          name = String(option[key]);
+          break;
+        }
+      }
+      if (!name) return null;
+      return { id: name, name, ...option };
+    })
+    .filter(Boolean);
+}
+
+function optionHasValue(options, value, valueKey = "id") {
+  if (value === "" || value == null) return true;
+  return options.some((option) => String(option[valueKey]) === String(value));
+}
+
+function mergeSelectedOption(options, selectedValue, selectedOption, valueKey = "id") {
+  if (!selectedValue || !selectedOption) return options;
+  if (optionHasValue(options, selectedValue, valueKey)) return options;
+  return [selectedOption, ...options];
 }
 
 function TruncatedCell({ value, maxW = "180px", fontWeight, textColor, cellText, tdStyle }) {
@@ -147,7 +231,6 @@ export default function RateList() {
     }
     return readPersistedRateListState();
   }, []);
-  const { clients, agents, currencies } = useMasterData();
   const {
     isOpen: isPdfPreviewOpen,
     onOpen: onPdfPreviewOpen,
@@ -155,6 +238,20 @@ export default function RateList() {
   } = useDisclosure();
   const pdfPreviewIframeRef = useRef(null);
   const pdfPreviewBlobUrlRef = useRef(null);
+
+  const [filterOptions, setFilterOptions] = useState(EMPTY_FILTER_OPTIONS);
+  const [isLoadingFilterOptions, setIsLoadingFilterOptions] = useState(false);
+  const optionQueriesRef = useRef({ ...EMPTY_OPTION_QUERIES });
+  const optionsRequestIdRef = useRef(0);
+  const selectedOptionPinsRef = useRef({
+    client: null,
+    agent: null,
+    currency: null,
+    rateName: null,
+    group: null,
+    rateType: null,
+  });
+  const filtersRef = useRef(DEFAULT_FILTERS);
 
   const textColor = useColorModeValue("secondaryGray.900", "white");
   const borderColor = useColorModeValue("gray.200", "whiteAlpha.100");
@@ -221,6 +318,7 @@ export default function RateList() {
     () => savedListState?.debouncedSearch ?? savedListState?.search ?? ""
   );
   const [filters, setFilters] = useState(() => savedListState?.filters ?? DEFAULT_FILTERS);
+  filtersRef.current = filters;
   const [page, setPage] = useState(() => savedListState?.page ?? 1);
   const [pageSize, setPageSize] = useState(() => savedListState?.pageSize ?? 50);
   const [totalPages, setTotalPages] = useState(1);
@@ -230,6 +328,7 @@ export default function RateList() {
 
   const hasAnyAdvanceFilter = Boolean(
     filters.rate_type ||
+    filters.location_text ||
     filters.client_id ||
     filters.agent_id ||
     filters.currency_id ||
@@ -264,6 +363,7 @@ export default function RateList() {
       page_size: overrides.page_size,
       search: debouncedSearch.trim() || undefined,
       rate_type: filters.rate_type || undefined,
+      location_text: filters.location_text.trim() || undefined,
       client_id: intFilterToParam(filters.client_id),
       agent_id: intFilterToParam(filters.agent_id),
       currency_id: intFilterToParam(filters.currency_id),
@@ -397,8 +497,241 @@ export default function RateList() {
     loadData();
   }, [loadData]);
 
+  const buildOptionsPayload = useCallback((currentFilters, queries = {}) => {
+    const payload = {
+      page: 1,
+      page_size: 200,
+    };
+    if (currentFilters.rate_type) payload.rate_type = currentFilters.rate_type;
+    const clientId = intFilterToParam(currentFilters.client_id);
+    if (clientId != null) payload.client_id = clientId;
+    const agentId = intFilterToParam(currentFilters.agent_id);
+    if (agentId != null) payload.agent_id = agentId;
+    const currencyId = intFilterToParam(currentFilters.currency_id);
+    if (currencyId != null) payload.currency_id = currencyId;
+    if (currentFilters.rate_name?.trim()) payload.rate_name = currentFilters.rate_name.trim();
+    if (currentFilters.import_group?.trim()) payload.import_group = currentFilters.import_group.trim();
+
+    Object.entries(queries).forEach(([key, value]) => {
+      const trimmed = typeof value === "string" ? value.trim() : "";
+      if (trimmed) payload[key] = trimmed;
+    });
+
+    return payload;
+  }, []);
+
+  const pinSelectedOptions = useCallback((currentFilters, options) => {
+    const pins = selectedOptionPinsRef.current;
+    if (currentFilters.rate_type) {
+      pins.rateType =
+        options.rateTypes.find((option) => String(option.id) === String(currentFilters.rate_type)) ||
+        pins.rateType;
+    } else {
+      pins.rateType = null;
+    }
+    if (currentFilters.client_id) {
+      pins.client =
+        options.clients.find((option) => String(option.id) === String(currentFilters.client_id)) ||
+        pins.client;
+    } else {
+      pins.client = null;
+    }
+    if (currentFilters.agent_id) {
+      pins.agent =
+        options.agents.find((option) => String(option.id) === String(currentFilters.agent_id)) ||
+        pins.agent;
+    } else {
+      pins.agent = null;
+    }
+    if (currentFilters.currency_id) {
+      pins.currency =
+        options.currencies.find((option) => String(option.id) === String(currentFilters.currency_id)) ||
+        pins.currency;
+    } else {
+      pins.currency = null;
+    }
+    if (currentFilters.rate_name) {
+      pins.rateName =
+        options.rateNames.find((option) => String(option.id) === String(currentFilters.rate_name)) ||
+        pins.rateName;
+    } else {
+      pins.rateName = null;
+    }
+    if (currentFilters.import_group) {
+      pins.group =
+        options.groups.find((option) => String(option.id) === String(currentFilters.import_group)) ||
+        pins.group;
+    } else {
+      pins.group = null;
+    }
+  }, []);
+
+  const loadFilterOptions = useCallback(
+    async (currentFilters = filtersRef.current, queries = optionQueriesRef.current, options = {}) => {
+      const { pruneSelections = true } = options;
+      const requestId = ++optionsRequestIdRef.current;
+      setIsLoadingFilterOptions(true);
+      try {
+        const result = await getRateListOptionsApi(buildOptionsPayload(currentFilters, queries));
+        if (requestId !== optionsRequestIdRef.current) return;
+
+        const rawGroups =
+          (Array.isArray(result.group_options) && result.group_options) ||
+          (Array.isArray(result.import_group_options) && result.import_group_options) ||
+          (Array.isArray(result.group_name_options) && result.group_name_options) ||
+          [];
+
+        const rawOptions = {
+          rateTypes: normalizeRateTypeOptions(result.rate_type_options),
+          clients: normalizeIdNameOptions(result.client_options),
+          agents: normalizeIdNameOptions(result.agent_options),
+          currencies: normalizeIdNameOptions(result.currency_options),
+          rateNames: normalizeNamedOptions(result.rate_name_options, ["rate_name", "name"]),
+          groups: normalizeNamedOptions(rawGroups, ["import_group", "group_name", "name", "group"]),
+        };
+
+        let effectiveFilters = currentFilters;
+        if (pruneSelections) {
+          const pruned = { ...currentFilters };
+          let changed = false;
+
+          if (pruned.rate_type && !optionHasValue(rawOptions.rateTypes, pruned.rate_type)) {
+            pruned.rate_type = "";
+            changed = true;
+          }
+          if (pruned.client_id && !optionHasValue(rawOptions.clients, pruned.client_id)) {
+            pruned.client_id = "";
+            changed = true;
+          }
+          if (pruned.agent_id && !optionHasValue(rawOptions.agents, pruned.agent_id)) {
+            pruned.agent_id = "";
+            changed = true;
+          }
+          if (pruned.currency_id && !optionHasValue(rawOptions.currencies, pruned.currency_id)) {
+            pruned.currency_id = "";
+            changed = true;
+          }
+          if (pruned.rate_name && !optionHasValue(rawOptions.rateNames, pruned.rate_name)) {
+            pruned.rate_name = "";
+            changed = true;
+          }
+          if (pruned.import_group && !optionHasValue(rawOptions.groups, pruned.import_group)) {
+            pruned.import_group = "";
+            changed = true;
+          }
+
+          if (changed) {
+            effectiveFilters = pruned;
+            setFilters((prev) => {
+              const next = { ...prev, ...pruned };
+              const same =
+                prev.rate_type === next.rate_type &&
+                prev.client_id === next.client_id &&
+                prev.agent_id === next.agent_id &&
+                prev.currency_id === next.currency_id &&
+                prev.rate_name === next.rate_name &&
+                prev.import_group === next.import_group;
+              return same ? prev : next;
+            });
+          }
+        }
+
+        const pins = selectedOptionPinsRef.current;
+        const nextOptions = {
+          rateTypes: mergeSelectedOption(rawOptions.rateTypes, effectiveFilters.rate_type, pins.rateType),
+          clients: mergeSelectedOption(rawOptions.clients, effectiveFilters.client_id, pins.client),
+          agents: mergeSelectedOption(rawOptions.agents, effectiveFilters.agent_id, pins.agent),
+          currencies: mergeSelectedOption(
+            rawOptions.currencies,
+            effectiveFilters.currency_id,
+            pins.currency
+          ),
+          rateNames: mergeSelectedOption(
+            rawOptions.rateNames,
+            effectiveFilters.rate_name,
+            pins.rateName
+          ),
+          groups: mergeSelectedOption(rawOptions.groups, effectiveFilters.import_group, pins.group),
+        };
+
+        setFilterOptions(nextOptions);
+        pinSelectedOptions(effectiveFilters, nextOptions);
+      } catch (error) {
+        if (requestId !== optionsRequestIdRef.current) return;
+        setFilterOptions((prev) => prev);
+      } finally {
+        if (requestId === optionsRequestIdRef.current) {
+          setIsLoadingFilterOptions(false);
+        }
+      }
+    },
+    [buildOptionsPayload, pinSelectedOptions]
+  );
+
+  useEffect(() => {
+    optionQueriesRef.current = { ...EMPTY_OPTION_QUERIES };
+    loadFilterOptions(filters, EMPTY_OPTION_QUERIES, { pruneSelections: true });
+  }, [
+    filters.rate_type,
+    filters.client_id,
+    filters.agent_id,
+    filters.currency_id,
+    filters.rate_name,
+    filters.import_group,
+    loadFilterOptions,
+  ]);
+
+  const handleOptionSearchChange = useCallback(
+    (queryKey, query) => {
+      optionQueriesRef.current = {
+        ...optionQueriesRef.current,
+        [queryKey]: query,
+      };
+      loadFilterOptions(filtersRef.current, optionQueriesRef.current, { pruneSelections: false });
+    },
+    [loadFilterOptions]
+  );
+
   const handleFilterChange = (field, value) => {
-    setFilters((prev) => ({ ...prev, [field]: value }));
+    setFilters((prev) => {
+      const next = { ...prev, [field]: value };
+      const pins = selectedOptionPinsRef.current;
+
+      if (field === "rate_type") {
+        pins.rateType = value
+          ? filterOptions.rateTypes.find((option) => String(option.id) === String(value)) || pins.rateType
+          : null;
+      }
+      if (field === "client_id") {
+        pins.client = value
+          ? filterOptions.clients.find((option) => String(option.id) === String(value)) || pins.client
+          : null;
+      }
+      if (field === "agent_id") {
+        pins.agent = value
+          ? filterOptions.agents.find((option) => String(option.id) === String(value)) || pins.agent
+          : null;
+      }
+      if (field === "currency_id") {
+        pins.currency = value
+          ? filterOptions.currencies.find((option) => String(option.id) === String(value)) ||
+            pins.currency
+          : null;
+      }
+      if (field === "rate_name") {
+        pins.rateName = value
+          ? filterOptions.rateNames.find((option) => String(option.id) === String(value)) ||
+            pins.rateName
+          : null;
+      }
+      if (field === "import_group") {
+        pins.group = value
+          ? filterOptions.groups.find((option) => String(option.id) === String(value)) || pins.group
+          : null;
+      }
+
+      return next;
+    });
     setPage(1);
   };
 
@@ -409,7 +742,18 @@ export default function RateList() {
     setPage(1);
     setSelectedRates({});
     setShowFilterFields(false);
+    setFilterOptions(EMPTY_FILTER_OPTIONS);
+    optionQueriesRef.current = { ...EMPTY_OPTION_QUERIES };
+    selectedOptionPinsRef.current = {
+      client: null,
+      agent: null,
+      currency: null,
+      rateName: null,
+      group: null,
+      rateType: null,
+    };
     writePersistedRateListState(defaultRateListState);
+    loadFilterOptions(DEFAULT_FILTERS, EMPTY_OPTION_QUERIES, { pruneSelections: false });
   };
 
   const toggleSelectRate = (item) => {
@@ -761,12 +1105,26 @@ export default function RateList() {
                     <SimpleSearchableSelect
                       value={filters.rate_type}
                       onChange={(value) => handleFilterChange("rate_type", value || "")}
-                      options={RATE_TYPE_FILTER_OPTIONS}
+                      options={filterOptions.rateTypes}
                       placeholder="All Types"
                       displayKey="name"
                       valueKey="id"
                       formatOption={(option) => option.name}
+                      isLoading={isLoadingFilterOptions}
+                      onSearchChange={(query) => handleOptionSearchChange("q_rate_type", query)}
+                      prefillOnFocus={false}
                       {...searchableSelectProps}
+                    />
+                  </Box>
+                  <Box minW="180px" flex="1">
+                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                      Location
+                    </Text>
+                    <Input
+                      {...filterInputProps}
+                      placeholder="Filter by location..."
+                      value={filters.location_text}
+                      onChange={(e) => handleFilterChange("location_text", e.target.value)}
                     />
                   </Box>
                   <Box minW="220px" flex="1">
@@ -776,11 +1134,14 @@ export default function RateList() {
                     <SimpleSearchableSelect
                       value={filters.client_id}
                       onChange={(value) => handleFilterChange("client_id", value || "")}
-                      options={clients}
+                      options={filterOptions.clients}
                       placeholder="All Clients"
                       displayKey="name"
                       valueKey="id"
-                      formatOption={(client) => client.name || `Client ${client.id}`}
+                      formatOption={formatClientOption}
+                      isLoading={isLoadingFilterOptions}
+                      onSearchChange={(query) => handleOptionSearchChange("q_client", query)}
+                      prefillOnFocus={false}
                       {...searchableSelectProps}
                     />
                   </Box>
@@ -791,11 +1152,50 @@ export default function RateList() {
                     <SimpleSearchableSelect
                       value={filters.agent_id}
                       onChange={(value) => handleFilterChange("agent_id", value || "")}
-                      options={agents}
+                      options={filterOptions.agents}
                       placeholder="All Agents"
                       displayKey="name"
                       valueKey="id"
                       formatOption={formatAgentOption}
+                      isLoading={isLoadingFilterOptions}
+                      onSearchChange={(query) => handleOptionSearchChange("q_agent", query)}
+                      prefillOnFocus={false}
+                      {...searchableSelectProps}
+                    />
+                  </Box>
+                  <Box minW="200px" flex="1">
+                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                      Group Name
+                    </Text>
+                    <SimpleSearchableSelect
+                      value={filters.import_group}
+                      onChange={(value) => handleFilterChange("import_group", value || "")}
+                      options={filterOptions.groups}
+                      placeholder="All Groups"
+                      displayKey="name"
+                      valueKey="id"
+                      formatOption={(option) => option.name || option.import_group}
+                      isLoading={isLoadingFilterOptions}
+                      onSearchChange={(query) => handleOptionSearchChange("q_group", query)}
+                      prefillOnFocus={false}
+                      {...searchableSelectProps}
+                    />
+                  </Box>
+                  <Box minW="200px" flex="1">
+                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                      Rate Name
+                    </Text>
+                    <SimpleSearchableSelect
+                      value={filters.rate_name}
+                      onChange={(value) => handleFilterChange("rate_name", value || "")}
+                      options={filterOptions.rateNames}
+                      placeholder="All Rate Names"
+                      displayKey="name"
+                      valueKey="id"
+                      formatOption={(option) => option.name || option.rate_name}
+                      isLoading={isLoadingFilterOptions}
+                      onSearchChange={(query) => handleOptionSearchChange("q_rate_name", query)}
+                      prefillOnFocus={false}
                       {...searchableSelectProps}
                     />
                   </Box>
@@ -806,34 +1206,15 @@ export default function RateList() {
                     <SimpleSearchableSelect
                       value={filters.currency_id}
                       onChange={(value) => handleFilterChange("currency_id", value || "")}
-                      options={currencies}
+                      options={filterOptions.currencies}
                       placeholder="All Currencies"
                       displayKey="name"
                       valueKey="id"
-                      formatOption={(currency) => currency.name || `Currency ${currency.id}`}
+                      formatOption={formatCurrencyOption}
+                      isLoading={isLoadingFilterOptions}
+                      onSearchChange={(query) => handleOptionSearchChange("q_currency", query)}
+                      prefillOnFocus={false}
                       {...searchableSelectProps}
-                    />
-                  </Box>
-                  <Box minW="180px" flex="1">
-                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                      Rate Name
-                    </Text>
-                    <Input
-                      {...filterInputProps}
-                      placeholder="Filter by rate name..."
-                      value={filters.rate_name}
-                      onChange={(e) => handleFilterChange("rate_name", e.target.value)}
-                    />
-                  </Box>
-                  <Box minW="180px" flex="1">
-                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                      Group Name
-                    </Text>
-                    <Input
-                      {...filterInputProps}
-                      placeholder="Filter by group name..."
-                      value={filters.import_group}
-                      onChange={(e) => handleFilterChange("import_group", e.target.value)}
                     />
                   </Box>
                   <Box minW="160px" flex="1">

@@ -10,6 +10,7 @@ export const defaultRateListState = {
   debouncedSearch: "",
   filters: {
     rate_type: "",
+    location_text: "",
     client_id: "",
     agent_id: "",
     currency_id: "",
@@ -37,6 +38,10 @@ export function buildRateListFilterSnapshot(state = {}) {
     filters: {
       rate_type:
         typeof state.filters?.rate_type === "string" ? state.filters.rate_type : defaultFilters.rate_type,
+      location_text:
+        typeof state.filters?.location_text === "string"
+          ? state.filters.location_text
+          : defaultFilters.location_text,
       client_id: state.filters?.client_id ?? defaultFilters.client_id,
       agent_id: state.filters?.agent_id ?? defaultFilters.agent_id,
       currency_id: state.filters?.currency_id ?? defaultFilters.currency_id,

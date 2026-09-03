@@ -881,8 +881,12 @@ const AgentDetail = () => {
                       );
                     }
 
-                    // Special handling for remarks, client_invoicing, and vessel_type fields - preserve line breaks
-                    if (key === "remarks" || key === "client_invoicing" || key === "vessel_type" || key === "tariffs") {
+                    // Special handling for remarks, warnings, and other multi-line fields
+                    if (key === "remarks" || key === "warnings" || key === "client_invoicing" || key === "vessel_type" || key === "tariffs") {
+                      const isLongText =
+                        displayValue &&
+                        displayValue !== "-" &&
+                        (String(displayValue).length > 80 || String(displayValue).includes("\n"));
                       return (
                         <Flex
                           key={key}
@@ -893,16 +897,27 @@ const AgentDetail = () => {
                           alignItems="flex-start"
                           gap={2}
                         >
-                          <Text
-                            fontSize="sm"
-                            color={valueColor}
+                          <Tooltip
+                            label={displayValue}
+                            placement="top"
+                            hasArrow
+                            isDisabled={!isLongText}
+                            maxW="420px"
                             whiteSpace="pre-wrap"
-                            wordBreak="break-word"
-                            overflow="visible"
-                            width="100%"
+                            openDelay={200}
                           >
-                            {displayValue}
-                          </Text>
+                            <Text
+                              fontSize="sm"
+                              color={key === "warnings" ? "orange.600" : valueColor}
+                              whiteSpace="pre-wrap"
+                              wordBreak="break-word"
+                              overflow="visible"
+                              width="100%"
+                              noOfLines={isLongText ? 4 : undefined}
+                            >
+                              {displayValue}
+                            </Text>
+                          </Tooltip>
                         </Flex>
                       );
                     }
@@ -1071,14 +1086,25 @@ const AgentDetail = () => {
                                 >
                                   Warnings
                                 </Text>
-                                <Text
-                                  fontSize="sm"
-                                  color={valueColor}
+                                <Tooltip
+                                  label={prettyValue(row.warnings)}
+                                  placement="top"
+                                  hasArrow
+                                  isDisabled={!row.warnings || String(row.warnings).trim() === ""}
+                                  maxW="420px"
                                   whiteSpace="pre-wrap"
-                                  flex="1"
+                                  openDelay={200}
                                 >
-                                  {prettyValue(row.warnings)}
-                                </Text>
+                                  <Text
+                                    fontSize="sm"
+                                    color={row.warnings ? "orange.600" : valueColor}
+                                    whiteSpace="pre-wrap"
+                                    flex="1"
+                                    noOfLines={4}
+                                  >
+                                    {prettyValue(row.warnings)}
+                                  </Text>
+                                </Tooltip>
                               </Flex>
                             </GridItem>
 
@@ -1243,19 +1269,30 @@ const AgentDetail = () => {
                                 const cellValue = prettyValue(formattedValue);
                                 const isRemarks = column.key === "remarks";
                                 const cellValueStr = String(cellValue || "");
-                                const hasLongText = isRemarks && (cellValueStr.length > 50 || cellValueStr.includes("\n"));
+                                const hasLongText = isRemarks && cellValueStr !== "-" && (cellValueStr.length > 50 || cellValueStr.includes("\n"));
                                 return (
                                   <Td key={column.key} minW="170px" px={3} py={2}>
-                                    <Text
-                                      fontSize="sm"
-                                      color={valueColor}
-                                      whiteSpace={isRemarks ? "pre-wrap" : "normal"}
-                                      wordBreak="break-word"
-                                      overflow="visible"
-                                      width="100%"
+                                    <Tooltip
+                                      label={cellValueStr}
+                                      placement="top"
+                                      hasArrow
+                                      isDisabled={!hasLongText}
+                                      maxW="420px"
+                                      whiteSpace="pre-wrap"
+                                      openDelay={200}
                                     >
-                                      {cellValue}
-                                    </Text>
+                                      <Text
+                                        fontSize="sm"
+                                        color={valueColor}
+                                        whiteSpace={isRemarks ? "pre-wrap" : "normal"}
+                                        wordBreak="break-word"
+                                        overflow="hidden"
+                                        noOfLines={isRemarks ? 3 : undefined}
+                                        width="100%"
+                                      >
+                                        {cellValue}
+                                      </Text>
+                                    </Tooltip>
                                   </Td>
                                 );
                               })}
