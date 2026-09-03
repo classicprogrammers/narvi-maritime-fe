@@ -2393,7 +2393,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     } else if (isDeliveryLike) {
       cargoHead = [
         "AWB NO",
-        "FROM",
+        "ORIGIN",
         "WAREHOUSE ID",
         "SUPPLIER",
         "PO#",
@@ -3615,7 +3615,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           <>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">SI NO</Th>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">AWB NO</Th>
-                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">FROM</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">ORIGIN</Th>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">WAREHOUSE ID</Th>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">SUPPLIER</Th>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">PO#</Th>
