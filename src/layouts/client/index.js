@@ -20,6 +20,7 @@ import {
   MdDirectionsBoat,
   MdInventory,
   MdKeyboardArrowDown,
+  MdLocalShipping,
   MdLocationOn,
   MdLogout,
   MdWorkOutline,
@@ -27,6 +28,7 @@ import {
 import { useUser } from "redux/hooks/useUser";
 
 import ClientDashboard from "views/client/dashboard";
+import ClientShippingOrders from "views/client/shipping-orders";
 import ClientStock from "views/client/stock";
 import ClientCompletedJobs from "views/client/jobs/completed";
 import ClientOngoingJobs from "views/client/jobs/ongoing";
@@ -35,6 +37,7 @@ import ClientVessels from "views/client/vessels";
 
 const clientTabs = [
   { label: "Dashboard", path: "/Client/Dashboard", icon: MdDashboard },
+  { label: "Shipping Order", path: "/Client/Shipping-Orders", icon: MdLocalShipping },
   { label: "Stock Report", path: "/Client/Stock", icon: MdInventory },
   { label: "Jobs", path: "/Client/Jobs", icon: MdWorkOutline },
   { label: "Vessels", path: "/Client/Vessels", icon: MdDirectionsBoat },
@@ -213,6 +216,7 @@ function ClientLayout() {
       <Box px={{ base: 4, md: 6 }} py={6}>
         <Switch>
           <Route exact path="/Client/Dashboard" component={ClientDashboard} />
+          <Route exact path="/Client/Shipping-Orders" component={ClientShippingOrders} />
           <Route exact path="/Client/Stock" component={ClientStock} />
           <Route exact path="/Client/Jobs/Ongoing" component={ClientOngoingJobs} />
           <Route exact path="/Client/Jobs/Completed" component={ClientCompletedJobs} />
