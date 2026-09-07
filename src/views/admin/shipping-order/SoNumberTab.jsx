@@ -62,23 +62,29 @@ import {
   MdContentCopy,
   MdSort,
   MdDownload,
+  MdVisibility,
 } from "react-icons/md";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import { getNarviQuotations } from "../../../api/narviQuotation";
 import { useMasterData } from "../../../hooks/useMasterData";
+import { useStockAttachmentsGallery } from "../../../hooks/useStockAttachmentsGallery";
 import {
   getShippingOrders,
   createShippingOrder,
   updateShippingOrder,
   mergeShippingOrderPackage,
   resolveShippingPackageDownloadUrl,
+  downloadShippingOrderAttachmentApi,
+  downloadShippingOrderCiplApi,
 } from "../../../api/shippingOrders";
 import { useHistory, Link, useLocation } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { normalizeOrder, buildPayloadFromForm, getOrderAttachmentsForDisplay } from "./shippingOrderUtils";
 import {
   applyShippingOrderFilesToPayload,
+  mapExistingCiplFilesFromOrder,
   notifyShippingOrderSaveResult,
+  resolveShippingOrderDownloadFilename,
 } from "../../../utils/shippingOrderAttachments";
 import ShippingOrderFormFields from "./ShippingOrderFormFields";
 import {
@@ -236,6 +242,108 @@ const SoNumberTab = () => {
 
   const [mergingOrderId, setMergingOrderId] = useState(null);
   const [packageLinkData, setPackageLinkData] = useState({ url: "", soNumber: "" });
+  const [downloadingFileKey, setDownloadingFileKey] = useState(null);
+
+  const resolveShippingOrderPreviewUrl = useCallback(async (attachment, orderId) => {
+    if (!orderId || attachment?.id == null) {
+      throw new Error("File is not available for preview.");
+    }
+    const kind = attachment.__fileKind === "cipl" ? "cipl" : "attachment";
+    const response =
+      kind === "cipl"
+        ? await downloadShippingOrderCiplApi(orderId, attachment.id, false)
+        : await downloadShippingOrderAttachmentApi(orderId, attachment.id, false);
+    if (!(response?.data instanceof Blob)) {
+      throw new Error("Could not load file.");
+    }
+    const filename = resolveShippingOrderDownloadFilename(attachment, response);
+    const mimeType =
+      response.type ||
+      attachment.mimetype ||
+      (/\.pdf$/i.test(filename) ? "application/pdf" : "application/octet-stream");
+    return {
+      fileUrl: URL.createObjectURL(response.data),
+      mimeType,
+      filename,
+      blob: response.data,
+      shouldRevoke: true,
+    };
+  }, []);
+
+  const { openGallery, galleryModal } = useStockAttachmentsGallery({
+    resolvePreviewUrl: resolveShippingOrderPreviewUrl,
+  });
+
+  const getOrderFilesForPreview = useCallback((order) => {
+    const attachments = (getOrderAttachmentsForDisplay(order) || [])
+      .filter((f) => f && f.id != null)
+      .map((f) => ({ ...f, __fileKind: "attachment" }));
+    const ciplSource =
+      Array.isArray(order?.existingCiplFiles) && order.existingCiplFiles.length
+        ? order.existingCiplFiles
+        : mapExistingCiplFilesFromOrder(order?._raw || order || {});
+    const ciplFiles = (ciplSource || [])
+      .filter((f) => f && f.id != null)
+      .map((f) => ({ ...f, __fileKind: "cipl" }));
+    return [...attachments, ...ciplFiles];
+  }, []);
+
+  const handlePreviewOrderFiles = useCallback(
+    (order, startIndex = 0) => {
+      if (!order?.id) return;
+      const files = getOrderFilesForPreview(order);
+      if (!files.length) {
+        toast({
+          title: "No files",
+          description: "No files are available for this shipping order.",
+          status: "info",
+          duration: 4000,
+          isClosable: true,
+        });
+        return;
+      }
+      openGallery(files, order.id, Math.min(startIndex, files.length - 1));
+    },
+    [getOrderFilesForPreview, openGallery, toast]
+  );
+
+  const handleDownloadOrderFile = useCallback(
+    async (order, file) => {
+      if (!order?.id || file?.id == null) return;
+      const key = `${file.__fileKind || "attachment"}-${order.id}-${file.id}`;
+      setDownloadingFileKey(key);
+      try {
+        const kind = file.__fileKind === "cipl" ? "cipl" : "attachment";
+        const response =
+          kind === "cipl"
+            ? await downloadShippingOrderCiplApi(order.id, file.id, true)
+            : await downloadShippingOrderAttachmentApi(order.id, file.id, true);
+        if (!(response?.data instanceof Blob)) {
+          throw new Error("Could not download file.");
+        }
+        const filename = resolveShippingOrderDownloadFilename(file, response);
+        const url = URL.createObjectURL(response.data);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename || "download";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        toast({
+          title: "Download failed",
+          description: err?.message || "Unable to download file.",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
+      } finally {
+        setDownloadingFileKey(null);
+      }
+    },
+    [toast]
+  );
 
   // VSLS Agent Details modal state (used for both edit + view)
   const [vslsAgentDtlsModalValue, setVslsAgentDtlsModalValue] = useState("");
@@ -1084,9 +1192,9 @@ const SoNumberTab = () => {
             </Text>
           </Tooltip>
         </Td>
-        <Td {...tableCellProps} maxW="200px">
+        <Td {...tableCellProps} maxW="220px">
           {(() => {
-            const files = getOrderAttachmentsForDisplay(order);
+            const files = getOrderFilesForPreview(order);
             const count = files.length;
             if (count === 0) {
               return (
@@ -1095,20 +1203,50 @@ const SoNumberTab = () => {
                 </Text>
               );
             }
-            const names = files
-              .map((f) => f.filename || f.name)
-              .filter(Boolean)
-              .join("\n");
-            const summary =
-              count === 1
-                ? files[0].filename || files[0].name || "1 file"
-                : `${count} files`;
             return (
-              <Tooltip label={names || summary} placement="top" hasArrow maxW="320px" whiteSpace="pre-wrap">
-                <Text {...cellText} isTruncated fontWeight="500" color="blue.700">
-                  {summary}
-                </Text>
-              </Tooltip>
+              <VStack align="stretch" spacing={1} minW="160px">
+                <Button
+                  size="xs"
+                  variant="outline"
+                  colorScheme="blue"
+                  leftIcon={<Icon as={MdVisibility} />}
+                  w="100%"
+                  onClick={() => handlePreviewOrderFiles(order, 0)}
+                >
+                  Preview all ({count})
+                </Button>
+                {files.map((file, idx) => {
+                  const label = file.filename || file.name || `File ${file.id}`;
+                  const key = `${file.__fileKind || "attachment"}-${order.id}-${file.id}`;
+                  const isDownloading = downloadingFileKey === key;
+                  return (
+                    <HStack key={key} spacing={1} align="center">
+                      <Tooltip label={label} placement="top" hasArrow>
+                        <Text fontSize="xs" isTruncated flex={1} color="blue.700" fontWeight="500">
+                          {isDownloading ? "Downloading…" : label}
+                        </Text>
+                      </Tooltip>
+                      <IconButton
+                        icon={<Icon as={MdVisibility} />}
+                        size="xs"
+                        variant="ghost"
+                        colorScheme="blue"
+                        aria-label={`Preview ${label}`}
+                        onClick={() => handlePreviewOrderFiles(order, idx)}
+                      />
+                      <IconButton
+                        icon={<Icon as={MdDownload} />}
+                        size="xs"
+                        variant="ghost"
+                        colorScheme="green"
+                        aria-label={`Download ${label}`}
+                        isLoading={isDownloading}
+                        onClick={() => handleDownloadOrderFile(order, file)}
+                      />
+                    </HStack>
+                  );
+                })}
+              </VStack>
             );
           })()}
         </Td>
@@ -2056,6 +2194,8 @@ const SoNumberTab = () => {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {galleryModal}
     </Box>
   );
 };

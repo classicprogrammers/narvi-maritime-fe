@@ -14,7 +14,7 @@ export const defaultRateListState = {
     client_id: "",
     agent_id: "",
     currency_id: "",
-    rate_name: "",
+    rate_text: "",
     import_group: "",
     active: "",
     incl_in_tariff: "",
@@ -45,8 +45,12 @@ export function buildRateListFilterSnapshot(state = {}) {
       client_id: state.filters?.client_id ?? defaultFilters.client_id,
       agent_id: state.filters?.agent_id ?? defaultFilters.agent_id,
       currency_id: state.filters?.currency_id ?? defaultFilters.currency_id,
-      rate_name:
-        typeof state.filters?.rate_name === "string" ? state.filters.rate_name : defaultFilters.rate_name,
+      rate_text:
+        typeof state.filters?.rate_text === "string"
+          ? state.filters.rate_text
+          : typeof state.filters?.rate_name === "string"
+            ? state.filters.rate_name
+            : defaultFilters.rate_text,
       import_group:
         typeof state.filters?.import_group === "string"
           ? state.filters.import_group

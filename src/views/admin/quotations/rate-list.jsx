@@ -77,7 +77,7 @@ const DEFAULT_FILTERS = {
   client_id: "",
   agent_id: "",
   currency_id: "",
-  rate_name: "",
+  rate_text: "",
   import_group: "",
   active: "",
   incl_in_tariff: "",
@@ -93,7 +93,7 @@ const EMPTY_FILTER_OPTIONS = {
   clients: [],
   agents: [],
   currencies: [],
-  rateNames: [],
+  rateTexts: [],
   groups: [],
 };
 
@@ -102,7 +102,7 @@ const EMPTY_OPTION_QUERIES = {
   q_client: "",
   q_agent: "",
   q_currency: "",
-  q_rate_name: "",
+  q_rate_text: "",
   q_group: "",
 };
 
@@ -247,7 +247,7 @@ export default function RateList() {
     client: null,
     agent: null,
     currency: null,
-    rateName: null,
+    rateText: null,
     group: null,
     rateType: null,
   });
@@ -332,7 +332,7 @@ export default function RateList() {
     filters.client_id ||
     filters.agent_id ||
     filters.currency_id ||
-    filters.rate_name ||
+    filters.rate_text ||
     filters.import_group ||
     filters.active ||
     filters.incl_in_tariff
@@ -367,7 +367,7 @@ export default function RateList() {
       client_id: intFilterToParam(filters.client_id),
       agent_id: intFilterToParam(filters.agent_id),
       currency_id: intFilterToParam(filters.currency_id),
-      rate_name: filters.rate_name.trim() || undefined,
+      rate_text: filters.rate_text.trim() || undefined,
       import_group: filters.import_group.trim() || undefined,
       active: filters.active === "" ? undefined : filters.active === "true",
       incl_in_tariff: filters.incl_in_tariff === "" ? undefined : filters.incl_in_tariff === "true",
@@ -509,7 +509,7 @@ export default function RateList() {
     if (agentId != null) payload.agent_id = agentId;
     const currencyId = intFilterToParam(currentFilters.currency_id);
     if (currencyId != null) payload.currency_id = currencyId;
-    if (currentFilters.rate_name?.trim()) payload.rate_name = currentFilters.rate_name.trim();
+    if (currentFilters.rate_text?.trim()) payload.rate_text = currentFilters.rate_text.trim();
     if (currentFilters.import_group?.trim()) payload.import_group = currentFilters.import_group.trim();
 
     Object.entries(queries).forEach(([key, value]) => {
@@ -550,12 +550,12 @@ export default function RateList() {
     } else {
       pins.currency = null;
     }
-    if (currentFilters.rate_name) {
-      pins.rateName =
-        options.rateNames.find((option) => String(option.id) === String(currentFilters.rate_name)) ||
-        pins.rateName;
+    if (currentFilters.rate_text) {
+      pins.rateText =
+        options.rateTexts.find((option) => String(option.id) === String(currentFilters.rate_text)) ||
+        pins.rateText;
     } else {
-      pins.rateName = null;
+      pins.rateText = null;
     }
     if (currentFilters.import_group) {
       pins.group =
@@ -586,7 +586,7 @@ export default function RateList() {
           clients: normalizeIdNameOptions(result.client_options),
           agents: normalizeIdNameOptions(result.agent_options),
           currencies: normalizeIdNameOptions(result.currency_options),
-          rateNames: normalizeNamedOptions(result.rate_name_options, ["rate_name", "name"]),
+          rateTexts: normalizeNamedOptions(result.rate_text_options, ["rate_text", "name"]),
           groups: normalizeNamedOptions(rawGroups, ["import_group", "group_name", "name", "group"]),
         };
 
@@ -611,8 +611,8 @@ export default function RateList() {
             pruned.currency_id = "";
             changed = true;
           }
-          if (pruned.rate_name && !optionHasValue(rawOptions.rateNames, pruned.rate_name)) {
-            pruned.rate_name = "";
+          if (pruned.rate_text && !optionHasValue(rawOptions.rateTexts, pruned.rate_text)) {
+            pruned.rate_text = "";
             changed = true;
           }
           if (pruned.import_group && !optionHasValue(rawOptions.groups, pruned.import_group)) {
@@ -629,7 +629,7 @@ export default function RateList() {
                 prev.client_id === next.client_id &&
                 prev.agent_id === next.agent_id &&
                 prev.currency_id === next.currency_id &&
-                prev.rate_name === next.rate_name &&
+                prev.rate_text === next.rate_text &&
                 prev.import_group === next.import_group;
               return same ? prev : next;
             });
@@ -646,10 +646,10 @@ export default function RateList() {
             effectiveFilters.currency_id,
             pins.currency
           ),
-          rateNames: mergeSelectedOption(
-            rawOptions.rateNames,
-            effectiveFilters.rate_name,
-            pins.rateName
+          rateTexts: mergeSelectedOption(
+            rawOptions.rateTexts,
+            effectiveFilters.rate_text,
+            pins.rateText
           ),
           groups: mergeSelectedOption(rawOptions.groups, effectiveFilters.import_group, pins.group),
         };
@@ -676,7 +676,7 @@ export default function RateList() {
     filters.client_id,
     filters.agent_id,
     filters.currency_id,
-    filters.rate_name,
+    filters.rate_text,
     filters.import_group,
     loadFilterOptions,
   ]);
@@ -718,10 +718,10 @@ export default function RateList() {
             pins.currency
           : null;
       }
-      if (field === "rate_name") {
-        pins.rateName = value
-          ? filterOptions.rateNames.find((option) => String(option.id) === String(value)) ||
-            pins.rateName
+      if (field === "rate_text") {
+        pins.rateText = value
+          ? filterOptions.rateTexts.find((option) => String(option.id) === String(value)) ||
+            pins.rateText
           : null;
       }
       if (field === "import_group") {
@@ -748,7 +748,7 @@ export default function RateList() {
       client: null,
       agent: null,
       currency: null,
-      rateName: null,
+      rateText: null,
       group: null,
       rateType: null,
     };
@@ -1183,18 +1183,18 @@ export default function RateList() {
                   </Box>
                   <Box minW="200px" flex="1">
                     <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                      Rate Name
+                      Rate Text
                     </Text>
                     <SimpleSearchableSelect
-                      value={filters.rate_name}
-                      onChange={(value) => handleFilterChange("rate_name", value || "")}
-                      options={filterOptions.rateNames}
-                      placeholder="All Rate Names"
+                      value={filters.rate_text}
+                      onChange={(value) => handleFilterChange("rate_text", value || "")}
+                      options={filterOptions.rateTexts}
+                      placeholder="All Rate Texts"
                       displayKey="name"
                       valueKey="id"
-                      formatOption={(option) => option.name || option.rate_name}
+                      formatOption={(option) => option.name || option.rate_text}
                       isLoading={isLoadingFilterOptions}
-                      onSearchChange={(query) => handleOptionSearchChange("q_rate_name", query)}
+                      onSearchChange={(query) => handleOptionSearchChange("q_rate_text", query)}
                       prefillOnFocus={false}
                       {...searchableSelectProps}
                     />
