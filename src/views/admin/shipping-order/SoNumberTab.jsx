@@ -3,7 +3,6 @@ import {
   Badge,
   Box,
   Button,
-  Center,
   Flex,
   FormControl,
   FormLabel,
@@ -63,6 +62,7 @@ import {
   MdSort,
   MdDownload,
   MdVisibility,
+  MdLocalShipping,
 } from "react-icons/md";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import { getNarviQuotations } from "../../../api/narviQuotation";
@@ -99,6 +99,53 @@ import {
   SHIPPING_ORDER_STATUS_FILTER_OPTIONS,
   writePersistedShippingOrderListState,
 } from "../../../utils/shippingOrderListState";
+
+const prettyTableDate = (value) => {
+  if (!value || value === false) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+};
+
+const prettyTableDateTime = (value) => {
+  if (!value || value === false) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return `${prettyTableDate(value)} ${date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  })}`;
+};
+
+const TruncatedText = ({ value, maxW = "160px", fontWeight, fontSize = "sm", onClick, cursor }) => {
+  const text = value == null || value === false || value === "" || value === "-" ? "" : String(value);
+  const isEmpty = !text;
+  return (
+    <Tooltip label={text} isDisabled={isEmpty || text.length < 14} openDelay={250} hasArrow placement="top">
+      <Text
+        fontSize={fontSize}
+        fontWeight={fontWeight}
+        color={isEmpty ? "gray.400" : undefined}
+        maxW={maxW}
+        noOfLines={1}
+        cursor={onClick ? cursor || "pointer" : !isEmpty && text.length >= 14 ? "help" : "default"}
+        onClick={onClick}
+      >
+        {isEmpty ? "—" : text}
+      </Text>
+    </Tooltip>
+  );
+};
+
+const statusColorScheme = (done) => {
+  if (done === "active") return "green";
+  if (done === "done") return "blue";
+  if (done === "cancelled") return "red";
+  if (done === "archive") return "gray";
+  if (done === "ready_for_invoice") return "purple";
+  if (done === "pending_pod") return "orange";
+  return "orange";
+};
 
 const formatDate = (value) => {
   if (!value) return "-";
@@ -160,7 +207,8 @@ const SHIPPING_ORDER_TABLE_COLUMNS = [
   { label: "Cancel Reason", field: "cancel_text", sortable: false },
 ];
 
-const SHIPPING_ORDER_TABLE_COLUMN_COUNT = SHIPPING_ORDER_TABLE_COLUMNS.length;
+const STICKY_ACTIONS_WIDTH = "88px";
+const STICKY_SO_WIDTH = "140px";
 
 const SoNumberTab = () => {
   const textColor = useColorModeValue("gray.700", "white");
@@ -168,26 +216,37 @@ const SoNumberTab = () => {
   const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
   const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
   const tableTextColor = useColorModeValue("gray.600", "gray.300");
+  const headerColor = useColorModeValue("gray.500", "gray.400");
+  const cardBg = useColorModeValue("white", "gray.800");
+  const soColor = useColorModeValue("blue.700", "blue.200");
   const tableHeaderCellProps = {
-    maxW: "240px",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
+    py: 3,
+    px: 4,
+    fontSize: "11px",
+    letterSpacing: "0.06em",
+    color: headerColor,
+    bg: tableHeaderBg,
+    borderColor: tableBorderColor,
+    whiteSpace: "nowrap",
+    textTransform: "uppercase",
+    fontWeight: "600",
   };
   const tableCellProps = {
-    maxW: "240px",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  };
-  const cellText = {
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    display: "block",
+    py: 3,
+    px: 4,
+    borderColor: tableBorderColor,
+    fontSize: "sm",
   };
   const inputBg = useColorModeValue("white", "navy.900");
   const inputText = useColorModeValue("gray.800", "gray.100");
   const placeholderColor = useColorModeValue("gray.400", "gray.500");
-  const hoverBg = useColorModeValue("gray.100", "gray.600");
+  const hoverBg = useColorModeValue("blue.50", "blue.900");
+  const tableRowBg = useColorModeValue("white", "gray.800");
+  const tableRowBgAlt = useColorModeValue("gray.50", "whiteAlpha.50");
+  const stickyEdgeShadow = useColorModeValue(
+    "inset -1px 0 0 var(--chakra-colors-gray-200)",
+    "inset -1px 0 0 var(--chakra-colors-whiteAlpha-200)"
+  );
 
   const toast = useToast();
   const history = useHistory();
@@ -1066,144 +1125,145 @@ const SoNumberTab = () => {
     }
   };
 
-  const getEtaDisplay = (order) => {
-    const eta = order.eta_date ? formatDate(order.eta_date) : null;
-    return eta || "-";
-  };
+  const getEtaDisplay = (order) => prettyTableDate(order.eta_date);
 
-  const renderTableBody = () => {
-    if (isLoading) {
+  const renderTableBody = () =>
+    orders.map((order, index) => {
+      const rowBg = index % 2 === 0 ? tableRowBg : tableRowBgAlt;
+      const nextAction = prettyTableDate(order.next_action);
+      const deliveryDate = prettyTableDate(order.so_delivery_date);
+      const eta = getEtaDisplay(order);
+      const etb = order.etb && order.etb !== false ? prettyTableDate(order.etb) : "";
+      const etd = order.etd && order.etd !== false ? prettyTableDate(order.etd) : "";
+      const created = prettyTableDateTime(order.create_date || order.date_created || order.date_order);
+      const destination = getDestinationDisplay(order);
+      const clientValue =
+        order.client_code != null && order.client_code !== false && order.client_code !== ""
+          ? String(order.client_code)
+          : order.client || "";
+      const files = getOrderFilesForPreview(order);
+      const fileCount = files.length;
+
       return (
-        <Tr>
-          <Td colSpan={SHIPPING_ORDER_TABLE_COLUMN_COUNT}>
-            <Center py="10">
-              <Spinner size="lg" color="blue.500" />
-            </Center>
-          </Td>
-        </Tr>
-      );
-    }
-
-    if (orders.length === 0) {
-      return (
-        <Tr>
-          <Td colSpan={SHIPPING_ORDER_TABLE_COLUMN_COUNT}>
-            <Center py="10">
-              <Text color={tableTextColor}>No SO records match your filters.</Text>
-            </Center>
-          </Td>
-        </Tr>
-      );
-    }
-
-    return orders.map((order) => (
-      <Tr
-        key={order.id || order.so_number}
-        _hover={{ bg: hoverBg }}
-      >
-        <Td {...tableCellProps}>
-          <HStack spacing="2">
-            <IconButton
-              size="sm"
-              aria-label="Edit SO"
-              icon={<Icon as={MdEdit} />}
-              variant="ghost"
-              onClick={() => handleEdit(order)}
-            />
-          </HStack>
-        </Td>
-        <Td {...tableCellProps}><Text {...cellText}>{getSoNumber(order)}</Text></Td>
-        <Td {...tableCellProps}>
-          <Badge
-            colorScheme={
-              order.done === "active"
-                ? "green"
-                : order.done === "done"
-                  ? "blue"
-                  : order.done === "cancelled"
-                    ? "red"
-                    : order.done === "archive"
-                      ? "gray"
-                      : order.done === "ready_for_invoice"
-                        ? "purple"
-                        : "orange"
-            }
+        <Tr
+          key={order.id || order.so_number}
+          bg={rowBg}
+          _hover={{ bg: hoverBg }}
+          sx={{ "& td": { bg: "inherit" } }}
+        >
+          <Td
+            {...tableCellProps}
+            position="sticky"
+            left={0}
+            zIndex={1}
+            minW={STICKY_ACTIONS_WIDTH}
+            w={STICKY_ACTIONS_WIDTH}
+            maxW={STICKY_ACTIONS_WIDTH}
           >
-            {order.done === "pending_pod"
-              ? "Pending POD"
-              : order.done === "ready_for_invoice"
-                ? "Ready for Invoice"
-                : order.done === "done"
-                  ? "Done"
-                  : order.done === "cancelled"
-                    ? "Cancelled"
-                    : order.done === "archive"
-                      ? "Archive"
-                      : "Active"}
-          </Badge>
-        </Td>
-        <Td {...tableCellProps}><Text {...cellText}>{order.next_action ? formatDate(order.next_action) : "-"}</Text></Td>
-        <Td {...tableCellProps}>
-          <Text {...cellText}>
-            {order.so_delivery_date ? formatDate(order.so_delivery_date) : "-"}
-          </Text>
-        </Td>
-        <Td {...tableCellProps}><Text {...cellText}>{order.vessel_name || "-"}</Text></Td>
-        <Td {...tableCellProps}><Text {...cellText}>{getDestinationDisplay(order)}</Text></Td>
-        <Td {...tableCellProps} maxW="240px">
-          <Tooltip label={order.internal_remark || "-"} isDisabled={!order.internal_remark || order.internal_remark === "-"}>
-            <Text
-              noOfLines={2}
+            <HStack spacing="2" justify="center">
+              <Tooltip label="Edit" hasArrow>
+                <IconButton
+                  size="sm"
+                  aria-label="Edit SO"
+                  icon={<Icon as={MdEdit} />}
+                  variant="outline"
+                  colorScheme="blue"
+                  onClick={() => handleEdit(order)}
+                />
+              </Tooltip>
+            </HStack>
+          </Td>
+          <Td
+            {...tableCellProps}
+            position="sticky"
+            left={STICKY_ACTIONS_WIDTH}
+            zIndex={1}
+            minW={STICKY_SO_WIDTH}
+            w={STICKY_SO_WIDTH}
+            boxShadow={stickyEdgeShadow}
+          >
+            <Button
+              variant="link"
+              color={soColor}
+              fontWeight="800"
+              fontSize="sm"
+              whiteSpace="nowrap"
+              onClick={() => handleEdit(order)}
+            >
+              {getSoNumber(order)}
+            </Button>
+          </Td>
+          <Td {...tableCellProps}>
+            <Badge
+              colorScheme={statusColorScheme(order.done)}
+              variant="subtle"
+              borderRadius="full"
+              px={2.5}
+              py={0.5}
+              fontSize="xs"
+              textTransform="none"
+            >
+              {formatStatusLabel(order.done)}
+            </Badge>
+          </Td>
+          <Td {...tableCellProps} whiteSpace="nowrap" color={nextAction ? "inherit" : "gray.400"}>
+            {nextAction || "—"}
+          </Td>
+          <Td {...tableCellProps} whiteSpace="nowrap" color={deliveryDate ? "inherit" : "gray.400"}>
+            {deliveryDate || "—"}
+          </Td>
+          <Td {...tableCellProps}>
+            <TruncatedText value={order.vessel_name} maxW="160px" />
+          </Td>
+          <Td {...tableCellProps}>
+            <TruncatedText value={destination} maxW="180px" />
+          </Td>
+          <Td {...tableCellProps} maxW="240px">
+            <TruncatedText
+              value={order.internal_remark}
+              maxW="220px"
               cursor={order.internal_remark && order.internal_remark !== "-" ? "pointer" : "default"}
               onClick={() => {
                 if (order.internal_remark && order.internal_remark !== "-") {
                   openVslsAgentDtlsModal(order.internal_remark, "view", `Internal Remark — ${getSoNumber(order)}`);
                 }
               }}
-            >
-              {order.internal_remark || "-"}
-            </Text>
-          </Tooltip>
-        </Td>
-        <Td {...tableCellProps} maxW="240px">
-          <Tooltip label={order.vsls_agent_dtls || "-"} isDisabled={!order.vsls_agent_dtls || order.vsls_agent_dtls === "-"}>
-            <Text
-              noOfLines={2}
+            />
+          </Td>
+          <Td {...tableCellProps} maxW="240px">
+            <TruncatedText
+              value={order.vsls_agent_dtls}
+              maxW="220px"
               cursor={order.vsls_agent_dtls && order.vsls_agent_dtls !== "-" ? "pointer" : "default"}
               onClick={() => {
                 if (order.vsls_agent_dtls && order.vsls_agent_dtls !== "-") {
                   openVslsAgentDtlsModal(order.vsls_agent_dtls, "view", `VSLS Agent Details — ${getSoNumber(order)}`);
                 }
               }}
-            >
-              {order.vsls_agent_dtls || "-"}
-            </Text>
-          </Tooltip>
-        </Td>
-        <Td {...tableCellProps}><Text {...cellText}>{order.client_code != null && order.client_code !== false && order.client_code !== "" ? String(order.client_code) : (order.client || "-")}</Text></Td>
-        <Td {...tableCellProps}><Text {...cellText}>{order.pic_name || "-"}</Text></Td>
-        <Td {...tableCellProps}><Text {...cellText}>{getEtaDisplay(order)}</Text></Td>
-        <Td {...tableCellProps}><Text {...cellText}>{order.etb && order.etb !== false ? formatDate(order.etb) : "-"}</Text></Td>
-        <Td {...tableCellProps}><Text {...cellText}>{order.etd && order.etd !== false ? formatDate(order.etd) : "-"}</Text></Td>
-        <Td {...tableCellProps} maxW="240px">
-          <Tooltip label={order.client_case_invoice_ref || "-"} isDisabled={!order.client_case_invoice_ref || order.client_case_invoice_ref === "-"}>
-            <Text noOfLines={2} cursor={order.client_case_invoice_ref && order.client_case_invoice_ref !== "-" ? "help" : "default"}>
-              {order.client_case_invoice_ref || "-"}
-            </Text>
-          </Tooltip>
-        </Td>
-        <Td {...tableCellProps} maxW="220px">
-          {(() => {
-            const files = getOrderFilesForPreview(order);
-            const count = files.length;
-            if (count === 0) {
-              return (
-                <Text {...cellText} color="gray.500">
-                  -
-                </Text>
-              );
-            }
-            return (
+            />
+          </Td>
+          <Td {...tableCellProps}>
+            <TruncatedText value={clientValue} maxW="140px" />
+          </Td>
+          <Td {...tableCellProps}>
+            <TruncatedText value={order.pic_name} maxW="140px" />
+          </Td>
+          <Td {...tableCellProps} whiteSpace="nowrap" color={eta ? "inherit" : "gray.400"}>
+            {eta || "—"}
+          </Td>
+          <Td {...tableCellProps} whiteSpace="nowrap" color={etb ? "inherit" : "gray.400"}>
+            {etb || "—"}
+          </Td>
+          <Td {...tableCellProps} whiteSpace="nowrap" color={etd ? "inherit" : "gray.400"}>
+            {etd || "—"}
+          </Td>
+          <Td {...tableCellProps} maxW="240px">
+            <TruncatedText value={order.client_case_invoice_ref} maxW="200px" />
+          </Td>
+          <Td {...tableCellProps} maxW="220px">
+            {fileCount === 0 ? (
+              <Text color="gray.400">—</Text>
+            ) : (
               <VStack align="stretch" spacing={1} minW="160px">
                 <Button
                   size="xs"
@@ -1213,7 +1273,7 @@ const SoNumberTab = () => {
                   w="100%"
                   onClick={() => handlePreviewOrderFiles(order, 0)}
                 >
-                  Preview all ({count})
+                  Preview all ({fileCount})
                 </Button>
                 {files.map((file, idx) => {
                   const label = file.filename || file.name || `File ${file.id}`;
@@ -1229,7 +1289,7 @@ const SoNumberTab = () => {
                       <IconButton
                         icon={<Icon as={MdVisibility} />}
                         size="xs"
-                        variant="ghost"
+                        variant="outline"
                         colorScheme="blue"
                         aria-label={`Preview ${label}`}
                         onClick={() => handlePreviewOrderFiles(order, idx)}
@@ -1237,7 +1297,7 @@ const SoNumberTab = () => {
                       <IconButton
                         icon={<Icon as={MdDownload} />}
                         size="xs"
-                        variant="ghost"
+                        variant="outline"
                         colorScheme="green"
                         aria-label={`Download ${label}`}
                         isLoading={isDownloading}
@@ -1247,36 +1307,32 @@ const SoNumberTab = () => {
                   );
                 })}
               </VStack>
-            );
-          })()}
-        </Td>
-        <Td {...tableCellProps} maxW="160px">
-          <Button
-            size="xs"
-            colorScheme="blue"
-            variant="outline"
-            isLoading={mergingOrderId === order.id}
-            loadingText="Merging"
-            onClick={() => handleGeneratePackageLink(order)}
-          >
-            Generate Link
-          </Button>
-        </Td>
-        <Td {...tableCellProps}><Text {...cellText}>{order.quotation || "-"}</Text></Td>
-        <Td {...tableCellProps}><Text {...cellText}>{formatDateTime(order.create_date || order.date_created || order.date_order)}</Text></Td>
-        <Td {...tableCellProps} maxW="240px">
-          <Tooltip
-            label={order.cancel_text || "-"}
-            isDisabled={!order.cancel_text}
-          >
-            <Text noOfLines={2}>
-              {order.cancel_text ? String(order.cancel_text) : "-"}
-            </Text>
-          </Tooltip>
-        </Td>
-      </Tr>
-    ));
-  };
+            )}
+          </Td>
+          <Td {...tableCellProps} maxW="160px">
+            <Button
+              size="xs"
+              colorScheme="blue"
+              variant="outline"
+              isLoading={mergingOrderId === order.id}
+              loadingText="Merging"
+              onClick={() => handleGeneratePackageLink(order)}
+            >
+              Generate Link
+            </Button>
+          </Td>
+          <Td {...tableCellProps}>
+            <TruncatedText value={order.quotation} maxW="140px" />
+          </Td>
+          <Td {...tableCellProps} whiteSpace="nowrap" color={created ? "inherit" : "gray.400"}>
+            {created || "—"}
+          </Td>
+          <Td {...tableCellProps} maxW="240px">
+            <TruncatedText value={order.cancel_text} maxW="200px" />
+          </Td>
+        </Tr>
+      );
+    });
 
   return (
     <Box>
@@ -1766,130 +1822,136 @@ const SoNumberTab = () => {
         </Flex>
       </Box>
 
-      <Box
-        border="1px"
-        borderColor={borderColor}
-        borderRadius="12px"
-        maxH="600px"
-        overflowX="auto"
-        overflowY="auto"
-        sx={{
-          "&::-webkit-scrollbar": { width: "8px", height: "8px" },
-          "&::-webkit-scrollbar-track": { background: "gray.100", borderRadius: "4px" },
-          "&::-webkit-scrollbar-thumb": { background: "gray.300", borderRadius: "4px" },
-          "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
-        }}
-      >
-        <Table size="sm" variant="simple" minW="1400px">
-          <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
-            <Tr>
-              {SHIPPING_ORDER_TABLE_COLUMNS.map((col) => (
-                <Th
-                  key={col.label}
-                  borderRight="1px"
-                  borderColor={tableBorderColor}
-                  fontSize="12px"
-                  textTransform="uppercase"
-                  fontWeight="bold"
-                  py="10px"
-                  px="12px"
-                  minW="130px"
-                  style={{ color: "#000000d4" }}
-                  position="relative"
-                  cursor={col.field === "next_action" ? "pointer" : undefined}
-                  onClick={col.field === "next_action" ? cycleNextActionColumnSort : undefined}
-                  _hover={col.field === "next_action" ? { bg: hoverBg } : undefined}
-                  {...tableHeaderCellProps}
-                >
-                  <HStack spacing="1">
-                    <Text>{col.label}</Text>
-                    {col.field === "next_action" && nextActionSortOption === "next_action" && (
-                      <Text fontSize="xs">↓</Text>
-                    )}
-                  </HStack>
-                </Th>
-              ))}
-            </Tr>
-          </Thead>
-          <Tbody>{renderTableBody()}</Tbody>
-        </Table>
-      </Box>
-
-      {/* Pagination Controls */}
-      <Box px="25px">
-        <Flex justify="space-between" align="center" py={4} flexWrap="wrap" gap={4}>
-          <HStack spacing={3}>
-            <Text fontSize="sm" color="gray.600">
-              Showing {(page - 1) * pageSize + 1} to{" "}
-              {totalCount === 0 ? 0 : Math.min(page * pageSize, totalCount)} of {totalCount} records
+      <Box bg={cardBg} border="1px" borderColor={borderColor} borderRadius="lg" overflow="hidden">
+        {isLoading ? (
+          <Flex justify="center" align="center" py={16}>
+            <Spinner />
+          </Flex>
+        ) : orders.length === 0 ? (
+          <VStack spacing={3} py={16} px={6} textAlign="center">
+            <Icon as={MdLocalShipping} boxSize={10} color="gray.400" />
+            <Text fontWeight="700" color="gray.700">
+              No shipping orders found
             </Text>
-          </HStack>
-
-          {/* Pagination buttons */}
-          <HStack spacing={2}>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setPage(1)}
-              isDisabled={!hasPrevious || page === 1}
+            <Text fontSize="sm" color="gray.500" maxW="360px">
+              {searchQuery || searchClientFilter || searchVesselFilter || searchCountryFilter || searchPicFilter || searchStatusFilter
+                ? "Try clearing search or filters to see more results."
+                : "Create a shipping order to see it listed here."}
+            </Text>
+            {!searchQuery && (
+              <Button mt={1} size="sm" colorScheme="blue" leftIcon={<Icon as={MdAdd} />} onClick={handleCreate}>
+                New SO
+              </Button>
+            )}
+          </VStack>
+        ) : (
+          <>
+            <Box
+              overflowX="auto"
+              overflowY="auto"
+              maxH="600px"
+              sx={{
+                "&::-webkit-scrollbar": { width: "8px", height: "8px" },
+                "&::-webkit-scrollbar-track": { background: "gray.100", borderRadius: "4px" },
+                "&::-webkit-scrollbar-thumb": { background: "gray.300", borderRadius: "4px" },
+                "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
+              }}
             >
-              First
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setPage(page - 1)}
-              isDisabled={!hasPrevious}
+              <Table size="sm" variant="simple" minW="1400px">
+                <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={3}>
+                  <Tr>
+                    {SHIPPING_ORDER_TABLE_COLUMNS.map((col, colIndex) => {
+                      const isActions = colIndex === 0;
+                      const isSoNumber = colIndex === 1;
+                      const isSticky = isActions || isSoNumber;
+                      return (
+                        <Th
+                          key={col.label}
+                          {...tableHeaderCellProps}
+                          minW={isActions ? STICKY_ACTIONS_WIDTH : isSoNumber ? STICKY_SO_WIDTH : "130px"}
+                          w={isActions ? STICKY_ACTIONS_WIDTH : isSoNumber ? STICKY_SO_WIDTH : undefined}
+                          maxW={isActions ? STICKY_ACTIONS_WIDTH : isSoNumber ? STICKY_SO_WIDTH : undefined}
+                          position={isSticky ? "sticky" : "relative"}
+                          left={isActions ? 0 : isSoNumber ? STICKY_ACTIONS_WIDTH : undefined}
+                          top={isSticky ? 0 : undefined}
+                          zIndex={isSticky ? 4 : undefined}
+                          bg={tableHeaderBg}
+                          boxShadow={isSoNumber ? stickyEdgeShadow : undefined}
+                          cursor={col.field === "next_action" ? "pointer" : undefined}
+                          onClick={col.field === "next_action" ? cycleNextActionColumnSort : undefined}
+                          _hover={col.field === "next_action" ? { bg: hoverBg } : undefined}
+                        >
+                          <HStack spacing="1">
+                            <Text>{col.label}</Text>
+                            {col.field === "next_action" && nextActionSortOption === "next_action" && (
+                              <Text fontSize="xs">↓</Text>
+                            )}
+                          </HStack>
+                        </Th>
+                      );
+                    })}
+                  </Tr>
+                </Thead>
+                <Tbody>{renderTableBody()}</Tbody>
+              </Table>
+            </Box>
+
+            <Flex
+              justify="space-between"
+              align="center"
+              px={4}
+              py={3}
+              borderTop="1px"
+              borderColor={tableBorderColor}
+              wrap="wrap"
+              gap={3}
             >
-              Previous
-            </Button>
-
-            {/* Page numbers */}
-            <HStack spacing={1}>
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                let pageNum;
-                if (totalPages <= 5) {
-                  pageNum = i + 1;
-                } else if (page <= 3) {
-                  pageNum = i + 1;
-                } else if (page >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i;
-                } else {
-                  pageNum = page - 2 + i;
-                }
-
-                return (
-                  <Button
-                    key={pageNum}
-                    size="sm"
-                    variant={page === pageNum ? "solid" : "outline"}
-                    colorScheme={page === pageNum ? "blue" : "gray"}
-                    onClick={() => setPage(pageNum)}
-                  >
-                    {pageNum}
+              <Text fontSize="sm" color="gray.500">
+                {totalCount} record{totalCount === 1 ? "" : "s"}
+                {totalPages > 1 ? ` · Page ${page} of ${totalPages}` : ""}
+              </Text>
+              {totalPages > 1 && (
+                <HStack spacing={1} wrap="wrap">
+                  <Button size="sm" variant="outline" onClick={() => setPage(1)} isDisabled={!hasPrevious || page === 1}>
+                    First
                   </Button>
-                );
-              })}
-            </HStack>
-
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setPage(page + 1)}
-              isDisabled={!hasNext}
-            >
-              Next
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setPage(totalPages)}
-              isDisabled={!hasNext || page === totalPages}
-            >
-              Last
-            </Button>
-          </HStack>
-        </Flex>
+                  <Button size="sm" variant="outline" onClick={() => setPage(page - 1)} isDisabled={!hasPrevious}>
+                    Previous
+                  </Button>
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) pageNum = i + 1;
+                    else if (page <= 3) pageNum = i + 1;
+                    else if (page >= totalPages - 2) pageNum = totalPages - 4 + i;
+                    else pageNum = page - 2 + i;
+                    return (
+                      <Button
+                        key={pageNum}
+                        size="sm"
+                        variant={page === pageNum ? "solid" : "outline"}
+                        colorScheme={page === pageNum ? "blue" : "gray"}
+                        onClick={() => setPage(pageNum)}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                  <Button size="sm" variant="outline" onClick={() => setPage(page + 1)} isDisabled={!hasNext}>
+                    Next
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setPage(totalPages)}
+                    isDisabled={!hasNext || page === totalPages}
+                  >
+                    Last
+                  </Button>
+                </HStack>
+              )}
+            </Flex>
+          </>
+        )}
       </Box>
 
       <Modal isOpen={formDisclosure.isOpen} onClose={handleFormClose} size="4xl">
