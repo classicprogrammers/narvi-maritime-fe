@@ -30,6 +30,7 @@ import {
   MdStorage,
   MdHistory,
   MdCloud,
+  MdAccountBalance,
 } from "react-icons/md";
 
 // Admin Imports
@@ -94,6 +95,10 @@ import HistoryLogs from "views/admin/history-logs";
 
 // Carbon Calculator
 import CarbonCalculator from "views/admin/carbon-calculator";
+
+// Master Ledger
+import LedgerCost from "views/admin/ledger/cost";
+import CostFormPage from "views/admin/ledger/cost/CostFormPage";
 
 const routes = [
   {
@@ -191,6 +196,24 @@ const routes = [
     exact: true,
     icon: <Icon as={MdCloud} width="20px" height="20px" color="inherit" />,
     component: CarbonCalculator,
+  },
+  {
+    name: "Master Ledger",
+    layout: "/admin",
+    icon: (
+      <Icon as={MdAccountBalance} width="20px" height="20px" color="inherit" />
+    ),
+    submenu: [
+      {
+        name: "Cost DB",
+        path: "/ledger/cost",
+        icon: (
+          <Icon as={MdReceipt} width="20px" height="20px" color="inherit" />
+        ),
+        component: LedgerCost,
+        exact: true,
+      },
+    ],
   },
   {
     name: "Stock List",
@@ -487,6 +510,12 @@ const hiddenRoutes = [
     layout: "/admin",
     path: "/shipping-orders/edit/:id",
     component: ShippingOrderEditPage,
+  },
+  {
+    name: "Cost Form",
+    layout: "/admin",
+    path: "/ledger/cost/form/:id?",
+    component: CostFormPage,
   },
 ];
 

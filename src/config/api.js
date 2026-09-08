@@ -37,6 +37,11 @@ export const API_CONFIG = {
     SHIPPING_ORDER: "/api/shipping/order",
     SHIPPING_ORDER_CREATE: "/api/create/shipping/order",
     SHIPPING_ORDER_UPDATE: "/api/shipping/order/update",
+    // Master Ledger — Cost DB
+    LEDGER_COST: "/api/ledger/cost",
+    LEDGER_COST_CREATE: "/api/ledger/cost/create",
+    LEDGER_COST_UPDATE: "/api/ledger/cost/update",
+    LEDGER_COST_DELETE: "/api/ledger/cost/delete",
     SHIPPING_ORDER_PACKAGE_CHECK: "/api/shipping/order/package/check",
     SHIPPING_ORDER_PACKAGE_MERGE: "/api/shipping/order/package/merge",
     // Carbon calculator
