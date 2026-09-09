@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { Route, useHistory } from "react-router-dom";
 import { useUser } from "../redux/hooks/useUser";
 import { Spinner, Center } from "@chakra-ui/react";
+import { isClientUserType, isStaffUserType } from "../utils/userType";
 
 const ProtectedRoute = ({
   component: Component,
@@ -9,7 +10,7 @@ const ProtectedRoute = ({
   ...rest
 }) => {
   const history = useHistory();
-  const { isAuthenticated, token, checkAuth } = useUser();
+  const { isAuthenticated, token, user, checkAuth } = useUser();
   const [isChecking, setIsChecking] = useState(true);
   const hasCheckedRef = useRef(false);
 
@@ -28,12 +29,22 @@ const ProtectedRoute = ({
   }, []);
 
   useEffect(() => {
-    // If not authenticated and no token, redirect to login
-    // Only run this after the initial check is complete
-    if (!isChecking && !isAuthenticated && !token) {
+    if (isChecking) return;
+
+    if (!isAuthenticated && !token) {
       history.push(redirectPath);
+      return;
     }
-  }, [isAuthenticated, token, history, isChecking, redirectPath]);
+
+    const routePath = String(rest.path || "");
+    if (routePath.startsWith("/admin") && isClientUserType(user?.user_type)) {
+      history.replace("/Client/Vessels");
+      return;
+    }
+    if (routePath.startsWith("/Client") && isStaffUserType(user?.user_type)) {
+      history.replace("/admin/default");
+    }
+  }, [isAuthenticated, token, user, history, isChecking, redirectPath, rest.path]);
 
   // Show loading spinner while checking authentication
   if (isChecking) {
@@ -47,6 +58,14 @@ const ProtectedRoute = ({
   // // Show loading or redirect if not authenticated
   if (!isAuthenticated || !token) {
     return null; // This will trigger the redirect in useEffect
+  }
+
+  const routePath = String(rest.path || "");
+  if (routePath.startsWith("/admin") && isClientUserType(user?.user_type)) {
+    return null;
+  }
+  if (routePath.startsWith("/Client") && isStaffUserType(user?.user_type)) {
+    return null;
   }
 
   return <Route {...rest} render={(props) => <Component {...props} />} />;

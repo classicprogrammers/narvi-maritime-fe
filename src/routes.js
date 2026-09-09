@@ -99,6 +99,8 @@ import CarbonCalculator from "views/admin/carbon-calculator";
 // Master Ledger
 import LedgerCost from "views/admin/ledger/cost";
 import CostFormPage from "views/admin/ledger/cost/CostFormPage";
+import LedgerInvoice from "views/admin/ledger/invoice";
+import InvoiceFormPage from "views/admin/ledger/invoice/InvoiceFormPage";
 
 const routes = [
   {
@@ -211,6 +213,15 @@ const routes = [
           <Icon as={MdReceipt} width="20px" height="20px" color="inherit" />
         ),
         component: LedgerCost,
+        exact: true,
+      },
+      {
+        name: "Invoice DB",
+        path: "/ledger/invoice",
+        icon: (
+          <Icon as={MdDescription} width="20px" height="20px" color="inherit" />
+        ),
+        component: LedgerInvoice,
         exact: true,
       },
     ],
@@ -516,6 +527,12 @@ const hiddenRoutes = [
     layout: "/admin",
     path: "/ledger/cost/form/:id?",
     component: CostFormPage,
+  },
+  {
+    name: "Invoice Form",
+    layout: "/admin",
+    path: "/ledger/invoice/form/:id?",
+    component: InvoiceFormPage,
   },
 ];
 

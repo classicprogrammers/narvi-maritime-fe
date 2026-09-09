@@ -185,6 +185,7 @@ const formatStatusLabel = (done) => {
 };
 
 const SHIPPING_ORDER_TABLE_COLUMNS = [
+  { label: "", field: "select", sortable: false },
   { label: "Actions", field: null, sortable: false },
   { label: "SO Number", field: "so_number", sortable: false },
   { label: "Status", field: "done", sortable: false },
@@ -207,8 +208,17 @@ const SHIPPING_ORDER_TABLE_COLUMNS = [
   { label: "Cancel Reason", field: "cancel_text", sortable: false },
 ];
 
+const STICKY_CHECKBOX_WIDTH = "48px";
 const STICKY_ACTIONS_WIDTH = "88px";
 const STICKY_SO_WIDTH = "140px";
+const STICKY_ACTIONS_LEFT = STICKY_CHECKBOX_WIDTH;
+const STICKY_SO_LEFT = "136px";
+const COLUMN_MIN_WIDTHS = {
+  "Vessel Name": "280px",
+  Destination: "260px",
+  "Internal remarks": "340px",
+  "Client Code": "200px",
+};
 
 const SoNumberTab = () => {
   const textColor = useColorModeValue("gray.700", "white");
@@ -302,6 +312,7 @@ const SoNumberTab = () => {
   const [mergingOrderId, setMergingOrderId] = useState(null);
   const [packageLinkData, setPackageLinkData] = useState({ url: "", soNumber: "" });
   const [downloadingFileKey, setDownloadingFileKey] = useState(null);
+  const [selectedOrderIds, setSelectedOrderIds] = useState(() => new Set());
 
   const resolveShippingOrderPreviewUrl = useCallback(async (attachment, orderId) => {
     if (!orderId || attachment?.id == null) {
@@ -921,6 +932,32 @@ const SoNumberTab = () => {
     return order.id ? `SO-${order.id}` : "-";
   };
 
+  const handleSelectOrder = (orderId, isSelected) => {
+    if (orderId == null) return;
+    setSelectedOrderIds((prev) => {
+      const next = new Set(prev);
+      if (isSelected) next.add(orderId);
+      else next.delete(orderId);
+      return next;
+    });
+  };
+
+  const handleSelectAllOrders = (isSelected) => {
+    setSelectedOrderIds((prev) => {
+      const next = new Set(prev);
+      orders.forEach((order) => {
+        if (order?.id == null) return;
+        if (isSelected) next.add(order.id);
+        else next.delete(order.id);
+      });
+      return next;
+    });
+  };
+
+  const allPageOrdersSelected =
+    orders.length > 0 && orders.every((order) => order?.id != null && selectedOrderIds.has(order.id));
+  const somePageOrdersSelected = orders.some((order) => order?.id != null && selectedOrderIds.has(order.id));
+
   const handleExportExcel = async () => {
     try {
       setIsExportingExcel(true);
@@ -935,7 +972,9 @@ const SoNumberTab = () => {
               ? data.data
               : [];
       const rows = list.map(normalizeOrder).filter(Boolean);
-      if (rows.length === 0) {
+      const selectedRows =
+        selectedOrderIds.size > 0 ? rows.filter((order) => selectedOrderIds.has(order.id)) : rows;
+      if (selectedRows.length === 0) {
         toast({
           title: "No data",
           description: "No shipping orders match the current filters.",
@@ -967,7 +1006,7 @@ const SoNumberTab = () => {
         "Cancel Reason",
       ];
 
-      const excelRows = rows.map((order) => {
+      const excelRows = selectedRows.map((order) => {
         const files = getOrderAttachmentsForDisplay(order);
         const fileSummary = files.length
           ? files.map((f) => f.filename || f.name).filter(Boolean).join("; ") || `${files.length} files`
@@ -1156,6 +1195,25 @@ const SoNumberTab = () => {
             position="sticky"
             left={0}
             zIndex={1}
+            minW={STICKY_CHECKBOX_WIDTH}
+            w={STICKY_CHECKBOX_WIDTH}
+            maxW={STICKY_CHECKBOX_WIDTH}
+            px={2}
+          >
+            <Checkbox
+              isChecked={order?.id != null && selectedOrderIds.has(order.id)}
+              onChange={(e) => handleSelectOrder(order.id, e.target.checked)}
+              size="sm"
+              colorScheme="blue"
+              borderColor="gray.500"
+              aria-label={`Select ${getSoNumber(order)}`}
+            />
+          </Td>
+          <Td
+            {...tableCellProps}
+            position="sticky"
+            left={STICKY_ACTIONS_LEFT}
+            zIndex={1}
             minW={STICKY_ACTIONS_WIDTH}
             w={STICKY_ACTIONS_WIDTH}
             maxW={STICKY_ACTIONS_WIDTH}
@@ -1176,7 +1234,7 @@ const SoNumberTab = () => {
           <Td
             {...tableCellProps}
             position="sticky"
-            left={STICKY_ACTIONS_WIDTH}
+            left={STICKY_SO_LEFT}
             zIndex={1}
             minW={STICKY_SO_WIDTH}
             w={STICKY_SO_WIDTH}
@@ -1212,16 +1270,22 @@ const SoNumberTab = () => {
           <Td {...tableCellProps} whiteSpace="nowrap" color={deliveryDate ? "inherit" : "gray.400"}>
             {deliveryDate || "—"}
           </Td>
-          <Td {...tableCellProps}>
-            <TruncatedText value={order.vessel_name} maxW="160px" />
+          <Td {...tableCellProps} minW={COLUMN_MIN_WIDTHS["Vessel Name"]} whiteSpace="nowrap">
+            {order.vessel_name ? (
+              <Text fontSize="sm" whiteSpace="nowrap">
+                {order.vessel_name}
+              </Text>
+            ) : (
+              <Text color="gray.400">—</Text>
+            )}
           </Td>
-          <Td {...tableCellProps}>
-            <TruncatedText value={destination} maxW="180px" />
+          <Td {...tableCellProps} minW={COLUMN_MIN_WIDTHS.Destination}>
+            <TruncatedText value={destination} maxW="320px" />
           </Td>
-          <Td {...tableCellProps} maxW="240px">
+          <Td {...tableCellProps} minW={COLUMN_MIN_WIDTHS["Internal remarks"]}>
             <TruncatedText
               value={order.internal_remark}
-              maxW="220px"
+              maxW="400px"
               cursor={order.internal_remark && order.internal_remark !== "-" ? "pointer" : "default"}
               onClick={() => {
                 if (order.internal_remark && order.internal_remark !== "-") {
@@ -1242,8 +1306,8 @@ const SoNumberTab = () => {
               }}
             />
           </Td>
-          <Td {...tableCellProps}>
-            <TruncatedText value={clientValue} maxW="140px" />
+          <Td {...tableCellProps} minW={COLUMN_MIN_WIDTHS["Client Code"]}>
+            <TruncatedText value={clientValue} maxW="240px" />
           </Td>
           <Td {...tableCellProps}>
             <TruncatedText value={order.pic_name} maxW="140px" />
@@ -1857,22 +1921,55 @@ const SoNumberTab = () => {
                 "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
               }}
             >
-              <Table size="sm" variant="simple" minW="1400px">
+              <Table size="sm" variant="simple" minW="1880px">
                 <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={3}>
                   <Tr>
                     {SHIPPING_ORDER_TABLE_COLUMNS.map((col, colIndex) => {
-                      const isActions = colIndex === 0;
-                      const isSoNumber = colIndex === 1;
-                      const isSticky = isActions || isSoNumber;
+                      const isCheckbox = col.field === "select";
+                      const isActions = col.label === "Actions";
+                      const isSoNumber = col.label === "SO Number";
+                      const isSticky = isCheckbox || isActions || isSoNumber;
+                      const columnMinW = isCheckbox
+                        ? STICKY_CHECKBOX_WIDTH
+                        : isActions
+                          ? STICKY_ACTIONS_WIDTH
+                          : isSoNumber
+                            ? STICKY_SO_WIDTH
+                            : COLUMN_MIN_WIDTHS[col.label] || "130px";
                       return (
                         <Th
-                          key={col.label}
+                          key={col.field || col.label || colIndex}
                           {...tableHeaderCellProps}
-                          minW={isActions ? STICKY_ACTIONS_WIDTH : isSoNumber ? STICKY_SO_WIDTH : "130px"}
-                          w={isActions ? STICKY_ACTIONS_WIDTH : isSoNumber ? STICKY_SO_WIDTH : undefined}
-                          maxW={isActions ? STICKY_ACTIONS_WIDTH : isSoNumber ? STICKY_SO_WIDTH : undefined}
+                          minW={columnMinW}
+                          w={
+                            isCheckbox
+                              ? STICKY_CHECKBOX_WIDTH
+                              : isActions
+                                ? STICKY_ACTIONS_WIDTH
+                                : isSoNumber
+                                  ? STICKY_SO_WIDTH
+                                  : undefined
+                          }
+                          maxW={
+                            isCheckbox
+                              ? STICKY_CHECKBOX_WIDTH
+                              : isActions
+                                ? STICKY_ACTIONS_WIDTH
+                                : isSoNumber
+                                  ? STICKY_SO_WIDTH
+                                  : undefined
+                          }
+                          px={isCheckbox ? 2 : undefined}
                           position={isSticky ? "sticky" : "relative"}
-                          left={isActions ? 0 : isSoNumber ? STICKY_ACTIONS_WIDTH : undefined}
+                          left={
+                            isCheckbox
+                              ? 0
+                              : isActions
+                                ? STICKY_ACTIONS_LEFT
+                                : isSoNumber
+                                  ? STICKY_SO_LEFT
+                                  : undefined
+                          }
                           top={isSticky ? 0 : undefined}
                           zIndex={isSticky ? 4 : undefined}
                           bg={tableHeaderBg}
@@ -1881,12 +1978,24 @@ const SoNumberTab = () => {
                           onClick={col.field === "next_action" ? cycleNextActionColumnSort : undefined}
                           _hover={col.field === "next_action" ? { bg: hoverBg } : undefined}
                         >
-                          <HStack spacing="1">
-                            <Text>{col.label}</Text>
-                            {col.field === "next_action" && nextActionSortOption === "next_action" && (
-                              <Text fontSize="xs">↓</Text>
-                            )}
-                          </HStack>
+                          {isCheckbox ? (
+                            <Checkbox
+                              isChecked={allPageOrdersSelected}
+                              isIndeterminate={somePageOrdersSelected && !allPageOrdersSelected}
+                              onChange={(e) => handleSelectAllOrders(e.target.checked)}
+                              size="sm"
+                              colorScheme="blue"
+                              borderColor="gray.500"
+                              aria-label="Select all shipping orders on this page"
+                            />
+                          ) : (
+                            <HStack spacing="1">
+                              <Text>{col.label}</Text>
+                              {col.field === "next_action" && nextActionSortOption === "next_action" && (
+                                <Text fontSize="xs">↓</Text>
+                              )}
+                            </HStack>
+                          )}
                         </Th>
                       );
                     })}

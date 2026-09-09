@@ -30,18 +30,20 @@ import { loginSuccess } from "../../../redux/slices/userSlice";
 // API
 import { getApiEndpoint } from "../../../config/api";
 import api from "../../../api/axios";
+import { getHomePathForUserType, isClientUserType, resolveStoredUserType } from "../../../utils/userType";
 
 function SignIn() {
   const history = useHistory();
 
   // Redux user state and actions
-  const { isLoading, error, clearError } = useUser();
+  const { error, clearError } = useUser();
   const dispatch = useDispatch();
 
   // Modal states
   const [isSuccessModalOpen, setIsSuccessModalOpen] = React.useState(false);
   const [isFailureModalOpen, setIsFailureModalOpen] = React.useState(false);
   const [modalMessage, setModalMessage] = React.useState("");
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   // Chakra color mode
   const textColor = useColorModeValue("navy.700", "white");
@@ -88,7 +90,7 @@ function SignIn() {
             email: email,
             name: result.result.name || email,
             role: result.result.role || "user",
-            user_type: result.result.user_type || "user", // Include user_type from API response
+            user_type: resolveStoredUserType(result.result.user_type, "user"),
             avatar: null,
             permissions: ["read"],
             createdAt: new Date().toISOString(),
@@ -121,11 +123,10 @@ function SignIn() {
       return;
     }
 
+    let succeeded = false;
     try {
-
-      // Call the login API directly
+      setIsSubmitting(true);
       const apiResult = await handleLoginApi(formData.email, formData.password);
-
 
       if (apiResult.success) {
 
@@ -141,13 +142,19 @@ function SignIn() {
 
         // Master data is preloaded by admin layout when user lands on dashboard (avoids duplicate API calls)
 
-        setModalMessage("Login successful! Redirecting to dashboard...");
+        const homePath = getHomePathForUserType(apiResult.user.user_type);
+        setModalMessage(
+          isClientUserType(apiResult.user.user_type)
+            ? "Login successful! Redirecting to client portal..."
+            : "Login successful! Redirecting to dashboard..."
+        );
         setIsSuccessModalOpen(true);
+        succeeded = true;
 
-        // Redirect to admin dashboard immediately after successful login
         setTimeout(() => {
-          history.push('/admin/default');
+          history.push(homePath);
         }, 1000);
+        return;
       } else {
         setModalMessage("Login failed. Please check your credentials.");
         setIsFailureModalOpen(true);
@@ -156,6 +163,8 @@ function SignIn() {
       console.error('🔐 Login error:', error);
       setModalMessage(error.message || "Login failed. Please try again.");
       setIsFailureModalOpen(true);
+    } finally {
+      if (!succeeded) setIsSubmitting(false);
     }
   };
 
@@ -339,7 +348,7 @@ function SignIn() {
                   w='100%'
                   h='50'
                   mb='24px'
-                  isLoading={isLoading}
+                  isLoading={isSubmitting}
                   loadingText="Signing In...">
                   Sign In
                 </Button>

@@ -20,6 +20,7 @@ import { useDispatch } from "react-redux";
 import { loginSuccess } from "redux/slices/userSlice";
 import api from "api/axios";
 import { getApiEndpoint } from "config/api";
+import { getHomePathForUserType, resolveStoredUserType } from "utils/userType";
 
 function ClientLogin() {
   const history = useHistory();
@@ -70,7 +71,7 @@ function ClientLogin() {
           email,
           name: result.name || email.split("@")[0],
           role: result.role || "user",
-          user_type: result.user_type || "client",
+          user_type: resolveStoredUserType(result.user_type, "client"),
         },
         token: result.session_id || result.token || "client_session_token",
       };
@@ -91,7 +92,7 @@ function ClientLogin() {
       setIsSubmitting(true);
       const authData = await loginWithApi(formData.email, formData.password);
       dispatch(loginSuccess(authData));
-      history.push("/Client/Vessels");
+      history.push(getHomePathForUserType(authData.user.user_type));
     } catch (error) {
       setErrorMessage(error.message || "Login failed. Please try again.");
     } finally {

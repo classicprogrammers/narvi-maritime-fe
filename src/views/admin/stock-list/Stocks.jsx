@@ -850,6 +850,10 @@ export default function Stocks() {
     const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
     const tableTextColor = useColorModeValue("gray.600", "gray.300");
     const tableTextColorSecondary = useColorModeValue("gray.500", "gray.400");
+    const stickyEdgeShadow = useColorModeValue(
+        "inset -1px 0 0 var(--chakra-colors-gray-200)",
+        "inset -1px 0 0 var(--chakra-colors-whiteAlpha-200)"
+    );
     const inputBg = useColorModeValue("gray.100", "gray.800");
     const inputText = useColorModeValue("gray.700", "gray.100");
     const borderColor = useColorModeValue("gray.200", "gray.700");
@@ -895,6 +899,22 @@ export default function Stocks() {
         textOverflow: "ellipsis",
         whiteSpace: "nowrap",
         display: "block",
+    };
+
+    const getStockViewStickyProps = (colIndex, isHeader = false) => {
+        if (colIndex < 0 || colIndex > 3) return {};
+        const widths = [48, 220, 140, 170];
+        const left = [0, 48, 268, 408];
+        return {
+            position: "sticky",
+            left: `${left[colIndex]}px`,
+            zIndex: isHeader ? 4 : 1,
+            minW: `${widths[colIndex]}px`,
+            w: `${widths[colIndex]}px`,
+            maxW: colIndex === 1 ? undefined : `${widths[colIndex]}px`,
+            ...(isHeader ? { top: 0, bg: tableHeaderBg } : {}),
+            ...(colIndex === 3 ? { boxShadow: stickyEdgeShadow } : {}),
+        };
     };
     const stockTableLoading = (
         <Center w="100%" minH="400px" py="80px">
@@ -5804,7 +5824,7 @@ export default function Stocks() {
                                         </Center>
                                     ) : (
                                         <Table size="sm" minW="6000px">
-                                            <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
+                                            <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={3}>
                                                 <Tr>
                                                     <Th
                                                         borderRight="1px"
@@ -5814,10 +5834,8 @@ export default function Stocks() {
                                                         fontSize="12px"
                                                         fontWeight="600"
                                                         textTransform="uppercase"
-                                                        width="40px"
-                                                        minW="40px"
-                                                        maxW="40px"
                                                         color="#000000"
+                                                        {...getStockViewStickyProps(0, true)}
                                                     >
                                                         <Checkbox
                                                             isChecked={allItemsSelected}
@@ -5837,9 +5855,9 @@ export default function Stocks() {
                                                             }}
                                                         />
                                                     </Th>
-                                                    <Th {...headerProps}>VESSEL</Th>
-                                                    <Th {...headerProps}>STOCKITEMID</Th>
-                                                    <Th {...headerProps}>SUPPLIER</Th>
+                                                    <Th {...headerProps} {...getStockViewStickyProps(1, true)}>VESSEL</Th>
+                                                    <Th {...headerProps} {...getStockViewStickyProps(2, true)}>STOCKITEMID</Th>
+                                                    <Th {...headerProps} {...getStockViewStickyProps(3, true)}>SUPPLIER</Th>
                                                     <Th {...headerProps}>REQ NO</Th>
                                                     <Th {...headerProps}>PO NUMBER</Th>
                                                     <Th {...headerProps}>SO NUMBER</Th>
@@ -5887,16 +5905,17 @@ export default function Stocks() {
                                                             <Tr
                                                                 key={item.id}
                                                                 bg={rowBg}
-                                                                sx={getColoredStatusRowSx(statusStyle, tableTextColor)}
+                                                                sx={{
+                                                                    ...getColoredStatusRowSx(statusStyle, tableTextColor),
+                                                                    "& td": { bg: "inherit" },
+                                                                }}
                                                             >
                                                                 <Td
                                                                     borderRight="1px"
                                                                     borderColor={tableBorderColor}
                                                                     py="12px"
                                                                     px="8px"
-                                                                    width="40px"
-                                                                    minW="40px"
-                                                                    maxW="40px"
+                                                                    {...getStockViewStickyProps(0)}
                                                                 >
                                                                     <Checkbox
                                                                         isChecked={selectedRows.has(item.id)}
@@ -5914,9 +5933,9 @@ export default function Stocks() {
                                                                         }}
                                                                     />
                                                                 </Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.stock_item_id)}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</StockCellText></Td>
+                                                                <Td {...cellProps} {...getStockViewStickyProps(1)}><StockCellText {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</StockCellText></Td>
+                                                                <Td {...cellProps} {...getStockViewStickyProps(2)}><StockCellText {...cellText}>{renderText(item.stock_item_id)}</StockCellText></Td>
+                                                                <Td {...cellProps} {...getStockViewStickyProps(3)}><StockCellText {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</StockCellText></Td>
                                                                 <Td {...cellProps}>{renderMultiLineLabels(item.req_no)}</Td>
                                                                 <Td {...cellProps}>{renderMultiLineLabels(item.po_text)}</Td>
                                                                 <Td {...cellProps}>

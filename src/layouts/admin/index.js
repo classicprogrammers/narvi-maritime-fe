@@ -10,6 +10,7 @@ import { Redirect, Route, Switch, useHistory, useLocation } from "react-router-d
 import routes, { hiddenRoutes, getFilteredRoutes } from "routes.js";
 // API Modal component
 import { useUser } from "redux/hooks/useUser";
+import { isClientUserType } from "utils/userType";
 import ApiModal from "components/ApiModal";
 import { preloadAll, getCached, MASTER_KEYS } from "utils/masterDataCache";
 
@@ -50,6 +51,7 @@ export default function Dashboard(props) {
 
   // Filter routes based on user type - use useMemo to recalculate when user changes
   const filteredRoutes = useMemo(() => {
+    if (isClientUserType(user?.user_type)) return [];
     const userType = user?.user_type || "user";
     return getFilteredRoutes(userType);
   }, [user?.user_type]);
