@@ -246,7 +246,7 @@ function ClientStock() {
     try {
       const res = await clientHubApi.getClientHubs({});
       const options = (Array.isArray(res?.hubs) ? res.hubs : [])
-        .map((h) => h?.hub)
+        .map((h) => (typeof h === "string" ? h : h?.hub || h?.name))
         .filter((h) => typeof h === "string" && h.trim() !== "");
       setHubFilterOptions(Array.from(new Set(options)));
     } catch (_error) {

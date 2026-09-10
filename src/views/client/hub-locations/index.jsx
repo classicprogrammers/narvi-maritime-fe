@@ -88,31 +88,34 @@ function ClientHubLocations() {
         {!isLoading && hubs.length === 0 && (
           <Text color={muted} fontSize="sm">No hub locations found.</Text>
         )}
-        {hubs.map((hub) => (
-          <Box
-            key={hub.hub}
-            bg={cardBg}
-            border="1px solid"
-            borderColor={borderColor}
-            borderRadius="16px"
-            p={4}
-            cursor="pointer"
-            _hover={{ transform: "translateY(-2px)", boxShadow: "0 20px 36px rgba(112, 144, 176, 0.16)" }}
-            transition="all 0.2s ease"
-            onClick={() =>
-              history.push({
-                pathname: "/Client/Stock",
-                state: { selectedHubLocation: hub.hub },
-              })
-            }
-          >
-            <Flex align="center" gap={2} mb={2}>
-              <Icon as={MdLocationOn} color="brand.500" />
-              <Text fontWeight="700" fontSize="sm">{hub.hub || "-"}</Text>
-            </Flex>
-            <Text fontSize="xs" color={muted}>Client hub value</Text>
-          </Box>
-        ))}
+        {hubs.map((hub) => {
+          const hubName = hub.name || hub.hub || "";
+          return (
+            <Box
+              key={hub.id ?? hubName}
+              bg={cardBg}
+              border="1px solid"
+              borderColor={borderColor}
+              borderRadius="16px"
+              p={4}
+              cursor="pointer"
+              _hover={{ transform: "translateY(-2px)", boxShadow: "0 20px 36px rgba(112, 144, 176, 0.16)" }}
+              transition="all 0.2s ease"
+              onClick={() =>
+                history.push({
+                  pathname: "/Client/Stock",
+                  state: { selectedHubLocation: hubName },
+                })
+              }
+            >
+              <Flex align="center" gap={2} mb={2}>
+                <Icon as={MdLocationOn} color="brand.500" />
+                <Text fontWeight="700" fontSize="sm">{hubName || "-"}</Text>
+              </Flex>
+              <Text fontSize="xs" color={muted}>Client hub value</Text>
+            </Box>
+          );
+        })}
       </SimpleGrid>
     </Box>
   );
