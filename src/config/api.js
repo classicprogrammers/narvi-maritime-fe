@@ -46,6 +46,10 @@ export const API_CONFIG = {
     LEDGER_INVOICE_CREATE: "/api/ledger/invoice/create",
     LEDGER_INVOICE_UPDATE: "/api/ledger/invoice/update",
     LEDGER_INVOICE_DELETE: "/api/ledger/invoice/delete",
+    LEDGER_SO: "/api/ledger/so",
+    LEDGER_SO_CREATE: "/api/ledger/so/create",
+    LEDGER_SO_UPDATE: "/api/ledger/so/update",
+    LEDGER_SO_DELETE: "/api/ledger/so/delete",
     SHIPPING_ORDER_PACKAGE_CHECK: "/api/shipping/order/package/check",
     SHIPPING_ORDER_PACKAGE_MERGE: "/api/shipping/order/package/merge",
     // Carbon calculator

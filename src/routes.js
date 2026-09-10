@@ -101,6 +101,8 @@ import LedgerCost from "views/admin/ledger/cost";
 import CostFormPage from "views/admin/ledger/cost/CostFormPage";
 import LedgerInvoice from "views/admin/ledger/invoice";
 import InvoiceFormPage from "views/admin/ledger/invoice/InvoiceFormPage";
+import LedgerSo from "views/admin/ledger/so";
+import SoLedgerFormPage from "views/admin/ledger/so/SoLedgerFormPage";
 
 const routes = [
   {
@@ -222,6 +224,15 @@ const routes = [
           <Icon as={MdDescription} width="20px" height="20px" color="inherit" />
         ),
         component: LedgerInvoice,
+        exact: true,
+      },
+      {
+        name: "SO Ledger",
+        path: "/ledger/so",
+        icon: (
+          <Icon as={MdAssignment} width="20px" height="20px" color="inherit" />
+        ),
+        component: LedgerSo,
         exact: true,
       },
     ],
@@ -533,6 +544,12 @@ const hiddenRoutes = [
     layout: "/admin",
     path: "/ledger/invoice/form/:id?",
     component: InvoiceFormPage,
+  },
+  {
+    name: "SO Ledger Form",
+    layout: "/admin",
+    path: "/ledger/so/form/:id?",
+    component: SoLedgerFormPage,
   },
 ];
 

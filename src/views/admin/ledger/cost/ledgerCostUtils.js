@@ -48,6 +48,11 @@ export const emptyCostForm = () => ({
 
 export const getMany2oneId = (value) => {
   if (value == null || value === false || value === "") return null;
+  if (Array.isArray(value)) {
+    const id = value[0];
+    if (id == null || id === false || id === "") return null;
+    return id;
+  }
   if (typeof value === "object") {
     const id = value.id ?? value.value;
     if (id == null || id === false || id === "") return null;
@@ -58,8 +63,13 @@ export const getMany2oneId = (value) => {
 
 export const getMany2oneName = (value) => {
   if (value == null || value === false || value === "") return "";
+  if (Array.isArray(value)) {
+    const name = value[1];
+    if (name == null || name === false || name === "") return "";
+    return String(name);
+  }
   if (typeof value === "object") {
-    return value.name || value.label || "";
+    return value.name || value.label || value.display_name || "";
   }
   return String(value);
 };
