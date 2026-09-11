@@ -165,20 +165,73 @@ const resolveReportDownloadFilename = (attachment, response) => {
   return "stock-report.pdf";
 };
 
+const EMPTY_CLIENT_STOCK_FILTERS = {
+  fromDate: "",
+  toDate: "",
+  vessel: "",
+  status: "",
+  location: "",
+  destination: "",
+  poNumber: "",
+};
+
+const getClientStockNavState = (location) => {
+  const state = location?.state;
+  if (!state || typeof state !== "object") {
+    return {
+      selectedVessel: "",
+      selectedVesselId: null,
+      hubValue: "",
+      stockStatus: "",
+      hasNavFilters: false,
+    };
+  }
+  const selectedVessel = state.selectedVessel ? String(state.selectedVessel) : "";
+  const selectedVesselId =
+    state.selectedVesselId != null && state.selectedVesselId !== false
+      ? state.selectedVesselId
+      : null;
+  const hubValue = toClientHubOptionValue({
+    id: state.selectedHubId,
+    name: state.selectedHubLocation,
+  });
+  const stockStatus = state.dashboardFilter?.stockStatus
+    ? String(state.dashboardFilter.stockStatus)
+    : "";
+  return {
+    selectedVessel,
+    selectedVesselId,
+    hubValue,
+    stockStatus,
+    hasNavFilters: Boolean(
+      selectedVessel ||
+        selectedVesselId != null ||
+        hubValue ||
+        stockStatus ||
+        state.selectedHubId != null ||
+        state.selectedHubLocation
+    ),
+  };
+};
+
+const getInitialClientStockFilters = (nav) => ({
+  ...EMPTY_CLIENT_STOCK_FILTERS,
+  vessel: nav.selectedVessel || "",
+  location: nav.hubValue || "",
+  status: nav.stockStatus || "",
+});
+
 function ClientStock() {
   const location = useLocation();
   const [stockRows, setStockRows] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [clientName, setClientName] = useState("");
-  const [filters, setFilters] = useState({
-    fromDate: "",
-    toDate: "",
-    vessel: "",
-    status: "",
-    location: "",
-    destination: "",
-    poNumber: "",
-  });
+  const [filters, setFilters] = useState(() =>
+    getInitialClientStockFilters(getClientStockNavState(location))
+  );
+  const [navVesselId, setNavVesselId] = useState(
+    () => getClientStockNavState(location).selectedVesselId
+  );
   const [search, setSearch] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [entries, setEntries] = useState("50");
@@ -199,7 +252,11 @@ function ClientStock() {
   const [isDimensionsModalOpen, setIsDimensionsModalOpen] = useState(false);
   const [selectedDimensions, setSelectedDimensions] = useState([]);
   const [clientSortOption, setClientSortOption] = useState("none");
-  const [activeFilter, setActiveFilter] = useState("true");
+  const [activeFilter, setActiveFilter] = useState(() => {
+    const stockStatus = getClientStockNavState(location).stockStatus;
+    if (!stockStatus) return "true";
+    return isArchiveStockStatus(stockStatus) ? "false" : "true";
+  });
   const [previousReportsModal, setPreviousReportsModal] = useState({
     isOpen: false,
     entries: [],
@@ -240,19 +297,23 @@ function ClientStock() {
     [activeFilter]
   );
 
+  const resolvedVesselId = useMemo(() => {
+    const fromOptions = vesselFilterOptions.find((v) => v.name === filters.vessel)?.id;
+    return fromOptions ?? navVesselId ?? undefined;
+  }, [filters.vessel, navVesselId, vesselFilterOptions]);
+
   const buildStockQueryParams = useCallback(
     (overrides = {}) => {
       const hubValue = String(filters.location || "").trim();
       const hubId = hubValue && !hubValue.startsWith("name:") ? getClientHubFilterId(hubValue) : null;
       const hubName = hubValue.startsWith("name:") ? hubValue.slice(5) : "";
-      const selectedVessel = vesselFilterOptions.find((v) => v.name === filters.vessel);
       return {
         search: searchQuery || undefined,
         stock_status: filters.status || undefined,
         sort_by: mapStockSortOptionToApiSortBy(clientSortOption),
         date_from: filters.fromDate || undefined,
         date_to: filters.toDate || undefined,
-        vessel_id: selectedVessel?.id,
+        vessel_id: resolvedVesselId,
         narvi_stock_via_hub1: hubId != null ? hubId : undefined,
         via_hub: hubId == null && hubName ? hubName : undefined,
         hub: hubId == null && hubName ? hubName : undefined,
@@ -267,9 +328,8 @@ function ClientStock() {
       filters.location,
       filters.status,
       filters.toDate,
-      filters.vessel,
+      resolvedVesselId,
       searchQuery,
-      vesselFilterOptions,
     ]
   );
 
@@ -464,6 +524,7 @@ function ClientStock() {
   }, [pagedRows]);
 
   const handleFilterChange = (key, value) => {
+    if (key === "vessel") setNavVesselId(null);
     setFilters((prev) => ({ ...prev, [key]: value }));
     if (["fromDate", "toDate", "vessel", "status", "location"].includes(key)) {
       setCurrentPage(1);
@@ -488,39 +549,38 @@ function ClientStock() {
   };
 
   useEffect(() => {
-    const selectedVessel = location?.state?.selectedVessel;
-    const selectedHubId = location?.state?.selectedHubId;
-    const selectedHubLocation = location?.state?.selectedHubLocation;
-    const stockStatus = location?.state?.dashboardFilter?.stockStatus;
-    if (selectedVessel || selectedHubId != null || selectedHubLocation || stockStatus) {
-      const hubValue = toClientHubOptionValue({
-        id: selectedHubId,
-        name: selectedHubLocation,
-      });
-      if (stockStatus) {
-        setActiveFilter(isArchiveStockStatus(stockStatus) ? "false" : "true");
-      }
-      setFilters((prev) => ({
-        ...prev,
-        vessel: selectedVessel || prev.vessel,
-        location: hubValue || prev.location,
-        status: stockStatus || prev.status,
-      }));
-      setCurrentPage(1);
-      clearClientNavigationState();
+    const nav = getClientStockNavState(location);
+    if (!nav.hasNavFilters) return;
+
+    if (nav.stockStatus) {
+      setActiveFilter(isArchiveStockStatus(nav.stockStatus) ? "false" : "true");
     }
+    if (nav.selectedVesselId != null) {
+      setNavVesselId(nav.selectedVesselId);
+    }
+    setFilters((prev) => {
+      const next = {
+        ...prev,
+        vessel: nav.selectedVessel || prev.vessel,
+        location: nav.hubValue || prev.location,
+        status: nav.stockStatus || prev.status,
+      };
+      if (
+        next.vessel === prev.vessel &&
+        next.location === prev.location &&
+        next.status === prev.status
+      ) {
+        return prev;
+      }
+      return next;
+    });
+    setCurrentPage(1);
+    clearClientNavigationState();
   }, [location]);
 
   const handleReset = () => {
-    setFilters({
-      fromDate: "",
-      toDate: "",
-      vessel: "",
-      status: "",
-      location: "",
-      destination: "",
-      poNumber: "",
-    });
+    setNavVesselId(null);
+    setFilters({ ...EMPTY_CLIENT_STOCK_FILTERS });
     setSearch("");
     setSearchQuery("");
     setEntries("50");
