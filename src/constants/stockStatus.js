@@ -79,7 +79,7 @@ export const getStatusOptionsForActiveFilter = (stockStatusOptions, activeFilter
 
 /** Always pass active explicitly when calling the stock list API */
 export const resolveStockListActiveParam = (activeFilter) => {
-  if (activeFilter === "false") return "false";
+  if (activeFilter === false || activeFilter === "false") return "false";
   if (activeFilter === "all") return "all";
   return "true";
 };

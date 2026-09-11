@@ -95,6 +95,7 @@ export const buildCommonStockJobFilters = (params = {}, endpointType = "stock") 
   assign("effective_hub", params.effective_hub);
   assign("hub", params.hub);
   assign("has_destination", params.has_destination);
+  assign("active", params.active);
   assign("sort_by", params.sort_by);
   const resolvedSortBy = isPresent(params.sort_by) ? String(params.sort_by).trim() : "";
   if (!STOCK_SEMANTIC_SORTS.has(resolvedSortBy)) {

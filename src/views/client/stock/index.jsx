@@ -25,6 +25,7 @@ import {
   MenuList,
   Select,
   Spinner,
+  Switch,
   Table,
   Tbody,
   Td,
@@ -46,7 +47,12 @@ import {
 import clientStockApi from "api/clientStock";
 import clientVesselApi from "api/clientVessel";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
-import { FALLBACK_ACTIVE_STATUS_OPTIONS, normalizeStockStatusKey } from "constants/stockStatus";
+import {
+  getStatusOptionsForActiveFilter,
+  isArchiveStockStatus,
+  normalizeStockStatusKey,
+  resolveStockListActiveParam,
+} from "constants/stockStatus";
 import { getCappedStockReportEntriesForDisplay } from "utils/stockReportAttachmentsUi";
 import { normalizeLegacyStockReportFilename } from "utils/stockReportPdf";
 import StockListAttachmentsCell from "components/stock-list/StockListAttachmentsCell";
@@ -193,6 +199,7 @@ function ClientStock() {
   const [isDimensionsModalOpen, setIsDimensionsModalOpen] = useState(false);
   const [selectedDimensions, setSelectedDimensions] = useState([]);
   const [clientSortOption, setClientSortOption] = useState("none");
+  const [activeFilter, setActiveFilter] = useState("true");
   const [previousReportsModal, setPreviousReportsModal] = useState({
     isOpen: false,
     entries: [],
@@ -219,6 +226,8 @@ function ClientStock() {
     stock: "blue",
     available: "green",
     delivered: "green",
+    released: "gray",
+    shipped: "teal",
     in_transit: "purple",
     transit: "purple",
     cancelled: "red",
@@ -226,28 +235,54 @@ function ClientStock() {
     hold: "yellow",
   };
 
-  const fetchStock = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const sort_by = mapStockSortOptionToApiSortBy(clientSortOption);
+  const statusFilterOptions = useMemo(
+    () => getStatusOptionsForActiveFilter([], activeFilter),
+    [activeFilter]
+  );
+
+  const buildStockQueryParams = useCallback(
+    (overrides = {}) => {
       const hubValue = String(filters.location || "").trim();
       const hubId = hubValue && !hubValue.startsWith("name:") ? getClientHubFilterId(hubValue) : null;
       const hubName = hubValue.startsWith("name:") ? hubValue.slice(5) : "";
       const selectedVessel = vesselFilterOptions.find((v) => v.name === filters.vessel);
-      const pageSize = Number(entries) || 50;
-      const res = await clientStockApi.getClientStock({
+      return {
         search: searchQuery || undefined,
         stock_status: filters.status || undefined,
-        sort_by,
-        page: currentPage,
-        page_size: pageSize,
+        sort_by: mapStockSortOptionToApiSortBy(clientSortOption),
         date_from: filters.fromDate || undefined,
         date_to: filters.toDate || undefined,
         vessel_id: selectedVessel?.id,
         narvi_stock_via_hub1: hubId != null ? hubId : undefined,
         via_hub: hubId == null && hubName ? hubName : undefined,
         hub: hubId == null && hubName ? hubName : undefined,
-      });
+        active: resolveStockListActiveParam(activeFilter),
+        ...overrides,
+      };
+    },
+    [
+      activeFilter,
+      clientSortOption,
+      filters.fromDate,
+      filters.location,
+      filters.status,
+      filters.toDate,
+      filters.vessel,
+      searchQuery,
+      vesselFilterOptions,
+    ]
+  );
+
+  const fetchStock = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const pageSize = Number(entries) || 50;
+      const res = await clientStockApi.getClientStock(
+        buildStockQueryParams({
+          page: currentPage,
+          page_size: pageSize,
+        })
+      );
       const nextClientName = res?.client?.name || "";
       setStockRows(mapClientStockRows(res?.stock_list, nextClientName));
       setClientName(nextClientName);
@@ -265,18 +300,7 @@ function ClientStock() {
     } finally {
       setIsLoading(false);
     }
-  }, [
-    clientSortOption,
-    currentPage,
-    entries,
-    filters.fromDate,
-    filters.location,
-    filters.status,
-    filters.toDate,
-    filters.vessel,
-    searchQuery,
-    vesselFilterOptions,
-  ]);
+  }, [buildStockQueryParams, currentPage, entries]);
 
   const fetchVesselFilterOptions = useCallback(async () => {
     try {
@@ -446,6 +470,18 @@ function ClientStock() {
     }
   };
 
+  const handleActiveFilterChange = (showActive) => {
+    const next = showActive ? "true" : "false";
+    setActiveFilter(next);
+    setFilters((prev) => {
+      if (prev.status && isArchiveStockStatus(prev.status) !== (next === "false")) {
+        return { ...prev, status: "" };
+      }
+      return prev;
+    });
+    setCurrentPage(1);
+  };
+
   const handleSortChange = (value) => {
     setClientSortOption(value);
     setCurrentPage(1);
@@ -461,6 +497,9 @@ function ClientStock() {
         id: selectedHubId,
         name: selectedHubLocation,
       });
+      if (stockStatus) {
+        setActiveFilter(isArchiveStockStatus(stockStatus) ? "false" : "true");
+      }
       setFilters((prev) => ({
         ...prev,
         vessel: selectedVessel || prev.vessel,
@@ -487,6 +526,7 @@ function ClientStock() {
     setEntries("50");
     setCurrentPage(1);
     setSelectedRowIds([]);
+    setActiveFilter("true");
   };
   const formatStatus = (status) => {
     const value = String(status || "").trim();
@@ -805,22 +845,9 @@ function ClientStock() {
       "Value",
     ];
     try {
-      const hubValue = String(filters.location || "").trim();
-      const hubId = hubValue && !hubValue.startsWith("name:") ? getClientHubFilterId(hubValue) : null;
-      const hubName = hubValue.startsWith("name:") ? hubValue.slice(5) : "";
-      const selectedVessel = vesselFilterOptions.find((v) => v.name === filters.vessel);
-      const res = await clientStockApi.getClientStock({
-        search: searchQuery || undefined,
-        stock_status: filters.status || undefined,
-        sort_by: mapStockSortOptionToApiSortBy(clientSortOption),
-        fetch_all: true,
-        date_from: filters.fromDate || undefined,
-        date_to: filters.toDate || undefined,
-        vessel_id: selectedVessel?.id,
-        narvi_stock_via_hub1: hubId != null ? hubId : undefined,
-        via_hub: hubId == null && hubName ? hubName : undefined,
-        hub: hubId == null && hubName ? hubName : undefined,
-      });
+      const res = await clientStockApi.getClientStock(
+        buildStockQueryParams({ fetch_all: true })
+      );
       const exportRows = mapClientStockRows(res?.stock_list, res?.client?.name || clientName).filter((row) => {
         if (filters.destination && row.destination !== filters.destination) return false;
         if (filters.poNumber && row.poNo !== filters.poNumber) return false;
@@ -891,15 +918,37 @@ function ClientStock() {
             Stock Report
           </Heading>
           <Text mt={1} fontSize="sm" color={muted}>
-            {clientName ? `Showing stock for ${clientName}.` : "Track inventory movement by vessel, location, and date range."}
+            {clientName
+              ? `Showing ${activeFilter === "false" ? "inactive" : "active"} stock for ${clientName}.`
+              : activeFilter === "false"
+                ? "Showing released / shipped / delivered / cancelled stock."
+                : "Track inventory movement by vessel, location, and date range."}
           </Text>
         </Box>
       </Flex>
 
       <Box bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="16px" p={5} mb={5}>
-        <Text fontSize="sm" fontWeight="700" color={headingColor} mb={4}>
-          Filters
-        </Text>
+        <Flex justify="space-between" align={{ base: "start", md: "center" }} mb={4} gap={3} wrap="wrap">
+          <Text fontSize="sm" fontWeight="700" color={headingColor}>
+            Filters
+          </Text>
+          <Flex align="center" gap={2} wrap="wrap">
+            <Text fontSize="sm" fontWeight="600" color={headingColor}>
+              Active items
+            </Text>
+            <Switch
+              size="sm"
+              colorScheme="green"
+              isChecked={activeFilter !== "false"}
+              onChange={(e) => handleActiveFilterChange(e.target.checked)}
+            />
+            <Text fontSize="xs" color={muted}>
+              {activeFilter === "false"
+                ? "Showing released / shipped / delivered / cancelled"
+                : "Showing active statuses"}
+            </Text>
+          </Flex>
+        </Flex>
         <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(3, 1fr)" }} gap={3}>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Date Range</Text>
@@ -923,14 +972,11 @@ function ClientStock() {
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Status</Text>
             <Select size="sm" placeholder="All statuses" value={filters.status} onChange={(e) => handleFilterChange("status", e.target.value)}>
-              {FALLBACK_ACTIVE_STATUS_OPTIONS.map((option) => (
+              {statusFilterOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
-              <option value="delivered">Delivered</option>
-              <option value="returned">Returned</option>
-              <option value="lost">Lost</option>
             </Select>
           </GridItem>
           <GridItem>
