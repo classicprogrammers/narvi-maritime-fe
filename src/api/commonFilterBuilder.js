@@ -86,6 +86,15 @@ export const buildCommonStockJobFilters = (params = {}, endpointType = "stock") 
   assign("narvi_stock_via_hub2", params.narvi_stock_via_hub2);
   assign("narvi_stock_ap_destination", params.narvi_stock_ap_destination);
   assign("narvi_stock_destination", params.narvi_stock_destination);
+  assign("destination_ids", params.destination_ids);
+  assign("ap_destination_ids", params.ap_destination_ids);
+  assign("via_hub", params.via_hub);
+  assign("via_hub2", params.via_hub2);
+  assign("narvi_stock_via_hub1_name", params.narvi_stock_via_hub1_name);
+  assign("narvi_stock_via_hub2_name", params.narvi_stock_via_hub2_name);
+  assign("effective_hub", params.effective_hub);
+  assign("hub", params.hub);
+  assign("has_destination", params.has_destination);
   assign("sort_by", params.sort_by);
   const resolvedSortBy = isPresent(params.sort_by) ? String(params.sort_by).trim() : "";
   if (!STOCK_SEMANTIC_SORTS.has(resolvedSortBy)) {

@@ -127,10 +127,41 @@ export const mergeStockIdNameOptions = (options, selectedId, selectedName) => {
 };
 
 const STOCK_LOCATION_NAME_ALIASES = {
-    narvi_stock_via_hub1: ["narviStockViaHub1Name", "narvi_stock_via_hub1_name"],
-    narvi_stock_via_hub2: ["narviStockViaHub2Name", "narvi_stock_via_hub2_name"],
-    narvi_stock_ap_destination: ["narviStockApDestinationName", "narvi_stock_ap_destination_name"],
-    narvi_stock_destination: ["destinationName", "narvi_stock_destination_name"],
+    narvi_stock_via_hub1: ["narviStockViaHub1Name", "narvi_stock_via_hub1_name", "via_hub", "via_hub_1"],
+    narvi_stock_via_hub2: ["narviStockViaHub2Name", "narvi_stock_via_hub2_name", "via_hub2", "via_hub_2"],
+    narvi_stock_ap_destination: [
+        "narviStockApDestinationName",
+        "narvi_stock_ap_destination_name",
+        "ap_destination_display",
+        "ap_destination_new",
+        "ap_destination",
+        "ap_destination_ids",
+    ],
+    narvi_stock_destination: [
+        "destinationName",
+        "narvi_stock_destination_name",
+        "destination_display",
+        "destination_new",
+        "destination",
+        "destination_ids",
+    ],
+};
+
+const STOCK_LOCATION_VALUE_ALIASES = {
+    narvi_stock_via_hub1: ["via_hub", "via_hub_1"],
+    narvi_stock_via_hub2: ["via_hub2", "via_hub_2"],
+    narvi_stock_ap_destination: [
+        "ap_destination_display",
+        "ap_destination_new",
+        "ap_destination",
+        "ap_destination_ids",
+    ],
+    narvi_stock_destination: [
+        "destination_display",
+        "destination_new",
+        "destination",
+        "destination_ids",
+    ],
 };
 
 const getCompanionLocationName = (item, fieldKey) => {
@@ -160,14 +191,42 @@ export const toStockLocationDisplayValue = (idOrValue, name) => {
 
 export const getStockLocationDisplay = (item, fieldKey) => {
     if (!item) return "-";
-    const direct = item[fieldKey];
-    const nameFromM2O = getStockLocationOptionName(direct);
-    if (nameFromM2O) return nameFromM2O;
+    const keys = [fieldKey, ...(STOCK_LOCATION_VALUE_ALIASES[fieldKey] || [])];
+    for (const key of keys) {
+        const nameFromM2O = getStockLocationOptionName(item[key]);
+        if (nameFromM2O) return nameFromM2O;
+    }
     const companionName = getCompanionLocationName(item, fieldKey);
     if (companionName) return companionName;
-    const id = resolveStockLocationOptionId(direct);
+    const id = resolveStockLocationOptionId(item[fieldKey]);
     if (id != null) return String(id);
     return "-";
+};
+
+export const toStockFieldDisplay = (value, empty = "-") => {
+    if (value == null || value === false || value === "") return empty;
+    if (typeof value === "object") {
+        const name = getStockLocationOptionName(value);
+        return name || empty;
+    }
+    const text = String(value).trim();
+    if (!text || text.toLowerCase() === "false" || text === "[object Object]") return empty;
+    return text;
+};
+
+export const getStockOriginDisplay = (item) => {
+    const originText = toStockFieldDisplay(item?.origin_text, "");
+    if (originText) return originText;
+    return toStockFieldDisplay(item?.origin, "-");
+};
+
+export const getStockEffectiveHubDisplay = (item) => {
+    const explicit =
+        toStockFieldDisplay(item?.effective_hub, "") || toStockFieldDisplay(item?.hub, "");
+    if (explicit) return explicit;
+    const hub2 = getStockViaHub2Display(item);
+    if (hub2 && hub2 !== "-") return hub2;
+    return getStockViaHub1Display(item);
 };
 
 export const toStockLocationPayloadId = (value) => {

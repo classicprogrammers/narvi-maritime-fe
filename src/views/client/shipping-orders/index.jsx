@@ -32,6 +32,10 @@ import { useStockAttachmentsGallery } from "hooks/useStockAttachmentsGallery";
 import { normalizeOrder, toDateOnly } from "views/admin/shipping-order/shippingOrderUtils";
 import { resolveShippingOrderDownloadFilename } from "utils/shippingOrderAttachments";
 import { SHIPPING_ORDER_STATUS_FILTER_OPTIONS } from "utils/shippingOrderListState";
+import ClientPortalTableShell, {
+  getClientPortalTableSx,
+  useClientPortalTableColors,
+} from "views/client/ClientPortalTableShell";
 import * as XLSX from "xlsx";
 
 const tagFilesWithKind = (files, kind) =>
@@ -119,7 +123,7 @@ function ClientShippingOrders() {
   const [search, setSearch] = useState("");
   const [entries, setEntries] = useState("50");
   const [currentPage, setCurrentPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [clientName, setClientName] = useState("");
   const [vesselOptions, setVesselOptions] = useState([]);
@@ -130,8 +134,8 @@ function ClientShippingOrders() {
   const borderColor = useColorModeValue("secondaryGray.200", "whiteAlpha.200");
   const headingColor = useColorModeValue("navy.700", "white");
   const muted = useColorModeValue("secondaryGray.700", "secondaryGray.600");
-  const softBg = useColorModeValue("secondaryGray.300", "whiteAlpha.100");
-  const tableRowHoverBg = useColorModeValue("gray.50", "whiteAlpha.100");
+  const tableColors = useClientPortalTableColors();
+  const { tableRowHoverBg, tableRowEvenBg } = tableColors;
 
   const resolveShippingOrderPreviewUrl = useCallback(async (attachment, orderId) => {
     if (!orderId || (attachment?.id == null && attachment.__fileKind !== "package")) {
@@ -615,9 +619,9 @@ function ClientShippingOrders() {
               Show
             </Text>
             <Select size="xs" w="72px" value={entries} onChange={(e) => setEntries(e.target.value)}>
-              <option value="10">10</option>
-              <option value="25">25</option>
               <option value="50">50</option>
+              <option value="25">25</option>
+              <option value="10">10</option>
             </Select>
             <Text fontSize="sm" color={muted}>
               entries
@@ -648,9 +652,20 @@ function ClientShippingOrders() {
         </Flex>
       </Box>
 
-      <Box bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="16px" overflowX="auto">
-        <Table size="sm" variant="simple">
-          <Thead bg={softBg}>
+      <ClientPortalTableShell
+        isLoading={isLoading}
+        hasRows={pagedRows.length > 0}
+        loadingLabel="Loading shipping orders..."
+        emptyLabel="No shipping orders found for the selected filters."
+        pageStart={pageStart}
+        pageEnd={pageEnd}
+        totalCount={filteredRows.length}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onChangePage={setCurrentPage}
+      >
+        <Table size="sm" variant="simple" sx={getClientPortalTableSx(tableColors)}>
+          <Thead>
             <Tr>
               <Th>SO Number</Th>
               <Th>Status</Th>
@@ -668,7 +683,11 @@ function ClientShippingOrders() {
           </Thead>
           <Tbody>
             {pagedRows.map((row) => (
-              <Tr key={row.id || row.so_number} _hover={{ bg: tableRowHoverBg }}>
+              <Tr
+                key={row.id || row.so_number}
+                _hover={{ bg: tableRowHoverBg }}
+                _even={{ bg: tableRowEvenBg }}
+              >
                 <Td fontWeight="600">{row.so_number || "-"}</Td>
                 <Td>
                   <Badge
@@ -710,51 +729,7 @@ function ClientShippingOrders() {
             ))}
           </Tbody>
         </Table>
-        {!isLoading && pagedRows.length === 0 && (
-          <Text px={4} py={3} fontSize="sm" color={muted}>
-            No shipping orders found for the selected filters.
-          </Text>
-        )}
-      </Box>
-
-      {isLoading && (
-        <Text mt={2} fontSize="xs" color={muted}>
-          Loading shipping orders...
-        </Text>
-      )}
-
-      <Flex
-        mt={2}
-        justify="space-between"
-        align="center"
-        direction={{ base: "column", md: "row" }}
-        gap={2}
-      >
-        <Text fontSize="xs" color={muted}>
-          Showing {pageStart}-{pageEnd} of {filteredRows.length} entries
-        </Text>
-        <Flex gap={2} align="center">
-          <Button
-            size="xs"
-            variant="outline"
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            isDisabled={currentPage <= 1}
-          >
-            Previous
-          </Button>
-          <Text fontSize="xs" color={muted}>
-            Page {currentPage} of {totalPages}
-          </Text>
-          <Button
-            size="xs"
-            variant="outline"
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            isDisabled={currentPage >= totalPages}
-          >
-            Next
-          </Button>
-        </Flex>
-      </Flex>
+      </ClientPortalTableShell>
 
       {galleryModal}
     </Box>

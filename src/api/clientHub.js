@@ -6,15 +6,30 @@ export const getClientHubLabel = (hub) => {
   return String(hub.name || hub.hub || hub.label || hub.display_name || "").trim();
 };
 
+export const getClientHubFilterId = (hub) => {
+  const raw = hub != null && typeof hub === "object" ? hub.id : hub;
+  if (raw == null || raw === false || raw === "" || raw === "false") return null;
+  const id = Number(raw);
+  return Number.isFinite(id) ? id : null;
+};
+
+export const toClientHubOptionValue = (hub) => {
+  const id = getClientHubFilterId(hub);
+  if (id != null) return String(id);
+  const name = getClientHubLabel(hub);
+  return name ? `name:${name}` : "";
+};
+
 const normalizeClientHub = (hub) => {
   const name = getClientHubLabel(hub);
   if (!name) return null;
   if (typeof hub === "string" || typeof hub === "number") {
-    return { id: name, name, hub: name };
+    return { id: false, name, hub: name };
   }
+  const id = getClientHubFilterId(hub);
   return {
     ...hub,
-    id: hub.id ?? name,
+    id: id != null ? id : false,
     name,
     hub: name,
   };

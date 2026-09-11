@@ -26,7 +26,12 @@ import { MdFileDownload, MdRefresh, MdSearch } from "react-icons/md";
 import clientJobsApi from "api/clientJobs";
 import clientVesselApi from "api/clientVessel";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import { getStockDestinationDisplay, getStockOriginDisplay } from "utils/stockLocationOptions";
 import { clearClientNavigationState } from "views/client/dashboard/clientDashboardNavigation";
+import ClientPortalTableShell, {
+  getClientPortalTableSx,
+  useClientPortalTableColors,
+} from "views/client/ClientPortalTableShell";
 import * as XLSX from "xlsx";
 
 function ClientOngoingJobs() {
@@ -43,7 +48,7 @@ function ClientOngoingJobs() {
   const [search, setSearch] = useState("");
   const [entries, setEntries] = useState("50");
   const [currentPage, setCurrentPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [clientName, setClientName] = useState("");
   const [vesselOptions, setVesselOptions] = useState([]);
@@ -52,7 +57,8 @@ function ClientOngoingJobs() {
   const borderColor = useColorModeValue("secondaryGray.200", "whiteAlpha.200");
   const headingColor = useColorModeValue("navy.700", "white");
   const muted = useColorModeValue("secondaryGray.700", "secondaryGray.600");
-  const softBg = useColorModeValue("secondaryGray.300", "whiteAlpha.100");
+  const tableColors = useClientPortalTableColors();
+  const { tableRowHoverBg, tableRowEvenBg } = tableColors;
 
   const fetchVessels = useCallback(async () => {
     try {
@@ -84,6 +90,7 @@ function ClientOngoingJobs() {
         date_from: filters.fromDate || undefined,
         date_to: filters.toDate || undefined,
         origin: filters.origin || undefined,
+        origin_text: filters.origin || undefined,
       });
       const mapped = (res?.stock_list || []).map((item, idx) => ({
         id: `${item.stock_item_id || "active"}-${idx}`,
@@ -95,8 +102,8 @@ function ClientOngoingJobs() {
         status: item.stock_status || "-",
         etd: item.date_on_stock || "-",
         eta: "-",
-        origin: item.origin || "-",
-        destination: item.destination || "-",
+        origin: getStockOriginDisplay(item),
+        destination: getStockDestinationDisplay(item),
         combined: item.so_number || "-",
         totalPackages: item.box ?? "-",
         totalWeight: item.weight ?? "-",
@@ -316,9 +323,9 @@ function ClientOngoingJobs() {
           <Flex align="center" gap={2}>
             <Text fontSize="sm" color={muted}>Show</Text>
             <Select size="xs" w="72px" value={entries} onChange={(e) => setEntries(e.target.value)}>
-              <option value="10">10</option>
-              <option value="25">25</option>
               <option value="50">50</option>
+              <option value="25">25</option>
+              <option value="10">10</option>
             </Select>
             <Text fontSize="sm" color={muted}>entries</Text>
           </Flex>
@@ -343,9 +350,20 @@ function ClientOngoingJobs() {
         </Flex>
       </Box>
 
-      <Box bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="16px" overflowX="auto">
-        <Table size="sm" variant="simple">
-          <Thead bg={softBg}>
+      <ClientPortalTableShell
+        isLoading={isLoading}
+        hasRows={pagedRows.length > 0}
+        loadingLabel="Loading ongoing jobs..."
+        emptyLabel="No ongoing jobs found for the selected filters."
+        pageStart={pageStart}
+        pageEnd={pageEnd}
+        totalCount={filteredRows.length}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onChangePage={setCurrentPage}
+      >
+        <Table size="sm" variant="simple" sx={getClientPortalTableSx(tableColors)}>
+          <Thead>
             <Tr>
               <Th>Vessel Name</Th>
               <Th>Job ID</Th>
@@ -363,7 +381,11 @@ function ClientOngoingJobs() {
           </Thead>
           <Tbody>
             {pagedRows.map((row) => (
-              <Tr key={`${row.jobId}-${row.vessel}`}>
+              <Tr
+                key={`${row.jobId}-${row.vessel}`}
+                _hover={{ bg: tableRowHoverBg }}
+                _even={{ bg: tableRowEvenBg }}
+              >
                 <Td>{row.vessel}</Td>
                 <Td>{row.jobId}</Td>
                 <Td>{row.mode}</Td>
@@ -384,43 +406,7 @@ function ClientOngoingJobs() {
             ))}
           </Tbody>
         </Table>
-        {!isLoading && pagedRows.length === 0 && (
-          <Text px={4} py={3} fontSize="sm" color={muted}>
-            No ongoing jobs found for the selected filters.
-          </Text>
-        )}
-      </Box>
-      {isLoading && (
-        <Text mt={2} fontSize="xs" color={muted}>
-          Loading ongoing jobs...
-        </Text>
-      )}
-      <Flex mt={2} justify="space-between" align="center" direction={{ base: "column", md: "row" }} gap={2}>
-        <Text fontSize="xs" color={muted}>
-          Showing {pageStart}-{pageEnd} of {filteredRows.length} entries
-        </Text>
-        <Flex gap={2} align="center">
-          <Button
-            size="xs"
-            variant="outline"
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            isDisabled={currentPage <= 1}
-          >
-            Previous
-          </Button>
-          <Text fontSize="xs" color={muted}>
-            Page {currentPage} of {totalPages}
-          </Text>
-          <Button
-            size="xs"
-            variant="outline"
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            isDisabled={currentPage >= totalPages}
-          >
-            Next
-          </Button>
-        </Flex>
-      </Flex>
+      </ClientPortalTableShell>
     </Box>
   );
 }

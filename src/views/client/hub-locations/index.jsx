@@ -92,7 +92,7 @@ function ClientHubLocations() {
           const hubName = hub.name || hub.hub || "";
           return (
             <Box
-              key={hub.id ?? hubName}
+              key={hub.id !== false && hub.id != null ? hub.id : hubName}
               bg={cardBg}
               border="1px solid"
               borderColor={borderColor}
@@ -104,7 +104,10 @@ function ClientHubLocations() {
               onClick={() =>
                 history.push({
                   pathname: "/Client/Stock",
-                  state: { selectedHubLocation: hubName },
+                  state: {
+                    selectedHubId: hub.id,
+                    selectedHubLocation: hubName,
+                  },
                 })
               }
             >

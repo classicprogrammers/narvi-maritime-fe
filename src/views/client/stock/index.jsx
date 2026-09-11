@@ -24,6 +24,7 @@ import {
   MenuItem,
   MenuList,
   Select,
+  Spinner,
   Table,
   Tbody,
   Td,
@@ -43,7 +44,6 @@ import {
   MdTableChart,
 } from "react-icons/md";
 import clientStockApi from "api/clientStock";
-import clientHubApi from "api/clientHub";
 import clientVesselApi from "api/clientVessel";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import { FALLBACK_ACTIVE_STATUS_OPTIONS, normalizeStockStatusKey } from "constants/stockStatus";
@@ -62,9 +62,12 @@ import {
 import { formatStockValueDisplay } from "utils/stockValue";
 import { formatStockDestinationDisplay } from "utils/stockDestinationOptions";
 import {
+  getStockEffectiveHubDisplay,
+  getStockOriginDisplay,
   getStockViaHub1Display,
   getStockViaHub2Display,
 } from "utils/stockLocationOptions";
+import clientHubApi, { getClientHubFilterId, toClientHubOptionValue } from "api/clientHub";
 import { clearClientNavigationState } from "views/client/dashboard/clientDashboardNavigation";
 import * as XLSX from "xlsx";
 
@@ -73,6 +76,78 @@ import * as XLSX from "xlsx";
  * Admin stock list (/admin/stock-list/stocks) shows reports for every status — do not reuse here.
  */
 const isClientPortalStockStatus = (status) => normalizeStockStatusKey(status) === "stock";
+
+const toClientStockDisplay = (value) => {
+  if (value == null || value === false || value === "") return "-";
+  if (typeof value === "object") {
+    const name = value.name || value.label || value.display_name;
+    return name != null && name !== false && String(name).trim() !== "" ? String(name).trim() : "-";
+  }
+  const text = String(value).trim();
+  return !text || text === "[object Object]" ? "-" : text;
+};
+
+const mapClientStockRows = (stockList, clientName = "") =>
+  (Array.isArray(stockList) ? stockList : []).map((item, idx) => {
+    const stockStatusRaw = item.stock_status;
+    const stockStatusKey = normalizeStockStatusKey(stockStatusRaw);
+    const reportEntries = isClientPortalStockStatus(stockStatusKey)
+      ? getCappedStockReportEntriesForDisplay(item.attachments)
+      : [];
+    const reportAttachments = reportEntries.map((e) => e.att);
+    return {
+      id: `${item.id ?? item.stock_item_id ?? "stock"}-${idx}`,
+      stockRecordId: item.id,
+      stockItemId: item.stock_item_id ?? item.stock_id,
+      stockStatusKey,
+      attachmentEntries: reportEntries,
+      reportAttachments,
+      latestReport: reportEntries[0]?.att ?? null,
+      previousReportEntries: reportEntries.slice(1),
+      client: toClientStockDisplay(item.client?.name || clientName),
+      dateOnStock: toClientStockDisplay(item.date_on_stock || item.first_entry_date),
+      firstEntryDate: toClientStockDisplay(item.first_entry_date || item.date_on_stock),
+      vessel: toClientStockDisplay(item.vessel?.name || item.vessel),
+      warehouseId: toClientStockDisplay(item.warehouse_id || item.stock_item_id),
+      stockNumber: toClientStockDisplay(item.stock_number || item.stock_item_id),
+      supplier: toClientStockDisplay(item.supplier?.name || item.supplier),
+      poNo:
+        Array.isArray(item.po_number) && item.po_number.length
+          ? item.po_number.map((x) => String(x)).join(", ")
+          : toClientStockDisplay(item.po_text),
+      dgUnNumber: toClientStockDisplay(item.dg_un_number),
+      boxes: formatStockValueDisplay(item.boxes ?? item.box ?? item.pieces ?? item.pcs?.count),
+      weight: formatStockValueDisplay(item.weight ?? item.weight_kg),
+      totalVolumeCbm: formatStockValueDisplay(item.total_volume_cbm),
+      origin: toClientStockDisplay(getStockOriginDisplay(item)),
+      location: toClientStockDisplay(getStockEffectiveHubDisplay(item)),
+      firstEntryLocation: toClientStockDisplay(getStockOriginDisplay(item)),
+      viaHub1: toClientStockDisplay(getStockViaHub1Display(item)),
+      viaHub2: toClientStockDisplay(getStockViaHub2Display(item)),
+      effectiveHub: toClientStockDisplay(getStockEffectiveHubDisplay(item)),
+      apDestination: toClientStockDisplay(formatStockDestinationDisplay(item, "ap")),
+      destination: toClientStockDisplay(formatStockDestinationDisplay(item, "destination")),
+      stockStatus: toClientStockDisplay(stockStatusRaw),
+      stockStatusRaw,
+      soNumber: toClientStockDisplay(item.so_number),
+      currency: toClientStockDisplay(item.currency),
+      value: formatStockValueDisplay(item.value),
+      deliveryIrregularities: toClientStockDisplay(item.delivery_irregularities),
+      poRemarks: toClientStockDisplay(item.po_remarks),
+      createDate: toClientStockDisplay(item.create_date),
+      writeDate: toClientStockDisplay(item.write_date),
+      locationHistory: Array.isArray(item.location_history) ? item.location_history : [],
+      pcsLines: Array.isArray(item.pcs?.lines)
+        ? item.pcs.lines
+        : Array.isArray(item.dimensions)
+          ? item.dimensions
+          : [],
+      pcsCount: item.pcs?.count ?? item.pieces ?? item.boxes ?? item.box ?? 0,
+      shippingDoc: toClientStockDisplay(item.shipping_doc),
+      exportDoc1: toClientStockDisplay(item.export_doc),
+      exportDoc2: toClientStockDisplay(item.export_doc_2),
+    };
+  });
 
 const resolveReportDownloadFilename = (attachment, response) => {
   const name = attachment?.filename || attachment?.name;
@@ -87,7 +162,7 @@ const resolveReportDownloadFilename = (attachment, response) => {
 function ClientStock() {
   const location = useLocation();
   const [stockRows, setStockRows] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [clientName, setClientName] = useState("");
   const [filters, setFilters] = useState({
     fromDate: "",
@@ -99,8 +174,13 @@ function ClientStock() {
     poNumber: "",
   });
   const [search, setSearch] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [entries, setEntries] = useState("50");
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [hasNext, setHasNext] = useState(false);
+  const [hasPrevious, setHasPrevious] = useState(false);
   const [vesselFilterOptions, setVesselFilterOptions] = useState([]);
   const [hubFilterOptions, setHubFilterOptions] = useState([]);
   const [selectedRowIds, setSelectedRowIds] = useState([]);
@@ -133,6 +213,7 @@ function ClientStock() {
   const tableHeaderBg = useColorModeValue("secondaryGray.300", "whiteAlpha.100");
   const tableRowHoverBg = useColorModeValue("gray.50", "whiteAlpha.100");
   const tableRowEvenBg = useColorModeValue("blackAlpha.50", "whiteAlpha.50");
+  const tableOverlayBg = useColorModeValue("whiteAlpha.800", "blackAlpha.500");
   const statusColorMap = {
     pending: "orange",
     stock: "blue",
@@ -149,94 +230,73 @@ function ClientStock() {
     setIsLoading(true);
     try {
       const sort_by = mapStockSortOptionToApiSortBy(clientSortOption);
+      const hubValue = String(filters.location || "").trim();
+      const hubId = hubValue && !hubValue.startsWith("name:") ? getClientHubFilterId(hubValue) : null;
+      const hubName = hubValue.startsWith("name:") ? hubValue.slice(5) : "";
+      const selectedVessel = vesselFilterOptions.find((v) => v.name === filters.vessel);
+      const pageSize = Number(entries) || 50;
       const res = await clientStockApi.getClientStock({
-        search: search.trim() || undefined,
+        search: searchQuery || undefined,
         stock_status: filters.status || undefined,
         sort_by,
+        page: currentPage,
+        page_size: pageSize,
+        date_from: filters.fromDate || undefined,
+        date_to: filters.toDate || undefined,
+        vessel_id: selectedVessel?.id,
+        narvi_stock_via_hub1: hubId != null ? hubId : undefined,
+        via_hub: hubId == null && hubName ? hubName : undefined,
+        hub: hubId == null && hubName ? hubName : undefined,
       });
-      const toDisplay = (value) =>
-        value != null && value !== false && String(value).trim() !== "" ? String(value) : "-";
-      const toNumberDisplay = (value) => formatStockValueDisplay(value);
-
-      const normalizedRows = (res?.stock_list || []).map((item, idx) => {
-        const stockStatusRaw = item.stock_status;
-        const stockStatusKey = normalizeStockStatusKey(stockStatusRaw);
-        const reportEntries = isClientPortalStockStatus(stockStatusKey)
-          ? getCappedStockReportEntriesForDisplay(item.attachments)
-          : [];
-        const reportAttachments = reportEntries.map((e) => e.att);
-        return {
-        id: `${item.id ?? item.stock_item_id ?? "stock"}-${idx}`,
-        stockRecordId: item.id,
-        stockItemId: item.stock_item_id ?? item.stock_id,
-        stockStatusKey,
-        attachmentEntries: reportEntries,
-        reportAttachments,
-        latestReport: reportEntries[0]?.att ?? null,
-        previousReportEntries: reportEntries.slice(1),
-        client: toDisplay(item.client?.name || res?.client?.name),
-        dateOnStock: toDisplay(item.date_on_stock || item.first_entry_date),
-        firstEntryDate: toDisplay(item.first_entry_date || item.date_on_stock),
-        vessel: toDisplay(item.vessel?.name || item.vessel),
-        warehouseId: toDisplay(item.warehouse_id || item.stock_item_id),
-        stockNumber: toDisplay(item.stock_number || item.stock_item_id),
-        supplier: toDisplay(item.supplier?.name || item.supplier),
-        poNo: Array.isArray(item.po_number) && item.po_number.length
-          ? item.po_number.map((x) => String(x)).join(", ")
-          : toDisplay(item.po_text),
-        dgUnNumber: toDisplay(item.dg_un_number),
-        boxes: toNumberDisplay(item.boxes ?? item.box ?? item.pieces ?? item.pcs?.count),
-        weight: toNumberDisplay(item.weight ?? item.weight_kg),
-        totalVolumeCbm: toNumberDisplay(item.total_volume_cbm),
-        origin: toDisplay(item.origin_text),
-        location: toDisplay(item.origin_text),
-        firstEntryLocation: toDisplay(item.origin_text),
-        viaHub1: toDisplay(getStockViaHub1Display(item)),
-        viaHub2: toDisplay(getStockViaHub2Display(item)),
-        effectiveHub: (() => {
-          const hub2 = getStockViaHub2Display(item);
-          return toDisplay(hub2 !== "-" ? hub2 : getStockViaHub1Display(item));
-        })(),
-        apDestination: toDisplay(formatStockDestinationDisplay(item, "ap")),
-        destination: toDisplay(formatStockDestinationDisplay(item, "destination")),
-        stockStatus: toDisplay(stockStatusRaw),
-        stockStatusRaw,
-        soNumber: toDisplay(item.so_number),
-        currency: toDisplay(item.currency),
-        value: toNumberDisplay(item.value),
-        deliveryIrregularities: toDisplay(item.delivery_irregularities),
-        poRemarks: toDisplay(item.po_remarks),
-        createDate: toDisplay(item.create_date),
-        writeDate: toDisplay(item.write_date),
-        locationHistory: Array.isArray(item.location_history) ? item.location_history : [],
-        pcsLines: Array.isArray(item.pcs?.lines)
-          ? item.pcs.lines
-          : Array.isArray(item.dimensions)
-            ? item.dimensions
-            : [],
-        pcsCount: item.pcs?.count ?? item.pieces ?? item.boxes ?? item.box ?? 0,
-        shippingDoc: toDisplay(item.shipping_doc),
-        exportDoc1: toDisplay(item.export_doc),
-        exportDoc2: toDisplay(item.export_doc_2),
-      };
-      });
-      setStockRows(normalizedRows);
-      setClientName(res?.client?.name || "");
+      const nextClientName = res?.client?.name || "";
+      setStockRows(mapClientStockRows(res?.stock_list, nextClientName));
+      setClientName(nextClientName);
+      setTotalCount(res.total_count ?? res.count ?? 0);
+      setTotalPages(Math.max(1, res.total_pages || 1));
+      setHasNext(Boolean(res.has_next));
+      setHasPrevious(Boolean(res.has_previous));
     } catch (_e) {
       setStockRows([]);
       setClientName("");
+      setTotalCount(0);
+      setTotalPages(1);
+      setHasNext(false);
+      setHasPrevious(false);
     } finally {
       setIsLoading(false);
     }
-  }, [clientSortOption, filters.status, search]);
+  }, [
+    clientSortOption,
+    currentPage,
+    entries,
+    filters.fromDate,
+    filters.location,
+    filters.status,
+    filters.toDate,
+    filters.vessel,
+    searchQuery,
+    vesselFilterOptions,
+  ]);
 
   const fetchVesselFilterOptions = useCallback(async () => {
     try {
       const res = await clientVesselApi.getClientVessels({});
       const options = (Array.isArray(res?.vessels) ? res.vessels : [])
-        .map((v) => (typeof v === "string" ? v : v?.name))
-        .filter((v) => typeof v === "string" && v.trim() !== "");
-      setVesselFilterOptions(Array.from(new Set(options)));
+        .map((v) => ({
+          id: typeof v === "object" ? v?.id : undefined,
+          name: typeof v === "string" ? v : v?.name,
+        }))
+        .filter((v) => typeof v.name === "string" && v.name.trim() !== "")
+        .map((v) => ({ ...v, name: v.name.trim() }));
+      const unique = [];
+      const seen = new Set();
+      options.forEach((option) => {
+        const key = option.id != null ? `id-${option.id}` : `name-${option.name}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        unique.push(option);
+      });
+      setVesselFilterOptions(unique);
     } catch (_error) {
       setVesselFilterOptions([]);
     }
@@ -246,9 +306,21 @@ function ClientStock() {
     try {
       const res = await clientHubApi.getClientHubs({});
       const options = (Array.isArray(res?.hubs) ? res.hubs : [])
-        .map((h) => (typeof h === "string" ? h : h?.hub || h?.name))
-        .filter((h) => typeof h === "string" && h.trim() !== "");
-      setHubFilterOptions(Array.from(new Set(options)));
+        .map((h) => {
+          const name = typeof h === "string" ? h : h?.name || h?.hub;
+          const value = toClientHubOptionValue(h);
+          if (!name || !value) return null;
+          return { id: value, name: String(name).trim() };
+        })
+        .filter(Boolean);
+      const unique = [];
+      const seen = new Set();
+      options.forEach((option) => {
+        if (seen.has(option.id)) return;
+        seen.add(option.id);
+        unique.push(option);
+      });
+      setHubFilterOptions(unique);
     } catch (_error) {
       setHubFilterOptions([]);
     }
@@ -256,9 +328,16 @@ function ClientStock() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchStock();
+      const nextQuery = search.trim();
+      if (nextQuery === searchQuery) return;
+      setSearchQuery(nextQuery);
+      setCurrentPage(1);
     }, 300);
     return () => clearTimeout(timer);
+  }, [search, searchQuery]);
+
+  useEffect(() => {
+    fetchStock();
   }, [fetchStock]);
 
   useEffect(() => {
@@ -269,29 +348,11 @@ function ClientStock() {
   const filteredRows = useMemo(
     () =>
       stockRows.filter((row) => {
-        if (filters.vessel && row.vessel !== filters.vessel) return false;
-        if (filters.location && row.location !== filters.location) return false;
         if (filters.destination && row.destination !== filters.destination) return false;
         if (filters.poNumber && row.poNo !== filters.poNumber) return false;
-        if (
-          filters.fromDate &&
-          row.dateOnStock &&
-          row.dateOnStock !== "-" &&
-          String(row.dateOnStock) < filters.fromDate
-        ) {
-          return false;
-        }
-        if (
-          filters.toDate &&
-          row.dateOnStock &&
-          row.dateOnStock !== "-" &&
-          String(row.dateOnStock) > filters.toDate
-        ) {
-          return false;
-        }
         return true;
       }),
-    [filters, stockRows]
+    [filters.destination, filters.poNumber, stockRows]
   );
   const sortedFilteredRows = useMemo(() => {
     const rows = [...filteredRows];
@@ -365,17 +426,10 @@ function ClientStock() {
     }
     return rows;
   }, [clientSortOption, filteredRows]);
-  const pagedRows = useMemo(
-    () => {
-      const pageSize = Number(entries);
-      const start = (currentPage - 1) * pageSize;
-      return sortedFilteredRows.slice(start, start + pageSize);
-    },
-    [currentPage, entries, sortedFilteredRows]
-  );
-  const totalPages = Math.max(1, Math.ceil(sortedFilteredRows.length / Number(entries)));
-  const pageStart = sortedFilteredRows.length ? (currentPage - 1) * Number(entries) + 1 : 0;
-  const pageEnd = Math.min(currentPage * Number(entries), sortedFilteredRows.length);
+  const pagedRows = sortedFilteredRows;
+  const pageSize = Number(entries) || 50;
+  const pageStart = totalCount ? (currentPage - 1) * pageSize + 1 : 0;
+  const pageEnd = Math.min((currentPage - 1) * pageSize + pagedRows.length, totalCount);
 
   const allVisibleSelected =
     pagedRows.length > 0 && pagedRows.every((row) => selectedRowIds.includes(row.id));
@@ -385,24 +439,35 @@ function ClientStock() {
     setSelectedRowIds((prev) => prev.filter((id) => currentIds.has(id)));
   }, [pagedRows]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [entries, filters, search]);
-
-  const handleFilterChange = (key, value) =>
+  const handleFilterChange = (key, value) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
+    if (["fromDate", "toDate", "vessel", "status", "location"].includes(key)) {
+      setCurrentPage(1);
+    }
+  };
+
+  const handleSortChange = (value) => {
+    setClientSortOption(value);
+    setCurrentPage(1);
+  };
 
   useEffect(() => {
     const selectedVessel = location?.state?.selectedVessel;
+    const selectedHubId = location?.state?.selectedHubId;
     const selectedHubLocation = location?.state?.selectedHubLocation;
     const stockStatus = location?.state?.dashboardFilter?.stockStatus;
-    if (selectedVessel || selectedHubLocation || stockStatus) {
+    if (selectedVessel || selectedHubId != null || selectedHubLocation || stockStatus) {
+      const hubValue = toClientHubOptionValue({
+        id: selectedHubId,
+        name: selectedHubLocation,
+      });
       setFilters((prev) => ({
         ...prev,
         vessel: selectedVessel || prev.vessel,
-        location: selectedHubLocation || prev.location,
+        location: hubValue || prev.location,
         status: stockStatus || prev.status,
       }));
+      setCurrentPage(1);
       clearClientNavigationState();
     }
   }, [location]);
@@ -418,6 +483,7 @@ function ClientStock() {
       poNumber: "",
     });
     setSearch("");
+    setSearchQuery("");
     setEntries("50");
     setCurrentPage(1);
     setSelectedRowIds([]);
@@ -430,20 +496,18 @@ function ClientStock() {
       .replace(/\b\w/g, (ch) => ch.toUpperCase());
   };
 
-  const vesselOptions = useMemo(
-    () =>
-      vesselFilterOptions.length
-        ? vesselFilterOptions
-        : Array.from(new Set(stockRows.map((r) => r.vessel).filter(Boolean).filter((v) => v !== "-"))),
-    [stockRows, vesselFilterOptions]
-  );
-  const locationOptions = useMemo(
-    () =>
-      hubFilterOptions.length
-        ? hubFilterOptions
-        : Array.from(new Set(stockRows.map((r) => r.location).filter(Boolean).filter((v) => v !== "-"))),
-    [stockRows, hubFilterOptions]
-  );
+  const vesselOptions = useMemo(() => {
+    if (vesselFilterOptions.length) return vesselFilterOptions;
+    return Array.from(
+      new Set(stockRows.map((r) => r.vessel).filter((v) => v && v !== "-"))
+    ).map((name) => ({ name, id: name }));
+  }, [stockRows, vesselFilterOptions]);
+  const locationOptions = useMemo(() => {
+    if (hubFilterOptions.length) return hubFilterOptions;
+    return Array.from(
+      new Set(stockRows.map((r) => r.effectiveHub).filter((v) => v && v !== "-"))
+    ).map((name) => ({ id: `name:${name}`, name }));
+  }, [stockRows, hubFilterOptions]);
   const destinationOptions = useMemo(
     () =>
       Array.from(
@@ -715,7 +779,7 @@ function ClientStock() {
     setSelectedRowIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
   };
 
-  const handleDownloadExcel = () => {
+  const handleDownloadExcel = async () => {
     const headers = [
       "Client",
       "Vessel",
@@ -740,35 +804,66 @@ function ClientStock() {
       "Currency",
       "Value",
     ];
-    const rowsForExport = sortedFilteredRows.map((row) => [
-      row.client || "-",
-      row.vessel || "-",
-      row.warehouseId || "-",
-      row.supplier || "-",
-      row.poNo || "-",
-      row.dgUnNumber || "-",
-      row.boxes || "-",
-      row.weight || "-",
-      row.totalVolumeCbm || "-",
-      row.origin || "-",
-      row.viaHub1 || "-",
-      row.viaHub2 || "-",
-      row.apDestination || "-",
-      row.destination || "-",
-      row.shippingDoc || "-",
-      row.exportDoc1 || "-",
-      row.exportDoc2 || "-",
-      formatStatus(row.stockStatus),
-      row.dateOnStock || "-",
-      row.soNumber || "-",
-      row.currency || "-",
-      row.value || "-",
-    ]);
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rowsForExport]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Stock Report");
-    const dateTag = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(workbook, `stock-report-${dateTag}.xlsx`);
+    try {
+      const hubValue = String(filters.location || "").trim();
+      const hubId = hubValue && !hubValue.startsWith("name:") ? getClientHubFilterId(hubValue) : null;
+      const hubName = hubValue.startsWith("name:") ? hubValue.slice(5) : "";
+      const selectedVessel = vesselFilterOptions.find((v) => v.name === filters.vessel);
+      const res = await clientStockApi.getClientStock({
+        search: searchQuery || undefined,
+        stock_status: filters.status || undefined,
+        sort_by: mapStockSortOptionToApiSortBy(clientSortOption),
+        fetch_all: true,
+        date_from: filters.fromDate || undefined,
+        date_to: filters.toDate || undefined,
+        vessel_id: selectedVessel?.id,
+        narvi_stock_via_hub1: hubId != null ? hubId : undefined,
+        via_hub: hubId == null && hubName ? hubName : undefined,
+        hub: hubId == null && hubName ? hubName : undefined,
+      });
+      const exportRows = mapClientStockRows(res?.stock_list, res?.client?.name || clientName).filter((row) => {
+        if (filters.destination && row.destination !== filters.destination) return false;
+        if (filters.poNumber && row.poNo !== filters.poNumber) return false;
+        return true;
+      });
+      const rowsForExport = exportRows.map((row) => [
+        row.client || "-",
+        row.vessel || "-",
+        row.warehouseId || "-",
+        row.supplier || "-",
+        row.poNo || "-",
+        row.dgUnNumber || "-",
+        row.boxes || "-",
+        row.weight || "-",
+        row.totalVolumeCbm || "-",
+        row.origin || "-",
+        row.viaHub1 || "-",
+        row.viaHub2 || "-",
+        row.apDestination || "-",
+        row.destination || "-",
+        row.shippingDoc || "-",
+        row.exportDoc1 || "-",
+        row.exportDoc2 || "-",
+        formatStatus(row.stockStatus),
+        row.dateOnStock || "-",
+        row.soNumber || "-",
+        row.currency || "-",
+        row.value || "-",
+      ]);
+      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rowsForExport]);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Stock Report");
+      const dateTag = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(workbook, `stock-report-${dateTag}.xlsx`);
+    } catch (_error) {
+      toast({
+        title: "Export failed",
+        description: "Could not download the stock Excel file.",
+        status: "error",
+        duration: 4000,
+        isClosable: true,
+      });
+    }
   };
 
   const handleOpenDimensionsModal = (row) => {
@@ -819,9 +914,9 @@ function ClientStock() {
               size="sm"
               value={filters.vessel}
               onChange={(value) => handleFilterChange("vessel", value || "")}
-              options={toSelectOptions(vesselOptions)}
+              options={vesselOptions}
               placeholder="All vessels"
-              valueKey="id"
+              valueKey="name"
               displayKey="name"
             />
           </GridItem>
@@ -839,13 +934,13 @@ function ClientStock() {
             </Select>
           </GridItem>
           <GridItem>
-            <Text fontSize="xs" mb={1} color={muted}>Location</Text>
+            <Text fontSize="xs" mb={1} color={muted}>Hub 1</Text>
             <SimpleSearchableSelect
               size="sm"
               value={filters.location}
               onChange={(value) => handleFilterChange("location", value || "")}
-              options={toSelectOptions(locationOptions)}
-              placeholder="All locations"
+              options={locationOptions}
+              placeholder="All Hub 1"
               valueKey="id"
               displayKey="name"
             />
@@ -887,10 +982,18 @@ function ClientStock() {
         <Flex justify="space-between" align={{ base: "start", md: "center" }} direction={{ base: "column", md: "row" }} gap={3}>
           <Flex align="center" gap={2}>
             <Text fontSize="sm" color={muted}>Show</Text>
-            <Select size="xs" w="72px" value={entries} onChange={(e) => setEntries(e.target.value)}>
-              <option value="10">10</option>
-              <option value="25">25</option>
+            <Select
+              size="xs"
+              w="72px"
+              value={entries}
+              onChange={(e) => {
+                setEntries(e.target.value);
+                setCurrentPage(1);
+              }}
+            >
               <option value="50">50</option>
+              <option value="25">25</option>
+              <option value="10">10</option>
             </Select>
             <Text fontSize="sm" color={muted}>entries</Text>
           </Flex>
@@ -913,24 +1016,24 @@ function ClientStock() {
               <MenuList>
                 <StockHubSortMenuItems
                   sortOption={clientSortOption}
-                  onSelect={setClientSortOption}
+                  onSelect={handleSortChange}
                 />
-                <MenuItem onClick={() => setClientSortOption("via_vessel")}>
+                <MenuItem onClick={() => handleSortChange("via_vessel")}>
                   Sort by VIA VESSEL (Alphabetically)
                 </MenuItem>
-                <MenuItem onClick={() => setClientSortOption("status")}>
+                <MenuItem onClick={() => handleSortChange("status")}>
                   Sort by Stock Status
                 </MenuItem>
-                <MenuItem onClick={() => setClientSortOption("via_hub_status")}>
+                <MenuItem onClick={() => handleSortChange("via_hub_status")}>
                   Sort by VIA HUB + Status
                 </MenuItem>
-                <MenuItem onClick={() => setClientSortOption("via_vessel_status")}>
+                <MenuItem onClick={() => handleSortChange("via_vessel_status")}>
                   Sort by VIA VESSEL + Status
                 </MenuItem>
-                <MenuItem onClick={() => setClientSortOption("via_vessel_via_hub_status")}>
+                <MenuItem onClick={() => handleSortChange("via_vessel_via_hub_status")}>
                   Sort by VIA VESSEL + VIA HUB + Status
                 </MenuItem>
-                <MenuItem onClick={() => setClientSortOption("none")}>
+                <MenuItem onClick={() => handleSortChange("none")}>
                   No Sort
                 </MenuItem>
               </MenuList>
@@ -962,18 +1065,50 @@ function ClientStock() {
         </Flex>
       </Box>
 
-      <Box bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="16px" overflowX="auto">
+      <Box bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="16px" position="relative" overflow="hidden" minH={isLoading && !pagedRows.length ? "240px" : undefined}>
         {isLoading && (
-          <Text px={4} py={3} fontSize="sm" color={muted}>
-            Loading stock report...
-          </Text>
+          <Flex
+            position={pagedRows.length ? "absolute" : "relative"}
+            inset={pagedRows.length ? 0 : undefined}
+            minH={pagedRows.length ? undefined : "240px"}
+            align="center"
+            justify="center"
+            gap={3}
+            bg={pagedRows.length ? tableOverlayBg : undefined}
+            zIndex={4}
+          >
+            <Spinner size="sm" />
+            <Text fontSize="sm" color={muted}>Loading stock report...</Text>
+          </Flex>
         )}
+        {!isLoading && pagedRows.length === 0 ? (
+          <Text px={4} py={10} fontSize="sm" color={muted} textAlign="center">
+            No stock records found.
+          </Text>
+        ) : pagedRows.length > 0 ? (
+        <Box
+          maxH={{ base: "62vh", md: "calc(100vh - 340px)" }}
+          overflowY="auto"
+          overflowX="auto"
+          sx={{
+            "&::-webkit-scrollbar": { height: "8px", width: "8px" },
+            "&::-webkit-scrollbar-thumb": { background: "gray.300", borderRadius: "4px" },
+          }}
+        >
         <Table
           size="sm"
           variant="simple"
           sx={{
             tableLayout: "auto",
+            thead: {
+              position: "sticky",
+              top: 0,
+              zIndex: 3,
+            },
             th: {
+              position: "sticky",
+              top: 0,
+              zIndex: 3,
               borderColor: `${tableBorderColor} !important`,
               borderRight: `1px solid ${tableBorderColor} !important`,
               borderBottom: `1px solid ${tableBorderColor} !important`,
@@ -1157,33 +1292,79 @@ function ClientStock() {
             })}
           </Tbody>
         </Table>
-      </Box>
-      <Flex mt={2} justify="space-between" align="center" direction={{ base: "column", md: "row" }} gap={2}>
-        <Text fontSize="xs" color={muted}>
-          Showing {pageStart}-{pageEnd} of {sortedFilteredRows.length} entries
-        </Text>
-        <Flex gap={2} align="center">
-          <Button
-            size="xs"
-            variant="outline"
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            isDisabled={currentPage <= 1}
-          >
-            Previous
-          </Button>
+        </Box>
+        ) : null}
+        <Flex
+          mt={0}
+          px={4}
+          py={3}
+          justify="space-between"
+          align="center"
+          direction={{ base: "column", md: "row" }}
+          gap={2}
+          borderTop="1px solid"
+          borderColor={tableBorderColor}
+        >
           <Text fontSize="xs" color={muted}>
-            Page {currentPage} of {totalPages}
+            {isLoading
+              ? "Loading..."
+              : `Showing ${pageStart}-${pageEnd} of ${totalCount} entries`}
           </Text>
-          <Button
-            size="xs"
-            variant="outline"
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            isDisabled={currentPage >= totalPages}
-          >
-            Next
-          </Button>
+          <Flex gap={1} align="center" wrap="wrap" justify="center">
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => setCurrentPage(1)}
+              isDisabled={isLoading || !hasPrevious || currentPage <= 1}
+            >
+              First
+            </Button>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              isDisabled={isLoading || !hasPrevious || currentPage <= 1}
+            >
+              Previous
+            </Button>
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNum;
+              if (totalPages <= 5) pageNum = i + 1;
+              else if (currentPage <= 3) pageNum = i + 1;
+              else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+              else pageNum = currentPage - 2 + i;
+              return (
+                <Button
+                  key={pageNum}
+                  size="xs"
+                  variant={currentPage === pageNum ? "solid" : "outline"}
+                  colorScheme={currentPage === pageNum ? "blue" : "gray"}
+                  onClick={() => setCurrentPage(pageNum)}
+                  isDisabled={isLoading}
+                >
+                  {pageNum}
+                </Button>
+              );
+            })}
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              isDisabled={isLoading || !hasNext || currentPage >= totalPages}
+            >
+              Next
+            </Button>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => setCurrentPage(totalPages)}
+              isDisabled={isLoading || !hasNext || currentPage >= totalPages}
+            >
+              Last
+            </Button>
+          </Flex>
         </Flex>
-      </Flex>
+      </Box>
 
       <Modal isOpen={isDimensionsModalOpen} onClose={() => setIsDimensionsModalOpen(false)} size="3xl">
         <ModalOverlay />
