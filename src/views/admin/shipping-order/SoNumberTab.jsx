@@ -188,6 +188,7 @@ const SHIPPING_ORDER_TABLE_COLUMNS = [
   { label: "", field: "select", sortable: false },
   { label: "Actions", field: null, sortable: false },
   { label: "SO Number", field: "so_number", sortable: false },
+  { label: "Stock items", field: "stock_item_count", sortable: false },
   { label: "Status", field: "done", sortable: false },
   { label: "Next Action date", field: "next_action", sortable: true },
   { label: "SO Delivery date", field: "so_delivery_date", sortable: false },
@@ -214,6 +215,7 @@ const STICKY_SO_WIDTH = "140px";
 const STICKY_ACTIONS_LEFT = STICKY_CHECKBOX_WIDTH;
 const STICKY_SO_LEFT = "136px";
 const COLUMN_MIN_WIDTHS = {
+  "Stock items": "120px",
   "Vessel Name": "280px",
   Destination: "260px",
   "Internal remarks": "340px",
@@ -900,7 +902,8 @@ const SoNumberTab = () => {
   };
 
   const handleEdit = (order) => {
-    history.push(`/admin/shipping-orders/edit/${order.id}`, { order });
+    if (order?.id == null) return;
+    history.push(`/admin/shipping-orders/edit/${order.id}`);
   };
 
   const handleFormClose = (clearDraft = false) => {
@@ -987,6 +990,7 @@ const SoNumberTab = () => {
 
       const headers = [
         "SO Number",
+        "Stock items",
         "Status",
         "Next Action date",
         "SO Delivery date",
@@ -1017,6 +1021,7 @@ const SoNumberTab = () => {
             : (order.client || "-");
         return [
           getSoNumber(order),
+          order.stock_item_count ?? (Array.isArray(order.stock_list) ? order.stock_list.length : 0),
           formatStatusLabel(order.done),
           order.next_action ? formatDate(order.next_action) : "-",
           order.so_delivery_date ? formatDate(order.so_delivery_date) : "-",
@@ -1182,6 +1187,12 @@ const SoNumberTab = () => {
           : order.client || "";
       const files = getOrderFilesForPreview(order);
       const fileCount = files.length;
+      const stockCount = Number(order.stock_item_count);
+      const stockItemCount = Number.isFinite(stockCount)
+        ? stockCount
+        : Array.isArray(order.stock_list)
+          ? order.stock_list.length
+          : 0;
 
       return (
         <Tr
@@ -1250,6 +1261,20 @@ const SoNumberTab = () => {
             >
               {getSoNumber(order)}
             </Button>
+          </Td>
+          <Td {...tableCellProps} whiteSpace="nowrap">
+            {stockItemCount > 0 ? (
+              <Button
+                size="xs"
+                variant="link"
+                colorScheme="blue"
+                onClick={() => handleEdit(order)}
+              >
+                {stockItemCount} item{stockItemCount === 1 ? "" : "s"}
+              </Button>
+            ) : (
+              <Text color="gray.400">0 items</Text>
+            )}
           </Td>
           <Td {...tableCellProps}>
             <Badge
@@ -1921,7 +1946,7 @@ const SoNumberTab = () => {
                 "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
               }}
             >
-              <Table size="sm" variant="simple" minW="1880px">
+              <Table size="sm" variant="simple" minW="2000px">
                 <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={3}>
                   <Tr>
                     {SHIPPING_ORDER_TABLE_COLUMNS.map((col, colIndex) => {

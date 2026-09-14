@@ -33,10 +33,12 @@ export function normalizeOrder(order) {
   const vesselVal = order.vessel_id;
   const countryVal = order.country_id;
 
-  const soIdVal = order.so_id;
-  const soDisplay = soIdVal != null && soIdVal !== "" && soIdVal !== false
-    ? `SO-${soIdVal}`
-    : (order.so_number || (order.id ? `SO-${order.id}` : ""));
+  const soIdVal = order.so_id_int ?? order.so_id;
+  const soDisplay =
+    (order.name && String(order.name).trim()) ||
+    order.so_number ||
+    (soIdVal != null && soIdVal !== "" && soIdVal !== false ? `SO-${soIdVal}` : "") ||
+    (order.id ? `SO-${order.id}` : "");
 
   const attachmentList = mapExistingAttachmentsFromOrder(order);
   const ciplFileList = mapExistingCiplFilesFromOrder(order);
@@ -87,6 +89,15 @@ export function normalizeOrder(order) {
     existingCiplFiles: ciplFileList,
     cipl_files_to_delete: [],
     shipping_package: order.shipping_package || null,
+    stock_list: Array.isArray(order.stock_list) ? order.stock_list : [],
+    stock_item_count: (() => {
+      const listed = Array.isArray(order.stock_list) ? order.stock_list.length : 0;
+      const rawCount = order.stock_item_count;
+      if (rawCount == null || rawCount === false || rawCount === "") return listed;
+      const n = Number(rawCount);
+      return Number.isFinite(n) ? n : listed;
+    })(),
+    stock_items_url: order.stock_items_url || null,
     _raw: order,
   };
 }

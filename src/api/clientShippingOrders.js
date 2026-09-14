@@ -99,14 +99,32 @@ const buildListParams = (params = {}) => {
   return requestParams;
 };
 
-const extractOrders = (data) => {
-  if (data?.order && typeof data.order === "object" && !Array.isArray(data.order)) {
-    return [data.order];
+const unwrapClientPayload = (data) => {
+  if (data?.result && typeof data.result === "object" && !Array.isArray(data.result)) {
+    return data.result;
   }
-  if (Array.isArray(data?.orders)) return data.orders;
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.result)) return data.result;
-  if (Array.isArray(data?.data)) return data.data;
+  return data;
+};
+
+const firstOrderRecord = (value) => {
+  if (Array.isArray(value)) {
+    return value.find((item) => item && typeof item === "object") || null;
+  }
+  if (value && typeof value === "object") return value;
+  return null;
+};
+
+const extractOrders = (data) => {
+  const source = unwrapClientPayload(data);
+  if (Array.isArray(source?.order)) {
+    return source.order.filter((item) => item && typeof item === "object");
+  }
+  if (source?.order && typeof source.order === "object") {
+    return [source.order];
+  }
+  if (Array.isArray(source?.orders)) return source.orders;
+  if (Array.isArray(source)) return source;
+  if (Array.isArray(source?.data)) return source.data;
   return [];
 };
 
@@ -118,30 +136,32 @@ const normalizeListResponse = (data, fallback = {}) => {
     throw new Error(data.message || "Failed to fetch shipping orders");
   }
 
+  const source = unwrapClientPayload(data) || {};
   const orders = extractOrders(data);
+  const order = firstOrderRecord(source.order) || orders[0] || null;
 
-  if (data?.status === "success") {
+  if (source.status === "success" || data?.status === "success") {
     return {
       status: "success",
       orders,
-      order: data.order && typeof data.order === "object" ? data.order : orders[0] || null,
-      count: data.count ?? orders.length,
-      total_count: data.total_count ?? data.count ?? orders.length,
-      page: data.page || fallback.page || 1,
-      page_size: data.page_size || fallback.page_size || 80,
-      total_pages: data.total_pages || 0,
-      has_next: data.has_next || false,
-      has_previous: data.has_previous || false,
-      client: data.client || null,
-      sort_by: data.sort_by || fallback.sort_by,
-      sort_order: data.sort_order || fallback.sort_order,
+      order,
+      count: source.count ?? data?.count ?? orders.length,
+      total_count: source.total_count ?? source.count ?? data?.total_count ?? orders.length,
+      page: source.page || fallback.page || 1,
+      page_size: source.page_size || fallback.page_size || 80,
+      total_pages: source.total_pages || 0,
+      has_next: source.has_next || false,
+      has_previous: source.has_previous || false,
+      client: source.client || data?.client || null,
+      sort_by: source.sort_by || fallback.sort_by,
+      sort_order: source.sort_order || fallback.sort_order,
     };
   }
 
   return {
-    status: data?.status || "success",
+    status: source.status || data?.status || "success",
     orders,
-    order: orders[0] || null,
+    order,
     count: orders.length,
     total_count: orders.length,
     page: fallback.page || 1,
@@ -149,7 +169,7 @@ const normalizeListResponse = (data, fallback = {}) => {
     total_pages: 1,
     has_next: false,
     has_previous: false,
-    client: data?.client || null,
+    client: source.client || data?.client || null,
     sort_by: fallback.sort_by,
     sort_order: fallback.sort_order,
   };
@@ -241,6 +261,34 @@ export const getClientShippingOrders = async (params = {}) => {
 export const getClientShippingOrderById = async (id) => {
   const result = await getClientShippingOrders({ id });
   return { ...result, order: result.order || result.orders?.[0] || null };
+};
+
+/** GET /api/client/shipping/order/<order_id>/stock — full stock_list for one SO */
+export const getClientShippingOrderStockApi = async (orderId, stockItemsUrl = null) => {
+  if (orderId == null || orderId === "") {
+    throw new Error("Order id is required.");
+  }
+  const path =
+    toRelativeApiPath(stockItemsUrl) || `${CLIENT_SHIPPING_ORDER_BASE}/${orderId}/stock`;
+  const response = await api.get(path);
+  const data = response.data || response;
+  if (data.result?.status === "error" || data.status === "error") {
+    throw new Error(data.result?.message || data.message || "Failed to fetch stock items");
+  }
+  const source = data.result && typeof data.result === "object" ? data.result : data;
+  const orderRecord = firstOrderRecord(source.order);
+  const stock_list = Array.isArray(source.stock_list)
+    ? source.stock_list
+    : Array.isArray(orderRecord?.stock_list)
+      ? orderRecord.stock_list
+      : [];
+  return {
+    status: source.status || data.status || "success",
+    order_id: source.order_id ?? orderId,
+    so_id: source.so_id,
+    count: source.count ?? stock_list.length,
+    stock_list,
+  };
 };
 
 /** GET /api/client/shipping/order/<order_id>/attachments */
@@ -356,6 +404,7 @@ export const downloadClientShippingOrderPackageApi = async (
 const clientShippingOrdersApi = {
   getClientShippingOrders,
   getClientShippingOrderById,
+  getClientShippingOrderStockApi,
   getClientShippingOrderAttachmentsApi,
   downloadClientShippingOrderAttachmentApi,
   downloadClientShippingOrderCiplApi,

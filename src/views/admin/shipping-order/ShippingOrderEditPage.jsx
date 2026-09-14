@@ -17,10 +17,10 @@ import {
   useDisclosure,
   useToast,
 } from "@chakra-ui/react";
-import { useHistory, useLocation, useParams } from "react-router-dom";
+import { useHistory, useParams } from "react-router-dom";
 import { MdArrowBack, MdContentCopy } from "react-icons/md";
 import { getNarviQuotations } from "../../../api/narviQuotation";
-import { updateShippingOrder } from "../../../api/shippingOrders";
+import { getShippingOrderById, getShippingOrderStockApi, updateShippingOrder } from "../../../api/shippingOrders";
 import { useMasterData } from "../../../hooks/useMasterData";
 import { normalizeOrder, buildPayloadFromForm } from "./shippingOrderUtils";
 import {
@@ -28,17 +28,45 @@ import {
   notifyShippingOrderSaveResult,
 } from "../../../utils/shippingOrderAttachments";
 import ShippingOrderFormFields from "./ShippingOrderFormFields";
+import ShippingOrderStockList from "../../../components/shipping-order/ShippingOrderStockList";
+
+const toEditFormData = (normalized) => ({
+  ...normalized,
+  attachments: [],
+  existingAttachments: Array.isArray(normalized.existingAttachments)
+    ? normalized.existingAttachments
+    : [],
+  attachment_to_delete: normalized.attachment_to_delete || [],
+  cipl_files: [],
+  existingCiplFiles: Array.isArray(normalized.existingCiplFiles)
+    ? normalized.existingCiplFiles
+    : [],
+  cipl_files_to_delete: normalized.cipl_files_to_delete || [],
+});
+
+const unwrapOrderPayload = (payload) => {
+  if (!payload) return null;
+  const nested = payload.order;
+  if (Array.isArray(nested)) {
+    return nested.find((item) => item && typeof item === "object") || null;
+  }
+  if (nested && typeof nested === "object") return nested;
+  if (payload.id != null && (payload.so_id != null || Array.isArray(payload.stock_list))) {
+    return payload;
+  }
+  return null;
+};
 
 export default function ShippingOrderEditPage() {
   const { id } = useParams();
-  const location = useLocation();
   const history = useHistory();
   const toast = useToast();
 
   const [formData, setFormData] = useState(null);
   const [originalOrder, setOriginalOrder] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [missingOrder, setMissingOrder] = useState(false);
+  const [isLoadingOrder, setIsLoadingOrder] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   const { clients, vessels, countries, pics } = useMasterData();
   const [quotations, setQuotations] = useState([]);
@@ -62,39 +90,71 @@ export default function ShippingOrderEditPage() {
   }, [vslsAgentDtlsDisclosure]);
 
   useEffect(() => {
-    const orderFromState = location.state?.order;
-    if (!orderFromState) {
-      setMissingOrder(true);
-      toast({
-        title: "Open from list",
-        description: "Please open the edit page from the Shipping Orders list.",
-        status: "warning",
-        duration: 5000,
-        isClosable: true,
-      });
-      history.replace("/admin/shipping-orders");
-      return;
-    }
-    // `orderFromState` is already normalized in the list view (SoNumberTab).
-    // Keep it as-is so we retain the original `_raw` backend object for diffing.
-    setOriginalOrder(orderFromState);
-    const existingFiles = Array.isArray(orderFromState.existingAttachments)
-      ? orderFromState.existingAttachments
-      : Array.isArray(orderFromState.attachments)
-        ? orderFromState.attachments
-        : [];
-    setFormData({
-      ...orderFromState,
-      attachments: [],
-      existingAttachments: existingFiles,
-      attachment_to_delete: orderFromState.attachment_to_delete || [],
-      cipl_files: [],
-      existingCiplFiles: Array.isArray(orderFromState.existingCiplFiles)
-        ? orderFromState.existingCiplFiles
-        : [],
-      cipl_files_to_delete: orderFromState.cipl_files_to_delete || [],
-    });
-  }, [id, location.state, history, toast]);
+    let cancelled = false;
+
+    const loadOrder = async () => {
+      if (id == null || id === "") {
+        setLoadError("Missing shipping order id.");
+        setIsLoadingOrder(false);
+        return;
+      }
+      setIsLoadingOrder(true);
+      setLoadError("");
+      try {
+        const response = await getShippingOrderById(id);
+        const raw = unwrapOrderPayload(response);
+        let normalized = normalizeOrder(raw);
+        if (!normalized) {
+          throw new Error("Shipping order not found");
+        }
+        if (
+          Number(normalized.stock_item_count) > 0 &&
+          (!Array.isArray(normalized.stock_list) || normalized.stock_list.length === 0)
+        ) {
+          try {
+            const stockRes = await getShippingOrderStockApi(
+              normalized.id,
+              normalized.stock_items_url
+            );
+            normalized = {
+              ...normalized,
+              stock_list: stockRes.stock_list || [],
+              stock_item_count: stockRes.count ?? stockRes.stock_list?.length ?? normalized.stock_item_count,
+            };
+          } catch (stockErr) {
+            console.error("Failed to load shipping order stock", stockErr);
+          }
+        }
+        if (cancelled) return;
+        setOriginalOrder(normalized);
+        setFormData(toEditFormData(normalized));
+      } catch (error) {
+        if (cancelled) return;
+        const message =
+          error?.response?.data?.message ||
+          error?.response?.data?.result?.message ||
+          error?.message ||
+          "Unable to load shipping order";
+        setLoadError(message);
+        setFormData(null);
+        setOriginalOrder(null);
+        toast({
+          title: "Unable to load shipping order",
+          description: message,
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
+      } finally {
+        if (!cancelled) setIsLoadingOrder(false);
+      }
+    };
+
+    loadOrder();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, toast]);
 
   useEffect(() => {
     const fetchQuotations = async () => {
@@ -163,12 +223,29 @@ export default function ShippingOrderEditPage() {
     history.push("/admin/shipping-orders");
   };
 
-  if (missingOrder) return null;
-  if (!formData) {
+  if (isLoadingOrder) {
     return (
       <Box pt={{ base: "130px", md: "80px", xl: "80px" }} px="4">
         <Flex justify="center" align="center" minH="200px">
           <Spinner size="xl" color="blue.500" />
+        </Flex>
+      </Box>
+    );
+  }
+
+  if (!formData) {
+    return (
+      <Box pt={{ base: "130px", md: "80px", xl: "80px" }} px="4">
+        <Flex direction="column" align="flex-start" gap={4} minH="200px">
+          <Button
+            leftIcon={<Icon as={MdArrowBack} />}
+            variant="ghost"
+            size="sm"
+            onClick={handleCancel}
+          >
+            Back
+          </Button>
+          <Text color="red.500">{loadError || "Shipping order not found."}</Text>
         </Flex>
       </Box>
     );
@@ -221,6 +298,16 @@ export default function ShippingOrderEditPage() {
           onOpenVslsAgentDtlsModal={openVslsAgentDtlsModal}
           showVesselDbLink={false}
         />
+
+        <Box mt={8}>
+          <ShippingOrderStockList
+            title="Stock items"
+            variant="full"
+            allowOpenInStockList
+            stockList={formData.stock_list}
+            stockItemCount={formData.stock_item_count}
+          />
+        </Box>
       </Box>
 
       {/* VSLS Agent Details modal */}

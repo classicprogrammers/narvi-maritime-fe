@@ -154,6 +154,23 @@ import StockReportHistoryModal from "../../../components/stock-list/StockReportH
 import { useStockAttachmentsGallery } from "../../../hooks/useStockAttachmentsGallery";
 import { getInlineAttachmentDisplayNames } from "../../../utils/stockReportAttachmentsUi";
 import { formatVolumeCbm } from "../../../utils/stockVolume";
+import DebouncedTextFilterInput from "./DebouncedTextFilterInput";
+import {
+    STATUS_CONFIG,
+    STATUS_VARIATIONS,
+    STOCK_CELL_TEXT_PROPS,
+    StockStatusBadge,
+    StockViewDataTable,
+    ClientViewDataTable,
+    getColoredStatusRowSx,
+    getStockRowStatusStyle,
+} from "./stockListMemoRows";
+
+function useEventCallback(fn) {
+    const ref = useRef(fn);
+    ref.current = fn;
+    return useCallback((...args) => ref.current(...args), []);
+}
 const CLIENT_VIEW_TABLE_COLUMNS = {
     filter1: [
         { key: "client", label: "CLIENT", uiOnly: true },
@@ -284,138 +301,6 @@ const EXCEL_EXPORT_HEADERS = [
     "WAREHOUSE ID",
 ];
 
-// Status definitions matching backend status keys exactly
-// Colors matched to status filter UI design with exact hex colors
-const STATUS_CONFIG = {
-    released: {
-        label: "Released",
-        color: "cyan",
-        bgColor: "#cfe2f3",
-        textColor: "#000000",
-        lightBg: "#cfe2f3",
-    },
-    // Pending = #c9daf7
-    pending: {
-        label: "Pending",
-        color: "blue",
-        bgColor: "#c9daf7",
-        textColor: "#000000",
-        lightBg: "#c9daf7"
-    },
-    // Stock = #d8d8d8
-    stock: {
-        label: "Stock",
-        color: "gray",
-        bgColor: "#d8d8d8",
-        textColor: "#000000",
-        lightBg: "#d8d8d8"
-    },
-    // On a Shipping Instr = #fec02e
-    on_shipping: {
-        label: "On Shipping Instr",
-        color: "orange",
-        bgColor: "#fec02e",
-        textColor: "#000000",
-        lightBg: "#fec02e"
-    },
-    // On a Delivery Instr = #b7e1cd
-    on_delivery: {
-        label: "On Delivery Instr",
-        color: "teal",
-        bgColor: "#b7e1cd",
-        textColor: "#000000",
-        lightBg: "#b7e1cd"
-    },
-    // In Transit = #92d059
-    in_transit: {
-        label: "In Transit",
-        color: "green",
-        bgColor: "#92d059",
-        textColor: "#000000",
-        lightBg: "#92d059"
-    },
-    // Arrived Destination = #a5a5a5
-    arrived: {
-        label: "Arrived Dest",
-        color: "gray",
-        bgColor: "#a5a5a5",
-        textColor: "#000000",
-        lightBg: "#a5a5a5",
-        useDarkText: true,
-    },
-    // Shipped = #fce5ce
-    shipped: {
-        label: "Shipped",
-        color: "orange",
-        bgColor: "#fce5ce",
-        textColor: "#000000",
-        lightBg: "#fce5ce"
-    },
-    // Delivered = #f4cccd
-    delivered: {
-        label: "Delivered",
-        color: "pink",
-        bgColor: "#f4cccd",
-        textColor: "#000000",
-        lightBg: "#f4cccd"
-    },
-    // Irregularities = #fe001b
-    irregular: {
-        label: "Irregularities",
-        color: "red",
-        bgColor: "#fe001b",
-        textColor: "#000000",
-        lightBg: "#fe001b",
-        useDarkText: true,
-    },
-    // Cancelled = #9a00fb82 (with alpha converted to rgba)
-    cancelled: {
-        label: "Cancelled",
-        color: "purple",
-        bgColor: "#9a00fb82",
-        textColor: "#000000",
-        lightBg: "#9a00fb82",
-        useDarkText: true,
-    },
-};
-
-const ROW_HOVER_BORDER = "#2B6CB0";
-
-function getColoredStatusRowSx(statusStyle, fallbackTextColor) {
-    const rowTextColor = "#000000";
-    return {
-        color: rowTextColor,
-        "& .chakra-text": { color: `${rowTextColor} !important` },
-        _hover: {
-            "& > td": {
-                boxShadow: `inset 0 2px 0 0 ${ROW_HOVER_BORDER}, inset 0 -2px 0 0 ${ROW_HOVER_BORDER}`,
-            },
-            "& > td:first-of-type": {
-                boxShadow: `inset 3px 0 0 0 ${ROW_HOVER_BORDER}, inset 0 2px 0 0 ${ROW_HOVER_BORDER}, inset 0 -2px 0 0 ${ROW_HOVER_BORDER}`,
-            },
-            "& > td:last-of-type": {
-                boxShadow: `inset -3px 0 0 0 ${ROW_HOVER_BORDER}, inset 0 2px 0 0 ${ROW_HOVER_BORDER}, inset 0 -2px 0 0 ${ROW_HOVER_BORDER}`,
-            },
-        },
-    };
-}
-
-function StockStatusBadge({ statusStyle, children }) {
-    return (
-        <Badge
-            size="sm"
-            borderRadius="full"
-            px="3"
-            py="1"
-            bg={statusStyle.bgColor}
-            color={statusStyle.textColor}
-            sx={{ color: statusStyle.textColor }}
-        >
-            {children}
-        </Badge>
-    );
-}
-
 function StatusFilterChip({ config, isChecked, onToggle, borderColor }) {
     return (
         <Box
@@ -481,19 +366,13 @@ function StatusFilterRow({ statusEntries, isChecked, onToggle, borderColor, text
     );
 }
 
-// Status mapping for backward compatibility with old status keys
-const STATUS_VARIATIONS = {
-    "stock": "stock",
-    "on_a_shipping_instr": "on_shipping",
-    "on_a_delivery_instr": "on_delivery",
-    "arrived_dest": "arrived",
-    "irregularities": "irregular",
-    "shipping_instr": "on_shipping",
-    "delivery_instr": "on_delivery",
-    "blank": "released",
-};
-
 const STOCK_VIEW_EDIT_STORAGE_KEY = "narvi_stock_view_edit_state";
+
+function getStockItemIdFilterFromSearch(search) {
+    const params = new URLSearchParams(search || "");
+    const value = (params.get("stock_item_id") || params.get("stock_id") || "").trim();
+    return value;
+}
 
 function readPersistedStockViewEditState() {
     try {
@@ -615,7 +494,17 @@ export default function Stocks() {
     const history = useHistory();
     const location = useLocation();
     const [selectedRows, setSelectedRows] = useState(new Set());
-    const [savedState] = useState(() => readPersistedStockViewEditState() || defaultStockViewEditState);
+    const [savedState] = useState(() => {
+        const fromUrl = getStockItemIdFilterFromSearch(location.search);
+        if (fromUrl) {
+            return {
+                ...defaultStockViewEditState,
+                activeTab: 0,
+                stockViewStockItemId: fromUrl,
+            };
+        }
+        return readPersistedStockViewEditState() || defaultStockViewEditState;
+    });
     const [activeTab, setActiveTab] = useState(savedState.activeTab);
 
     const PAGE_SIZE = 40;
@@ -760,6 +649,14 @@ export default function Stocks() {
     const [selectedDimensions, setSelectedDimensions] = useState([]);
     const [stockReportHistoryContext, setStockReportHistoryContext] = useState(null);
     const { openGallery, galleryModal } = useStockAttachmentsGallery();
+    const onPreviewAll = useEventCallback(openGallery);
+    const onOpenDimensions = useEventCallback((item) => {
+        setSelectedDimensions(item.dimensions || []);
+        onDimensionsModalOpen();
+    });
+    const onOpenPreviousReports = useEventCallback((entries, stockItemId) => {
+        setStockReportHistoryContext({ entries, stockItemId });
+    });
 
     // View selected items - filter table instead of modal
     const [isViewingSelected, setIsViewingSelected] = useState(false);
@@ -867,7 +764,7 @@ export default function Stocks() {
     const dimSummaryTitleColor = useColorModeValue("blue.700", "blue.200");
     const dimSummaryLabelColor = useColorModeValue("blue.600", "blue.300");
 
-    const headerProps = {
+    const headerProps = useMemo(() => ({
         borderRight: "1px",
         borderColor: tableBorderColor,
         py: "12px",
@@ -880,8 +777,8 @@ export default function Stocks() {
         maxW: "240px",
         overflow: "hidden",
         textOverflow: "ellipsis",
-    };
-    const cellProps = {
+    }), [tableBorderColor]);
+    const cellProps = useMemo(() => ({
         borderRight: "1px",
         borderColor: tableBorderColor,
         py: "12px",
@@ -891,15 +788,37 @@ export default function Stocks() {
         overflow: "hidden",
         textOverflow: "ellipsis",
         color: "inherit",
-    };
-    const cellText = {
-        color: "inherit",
-        fontSize: "sm",
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        whiteSpace: "nowrap",
-        display: "block",
-    };
+    }), [tableBorderColor]);
+    const cellText = STOCK_CELL_TEXT_PROPS;
+
+    const stockViewStickyBodyProps = useMemo(() => {
+        const widths = [48, 220, 140, 170];
+        const left = [0, 48, 268, 408];
+        return [0, 1, 2, 3].map((colIndex) => ({
+            position: "sticky",
+            left: `${left[colIndex]}px`,
+            zIndex: 1,
+            minW: `${widths[colIndex]}px`,
+            w: `${widths[colIndex]}px`,
+            maxW: colIndex === 1 ? undefined : `${widths[colIndex]}px`,
+            ...(colIndex === 3 ? { boxShadow: stickyEdgeShadow } : {}),
+        }));
+    }, [stickyEdgeShadow]);
+    const stockViewStickyHeaderProps = useMemo(() => {
+        const widths = [48, 220, 140, 170];
+        const left = [0, 48, 268, 408];
+        return [0, 1, 2, 3].map((colIndex) => ({
+            position: "sticky",
+            left: `${left[colIndex]}px`,
+            zIndex: 4,
+            minW: `${widths[colIndex]}px`,
+            w: `${widths[colIndex]}px`,
+            maxW: colIndex === 1 ? undefined : `${widths[colIndex]}px`,
+            top: 0,
+            bg: tableHeaderBg,
+            ...(colIndex === 3 ? { boxShadow: stickyEdgeShadow } : {}),
+        }));
+    }, [stickyEdgeShadow, tableHeaderBg]);
 
     const getStockViewStickyProps = (colIndex, isHeader = false) => {
         if (colIndex < 0 || colIndex > 3) return {};
@@ -927,6 +846,12 @@ export default function Stocks() {
 
     const filterDebounceRef = useRef(null);
     const [apiFetchTrigger, setApiFetchTrigger] = useState(0);
+    const commitTextFilter = useEventCallback((setter, next) => {
+        setter(next);
+        setStockViewPage(1);
+        setClientViewPage(1);
+        setApiFetchTrigger((t) => t + 1);
+    });
 
     const currentApiPage = activeTab === 0 ? stockViewPage : clientViewPage;
 
@@ -1102,17 +1027,6 @@ export default function Stocks() {
         stockViewClient,
         stockViewVessel,
         stockViewStatus,
-        stockViewStockItemId,
-        stockViewDateOnStock,
-        stockViewDaysOnStock,
-        stockViewFilterSO,
-        stockViewFilterSI,
-        stockViewFilterSICombined,
-        stockViewFilterDI,
-        stockViewFilterPO,
-        stockViewFilterReqNo,
-        stockViewFilterWarehouseNew,
-        stockViewSearchFilter,
         stockViewHasDestination,
         stockViewViaHub1,
         stockViewViaHub2,
@@ -1123,8 +1037,6 @@ export default function Stocks() {
         vesselViewVessel,
         vesselViewStatuses,
         clientViewClient,
-        clientViewSearchClient,
-        clientViewSearchVessel,
         clientViewVesselFilter,
         clientViewStatuses,
     ]);
@@ -1321,7 +1233,7 @@ export default function Stocks() {
         }
     };
 
-    const handleEditItem = (item) => {
+    const handleEditItem = useEventCallback((item) => {
         // Pass current filter state so it can be restored when navigating back
         const filterState = {
             activeTab,
@@ -1355,7 +1267,7 @@ export default function Stocks() {
             pathname: '/admin/stock-list/stock',
             state: editState
         });
-    };
+    });
 
     const handleBulkView = () => {
         // Toggle view mode - filter table to show only selected items
@@ -1429,47 +1341,10 @@ export default function Stocks() {
         });
     };
 
-    // Get status style configuration
-    const getStatusStyle = (status) => {
-        if (!status) {
-            return {
-                bgColor: tableRowBg,
-                textColor: tableTextColor,
-                color: "gray",
-                label: "-"
-            };
-        }
-
-        let statusKey = normalizeStockStatusKey(status);
-        if (!statusKey) {
-            statusKey = String(status).toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
-        }
-
-        // Map variations to filter keys (old keys -> new keys)
-        if (STATUS_VARIATIONS[statusKey]) {
-            statusKey = STATUS_VARIATIONS[statusKey];
-        }
-
-        // Try exact match first
-        let config = STATUS_CONFIG[statusKey];
-        // If no exact match, try to find a partial match
-        if (!config) {
-            const matchingKey = Object.keys(STATUS_CONFIG).find(key => {
-                const normalizedKey = key.toLowerCase();
-                const normalizedStatus = statusKey.toLowerCase();
-                return normalizedStatus.includes(normalizedKey) ||
-                    normalizedKey.includes(normalizedStatus) ||
-                    normalizedStatus === normalizedKey;
-            });
-            config = matchingKey ? STATUS_CONFIG[matchingKey] : null;
-        }
-        return config || {
-            bgColor: tableRowBg,
-            textColor: tableTextColor,
-            color: "gray",
-            label: status || "-"
-        };
-    };
+    const getStatusStyle = useCallback(
+        (status) => getStockRowStatusStyle(status, tableRowBg, tableTextColor),
+        [tableRowBg, tableTextColor]
+    );
 
     // Get status label
     const getStatusLabel = (status) => {
@@ -1478,7 +1353,7 @@ export default function Stocks() {
     };
 
     // Handle force downloading attachments - use new API endpoint with download=true
-    const handleDownloadFile = async (attachment, stockItemId = null) => {
+    const handleDownloadFile = useEventCallback(async (attachment, stockItemId = null) => {
         try {
             if (!stockItemId || !attachment.id) {
                 toast({
@@ -1534,12 +1409,12 @@ export default function Stocks() {
                 isClosable: true,
             });
         }
-    };
+    });
 
 
     // Shared sorting function - used by both By Vessel and By Client tabs
     // Sort by: AP Dest > Via Hub > Stock Status > Date on Stock
-    const sortStockItems = (items) => {
+    const sortStockItems = useCallback((items) => {
         return [...items].sort((a, b) => {
             // 1. Sort by AP Destination
             const apDestA = getStockApDestinationSortValue(a);
@@ -1556,8 +1431,8 @@ export default function Stocks() {
             }
 
             // 3. Sort by Stock Status
-            const statusA = getStatusLabel(a.stock_status) || "";
-            const statusB = getStatusLabel(b.stock_status) || "";
+            const statusA = getStockRowStatusStyle(a.stock_status).label || "";
+            const statusB = getStockRowStatusStyle(b.stock_status).label || "";
             if (statusA !== statusB) {
                 return statusA.localeCompare(statusB);
             }
@@ -1567,7 +1442,9 @@ export default function Stocks() {
             const dateB = new Date(b.date_on_stock || 0);
             return dateA - dateB;
         });
-    };
+    }, []);
+
+    const selectedRowsViewKey = isViewingSelected ? Array.from(selectedRows).join("|") : "";
 
     // Helper functions to add/remove prefixes for SO NUMBER, SI NUMBER, SI COMBINED, and DI NUMBER
     // These functions preserve internal spaces (e.g., "00021 1.1" remains "00021 1.1")
@@ -1647,7 +1524,7 @@ export default function Stocks() {
     };
 
     // Filter stock list for Stock View / Edit tab (status filtering is done by API via status param only)
-    const getFilteredStockByStatus = () => {
+    const getFilteredStockByStatus = useCallback(() => {
         let filtered = [...stockList];
 
         // If viewing selected items, filter to only show selected items
@@ -1786,10 +1663,10 @@ export default function Stocks() {
         }
 
         return filtered;
-    };
+    }, [stockList, sortOption, isViewingSelected, selectedRowsViewKey]);
 
     // Filter stock list for By Vessel view (status filtering is done by API via status param only)
-    const getFilteredStockByVessel = () => {
+    const getFilteredStockByVessel = useCallback(() => {
         let filtered = [...stockList];
 
         // If viewing selected items, filter to only show selected items
@@ -1807,7 +1684,7 @@ export default function Stocks() {
         // Instead of grouping into an object, we'll return the sorted array directly
         // The grouping is handled in the render function, but for pagination we need a flat array
         return filtered; // Return sorted array directly instead of grouped object
-    };
+    }, [stockList, isViewingSelected, selectedRowsViewKey, sortStockItems]);
 
     // Apply client view sorting option (frontend, for options not supported by API)
     const applyClientSortOption = (items) => {
@@ -1831,7 +1708,7 @@ export default function Stocks() {
     };
 
     // Filter stock list for By Client view (status filtering is done by API via status param only)
-    const getFilteredStockByClient = () => {
+    const getFilteredStockByClient = useCallback(() => {
         let filtered = [...stockList];
 
         // If viewing selected items, filter to only show selected items
@@ -1846,7 +1723,7 @@ export default function Stocks() {
         // For "none", keep backend default order.
 
         return filtered;
-    };
+    }, [stockList, isViewingSelected, selectedRowsViewKey]);
 
 
     // Get filtered and grouped stock based on active tab
@@ -1868,7 +1745,10 @@ export default function Stocks() {
         return Array.isArray(filtered) ? filtered : [];
     };
 
-    const filteredAndSortedStock = getFlattenedStock();
+    const filteredAndSortedStock = useMemo(
+        () => (activeTab === 0 ? getFilteredStockByVessel() : getFilteredStockByClient()),
+        [activeTab, getFilteredStockByVessel, getFilteredStockByClient]
+    );
 
     // Handle status checkbox toggle for By Vessel view
     const handleVesselViewStatusToggle = (status) => {
@@ -1897,7 +1777,7 @@ export default function Stocks() {
     };
 
     // Handle row selection toggle for client view
-    const handleClientViewRowToggle = (itemId) => {
+    const handleClientViewRowToggle = useEventCallback((itemId) => {
         setClientViewSelectedRows(prev => {
             const newSet = new Set(prev);
             if (newSet.has(itemId)) {
@@ -1907,10 +1787,10 @@ export default function Stocks() {
             }
             return newSet;
         });
-    };
+    });
 
     // Handle select all for client view (selects all items on current page)
-    const handleClientViewSelectAll = () => {
+    const handleClientViewSelectAll = useEventCallback(() => {
         if (activeTab === 1) {
             const currentPageItems = displayedItems.map(item => item.id || item.stock_item_id);
             const allCurrentPageSelected = currentPageItems.every(id => clientViewSelectedRows.has(id));
@@ -1931,7 +1811,7 @@ export default function Stocks() {
                 });
             }
         }
-    };
+    });
 
     // Handle select all button (selects all items on current page)
     const handleClientViewSelectAllClick = () => {
@@ -2824,7 +2704,7 @@ export default function Stocks() {
     };
 
     // Print single row (client view) – opens print window for one item
-    const handlePrintClientViewRow = (item) => {
+    const handlePrintClientViewRow = useEventCallback((item) => {
         const printHtml = buildClientViewPrintHtml([item]);
         const printWindow = window.open("", "_blank");
         if (!printWindow) {
@@ -2834,7 +2714,7 @@ export default function Stocks() {
         printWindow.document.write(printHtml);
         printWindow.document.close();
         toast({ title: "Print", description: "Print dialog opened. Choose 'Save as PDF' to export.", status: "info", duration: 2000, isClosable: true });
-    };
+    });
 
     // Print selected rows (client view) – opens print window for selected items as PDF-ready table
     const handlePrintClientViewSelected = async () => {
@@ -2894,7 +2774,7 @@ export default function Stocks() {
     };
 
     // Handle row selection
-    const handleRowSelect = (itemId, isSelected) => {
+    const handleRowSelect = useEventCallback((itemId, isSelected) => {
         setSelectedRows(prev => {
             const newSet = new Set(prev);
             if (isSelected) {
@@ -2904,10 +2784,10 @@ export default function Stocks() {
             }
             return newSet;
         });
-    };
+    });
 
     // Handle select all
-    const handleSelectAll = (isSelected) => {
+    const handleSelectAll = useEventCallback((isSelected) => {
         if (isSelected) {
             // Select all items on current page
             const allIds = displayedItems.map(item => item.id);
@@ -2925,20 +2805,15 @@ export default function Stocks() {
                 return newSet;
             });
         }
-    };
+    });
 
     // Server-side pagination: each API page is fetched separately, so we display all filtered items
     // from the current page (no client-side slice within the page)
-    const getDisplayedItems = () => {
-        return activeTab === 0 ? getFilteredStockByStatus() : filteredAndSortedStock;
-    };
-    const displayedItems = getDisplayedItems();
-
-    // Get all filtered items (for selection and counts)
-    const getAllFilteredItems = () => {
-        return activeTab === 0 ? getFilteredStockByStatus() : filteredAndSortedStock;
-    };
-    const allFilteredItems = getAllFilteredItems();
+    const displayedItems = useMemo(
+        () => (activeTab === 0 ? getFilteredStockByStatus() : filteredAndSortedStock),
+        [activeTab, getFilteredStockByStatus, filteredAndSortedStock]
+    );
+    const allFilteredItems = displayedItems;
     const allItemsSelected = displayedItems.length > 0 && displayedItems.every(item => selectedRows.has(item.id));
     const someItemsSelected = displayedItems.some(item => selectedRows.has(item.id));
 
@@ -3538,38 +3413,6 @@ export default function Stocks() {
     };
 
     const activeClientViewTableColumns = CLIENT_VIEW_TABLE_COLUMNS[clientViewFilterType] || CLIENT_VIEW_TABLE_COLUMNS.filter1;
-    const clientViewTableColSpan = activeClientViewTableColumns.length + 2;
-
-    const getClientViewColumnHeaderProps = (column) => {
-        if (column.key === "lwh_text") {
-            return {
-                ...headerProps,
-                minW: "200px",
-                w: "200px",
-                maxW: "300px",
-                whiteSpace: "normal",
-                overflow: "visible",
-                textOverflow: "unset",
-            };
-        }
-        return headerProps;
-    };
-
-    const getClientViewColumnCellProps = (column, rowBg) => {
-        if (column.key === "lwh_text") {
-            return {
-                ...cellProps,
-                bg: rowBg,
-                minW: "200px",
-                w: "200px",
-                maxW: "300px",
-                whiteSpace: "normal",
-                overflow: "visible",
-                textOverflow: "unset",
-            };
-        }
-        return { ...cellProps, bg: rowBg };
-    };
 
     // Loading replaces the table (including headers) instead of overlaying it
 
@@ -3785,7 +3628,7 @@ export default function Stocks() {
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
-                        />
+                    />
                 </Box>
             );
         }
@@ -3848,7 +3691,7 @@ export default function Stocks() {
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
-                        />
+                    />
                 </Box>
             );
         }
@@ -4502,32 +4345,17 @@ export default function Stocks() {
                     <HStack spacing="3">
                         {activeTab === 0 && (
                             <>
-                                <InputGroup size="sm" w="220px" minW="180px">
-                                    <InputLeftElement pointerEvents="none">
-                                        <Icon as={MdSearch} color="gray.400" />
-                                    </InputLeftElement>
-                                    <Input
-                                        value={stockViewSearchFilter}
-                                        onChange={(e) => setStockViewSearchFilter(e.target.value)}
-                                        placeholder="Search all fields..."
-                                        bg={inputBg}
-                                        color={inputText}
-                                        borderColor={borderColor}
-                                        pl="9"
-                                    />
-                                    {stockViewSearchFilter && (
-                                        <InputRightElement>
-                                            <IconButton
-                                                size="xs"
-                                                icon={<Icon as={MdClose} />}
-                                                colorScheme="red"
-                                                variant="ghost"
-                                                onClick={() => setStockViewSearchFilter("")}
-                                                aria-label="Clear search all fields"
-                                            />
-                                        </InputRightElement>
-                                    )}
-                                </InputGroup>
+                                <DebouncedTextFilterInput
+                                    value={stockViewSearchFilter}
+                                    onChange={(next) => commitTextFilter(setStockViewSearchFilter, next)}
+                                    placeholder="Search all fields..."
+                                    bg={inputBg}
+                                    color={inputText}
+                                    borderColor={borderColor}
+                                    showSearchIcon
+                                    clearAriaLabel="Clear search all fields"
+                                    groupProps={{ w: "220px", minW: "180px" }}
+                                />
                                 <Button
                                     leftIcon={<Icon as={MdFilterList} />}
                                     onClick={() => setShowFilters(!showFilters)}
@@ -4975,7 +4803,7 @@ export default function Stocks() {
 
                 {/* Tabs for Stock View and Client View */}
                 <Box px="25px" mb="20px">
-                    <Tabs index={activeTab} onChange={setActiveTab} variant="enclosed" colorScheme="blue">
+                    <Tabs isLazy index={activeTab} onChange={setActiveTab} variant="enclosed" colorScheme="blue">
                         <Flex justify="space-between" align="center" mb="4">
                             <TabList flex="1">
                                 <Tab>Stock View / Edit</Tab>
@@ -5030,36 +4858,36 @@ export default function Stocks() {
                                     </Button>
                                     {clientViewSelectedRows.size > 0 && (
                                         <>
-                                        <Button
-                                            size="md"
-                                            leftIcon={<Icon as={MdContentCopy} />}
-                                            colorScheme="green"
-                                            variant="solid"
-                                            onClick={handleCopySelectedRows}
-                                            fontWeight="600"
-                                            _hover={{
-                                                transform: 'translateY(-2px)',
-                                                boxShadow: 'md'
-                                            }}
-                                            transition="all 0.2s"
-                                        >
-                                            Copy Selected ({clientViewSelectedRows.size})
-                                        </Button>
-                                        <Button
-                                            size="md"
-                                            leftIcon={<Icon as={MdContentCopy} />}
-                                            colorScheme="purple"
-                                            variant="solid"
-                                            onClick={handleCopyCostRequestClientView}
-                                            fontWeight="600"
-                                            _hover={{
-                                                transform: 'translateY(-2px)',
-                                                boxShadow: 'md'
-                                            }}
-                                            transition="all 0.2s"
-                                        >
-                                            Copy for request of cost
-                                        </Button>
+                                            <Button
+                                                size="md"
+                                                leftIcon={<Icon as={MdContentCopy} />}
+                                                colorScheme="green"
+                                                variant="solid"
+                                                onClick={handleCopySelectedRows}
+                                                fontWeight="600"
+                                                _hover={{
+                                                    transform: 'translateY(-2px)',
+                                                    boxShadow: 'md'
+                                                }}
+                                                transition="all 0.2s"
+                                            >
+                                                Copy Selected ({clientViewSelectedRows.size})
+                                            </Button>
+                                            <Button
+                                                size="md"
+                                                leftIcon={<Icon as={MdContentCopy} />}
+                                                colorScheme="purple"
+                                                variant="solid"
+                                                onClick={handleCopyCostRequestClientView}
+                                                fontWeight="600"
+                                                _hover={{
+                                                    transform: 'translateY(-2px)',
+                                                    boxShadow: 'md'
+                                                }}
+                                                transition="all 0.2s"
+                                            >
+                                                Copy for request of cost
+                                            </Button>
                                         </>
                                     )}
                                 </HStack>
@@ -5123,29 +4951,17 @@ export default function Stocks() {
                                                     <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
                                                         {/* Stock Item ID Filter */}
                                                         <Box w="220px" minW="200px">
-                                                            <HStack spacing="1">
-                                                                <InputGroup size="sm">
-                                                                    <Input
-                                                                        value={stockViewStockItemId}
-                                                                        onChange={(e) => setStockViewStockItemId(e.target.value)}
-                                                                        placeholder="Filter by Stock Item ID"
-                                                                        bg={inputBg}
-                                                                        color={inputText}
-                                                                        borderColor={borderColor}
-                                                                        pl="8"
-                                                                    />
-                                                                </InputGroup>
-                                                                {stockViewStockItemId && (
-                                                                    <IconButton
-                                                                        size="sm"
-                                                                        icon={<Icon as={MdClose} />}
-                                                                        colorScheme="red"
-                                                                        variant="ghost"
-                                                                        onClick={() => setStockViewStockItemId("")}
-                                                                        aria-label="Clear stock item ID filter"
-                                                                    />
-                                                                )}
-                                                            </HStack>
+                                                            <DebouncedTextFilterInput
+                                                                value={stockViewStockItemId}
+                                                                onChange={(next) => commitTextFilter(setStockViewStockItemId, next)}
+                                                                placeholder="Filter by Stock Item ID"
+                                                                bg={inputBg}
+                                                                color={inputText}
+                                                                borderColor={borderColor}
+                                                                showAdjacentClear
+                                                                clearAriaLabel="Clear stock item ID filter"
+                                                                pl="8"
+                                                            />
                                                         </Box>
 
                                                         {/* Client Filter */}
@@ -5281,137 +5097,77 @@ export default function Stocks() {
 
                                                         {/* Warehouse ID Filter */}
                                                         <Box w="220px" minW="200px">
-                                                            <HStack spacing="1">
-                                                                <InputGroup size="sm">
-                                                                    <Input
-                                                                        value={stockViewFilterWarehouseNew}
-                                                                        onChange={(e) => setStockViewFilterWarehouseNew(e.target.value)}
-                                                                        placeholder="Filter by Warehouse ID"
-                                                                        bg={inputBg}
-                                                                        color={inputText}
-                                                                        borderColor={borderColor}
-                                                                        pl="8"
-                                                                    />
-                                                                </InputGroup>
-                                                                {stockViewFilterWarehouseNew && (
-                                                                    <IconButton
-                                                                        size="sm"
-                                                                        icon={<Icon as={MdClose} />}
-                                                                        colorScheme="red"
-                                                                        variant="ghost"
-                                                                        onClick={() => setStockViewFilterWarehouseNew("")}
-                                                                        aria-label="Clear warehouse ID filter"
-                                                                    />
-                                                                )}
-                                                            </HStack>
+                                                            <DebouncedTextFilterInput
+                                                                value={stockViewFilterWarehouseNew}
+                                                                onChange={(next) => commitTextFilter(setStockViewFilterWarehouseNew, next)}
+                                                                placeholder="Filter by Warehouse ID"
+                                                                bg={inputBg}
+                                                                color={inputText}
+                                                                borderColor={borderColor}
+                                                                showAdjacentClear
+                                                                clearAriaLabel="Clear warehouse ID filter"
+                                                                pl="8"
+                                                            />
                                                         </Box>
 
                                                         {/* SO Number Filter */}
                                                         <Box w="220px" minW="200px">
-                                                            <HStack spacing="1">
-                                                                <InputGroup size="sm">
-                                                                    <Input
-                                                                        value={stockViewFilterSO}
-                                                                        onChange={(e) => setStockViewFilterSO(e.target.value)}
-                                                                        placeholder="Filter by SO Number"
-                                                                        bg={inputBg}
-                                                                        color={inputText}
-                                                                        borderColor={borderColor}
-                                                                        pl="8"
-                                                                    />
-                                                                </InputGroup>
-                                                                {stockViewFilterSO && (
-                                                                    <IconButton
-                                                                        size="sm"
-                                                                        icon={<Icon as={MdClose} />}
-                                                                        colorScheme="red"
-                                                                        variant="ghost"
-                                                                        onClick={() => setStockViewFilterSO("")}
-                                                                        aria-label="Clear SO filter"
-                                                                    />
-                                                                )}
-                                                            </HStack>
+                                                            <DebouncedTextFilterInput
+                                                                value={stockViewFilterSO}
+                                                                onChange={(next) => commitTextFilter(setStockViewFilterSO, next)}
+                                                                placeholder="Filter by SO Number"
+                                                                bg={inputBg}
+                                                                color={inputText}
+                                                                borderColor={borderColor}
+                                                                showAdjacentClear
+                                                                clearAriaLabel="Clear SO filter"
+                                                                pl="8"
+                                                            />
                                                         </Box>
 
                                                         {/* SI Number Filter */}
                                                         <Box w="220px" minW="200px">
-                                                            <HStack spacing="1">
-                                                                <InputGroup size="sm">
-                                                                    <Input
-                                                                        value={stockViewFilterSI}
-                                                                        onChange={(e) => setStockViewFilterSI(e.target.value)}
-                                                                        placeholder="Filter by SI Number"
-                                                                        bg={inputBg}
-                                                                        color={inputText}
-                                                                        borderColor={borderColor}
-                                                                        pl="8"
-                                                                    />
-                                                                </InputGroup>
-                                                                {stockViewFilterSI && (
-                                                                    <IconButton
-                                                                        size="sm"
-                                                                        icon={<Icon as={MdClose} />}
-                                                                        colorScheme="red"
-                                                                        variant="ghost"
-                                                                        onClick={() => setStockViewFilterSI("")}
-                                                                        aria-label="Clear SI filter"
-                                                                    />
-                                                                )}
-                                                            </HStack>
+                                                            <DebouncedTextFilterInput
+                                                                value={stockViewFilterSI}
+                                                                onChange={(next) => commitTextFilter(setStockViewFilterSI, next)}
+                                                                placeholder="Filter by SI Number"
+                                                                bg={inputBg}
+                                                                color={inputText}
+                                                                borderColor={borderColor}
+                                                                showAdjacentClear
+                                                                clearAriaLabel="Clear SI filter"
+                                                                pl="8"
+                                                            />
                                                         </Box>
 
                                                         {/* SI Combined Filter */}
                                                         <Box w="220px" minW="200px">
-                                                            <HStack spacing="1">
-                                                                <InputGroup size="sm">
-                                                                    <Input
-                                                                        value={stockViewFilterSICombined}
-                                                                        onChange={(e) => setStockViewFilterSICombined(e.target.value)}
-                                                                        placeholder="Filter by SI Combined"
-                                                                        bg={inputBg}
-                                                                        color={inputText}
-                                                                        borderColor={borderColor}
-                                                                        pl="8"
-                                                                    />
-                                                                </InputGroup>
-                                                                {stockViewFilterSICombined && (
-                                                                    <IconButton
-                                                                        size="sm"
-                                                                        icon={<Icon as={MdClose} />}
-                                                                        colorScheme="red"
-                                                                        variant="ghost"
-                                                                        onClick={() => setStockViewFilterSICombined("")}
-                                                                        aria-label="Clear SI Combined filter"
-                                                                    />
-                                                                )}
-                                                            </HStack>
+                                                            <DebouncedTextFilterInput
+                                                                value={stockViewFilterSICombined}
+                                                                onChange={(next) => commitTextFilter(setStockViewFilterSICombined, next)}
+                                                                placeholder="Filter by SI Combined"
+                                                                bg={inputBg}
+                                                                color={inputText}
+                                                                borderColor={borderColor}
+                                                                showAdjacentClear
+                                                                clearAriaLabel="Clear SI Combined filter"
+                                                                pl="8"
+                                                            />
                                                         </Box>
 
                                                         {/* DI Number Filter */}
                                                         <Box w="220px" minW="200px">
-                                                            <HStack spacing="1">
-                                                                <InputGroup size="sm">
-                                                                    <Input
-                                                                        value={stockViewFilterDI}
-                                                                        onChange={(e) => setStockViewFilterDI(e.target.value)}
-                                                                        placeholder="Filter by DI Number"
-                                                                        bg={inputBg}
-                                                                        color={inputText}
-                                                                        borderColor={borderColor}
-                                                                        pl="8"
-                                                                    />
-                                                                </InputGroup>
-                                                                {stockViewFilterDI && (
-                                                                    <IconButton
-                                                                        size="sm"
-                                                                        icon={<Icon as={MdClose} />}
-                                                                        colorScheme="red"
-                                                                        variant="ghost"
-                                                                        onClick={() => setStockViewFilterDI("")}
-                                                                        aria-label="Clear DI filter"
-                                                                    />
-                                                                )}
-                                                            </HStack>
+                                                            <DebouncedTextFilterInput
+                                                                value={stockViewFilterDI}
+                                                                onChange={(next) => commitTextFilter(setStockViewFilterDI, next)}
+                                                                placeholder="Filter by DI Number"
+                                                                bg={inputBg}
+                                                                color={inputText}
+                                                                borderColor={borderColor}
+                                                                showAdjacentClear
+                                                                clearAriaLabel="Clear DI filter"
+                                                                pl="8"
+                                                            />
                                                         </Box>
 
                                                         {/* Via HUB 1 Filter */}
@@ -5435,7 +5191,7 @@ export default function Stocks() {
                                                                         bg={inputBg}
                                                                         color={inputText}
                                                                         borderColor={borderColor}
-                                                                        />
+                                                                    />
                                                                 </Box>
                                                                 {stockViewViaHub1 && (
                                                                     <IconButton
@@ -5471,7 +5227,7 @@ export default function Stocks() {
                                                                         bg={inputBg}
                                                                         color={inputText}
                                                                         borderColor={borderColor}
-                                                                        />
+                                                                    />
                                                                 </Box>
                                                                 {stockViewViaHub2 && (
                                                                     <IconButton
@@ -5507,7 +5263,7 @@ export default function Stocks() {
                                                                         bg={inputBg}
                                                                         color={inputText}
                                                                         borderColor={borderColor}
-                                                                        />
+                                                                    />
                                                                 </Box>
                                                                 {stockViewApDestination && (
                                                                     <IconButton
@@ -5567,55 +5323,31 @@ export default function Stocks() {
                                                         </Box>
                                                         {/* Req No Filter */}
                                                         <Box w="220px" minW="200px">
-                                                            <HStack spacing="1">
-                                                                <InputGroup size="sm">
-                                                                    <Input
-                                                                        value={stockViewFilterReqNo}
-                                                                        onChange={(e) => setStockViewFilterReqNo(e.target.value)}
-                                                                        placeholder="Filter by Req No..."
-                                                                        bg={inputBg}
-                                                                        color={inputText}
-                                                                        borderColor={borderColor}
-                                                                        pl="8"
-                                                                    />
-                                                                </InputGroup>
-                                                                {stockViewFilterReqNo && (
-                                                                    <IconButton
-                                                                        size="sm"
-                                                                        icon={<Icon as={MdClose} />}
-                                                                        colorScheme="red"
-                                                                        variant="ghost"
-                                                                        onClick={() => setStockViewFilterReqNo("")}
-                                                                        aria-label="Clear Req No filter"
-                                                                    />
-                                                                )}
-                                                            </HStack>
+                                                            <DebouncedTextFilterInput
+                                                                value={stockViewFilterReqNo}
+                                                                onChange={(next) => commitTextFilter(setStockViewFilterReqNo, next)}
+                                                                placeholder="Filter by Req No..."
+                                                                bg={inputBg}
+                                                                color={inputText}
+                                                                borderColor={borderColor}
+                                                                showAdjacentClear
+                                                                clearAriaLabel="Clear Req No filter"
+                                                                pl="8"
+                                                            />
                                                         </Box>
                                                         {/* PO Number Filter */}
                                                         <Box w="220px" minW="200px">
-                                                            <HStack spacing="1">
-                                                                <InputGroup size="sm">
-                                                                    <Input
-                                                                        value={stockViewFilterPO}
-                                                                        onChange={(e) => setStockViewFilterPO(e.target.value)}
-                                                                        placeholder="Filter by PO number..."
-                                                                        bg={inputBg}
-                                                                        color={inputText}
-                                                                        borderColor={borderColor}
-                                                                        pl="8"
-                                                                    />
-                                                                </InputGroup>
-                                                                {stockViewFilterPO && (
-                                                                    <IconButton
-                                                                        size="sm"
-                                                                        icon={<Icon as={MdClose} />}
-                                                                        colorScheme="red"
-                                                                        variant="ghost"
-                                                                        onClick={() => setStockViewFilterPO("")}
-                                                                        aria-label="Clear PO number filter"
-                                                                    />
-                                                                )}
-                                                            </HStack>
+                                                            <DebouncedTextFilterInput
+                                                                value={stockViewFilterPO}
+                                                                onChange={(next) => commitTextFilter(setStockViewFilterPO, next)}
+                                                                placeholder="Filter by PO number..."
+                                                                bg={inputBg}
+                                                                color={inputText}
+                                                                borderColor={borderColor}
+                                                                showAdjacentClear
+                                                                clearAriaLabel="Clear PO number filter"
+                                                                pl="8"
+                                                            />
                                                         </Box>
                                                         {/* Has Destination Filter */}
                                                         <Box w="220px" minW="200px" display="flex" alignItems="center">
@@ -5812,7 +5544,7 @@ export default function Stocks() {
                                 >
                                     {isLoading ? (
                                         stockTableLoading
-                                    ) : getFilteredStockByStatus().length === 0 ? (
+                                    ) : displayedItems.length === 0 ? (
                                         <Center py="60px" px="25px">
                                             <VStack spacing="4" maxW="400px" p="6" bg={tableRowBgAlt} borderRadius="lg" border="1px" borderColor={borderColor}>
                                                 <Icon as={MdInventory2} boxSize="14" color={emptyPanelIconColor} />
@@ -5823,234 +5555,27 @@ export default function Stocks() {
                                             </VStack>
                                         </Center>
                                     ) : (
-                                        <Table size="sm" minW="6000px">
-                                            <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={3}>
-                                                <Tr>
-                                                    <Th
-                                                        borderRight="1px"
-                                                        borderColor={tableBorderColor}
-                                                        py="12px"
-                                                        px="8px"
-                                                        fontSize="12px"
-                                                        fontWeight="600"
-                                                        textTransform="uppercase"
-                                                        color="#000000"
-                                                        {...getStockViewStickyProps(0, true)}
-                                                    >
-                                                        <Checkbox
-                                                            isChecked={allItemsSelected}
-                                                            isIndeterminate={someItemsSelected && !allItemsSelected}
-                                                            onChange={(e) => handleSelectAll(e.target.checked)}
-                                                            size="sm"
-                                                            borderColor="gray.600"
-                                                            colorScheme="blue"
-                                                            sx={{
-                                                                "& .chakra-checkbox__control": {
-                                                                    borderColor: "gray.600",
-                                                                    _checked: {
-                                                                        borderColor: "blue.500",
-                                                                        bg: "blue.500",
-                                                                    },
-                                                                },
-                                                            }}
-                                                        />
-                                                    </Th>
-                                                    <Th {...headerProps} {...getStockViewStickyProps(1, true)}>VESSEL</Th>
-                                                    <Th {...headerProps} {...getStockViewStickyProps(2, true)}>STOCKITEMID</Th>
-                                                    <Th {...headerProps} {...getStockViewStickyProps(3, true)}>SUPPLIER</Th>
-                                                    <Th {...headerProps}>REQ NO</Th>
-                                                    <Th {...headerProps}>PO NUMBER</Th>
-                                                    <Th {...headerProps}>SO NUMBER</Th>
-                                                    <Th {...headerProps}>SI NUMBER</Th>
-                                                    <Th {...headerProps}>SI COMBINED</Th>
-                                                    <Th {...headerProps}>DI NUMBER</Th>
-                                                    <Th {...headerProps}>STOCK STATUS</Th>
-                                                    <Th {...headerProps}>ORIGIN</Th>
-                                                    <Th {...headerProps}>VIA HUB 1</Th>
-                                                    <Th {...headerProps}>VIA HUB 2</Th>
-                                                    <Th {...headerProps}>AP DESTINATION</Th>
-                                                    <Th {...headerProps}>DESTINATION</Th>
-                                                    <Th {...headerProps}>SHIPPING DOCS</Th>
-                                                    <Th {...headerProps}>EXPORT DOC 1</Th>
-                                                    <Th {...headerProps}>EXPORT DOC 2</Th>
-                                                    <Th {...headerProps}>WAREHOUSE ID</Th>
-                                                    <Th {...headerProps}>EXP READY FROM SUPPLIER</Th>
-                                                    <Th {...headerProps}>DATE ON STOCK</Th>
-                                                    <Th {...headerProps} textAlign="center">DAYS ON STOCK</Th>
-                                                    <Th {...headerProps}>SHIPPED DATE</Th>
-                                                    <Th {...headerProps}>DELIVERED DATE</Th>
-                                                    <Th {...headerProps}>DG/UN NUMBER</Th>
-                                                    <Th {...headerProps}>REMARKS</Th>
-                                                    <Th {...headerProps}>BOXES</Th>
-                                                    <Th {...headerProps}>WEIGHT KGS</Th>
-                                                    <Th {...headerProps}>LWH TEXT</Th>
-                                                    <Th {...headerProps}>TOTAL VOLUME CBM</Th>
-                                                    <Th {...headerProps}>TOTAL CW AIR FREIGHT</Th>
-                                                    <Th {...headerProps}>CURRENCY</Th>
-                                                    <Th {...headerProps}>VALUE</Th>
-                                                    <Th {...headerProps}>CLIENT</Th>
-                                                    <Th {...headerProps}>INTERNAL REMARKS</Th>
-                                                    <Th {...headerProps}>FILES</Th>
-                                                    {stockViewActiveFilter === "false" && (
-                                                        <Th {...headerProps}>CANCEL REASON</Th>
-                                                    )}
-                                                    <Th {...headerProps}>ACTIONS</Th>
-                                                </Tr>
-                                            </Thead>
-                                            <Tbody>
-                                                {displayedItems.map((item, index) => {
-                                                        const statusStyle = getStatusStyle(item.stock_status);
-                                                        const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
-                                                        return (
-                                                            <Tr
-                                                                key={item.id}
-                                                                bg={rowBg}
-                                                                sx={{
-                                                                    ...getColoredStatusRowSx(statusStyle, tableTextColor),
-                                                                    "& td": { bg: "inherit" },
-                                                                }}
-                                                            >
-                                                                <Td
-                                                                    borderRight="1px"
-                                                                    borderColor={tableBorderColor}
-                                                                    py="12px"
-                                                                    px="8px"
-                                                                    {...getStockViewStickyProps(0)}
-                                                                >
-                                                                    <Checkbox
-                                                                        isChecked={selectedRows.has(item.id)}
-                                                                        onChange={(e) => handleRowSelect(item.id, e.target.checked)}
-                                                                        size="sm"
-                                                                        borderColor="gray.600"
-                                                                        sx={{
-                                                                            "& .chakra-checkbox__control": {
-                                                                                borderColor: "gray.600",
-                                                                                _checked: {
-                                                                                    borderColor: "blue.500",
-                                                                                    bg: "blue.500",
-                                                                                },
-                                                                            },
-                                                                        }}
-                                                                    />
-                                                                </Td>
-                                                                <Td {...cellProps} {...getStockViewStickyProps(1)}><StockCellText {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</StockCellText></Td>
-                                                                <Td {...cellProps} {...getStockViewStickyProps(2)}><StockCellText {...cellText}>{renderText(item.stock_item_id)}</StockCellText></Td>
-                                                                <Td {...cellProps} {...getStockViewStickyProps(3)}><StockCellText {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</StockCellText></Td>
-                                                                <Td {...cellProps}>{renderMultiLineLabels(item.req_no)}</Td>
-                                                                <Td {...cellProps}>{renderMultiLineLabels(item.po_text)}</Td>
-                                                                <Td {...cellProps}>
-                                                                    <StockSoNumberLink
-                                                                        item={item}
-                                                                        label={item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number))}
-                                                                        textProps={cellText}
-                                                                    />
-                                                                </Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{(() => {
-                                                                    return renderText(item.si_number) || "-";
-                                                                })()}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{(() => {
-                                                                    return renderText(item.si_combined) || "-";
-                                                                })()}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{(() => {
-                                                                    return renderText(item.di_no) || "-";
-                                                                })()}</StockCellText></Td>
-                                                                <Td {...cellProps}>
-                                                                    <StockStatusBadge statusStyle={statusStyle}>
-                                                                        {getStatusLabel(item.stock_status)}
-                                                                    </StockStatusBadge>
-                                                                </Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{item.origin_text || "-"}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(getStockViaHub1Display(item))}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(getStockViaHub2Display(item))}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.shipping_doc)}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.export_doc)}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.export_doc_2)}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-"}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{formatDate(item.exp_ready_in_stock)}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{formatDate(item.date_on_stock)}</StockCellText></Td>
-                                                                <Td {...cellProps} textAlign="center"><StockCellText {...cellText}>{renderText(item.days_on_stock)}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{formatDate(item.shipped_date)}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{formatDate(item.delivered_date)}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.dg_un)}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.remarks)}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.lwh_text)}</StockCellText></Td>
-                                                                <Td
-                                                                    {...cellProps}
-                                                                    cursor="pointer"
-                                                                    onClick={() => {
-                                                                        setSelectedDimensions(item.dimensions || []);
-                                                                        onDimensionsModalOpen();
-                                                                    }}
-                                                                >
-                                                                    <HStack spacing={2} align="center" justify="flex-start">
-                                                                        <StockCellText {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
-                                                                            {formatVolumeCbm(item.total_volume_cbm)}
-                                                                        </StockCellText>
-                                                                        <Tooltip label="View dimensions" hasArrow>
-                                                                            <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
-                                                                        </Tooltip>
-                                                                    </HStack>
-                                                                </Td>
-                                                                <Td
-                                                                    {...cellProps}
-                                                                    cursor="pointer"
-                                                                    onClick={() => {
-                                                                        setSelectedDimensions(item.dimensions || []);
-                                                                        onDimensionsModalOpen();
-                                                                    }}
-                                                                >
-                                                                    <HStack spacing={2} align="center" justify="flex-start">
-                                                                        <StockCellText {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
-                                                                            {renderText(item.total_cw_air_freight)}
-                                                                        </StockCellText>
-                                                                        <Tooltip label="View dimensions" hasArrow>
-                                                                            <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
-                                                                        </Tooltip>
-                                                                    </HStack>
-                                                                </Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{getDisplayName(item.currency_id || item.currency)}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{formatStockValueDisplay(item.value)}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{getDisplayName(item.client_id || item.client)}</StockCellText></Td>
-                                                                <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.internal_remark || "")}</StockCellText></Td>
-                                                                <Td {...cellProps}>
-                                                                    <StockListAttachmentsCell
-                                                                        attachments={item.attachments}
-                                                                        stockItemId={item.id || item.stock_item_id}
-                                                                        onPreviewAll={openGallery}
-                                                                        onDownloadFile={handleDownloadFile}
-                                                                        onOpenPreviousReports={(entries, stockItemId) =>
-                                                                            setStockReportHistoryContext({ entries, stockItemId })
-                                                                        }
-                                                                    />
-                                                                </Td>
-                                                                {stockViewActiveFilter === "false" && (
-                                                                    <Td {...cellProps}>
-                                                                        <StockCellText {...cellText}>
-                                                                            {item.cancel_text && item.cancel_text !== false
-                                                                                ? String(item.cancel_text)
-                                                                                : "-"}
-                                                                        </StockCellText>
-                                                                    </Td>
-                                                                )}
-                                                                <Td {...cellProps}>
-                                                                    <IconButton
-                                                                        icon={<Icon as={MdEdit} />}
-                                                                        size="sm"
-                                                                        variant="ghost"
-                                                                        colorScheme="blue"
-                                                                        onClick={() => handleEditItem(item)}
-                                                                        aria-label="Edit"
-                                                                    />
-                                                                </Td>
-                                                            </Tr>
-                                                        );
-                                                    })}
-                                            </Tbody>
-                                        </Table>
+                                        <StockViewDataTable
+                                            displayedItems={displayedItems}
+                                            selectedRows={selectedRows}
+                                            showCancelReason={stockViewActiveFilter === "false"}
+                                            cellProps={cellProps}
+                                            headerProps={headerProps}
+                                            stickyBody={stockViewStickyBodyProps}
+                                            stickyHeader={stockViewStickyHeaderProps}
+                                            tableHeaderBg={tableHeaderBg}
+                                            tableBorderColor={tableBorderColor}
+                                            tableRowBg={tableRowBg}
+                                            tableTextColor={tableTextColor}
+                                            shippingOrders={shippingOrdersFromStock}
+                                            onSelectAll={handleSelectAll}
+                                            onSelect={handleRowSelect}
+                                            onEdit={handleEditItem}
+                                            onOpenDimensions={onOpenDimensions}
+                                            onPreviewAll={onPreviewAll}
+                                            onDownloadFile={handleDownloadFile}
+                                            onOpenPreviousReports={onOpenPreviousReports}
+                                        />
                                     )}
                                 </Box>
 
@@ -6450,61 +5975,20 @@ export default function Stocks() {
                                             </VStack>
                                         </Center>
                                     ) : (
-                                        <Table variant="unstyled" size="sm" layout="auto">
-                                            <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
-                                                <Tr>
-                                                    <Th {...headerProps} w="40px">
-                                                        <Checkbox
-                                                            isChecked={displayedItems.length > 0 && displayedItems.every(item => clientViewSelectedRows.has(item.id || item.stock_item_id))}
-                                                            isIndeterminate={displayedItems.some(item => clientViewSelectedRows.has(item.id || item.stock_item_id)) && !displayedItems.every(item => clientViewSelectedRows.has(item.id || item.stock_item_id))}
-                                                            onChange={handleClientViewSelectAll}
-                                                            colorScheme="blue"
-                                                        />
-                                                    </Th>
-                                                    {activeClientViewTableColumns.map((column) => (
-                                                        <Th key={column.key} {...getClientViewColumnHeaderProps(column)}>{column.label}</Th>
-                                                    ))}
-                                                    <Th {...headerProps}>ACTION</Th>
-                                                </Tr>
-                                            </Thead>
-                                            <Tbody>
-                                                {displayedItems.map((item, index) => {
-                                                        const statusStyle = getStatusStyle(item.stock_status);
-                                                        const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
-                                                        const itemId = item.id || item.stock_item_id;
-                                                        return (
-                                                            <Tr
-                                                                key={itemId}
-                                                                bg={rowBg}
-                                                                sx={getColoredStatusRowSx(statusStyle, tableTextColor)}
-                                                            >
-                                                                <Td {...cellProps} bg={rowBg} w="40px">
-                                                                    <Checkbox
-                                                                        isChecked={clientViewSelectedRows.has(itemId)}
-                                                                        onChange={() => handleClientViewRowToggle(itemId)}
-                                                                        colorScheme="blue"
-                                                                    />
-                                                                </Td>
-                                                                {activeClientViewTableColumns.map((column) => (
-                                                                    <Td key={column.key} {...getClientViewColumnCellProps(column, rowBg)}>
-                                                                        {renderClientViewTableCell(item, column, statusStyle, rowBg)}
-                                                                    </Td>
-                                                                ))}
-                                                                <Td {...cellProps} bg={rowBg}>
-                                                                    <IconButton
-                                                                        aria-label="Print row"
-                                                                        icon={<MdPrint />}
-                                                                        size="sm"
-                                                                        variant="ghost"
-                                                                        colorScheme="blue"
-                                                                        onClick={() => handlePrintClientViewRow(item)}
-                                                                    />
-                                                                </Td>
-                                                            </Tr>
-                                                        );
-                                                    })}
-                                            </Tbody>
-                                        </Table>
+                                        <ClientViewDataTable
+                                            displayedItems={displayedItems}
+                                            selectedRows={clientViewSelectedRows}
+                                            columns={activeClientViewTableColumns}
+                                            cellProps={cellProps}
+                                            headerProps={headerProps}
+                                            tableHeaderBg={tableHeaderBg}
+                                            tableRowBg={tableRowBg}
+                                            tableTextColor={tableTextColor}
+                                            shippingOrders={shippingOrdersFromStock}
+                                            onSelectAll={handleClientViewSelectAll}
+                                            onToggle={handleClientViewRowToggle}
+                                            onPrint={handlePrintClientViewRow}
+                                        />
                                     )}
                                 </Box>
 

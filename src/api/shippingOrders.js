@@ -2,6 +2,88 @@ import api from "./axios";
 import { getApiEndpoint, API_CONFIG } from "../config/api";
 import { parseContentDispositionFilename } from "../utils/shippingOrderAttachments";
 
+function throwIfApiError(data) {
+  if (!data) return;
+  if (data.result && data.result.status === "error") {
+    throw new Error(data.result.message || "Request failed");
+  }
+  if (data.status === "error") {
+    throw new Error(data.message || "Request failed");
+  }
+}
+
+function unwrapApiPayload(data) {
+  if (!data) return data;
+  if (data.result && typeof data.result === "object" && !Array.isArray(data.result)) {
+    return data.result;
+  }
+  return data;
+}
+
+function toRelativeApiPath(url) {
+  if (!url) return null;
+  const path = String(url).trim();
+  if (!path) return null;
+  if (path.startsWith("/api/")) return path;
+  try {
+    const parsed = new URL(path);
+    if (parsed.pathname.startsWith("/api/")) {
+      return `${parsed.pathname}${parsed.search || ""}`;
+    }
+  } catch {
+    return path.startsWith("/") ? path : `/${path}`;
+  }
+  return path;
+}
+
+function firstRecord(value) {
+  if (Array.isArray(value)) {
+    return value.find((item) => item && typeof item === "object") || null;
+  }
+  if (value && typeof value === "object") {
+    return value;
+  }
+  return null;
+}
+
+/** Pull a single order object from GET/POST /api/shipping/order responses. */
+export function extractShippingOrderRecord(data) {
+  throwIfApiError(data);
+  const source = unwrapApiPayload(data);
+  throwIfApiError(source);
+
+  const fromOrder = firstRecord(source?.order);
+  if (fromOrder) return fromOrder;
+
+  const fromOrders = firstRecord(source?.orders);
+  if (fromOrders) return fromOrders;
+
+  if (
+    source &&
+    typeof source === "object" &&
+    source.id != null &&
+    (source.so_id != null ||
+      source.so_number != null ||
+      source.name != null ||
+      Array.isArray(source.stock_list) ||
+      source.client_id != null ||
+      source.done != null)
+  ) {
+    return source;
+  }
+  return null;
+}
+
+export function extractShippingOrderStockList(data) {
+  throwIfApiError(data);
+  const source = unwrapApiPayload(data);
+  throwIfApiError(source);
+  if (Array.isArray(source.stock_list)) return source.stock_list;
+  const order = firstRecord(source.order) || firstRecord(source.orders);
+  if (Array.isArray(order?.stock_list)) return order.stock_list;
+  return [];
+}
+
 // Get all shipping orders with pagination and search
 export const getShippingOrders = async (params = {}) => {
   try {
@@ -164,21 +246,54 @@ export const getShippingOrders = async (params = {}) => {
   }
 };
 
-// Get shipping order by ID
-export const getShippingOrderById = async (id) => {
-  try {
-    // Backend expects POST /api/shipping/order with { id }
-    const response = await api.post('/api/shipping/order', { id });
-
-    // Check if response has error status (JSON-RPC format)
-    if (response.data.result && response.data.result.status === 'error') {
-      throw new Error(response.data.result.message || 'Failed to fetch shipping order');
-    }
-
-    return response.data;
-  } catch (error) {
-    throw error;
+function toShippingOrderResult(data) {
+  throwIfApiError(data);
+  const source = unwrapApiPayload(data) || {};
+  const order = extractShippingOrderRecord(data);
+  if (!order) {
+    throw new Error("Shipping order not found");
   }
+  return {
+    ...source,
+    status: source.status || data?.status || "success",
+    order,
+  };
+}
+
+// Get shipping order by ID — GET /api/shipping/order?id=
+export const getShippingOrderById = async (id) => {
+  const normalizedId =
+    typeof id === "string" && id.trim() !== "" && !Number.isNaN(Number(id))
+      ? Number(id)
+      : id;
+  if (normalizedId == null || normalizedId === "") {
+    throw new Error("Order id is required.");
+  }
+
+  const response = await api.get("/api/shipping/order", {
+    params: { id: normalizedId },
+  });
+  return toShippingOrderResult(response.data || response);
+};
+
+/** GET /api/shipping/order/<order_id>/stock — full stock_list for one SO */
+export const getShippingOrderStockApi = async (orderId, stockItemsUrl = null) => {
+  if (orderId == null || orderId === "") {
+    throw new Error("Order id is required.");
+  }
+  const path =
+    toRelativeApiPath(stockItemsUrl) || `${getApiEndpoint("SHIPPING_ORDER")}/${orderId}/stock`;
+  const response = await api.get(path);
+  const data = response.data || response;
+  const stock_list = extractShippingOrderStockList(data);
+  const source = unwrapApiPayload(data) || {};
+  return {
+    status: source.status || data?.status || "success",
+    order_id: source.order_id ?? orderId,
+    so_id: source.so_id,
+    count: source.count ?? stock_list.length,
+    stock_list,
+  };
 };
 
 // Create new shipping order
@@ -420,6 +535,7 @@ export const deleteShippingOrder = async (id) => {
 export default {
   getShippingOrders,
   getShippingOrderById,
+  getShippingOrderStockApi,
   createShippingOrder,
   updateShippingOrder,
   deleteShippingOrder,

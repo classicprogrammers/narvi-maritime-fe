@@ -30,7 +30,7 @@ export const fetchShippingOrderById = createAsyncThunk(
   async (id, { rejectWithValue }) => {
     try {
       const response = await getShippingOrderById(id);
-      return response;
+      return response.order || response;
     } catch (error) {
       // Handle different error response structures
       let errorMessage = error.message;
