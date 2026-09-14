@@ -48,9 +48,10 @@ import clientStockApi from "api/clientStock";
 import clientVesselApi from "api/clientVessel";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import {
-  getStatusOptionsForActiveFilter,
+  getClientPortalStatusOptionsForActiveFilter,
   isArchiveStockStatus,
   normalizeStockStatusKey,
+  resolveClientPortalNavStockStatus,
   resolveStockListActiveParam,
 } from "constants/stockStatus";
 import { getCappedStockReportEntriesForDisplay } from "utils/stockReportAttachmentsUi";
@@ -218,7 +219,7 @@ const getInitialClientStockFilters = (nav) => ({
   ...EMPTY_CLIENT_STOCK_FILTERS,
   vessel: nav.selectedVessel || "",
   location: nav.hubValue || "",
-  status: nav.stockStatus || "",
+  status: resolveClientPortalNavStockStatus(nav.stockStatus),
 });
 
 function ClientStock() {
@@ -293,7 +294,7 @@ function ClientStock() {
   };
 
   const statusFilterOptions = useMemo(
-    () => getStatusOptionsForActiveFilter([], activeFilter),
+    () => getClientPortalStatusOptionsForActiveFilter(activeFilter),
     [activeFilter]
   );
 
@@ -553,7 +554,8 @@ function ClientStock() {
     if (!nav.hasNavFilters) return;
 
     if (nav.stockStatus) {
-      setActiveFilter(isArchiveStockStatus(nav.stockStatus) ? "false" : "true");
+      const resolvedStatus = resolveClientPortalNavStockStatus(nav.stockStatus);
+      setActiveFilter(resolvedStatus && isArchiveStockStatus(resolvedStatus) ? "false" : "true");
     }
     if (nav.selectedVesselId != null) {
       setNavVesselId(nav.selectedVesselId);
@@ -563,7 +565,7 @@ function ClientStock() {
         ...prev,
         vessel: nav.selectedVessel || prev.vessel,
         location: nav.hubValue || prev.location,
-        status: nav.stockStatus || prev.status,
+        status: resolveClientPortalNavStockStatus(nav.stockStatus) || prev.status,
       };
       if (
         next.vessel === prev.vessel &&

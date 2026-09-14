@@ -66,6 +66,13 @@ export const FALLBACK_ARCHIVE_STATUS_OPTIONS = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
+/** Client portal active stock/jobs only expose these three statuses. */
+export const CLIENT_PORTAL_ACTIVE_STATUS_OPTIONS = [
+  { value: "pending", label: "Pending" },
+  { value: "stock", label: "Stock" },
+  { value: "in_transit", label: "In Transit" },
+];
+
 export const getStatusOptionsForActiveFilter = (stockStatusOptions, activeFilter) => {
   const showArchive = activeFilter === "false";
   if (Array.isArray(stockStatusOptions) && stockStatusOptions.length > 0) {
@@ -75,6 +82,19 @@ export const getStatusOptionsForActiveFilter = (stockStatusOptions, activeFilter
     if (filtered.length > 0) return filtered;
   }
   return showArchive ? FALLBACK_ARCHIVE_STATUS_OPTIONS : FALLBACK_ACTIVE_STATUS_OPTIONS;
+};
+
+export const getClientPortalStatusOptionsForActiveFilter = (activeFilter) => {
+  if (activeFilter === "false") return FALLBACK_ARCHIVE_STATUS_OPTIONS;
+  return CLIENT_PORTAL_ACTIVE_STATUS_OPTIONS;
+};
+
+export const resolveClientPortalNavStockStatus = (status) => {
+  const key = normalizeStockStatusKey(status);
+  if (!key) return "";
+  if (CLIENT_PORTAL_ACTIVE_STATUS_OPTIONS.some((opt) => opt.value === key)) return key;
+  if (isArchiveStockStatus(key)) return key;
+  return "";
 };
 
 /** Always pass active explicitly when calling the stock list API */

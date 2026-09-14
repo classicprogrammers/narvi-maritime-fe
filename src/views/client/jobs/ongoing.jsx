@@ -78,14 +78,19 @@ function ClientOngoingJobs() {
       const selectedVessel = vesselOptions.find((v) => String(v.name) === String(filters.vessel));
       const statusMap = {
         All: undefined,
-        Pending: undefined,
+        Pending: "pending",
+        pending: "pending",
+        Stock: "stock",
+        stock: "stock",
         "In Stock": "stock",
         "In Transit": "in_transit",
+        in_transit: "in_transit",
       };
+      const stockStatus = statusMap[filters.status];
       const res = await clientJobsApi.getActiveJobs({
         search: search.trim() || undefined,
-        status: statusMap[filters.status],
-        stock_status: filters.status === "Pending" ? "pending" : undefined,
+        status: stockStatus,
+        stock_status: stockStatus,
         vessel_id: selectedVessel?.id,
         date_from: filters.fromDate || undefined,
         date_to: filters.toDate || undefined,
@@ -125,7 +130,17 @@ function ClientOngoingJobs() {
   useEffect(() => {
     const jobStatus = location?.state?.dashboardFilter?.jobStatus;
     if (jobStatus) {
-      setFilters((prev) => ({ ...prev, status: jobStatus }));
+      const mappedStatus = {
+        All: "All",
+        Pending: "pending",
+        pending: "pending",
+        Stock: "stock",
+        stock: "stock",
+        "In Stock": "stock",
+        "In Transit": "in_transit",
+        in_transit: "in_transit",
+      }[jobStatus] || jobStatus;
+      setFilters((prev) => ({ ...prev, status: mappedStatus }));
       clearClientNavigationState();
     }
   }, [location]);
@@ -268,10 +283,10 @@ function ClientOngoingJobs() {
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Status</Text>
             <Select size="sm" h="40px" value={filters.status} onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}>
-              <option>All</option>
-              <option>Pending</option>
-              <option>In Transit</option>
-              <option>In Stock</option>
+              <option value="All">All</option>
+              <option value="pending">Pending</option>
+              <option value="stock">Stock</option>
+              <option value="in_transit">In Transit</option>
             </Select>
           </GridItem>
           <GridItem>
