@@ -118,7 +118,6 @@ const mapClientStockRows = (stockList, clientName = "") =>
       dateOnStock: toClientStockDisplay(item.date_on_stock || item.first_entry_date),
       firstEntryDate: toClientStockDisplay(item.first_entry_date || item.date_on_stock),
       vessel: toClientStockDisplay(item.vessel?.name || item.vessel),
-      warehouseId: toClientStockDisplay(item.warehouse_id || item.stock_item_id),
       stockNumber: toClientStockDisplay(item.stock_number || item.stock_item_id),
       supplier: toClientStockDisplay(item.supplier?.name || item.supplier),
       poNo:
@@ -948,7 +947,7 @@ function ClientStockReportView({ variant = "stock" }) {
   const handleDownloadExcel = async () => {
     const headers = [
       "Vessel",
-      "Warehouse ID",
+      "Stock ID",
       "Supplier",
       "PO#",
       "Stock Status",
@@ -981,7 +980,7 @@ function ClientStockReportView({ variant = "stock" }) {
       });
       const rowsForExport = exportRows.map((row) => [
         row.vessel || "-",
-        row.warehouseId || "-",
+        row.stockItemId || "-",
         row.supplier || "-",
         row.poNo || "-",
         formatStatus(row.stockStatus),
@@ -1320,7 +1319,7 @@ function ClientStockReportView({ variant = "stock" }) {
                 />
               </Th>
               <Th>Vessel</Th>
-              <Th>WAREHOUSE ID</Th>
+              <Th>STOCK ID</Th>
               <Th>SUPPLIER</Th>
               <Th>PO#</Th>
               <Th>STOCK STATUS</Th>
@@ -1359,7 +1358,7 @@ function ClientStockReportView({ variant = "stock" }) {
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.vessel}</StockCellText>
                   </Td>
                   <Td>
-                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.warehouseId}</StockCellText>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{toClientStockDisplay(row.stockItemId)}</StockCellText>
                   </Td>
                   <Td>
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.supplier}</StockCellText>
