@@ -56,13 +56,11 @@ const SUMMARY_COLUMNS = [
 const FULL_COLUMNS = [
   { key: "stockItemId", label: "Stock ID", isStockLink: true },
   { key: "client", label: "Client" },
-  { key: "warehouseId", label: "Warehouse ID" },
   { key: "vessel", label: "Vessel" },
   { key: "supplier", label: "Supplier" },
   { key: "poNo", label: "PO#" },
   { key: "boxes", label: "Boxes" },
   { key: "weight", label: "Weight" },
-  { key: "totalVolumeCbm", label: "Volume CBM" },
   { key: "origin", label: "Origin" },
   { key: "viaHub1", label: "Via hub 1" },
   { key: "viaHub2", label: "Via hub 2" },
@@ -95,7 +93,6 @@ export const mapShippingOrderStockRows = (stockList) =>
       stockRecordId: item?.id,
       stockItemId: toDisplay(item?.stock_item_id ?? item?.stock_number ?? item?.stock_id),
       client: toDisplay(item?.client_id || item?.client?.name || item?.client),
-      warehouseId: toDisplay(item?.warehouse_id || item?.stock_item_id),
       vessel: toDisplay(item?.vessel_id || item?.vessel?.name || item?.vessel),
       supplier: toDisplay(item?.supplier?.name || item?.supplier),
       poNo:
@@ -104,7 +101,6 @@ export const mapShippingOrderStockRows = (stockList) =>
           : toDisplay(item?.po_text),
       boxes: formatStockValueDisplay(item?.boxes ?? item?.box ?? item?.pieces ?? item?.pcs?.count),
       weight: formatStockValueDisplay(item?.weight_kg ?? item?.weight),
-      totalVolumeCbm: formatStockValueDisplay(item?.total_volume_cbm),
       origin: toDisplay(item?.origin_text || getStockOriginDisplay(item)),
       viaHub1: toDisplay(getStockViaHub1Display(item)),
       viaHub2: toDisplay(getStockViaHub2Display(item)),
@@ -186,7 +182,7 @@ export default function ShippingOrderStockList({
             {emptyLabel}
           </Text>
         ) : (
-          <Table size="sm" variant="simple" minW={variant === "summary" ? "980px" : "1680px"}>
+          <Table size="sm" variant="simple" minW={variant === "summary" ? "980px" : "1480px"}>
             <Thead bg={headerBg}>
               <Tr>
                 {columns.map((col) => (
