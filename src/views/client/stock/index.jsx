@@ -883,12 +883,12 @@ function ClientStock() {
 
   const handleDownloadExcel = async () => {
     const headers = [
-      "Client",
       "Vessel",
       "Warehouse ID",
       "Supplier",
       "PO#",
-      "DG/UN Number",
+      "Stock Status",
+      "Date On Stock",
       "Boxes",
       "Weight",
       "Total Volume CBM",
@@ -900,11 +900,11 @@ function ClientStock() {
       "Shipping Docs",
       "Export Docs 1",
       "Export Docs 2",
-      "Stock Status",
-      "Date On Stock",
       "SO Number",
       "Currency",
       "Value",
+      "Client",
+      "DG/UN Number",
     ];
     try {
       const res = await clientStockApi.getClientStock(
@@ -916,12 +916,12 @@ function ClientStock() {
         return true;
       });
       const rowsForExport = exportRows.map((row) => [
-        row.client || "-",
         row.vessel || "-",
         row.warehouseId || "-",
         row.supplier || "-",
         row.poNo || "-",
-        row.dgUnNumber || "-",
+        formatStatus(row.stockStatus),
+        row.dateOnStock || "-",
         row.boxes || "-",
         row.weight || "-",
         row.totalVolumeCbm || "-",
@@ -933,11 +933,11 @@ function ClientStock() {
         row.shippingDoc || "-",
         row.exportDoc1 || "-",
         row.exportDoc2 || "-",
-        formatStatus(row.stockStatus),
-        row.dateOnStock || "-",
         row.soNumber || "-",
         row.currency || "-",
         row.value || "-",
+        row.client || "-",
+        row.dgUnNumber || "-",
       ]);
       const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rowsForExport]);
       const workbook = XLSX.utils.book_new();
@@ -1247,12 +1247,12 @@ function ClientStock() {
                   onChange={(e) => handleToggleSelectAllVisible(e.target.checked)}
                 />
               </Th>
-              <Th>CLIENT</Th>
               <Th>Vessel</Th>
               <Th>WAREHOUSE ID</Th>
               <Th>SUPPLIER</Th>
               <Th>PO#</Th>
-              <Th>DG/UN NUMBER</Th>
+              <Th>STOCK STATUS</Th>
+              <Th>DATE ON STOCK</Th>
               <Th>BOXES</Th>
               <Th>WEIGHT</Th>
               <Th>TOTAL VOLUME CBM</Th>
@@ -1261,11 +1261,11 @@ function ClientStock() {
               <Th>VIA HUB 2</Th>
               <Th>AP DESTINATION</Th>
               <Th>DESTINATION</Th>
-              <Th>STOCK STATUS</Th>
-              <Th>DATE ON STOCK</Th>
               <Th>SO NUMBER</Th>
               <Th>CURRENCY</Th>
               <Th>VALUE</Th>
+              <Th>CLIENT</Th>
+              <Th>DG/UN NUMBER</Th>
               <Th>REPORT</Th>
             </Tr>
           </Thead>
@@ -1284,9 +1284,6 @@ function ClientStock() {
                     />
                   </Td>
                   <Td>
-                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.client}</StockCellText>
-                  </Td>
-                  <Td>
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.vessel}</StockCellText>
                   </Td>
                   <Td>
@@ -1298,8 +1295,18 @@ function ClientStock() {
                   <Td>
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.poNo}</StockCellText>
                   </Td>
+                  <Td title={getStockCellTooltip(formatStatus(row.stockStatus))}>
+                    <Badge
+                      borderRadius="full"
+                      px={2.5}
+                      py={1}
+                      colorScheme={statusColorMap[String(row.stockStatus || "").toLowerCase()] || "gray"}
+                    >
+                      {formatStatus(row.stockStatus)}
+                    </Badge>
+                  </Td>
                   <Td>
-                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.dgUnNumber}</StockCellText>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.dateOnStock}</StockCellText>
                   </Td>
                   <Td>
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.boxes}</StockCellText>
@@ -1332,19 +1339,6 @@ function ClientStock() {
                   <Td>
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.destination}</StockCellText>
                   </Td>
-                  <Td title={getStockCellTooltip(formatStatus(row.stockStatus))}>
-                    <Badge
-                      borderRadius="full"
-                      px={2.5}
-                      py={1}
-                      colorScheme={statusColorMap[String(row.stockStatus || "").toLowerCase()] || "gray"}
-                    >
-                      {formatStatus(row.stockStatus)}
-                    </Badge>
-                  </Td>
-                  <Td>
-                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.dateOnStock}</StockCellText>
-                  </Td>
                   <Td>
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.soNumber}</StockCellText>
                   </Td>
@@ -1353,6 +1347,12 @@ function ClientStock() {
                   </Td>
                   <Td>
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.value}</StockCellText>
+                  </Td>
+                  <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.client}</StockCellText>
+                  </Td>
+                  <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.dgUnNumber}</StockCellText>
                   </Td>
                   <Td>
                     {isClientPortalStockStatus(row.stockStatusKey) ? (

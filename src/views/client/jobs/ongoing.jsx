@@ -112,6 +112,9 @@ function ClientOngoingJobs() {
         combined: item.so_number || "-",
         totalPackages: item.box ?? "-",
         totalWeight: item.weight ?? "-",
+        value: item.value ?? "-",
+        client: item.client?.name || res?.client?.name || "-",
+        dgUnNumber: item.dg_un_number || item.dg_un || "-",
       }));
       setRows(mapped);
       setClientName(res?.client?.name || "");
@@ -214,25 +217,28 @@ function ClientOngoingJobs() {
     const headers = [
       "Vessel Name",
       "Job ID",
-      "PO Number",
       "Mode of Transport",
       "Remarks",
-      "Status",
-      "ETD",
+      "PO#",
+      "Stock Status",
+      "Date on stock",
       "ETA",
       "Origin",
       "Destination",
       "Combined",
       "Total No of Packages",
       "Total Weight (KGS)",
+      "Value",
+      "Client name",
+      "DG/UN Number",
     ];
 
     const rowsForExport = filteredRows.map((row) => [
       row.vessel || "-",
       row.jobId || "-",
-      row.poText || "-",
       row.mode || "-",
       row.remarks || "-",
+      row.poText || "-",
       row.status || "-",
       row.etd || "-",
       row.eta || "-",
@@ -241,6 +247,9 @@ function ClientOngoingJobs() {
       row.combined || "-",
       row.totalPackages || "-",
       row.totalWeight || "-",
+      row.value || "-",
+      row.client || "-",
+      row.dgUnNumber || "-",
     ]);
 
     const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rowsForExport]);
@@ -384,14 +393,18 @@ function ClientOngoingJobs() {
               <Th>Job ID</Th>
               <Th>Mode of Transport</Th>
               <Th>Remarks</Th>
-              <Th>Status</Th>
-              <Th>ETD</Th>
+              <Th>PO#</Th>
+              <Th>Stock Status</Th>
+              <Th>Date on stock</Th>
               <Th>ETA</Th>
               <Th>Origin</Th>
               <Th>Destination</Th>
               <Th>Combined</Th>
               <Th>Total No of Packages</Th>
               <Th>Total Weight (KGS)</Th>
+              <Th>Value</Th>
+              <Th>Client name</Th>
+              <Th>DG/UN Number</Th>
             </Tr>
           </Thead>
           <Tbody>
@@ -405,6 +418,7 @@ function ClientOngoingJobs() {
                 <Td>{row.jobId}</Td>
                 <Td>{row.mode}</Td>
                 <Td>{row.remarks}</Td>
+                <Td>{row.poText}</Td>
                 <Td>
                   <Badge colorScheme="orange" borderRadius="full" px={2.5} py={1}>
                     {row.status}
@@ -417,6 +431,9 @@ function ClientOngoingJobs() {
                 <Td>{row.combined}</Td>
                 <Td>{row.totalPackages}</Td>
                 <Td>{row.totalWeight}</Td>
+                <Td>{row.value}</Td>
+                <Td>{row.client}</Td>
+                <Td>{row.dgUnNumber}</Td>
               </Tr>
             ))}
           </Tbody>

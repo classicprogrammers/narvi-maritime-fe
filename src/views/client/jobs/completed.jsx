@@ -109,6 +109,9 @@ function ClientCompletedJobs() {
         totalWeight: item.weight ?? "-",
         documents: item.po_text || "-",
         incharge: item.supplier?.name || "-",
+        value: item.value ?? "-",
+        client: item.client?.name || res?.client?.name || "-",
+        dgUnNumber: item.dg_un_number || item.dg_un || "-",
       }));
       setRows(mapped);
       setClientName(res?.client?.name || "");
@@ -202,11 +205,11 @@ function ClientCompletedJobs() {
     const headers = [
       "Job ID",
       "Vessel Name",
-      "PO Number",
       "Mode of Transport",
       "Transit Info",
-      "Status",
-      "ETD",
+      "PO#",
+      "Stock Status",
+      "Date on stock",
       "ETA",
       "Origin",
       "Destination",
@@ -214,14 +217,17 @@ function ClientCompletedJobs() {
       "Total Weight (KGS)",
       "Documents",
       "Incharge",
+      "Value",
+      "Client name",
+      "DG/UN Number",
     ];
 
     const rowsForExport = filteredRows.map((row) => [
       row.jobId || "-",
       row.vessel || "-",
-      row.poText || "-",
       row.mode || "-",
       row.transitInfo || "-",
+      row.poText || "-",
       row.status || "-",
       row.etd || "-",
       row.eta || "-",
@@ -231,6 +237,9 @@ function ClientCompletedJobs() {
       row.totalWeight || "-",
       row.documents || "-",
       row.incharge || "-",
+      row.value || "-",
+      row.client || "-",
+      row.dgUnNumber || "-",
     ]);
 
     const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rowsForExport]);
@@ -375,8 +384,9 @@ function ClientCompletedJobs() {
               <Th>Job ID</Th>
               <Th>Mode of Transport</Th>
               <Th>Transit Info</Th>
-              <Th>Status</Th>
-              <Th>ETD</Th>
+              <Th>PO#</Th>
+              <Th>Stock Status</Th>
+              <Th>Date on stock</Th>
               <Th>ETA</Th>
               <Th>Origin</Th>
               <Th>Destination</Th>
@@ -384,6 +394,9 @@ function ClientCompletedJobs() {
               <Th>Total Weight (KGS)</Th>
               <Th>Documents</Th>
               <Th>Incharge</Th>
+              <Th>Value</Th>
+              <Th>Client name</Th>
+              <Th>DG/UN Number</Th>
             </Tr>
           </Thead>
           <Tbody>
@@ -396,6 +409,7 @@ function ClientCompletedJobs() {
                 <Td>{row.jobId}</Td>
                 <Td>{row.mode}</Td>
                 <Td>{row.transitInfo}</Td>
+                <Td>{row.poText}</Td>
                 <Td>
                   <Badge colorScheme="green" borderRadius="full" px={2.5} py={1}>
                     {String(row.status || "").replace(/_/g, " ")}
@@ -409,6 +423,9 @@ function ClientCompletedJobs() {
                 <Td>{row.totalWeight}</Td>
                 <Td>{row.documents}</Td>
                 <Td>{row.incharge}</Td>
+                <Td>{row.value}</Td>
+                <Td>{row.client}</Td>
+                <Td>{row.dgUnNumber}</Td>
               </Tr>
             ))}
           </Tbody>

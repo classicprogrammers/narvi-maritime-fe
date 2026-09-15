@@ -1,51 +1,54 @@
-// Debug utility for authentication issues
+import {
+  AUTH_CONTEXTS,
+  clearStoredAuth,
+  getCurrentStoredAuth,
+  getCurrentStoredToken,
+  getStoredAuth,
+} from "./authStorage";
+
 export const debugAuth = {
-  // Check current authentication state
   checkAuthState: () => {
-    const token = localStorage.getItem("token");
-    const user = localStorage.getItem("user");
-    
-    return { token, user };
+    const current = getCurrentStoredAuth();
+    const admin = getStoredAuth(AUTH_CONTEXTS.ADMIN);
+    const client = getStoredAuth(AUTH_CONTEXTS.CLIENT);
+
+    return { current, admin, client };
   },
-  
-  // Test API call with detailed logging
-  testApiCall: async (url, method = 'GET') => {
-    
+
+  testApiCall: async (url, method = "GET") => {
     try {
       const response = await fetch(url, {
         method,
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem("token")}`
-        }
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getCurrentStoredToken() || ""}`,
+        },
       });
-      
+
       const data = await response.json();
-      
+
       if (!response.ok) {
         console.error("API call failed:", {
           status: response.status,
           statusText: response.statusText,
-          data
+          data,
         });
       }
-      
+
       return { success: response.ok, status: response.status, data };
     } catch (error) {
       console.error("API call error:", error);
       return { success: false, error: error.message };
     }
   },
-  
-  // Clear auth state
+
   clearAuth: () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    clearStoredAuth(AUTH_CONTEXTS.ADMIN);
+    clearStoredAuth(AUTH_CONTEXTS.CLIENT);
     console.log("Auth state cleared");
-  }
+  },
 };
 
-// Make it available globally for debugging
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   window.debugAuth = debugAuth;
 }

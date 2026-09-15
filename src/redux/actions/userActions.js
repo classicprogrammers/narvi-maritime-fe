@@ -19,6 +19,10 @@ import { clearAgentState } from "../slices/vendorSlice";
 import { clearStockState } from "../slices/stockSlice";
 import { clearShippingOrdersState } from "../slices/shippingOrdersSlice";
 import { clearMasterData } from "../../utils/masterDataCache";
+import {
+  getAuthContextFromPath,
+  getStoredAuth,
+} from "../../utils/authStorage";
 
 // Async action for login
 export const loginUser = (email, password) => async (dispatch) => {
@@ -38,10 +42,6 @@ export const loginUser = (email, password) => async (dispatch) => {
     };
 
     const mockToken = "mock_token_" + Date.now();
-
-    // Store user data in localStorage
-    localStorage.setItem("user", JSON.stringify(mockUser));
-    localStorage.setItem("token", mockToken);
 
     dispatch(
       loginSuccess({
@@ -86,12 +86,13 @@ export const signupUser = (userData) => async (dispatch) => {
 
 // Action for logout - clear all Redux state and caches except user/token (which logout clears)
 export const logoutUser = () => (dispatch) => {
+  const context = getAuthContextFromPath();
   clearMasterData();
   dispatch(clearCustomerState());
   dispatch(clearAgentState());
   dispatch(clearStockState());
   dispatch(clearShippingOrdersState());
-  dispatch(logout());
+  dispatch(logout({ context }));
 };
 
 // Action to update user data
@@ -106,31 +107,16 @@ export const clearUserError = () => (dispatch) => {
 
 // Action to check authentication status
 export const checkUserAuth = () => (dispatch) => {
-  const token = localStorage.getItem("token");
-  const userData = localStorage.getItem("user");
+  const context = getAuthContextFromPath();
+  const { token, user } = getStoredAuth(context);
 
-  if (token && userData) {
-    try {
-      const user = JSON.parse(userData);
-      // Validate that we have both token and user data
-      if (user && user.id) {
-        dispatch(checkAuth({ token, user }));
-      } else {
-        // Invalid user data, clear everything
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-        dispatch(logout());
-      }
-    } catch (error) {
-      // If parsing fails, clear invalid data
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      dispatch(logout());
-    }
-  } else {
-    // No token or user data, ensure logged out state
-    dispatch(logout());
+  if (token && user?.id) {
+    dispatch(checkAuth({ token, user, context }));
+    return;
   }
+
+  // Clear in-memory auth for this panel only. Leave the other panel's session intact.
+  dispatch(checkAuth({ token: null, user: null }));
 };
 
 // Action for password reset

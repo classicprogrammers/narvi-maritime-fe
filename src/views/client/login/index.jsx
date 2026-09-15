@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   Box,
   Button,
@@ -20,7 +20,8 @@ import { useDispatch } from "react-redux";
 import { loginSuccess } from "redux/slices/userSlice";
 import api from "api/axios";
 import { getApiEndpoint } from "config/api";
-import { getHomePathForUserType, resolveStoredUserType } from "utils/userType";
+import { AUTH_CONTEXTS, getStoredAuth } from "utils/authStorage";
+import { getHomePathForUserType, isClientUserType, resolveStoredUserType } from "utils/userType";
 
 function ClientLogin() {
   const history = useHistory();
@@ -44,6 +45,13 @@ function ClientLogin() {
     if (!formData.email) return "C";
     return formData.email.trim().charAt(0).toUpperCase();
   }, [formData.email]);
+
+  useEffect(() => {
+    const clientAuth = getStoredAuth(AUTH_CONTEXTS.CLIENT);
+    if (clientAuth.token && isClientUserType(clientAuth.user?.user_type)) {
+      history.replace(getHomePathForUserType(clientAuth.user.user_type));
+    }
+  }, [history]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;

@@ -17,7 +17,12 @@ describe("Redux Store Configuration", () => {
       isAuthenticated: false,
       isLoading: false,
       error: null,
-      token: localStorage.getItem("token") || null,
+      token: null,
+      signupLoading: false,
+      signupError: null,
+      forgotPasswordLoading: false,
+      forgotPasswordError: null,
+      forgotPasswordSuccess: false,
     };
 
     expect(state.user).toEqual(expectedInitialState);

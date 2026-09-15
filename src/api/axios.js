@@ -1,4 +1,10 @@
 import axios from "axios";
+import {
+  clearStoredAuth,
+  getAuthContextFromPath,
+  getCurrentStoredToken,
+  getLoginPathForContext,
+} from "../utils/authStorage";
 
 const api = axios.create({
   baseURL: process.env.REACT_APP_BACKEND_URL || process.env.REACT_APP_API_BASE_URL,
@@ -37,15 +43,15 @@ const api = axios.create({
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      // Validate token format before sending
-      if (token && token.trim() !== '') {
-        // Standard Bearer header
-        config.headers.Authorization = `Bearer ${token}`;
-      } else {
-        console.warn("Empty or invalid token found, not adding to request:", config.url);
-      }
+    const requestUrl = String(config.url || "");
+    const isLoginRequest = requestUrl.includes("/api/login");
+    if (isLoginRequest) {
+      return config;
+    }
+
+    const token = getCurrentStoredToken();
+    if (token && token.trim() !== "") {
+      config.headers.Authorization = `Bearer ${token}`;
     } else {
       console.warn("No token found in localStorage for request:", config.url);
     }
@@ -91,12 +97,9 @@ api.interceptors.response.use(
 
       if (shouldLogout) {
         console.log("Authentication error detected, logging out user");
-        // Clear authentication state
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-
-        // Redirect to login page
-        window.location.href = '/auth/sign-in';
+        const context = getAuthContextFromPath();
+        clearStoredAuth(context);
+        window.location.href = getLoginPathForContext(context);
         return Promise.reject(error);
       } else {
         // Log the error but don't logout for other types of errors

@@ -1,5 +1,6 @@
 import destinationsAPI from './destinations';
 import { getCached, MASTER_KEYS } from '../utils/masterDataCache';
+import { getCurrentStoredUser } from '../utils/authStorage';
 
 // Cache for storing lookup data
 const lookupCache = {
@@ -45,9 +46,8 @@ export const getEntityName = async (entityType, id) => {
             case 'users':
                 // For users, try to get from localStorage first
                 try {
-                    const currentUser = localStorage.getItem('user');
-                    if (currentUser) {
-                        const userData = JSON.parse(currentUser);
+                    const userData = getCurrentStoredUser();
+                    if (userData) {
                         if (userData.id === id) {
                             name = userData.name || userData.email || `User ${id}`;
                         } else {

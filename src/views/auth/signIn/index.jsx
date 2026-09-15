@@ -129,12 +129,6 @@ function SignIn() {
       const apiResult = await handleLoginApi(formData.email, formData.password);
 
       if (apiResult.success) {
-
-        // Store user data in localStorage
-        localStorage.setItem("user", JSON.stringify(apiResult.user));
-        localStorage.setItem("token", apiResult.token);
-
-        // Update Redux state directly
         dispatch(loginSuccess({
           user: apiResult.user,
           token: apiResult.token,

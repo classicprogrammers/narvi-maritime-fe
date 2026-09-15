@@ -1,5 +1,6 @@
 import { getApiEndpoint } from "../config/api";
 import api from "./axios";
+import { getCurrentStoredUser } from "../utils/authStorage";
 import { showApiModal } from "../components/ApiModal";
 
 const handleApiError = (error, operation) => {
@@ -45,10 +46,7 @@ const handleApiError = (error, operation) => {
 
 const getCurrentUserId = () => {
   try {
-    const raw = localStorage.getItem("user");
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed?.id ?? null;
+    return getCurrentStoredUser()?.id ?? null;
   } catch (_e) {
     return null;
   }

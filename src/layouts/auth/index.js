@@ -9,22 +9,24 @@ import { Box, useColorModeValue } from "@chakra-ui/react";
 import { SidebarContext } from "contexts/SidebarContext";
 // API Modal component
 import ApiModal from "components/ApiModal";
-// Redux
-import { useUser } from "redux/hooks/useUser";
+import { AUTH_CONTEXTS, getStoredAuth } from "utils/authStorage";
+import { isStaffUserType } from "utils/userType";
 
 // Custom Chakra theme
 export default function Auth() {
   // states and functions
   const [toggleSidebar, setToggleSidebar] = useState(false);
-  const { isAuthenticated, token } = useUser();
+  const adminAuth = getStoredAuth(AUTH_CONTEXTS.ADMIN);
+  const isAdminAuthenticated = Boolean(
+    adminAuth.token && isStaffUserType(adminAuth.user?.user_type)
+  );
   const history = useHistory();
 
   useEffect(() => {
-    // If user is already authenticated, redirect to dashboard
-    if (isAuthenticated && token) {
+    if (isAdminAuthenticated) {
       history.push("/admin/default");
     }
-  }, [isAuthenticated, token, history]);
+  }, [isAdminAuthenticated, history]);
 
   // functions for changing the states from components
   const getRoute = () => {
@@ -55,7 +57,7 @@ export default function Auth() {
   document.documentElement.dir = "ltr";
 
   // Don't render auth pages if user is authenticated
-  if (isAuthenticated && token) {
+  if (isAdminAuthenticated) {
     return null;
   }
 

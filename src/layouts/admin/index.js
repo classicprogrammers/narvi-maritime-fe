@@ -11,6 +11,7 @@ import routes, { hiddenRoutes, getFilteredRoutes } from "routes.js";
 // API Modal component
 import { useUser } from "redux/hooks/useUser";
 import { isClientUserType } from "utils/userType";
+import { getCurrentStoredToken } from "utils/authStorage";
 import ApiModal from "components/ApiModal";
 import { preloadAll, getCached, MASTER_KEYS } from "utils/masterDataCache";
 
@@ -35,7 +36,7 @@ export default function Dashboard(props) {
   // Preload master data once when user is authenticated (ref prevents re-running and infinite loop)
   const hasPreloadedRef = useRef(false);
   useEffect(() => {
-    if (!user || !localStorage.getItem("token")) return;
+    if (!user || !getCurrentStoredToken()) return;
     if (hasPreloadedRef.current) return;
     const cachedClients = getCached(MASTER_KEYS.CLIENTS);
     const cachedCountries = getCached(MASTER_KEYS.COUNTRIES);

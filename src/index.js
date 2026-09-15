@@ -1,3 +1,4 @@
+import "./bootstrapAuthStorage";
 import React from "react";
 import { createRoot } from "react-dom/client";
 import "assets/css/App.css";
@@ -12,16 +13,6 @@ import { ChakraProvider } from "@chakra-ui/react";
 import theme from "theme/theme";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AppWrapper from "./components/AppWrapper";
-
-// Keep only user and token in localStorage; clear all other keys
-try {
-  const token = localStorage.getItem("token");
-  const user = localStorage.getItem("user");
-  localStorage.clear();
-  if (token) localStorage.setItem("token", token);
-  if (user) localStorage.setItem("user", user);
-  sessionStorage.clear();
-} catch (_) { }
 
 const container = document.getElementById("root");
 const root = createRoot(container);

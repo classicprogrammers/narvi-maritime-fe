@@ -23,6 +23,7 @@ import { getSuppliers } from '../api/suppliers';
 import picAPI from '../api/pic';
 import destinationsAPI from '../api/destinations';
 import currenciesAPI from '../api/currencies';
+import { getCurrentStoredToken } from './authStorage';
 
 export const MASTER_KEYS = {
   CLIENTS: 'clients',
@@ -228,7 +229,7 @@ const fetchers = {
  * Call after login and when admin layout mounts (if cache empty).
  */
 export async function preloadAll() {
-  const token = localStorage.getItem('token');
+  const token = getCurrentStoredToken();
   if (!token) return;
 
   const toFetch = [];

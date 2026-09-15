@@ -1,12 +1,9 @@
 import axios from './axios';
+import { getCurrentStoredUserId } from '../utils/authStorage';
 
-// Helper to read current user id from localStorage
 const getCurrentUserId = () => {
   try {
-    const userData = localStorage.getItem('user');
-    if (!userData) return null;
-    const user = JSON.parse(userData);
-    return user?.id ?? null;
+    return getCurrentStoredUserId();
   } catch (_e) {
     return null;
   }

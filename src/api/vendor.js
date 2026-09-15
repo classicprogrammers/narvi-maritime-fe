@@ -1,6 +1,7 @@
 // Agent API functions (using vendor endpoints for backend compatibility)
 import { getApiEndpoint } from "../config/api";
 import api from "./axios";
+import { getCurrentStoredUser } from "../utils/authStorage";
 
 // Import the global modal system
 import { showApiModal } from "../components/ApiModal";
@@ -51,6 +52,20 @@ const normalizeUserId = (userId) => {
   }
   const parsed = parseInt(userId, 10);
   return Number.isNaN(parsed) ? userId : parsed;
+};
+
+const getStoredUserId = (normalize = false) => {
+  try {
+    const user = getCurrentStoredUser();
+    if (!user) return null;
+    return normalize ? normalizeUserId(user.id) : user.id;
+  } catch (parseError) {
+    console.warn(
+      "Failed to parse user data from localStorage:",
+      parseError
+    );
+    return null;
+  }
 };
 
 const normalizeBoolean = (value, fallback = false) => {
@@ -234,21 +249,7 @@ export const getCountriesApi = async () => {
 // Register Agent API
 export const registerVendorApi = async (agentData) => {
   try {
-    // Get user ID from localStorage
-    const userData = localStorage.getItem("user");
-    let userId = null;
-
-    if (userData) {
-      try {
-        const user = JSON.parse(userData);
-        userId = normalizeUserId(user.id);
-      } catch (parseError) {
-        console.warn(
-          "Failed to parse user data from localStorage:",
-          parseError
-        );
-      }
-    }
+    const userId = getStoredUserId(true);
 
     const payload = buildAgentPayload(agentData, userId);
 
@@ -404,21 +405,7 @@ export const getVendorsApi = async (filterParams = {}) => {
 // Get Agent by ID API
 export const getVendorByIdApi = async (agentId) => {
   try {
-    // Get user ID from localStorage
-    const userData = localStorage.getItem("user");
-    let userId = null;
-
-    if (userData) {
-      try {
-        const user = JSON.parse(userData);
-        userId = user.id;
-      } catch (parseError) {
-        console.warn(
-          "Failed to parse user data from localStorage:",
-          parseError
-        );
-      }
-    }
+    const userId = getStoredUserId();
 
     // Try different endpoint patterns with user_id
     const endpoints = [
@@ -473,21 +460,7 @@ export const getVendorByIdApi = async (agentId) => {
 // Update Agent API
 export const updateVendorApi = async (agentId, data) => {
   try {
-    // Get user ID from localStorage
-    const userData = localStorage.getItem("user");
-    let userId = null;
-
-    if (userData) {
-      try {
-        const user = JSON.parse(userData);
-        userId = normalizeUserId(user.id);
-      } catch (parseError) {
-        console.warn(
-          "Failed to parse user data from localStorage:",
-          parseError
-        );
-      }
-    }
+    const userId = getStoredUserId(true);
 
     const payload = {
       ...buildAgentPayload(data, userId),
@@ -549,21 +522,7 @@ export const deleteVendorApi = async (agentId) => {
       throw new Error("Agent ID is required for deletion");
     }
 
-    // Get user ID from localStorage
-    const userData = localStorage.getItem("user");
-    let userId = null;
-
-    if (userData) {
-      try {
-        const user = JSON.parse(userData);
-        userId = user.id;
-      } catch (parseError) {
-        console.warn(
-          "Failed to parse user data from localStorage:",
-          parseError
-        );
-      }
-    }
+    const userId = getStoredUserId();
 
     // Add agent_id and user information to the request body
     // Match the backend expectation: agent_id (required) and current_user (optional)

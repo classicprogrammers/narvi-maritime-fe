@@ -1,11 +1,20 @@
 import { createSlice } from "@reduxjs/toolkit";
+import {
+  clearStoredAuth,
+  getAuthContextFromPath,
+  getAuthContextFromUserType,
+  getStoredAuth,
+  setStoredAuth,
+} from "../../utils/authStorage";
+
+const initialAuth = getStoredAuth(getAuthContextFromPath());
 
 const initialState = {
   user: null,
   isAuthenticated: false,
   isLoading: false,
   error: null,
-  token: localStorage.getItem("token") || null,
+  token: initialAuth.token || null,
   signupLoading: false,
   signupError: null,
   forgotPasswordLoading: false,
@@ -27,9 +36,10 @@ const userSlice = createSlice({
       state.user = action.payload.user;
       state.token = action.payload.token;
       state.error = null;
-      localStorage.setItem("token", action.payload.token);
-      // Also store user in localStorage to persist user_type
-      localStorage.setItem("user", JSON.stringify(action.payload.user));
+      setStoredAuth(getAuthContextFromUserType(action.payload.user?.user_type), {
+        token: action.payload.token,
+        user: action.payload.user,
+      });
     },
     loginFailure: (state, action) => {
       state.isLoading = false;
@@ -37,9 +47,9 @@ const userSlice = createSlice({
       state.user = null;
       state.token = null;
       state.error = action.payload;
-      localStorage.removeItem("token");
+      clearStoredAuth(getAuthContextFromPath());
     },
-    logout: (state) => {
+    logout: (state, action) => {
       state.user = null;
       state.isAuthenticated = false;
       state.token = null;
@@ -49,8 +59,7 @@ const userSlice = createSlice({
       state.forgotPasswordLoading = false;
       state.forgotPasswordError = null;
       state.forgotPasswordSuccess = false;
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
+      clearStoredAuth(action.payload?.context || getAuthContextFromPath());
       sessionStorage.clear();
     },
     updateUser: (state, action) => {
@@ -62,12 +71,18 @@ const userSlice = createSlice({
       state.forgotPasswordError = null;
     },
     checkAuth: (state, action) => {
-      if (action.payload.token && action.payload.user) {
+      if (action.payload?.token && action.payload?.user) {
         state.isAuthenticated = true;
         state.user = action.payload.user;
         state.token = action.payload.token;
-        // Ensure user object in localStorage is updated
-        localStorage.setItem("user", JSON.stringify(action.payload.user));
+        setStoredAuth(
+          action.payload.context ||
+            getAuthContextFromUserType(action.payload.user?.user_type),
+          {
+            token: action.payload.token,
+            user: action.payload.user,
+          }
+        );
       } else {
         state.isAuthenticated = false;
         state.user = null;

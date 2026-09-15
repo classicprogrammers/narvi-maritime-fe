@@ -3,6 +3,19 @@ import { Route, useHistory } from "react-router-dom";
 import { useUser } from "../redux/hooks/useUser";
 import { Spinner, Center } from "@chakra-ui/react";
 import { isClientUserType, isStaffUserType } from "../utils/userType";
+import {
+  AUTH_CONTEXTS,
+  getAuthContextFromPath,
+  getStoredAuth,
+} from "../utils/authStorage";
+
+const hasValidSession = (context, auth) => {
+  if (!auth?.token || !auth?.user?.id) return false;
+  if (context === AUTH_CONTEXTS.CLIENT) {
+    return isClientUserType(auth.user.user_type);
+  }
+  return isStaffUserType(auth.user.user_type);
+};
 
 const ProtectedRoute = ({
   component: Component,
@@ -10,9 +23,10 @@ const ProtectedRoute = ({
   ...rest
 }) => {
   const history = useHistory();
-  const { isAuthenticated, token, user, checkAuth } = useUser();
+  const { checkAuth } = useUser();
   const [isChecking, setIsChecking] = useState(true);
   const hasCheckedRef = useRef(false);
+  const requiredContext = getAuthContextFromPath(rest.path);
 
   // Run auth check only once on mount (ref prevents effect from re-running due to checkAuth changing)
   useEffect(() => {
@@ -31,22 +45,12 @@ const ProtectedRoute = ({
   useEffect(() => {
     if (isChecking) return;
 
-    if (!isAuthenticated && !token) {
+    const storedAuth = getStoredAuth(requiredContext);
+    if (!hasValidSession(requiredContext, storedAuth)) {
       history.push(redirectPath);
-      return;
     }
+  }, [history, isChecking, redirectPath, requiredContext]);
 
-    const routePath = String(rest.path || "");
-    if (routePath.startsWith("/admin") && isClientUserType(user?.user_type)) {
-      history.replace("/Client/Vessels");
-      return;
-    }
-    if (routePath.startsWith("/Client") && isStaffUserType(user?.user_type)) {
-      history.replace("/admin/default");
-    }
-  }, [isAuthenticated, token, user, history, isChecking, redirectPath, rest.path]);
-
-  // Show loading spinner while checking authentication
   if (isChecking) {
     return (
       <Center h="100vh">
@@ -55,16 +59,8 @@ const ProtectedRoute = ({
     );
   }
 
-  // // Show loading or redirect if not authenticated
-  if (!isAuthenticated || !token) {
-    return null; // This will trigger the redirect in useEffect
-  }
-
-  const routePath = String(rest.path || "");
-  if (routePath.startsWith("/admin") && isClientUserType(user?.user_type)) {
-    return null;
-  }
-  if (routePath.startsWith("/Client") && isStaffUserType(user?.user_type)) {
+  const storedAuth = getStoredAuth(requiredContext);
+  if (!hasValidSession(requiredContext, storedAuth)) {
     return null;
   }
 
