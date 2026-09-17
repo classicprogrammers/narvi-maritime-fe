@@ -35,7 +35,6 @@ import {
   useDisclosure,
   useToast,
   Select,
-  Chip,
   Wrap,
   WrapItem,
   Checkbox,
