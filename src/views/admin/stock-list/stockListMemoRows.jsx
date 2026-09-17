@@ -438,11 +438,6 @@ function StockViewTableRowInner({
             </Td>
             <Td {...cellProps} {...sticky[2]}>
                 <StockCellText {...STOCK_CELL_TEXT_PROPS}>
-                    {renderText(item.stock_item_id)}
-                </StockCellText>
-            </Td>
-            <Td {...cellProps} {...sticky[3]}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
                     {getDisplayName(item.supplier_id || item.supplier)}
                 </StockCellText>
             </Td>
@@ -476,6 +471,11 @@ function StockViewTableRowInner({
                 </StockStatusBadge>
             </Td>
             <Td {...cellProps}>
+                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                    {item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-"}
+                </StockCellText>
+            </Td>
+            <Td {...cellProps}>
                 <StockCellText {...STOCK_CELL_TEXT_PROPS}>{item.origin_text || "-"}</StockCellText>
             </Td>
             <Td {...cellProps}>
@@ -506,11 +506,6 @@ function StockViewTableRowInner({
             </Td>
             <Td {...cellProps}>
                 <StockCellText {...STOCK_CELL_TEXT_PROPS}>{renderText(item.export_doc_2)}</StockCellText>
-            </Td>
-            <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
-                    {item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-"}
-                </StockCellText>
             </Td>
             <Td {...cellProps}>
                 <StockCellText {...STOCK_CELL_TEXT_PROPS}>
@@ -604,6 +599,11 @@ function StockViewTableRowInner({
                     onDownloadFile={onDownloadFile}
                     onOpenPreviousReports={onOpenPreviousReports}
                 />
+            </Td>
+            <Td {...cellProps}>
+                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                    {renderText(item.stock_item_id)}
+                </StockCellText>
             </Td>
             {showCancelReason && (
                 <Td {...cellProps}>
@@ -716,8 +716,7 @@ export const ClientViewTableRow = memo(ClientViewTableRowInner, (prev, next) => 
 
 const STOCK_VIEW_HEADER_COLUMNS = [
     { label: "VESSEL", stickyIndex: 1 },
-    { label: "STOCKITEMID", stickyIndex: 2 },
-    { label: "SUPPLIER", stickyIndex: 3 },
+    { label: "SUPPLIER", stickyIndex: 2 },
     { label: "REQ NO" },
     { label: "PO NUMBER" },
     { label: "SO NUMBER" },
@@ -725,6 +724,7 @@ const STOCK_VIEW_HEADER_COLUMNS = [
     { label: "SI COMBINED" },
     { label: "DI NUMBER" },
     { label: "STOCK STATUS" },
+    { label: "WAREHOUSE ID" },
     { label: "ORIGIN" },
     { label: "VIA HUB 1" },
     { label: "VIA HUB 2" },
@@ -733,7 +733,6 @@ const STOCK_VIEW_HEADER_COLUMNS = [
     { label: "SHIPPING DOCS" },
     { label: "EXPORT DOC 1" },
     { label: "EXPORT DOC 2" },
-    { label: "WAREHOUSE ID" },
     { label: "EXP READY FROM SUPPLIER" },
     { label: "DATE ON STOCK" },
     { label: "DAYS ON STOCK", textAlign: "center" },
@@ -751,6 +750,7 @@ const STOCK_VIEW_HEADER_COLUMNS = [
     { label: "CLIENT" },
     { label: "INTERNAL REMARKS" },
     { label: "FILES" },
+    { label: "STOCKITEMID" },
 ];
 
 function StockViewDataTableInner({

@@ -792,22 +792,22 @@ export default function Stocks() {
     const cellText = STOCK_CELL_TEXT_PROPS;
 
     const stockViewStickyBodyProps = useMemo(() => {
-        const widths = [48, 220, 140, 170];
-        const left = [0, 48, 268, 408];
-        return [0, 1, 2, 3].map((colIndex) => ({
+        const widths = [48, 220, 170];
+        const left = [0, 48, 268];
+        return [0, 1, 2].map((colIndex) => ({
             position: "sticky",
             left: `${left[colIndex]}px`,
             zIndex: 1,
             minW: `${widths[colIndex]}px`,
             w: `${widths[colIndex]}px`,
             maxW: colIndex === 1 ? undefined : `${widths[colIndex]}px`,
-            ...(colIndex === 3 ? { boxShadow: stickyEdgeShadow } : {}),
+            ...(colIndex === 2 ? { boxShadow: stickyEdgeShadow } : {}),
         }));
     }, [stickyEdgeShadow]);
     const stockViewStickyHeaderProps = useMemo(() => {
-        const widths = [48, 220, 140, 170];
-        const left = [0, 48, 268, 408];
-        return [0, 1, 2, 3].map((colIndex) => ({
+        const widths = [48, 220, 170];
+        const left = [0, 48, 268];
+        return [0, 1, 2].map((colIndex) => ({
             position: "sticky",
             left: `${left[colIndex]}px`,
             zIndex: 4,
@@ -816,14 +816,14 @@ export default function Stocks() {
             maxW: colIndex === 1 ? undefined : `${widths[colIndex]}px`,
             top: 0,
             bg: tableHeaderBg,
-            ...(colIndex === 3 ? { boxShadow: stickyEdgeShadow } : {}),
+            ...(colIndex === 2 ? { boxShadow: stickyEdgeShadow } : {}),
         }));
     }, [stickyEdgeShadow, tableHeaderBg]);
 
     const getStockViewStickyProps = (colIndex, isHeader = false) => {
-        if (colIndex < 0 || colIndex > 3) return {};
-        const widths = [48, 220, 140, 170];
-        const left = [0, 48, 268, 408];
+        if (colIndex < 0 || colIndex > 2) return {};
+        const widths = [48, 220, 170];
+        const left = [0, 48, 268];
         return {
             position: "sticky",
             left: `${left[colIndex]}px`,
@@ -832,7 +832,7 @@ export default function Stocks() {
             w: `${widths[colIndex]}px`,
             maxW: colIndex === 1 ? undefined : `${widths[colIndex]}px`,
             ...(isHeader ? { top: 0, bg: tableHeaderBg } : {}),
-            ...(colIndex === 3 ? { boxShadow: stickyEdgeShadow } : {}),
+            ...(colIndex === 2 ? { boxShadow: stickyEdgeShadow } : {}),
         };
     };
     const stockTableLoading = (
@@ -3836,9 +3836,6 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "vessel_id", item.vessel_id || item.vessel, "select", vessels.map(v => ({ value: v.id, label: v.name }))) : <StockCellText {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "stock_item_id", item.stock_item_id || item.stock_id, "text", null, { enabled: false }) : <StockCellText {...cellText}>{renderText(item.stock_item_id || item.stock_id)}</StockCellText>}
-                        </Td>
-                        <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "supplier_id", item.supplier_id, "select", vendors.map(v => ({ value: v.id, label: v.name }))) : <StockCellText {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
@@ -3906,6 +3903,9 @@ export default function Stocks() {
                                 </StockStatusBadge>
                             )}
                         </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "warehouse_new", item.warehouse_new || item.warehouse_id || item.stock_warehouse) : <StockCellText {...cellText}>{renderText(item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-")}</StockCellText>}
+                        </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                             {isEditing ? renderEditableCell(item, "origin_text", item.origin_text, "text") : <StockCellText {...cellText}>{item.origin_text || "-"}</StockCellText>}
                         </Td>
@@ -3941,9 +3941,6 @@ export default function Stocks() {
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "export_doc_2", item.export_doc_2, "textarea") : <StockCellText {...cellText}>{renderText(item.export_doc_2)}</StockCellText>}
-                        </Td>
-                        <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "warehouse_new", item.warehouse_new || item.warehouse_id || item.stock_warehouse) : <StockCellText {...cellText}>{renderText(item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-")}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "exp_ready_in_stock", item.exp_ready_in_stock || item.ready_ex_supplier, "date") : <StockCellText {...cellText}>{formatDate(item.exp_ready_in_stock || item.ready_ex_supplier)}</StockCellText>}
@@ -4039,6 +4036,9 @@ export default function Stocks() {
                                     setStockReportHistoryContext({ entries, stockItemId })
                                 }
                             />
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "stock_item_id", item.stock_item_id || item.stock_id, "text", null, { enabled: false }) : <StockCellText {...cellText}>{renderText(item.stock_item_id || item.stock_id)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? (
@@ -6247,7 +6247,6 @@ export default function Stocks() {
                                             {activeTab === 0 ? (
                                                 <>
                                                     <Th {...headerProps}>VESSEL</Th>
-                                                    <Th {...headerProps}>STOCKITEMID</Th>
                                                     <Th {...headerProps}>SUPPLIER</Th>
                                                     <Th {...headerProps}>REQ NO</Th>
                                                     <Th {...headerProps}>PO NUMBER</Th>
@@ -6256,6 +6255,7 @@ export default function Stocks() {
                                                     <Th {...headerProps}>SI COMBINED</Th>
                                                     <Th {...headerProps}>DI NUMBER</Th>
                                                     <Th {...headerProps}>STOCK STATUS</Th>
+                                                    <Th {...headerProps}>WAREHOUSE ID</Th>
                                                     <Th {...headerProps}>ORIGIN</Th>
                                                     <Th {...headerProps}>HUB 1</Th>
                                                     <Th {...headerProps}>HUB 2</Th>
@@ -6264,7 +6264,6 @@ export default function Stocks() {
                                                     <Th {...headerProps}>SHIPPING DOCS</Th>
                                                     <Th {...headerProps}>EXPORT DOC 1</Th>
                                                     <Th {...headerProps}>EXPORT DOC 2</Th>
-                                                    <Th {...headerProps}>WAREHOUSE ID</Th>
                                                     <Th {...headerProps}>EXP READY FROM SUPPLIER</Th>
                                                     <Th {...headerProps}>DATE ON STOCK</Th>
                                                     <Th {...headerProps} textAlign="center">DAYS ON STOCK</Th>
@@ -6282,6 +6281,7 @@ export default function Stocks() {
                                                     <Th {...headerProps}>CLIENT</Th>
                                                     <Th {...headerProps}>INTERNAL REMARKS</Th>
                                                     <Th {...headerProps}>FILES</Th>
+                                                    <Th {...headerProps}>STOCKITEMID</Th>
                                                     <Th {...headerProps}>ACTIONS</Th>
                                                 </>
                                             ) : (
