@@ -21,28 +21,6 @@ const normalizeStatusList = (value) => {
     .filter((s) => s !== "");
 };
 
-const endpointAllowedStatuses = {
-  active: ["pending", "stock", "in_transit"],
-  completed: ["shipped", "delivered"],
-};
-
-const normalizeStatusForEndpoint = (statusCsv, endpointType) => {
-  const statuses = normalizeStatusList(statusCsv);
-  if (!statuses.length) return undefined;
-
-  const allowed = endpointAllowedStatuses[endpointType];
-  if (!allowed) return statuses.join(",");
-
-  const invalid = statuses.filter((s) => !allowed.includes(s));
-  if (invalid.length) {
-    throw new Error(
-      `Invalid status for ${endpointType} jobs: ${invalid.join(", ")}. Allowed: ${allowed.join(", ")}`
-    );
-  }
-
-  return statuses.join(",");
-};
-
 const STOCK_SEMANTIC_SORTS = new Set([
   "origin_ap_destination",
   "via_hub",
@@ -57,7 +35,7 @@ const STOCK_SEMANTIC_SORTS = new Set([
   "vessel_via_hub_status",
 ]);
 
-export const buildCommonStockJobFilters = (params = {}, endpointType = "stock") => {
+export const buildCommonStockJobFilters = (params = {}) => {
   const requestParams = {};
   const assign = (key, value) => {
     if (isPresent(value)) {
@@ -66,8 +44,14 @@ export const buildCommonStockJobFilters = (params = {}, endpointType = "stock") 
   };
 
   assign("search", params.search);
+  assign("name", params.name);
   assign("date_from", params.date_from);
   assign("date_to", params.date_to);
+  assign("date_on_stock_from", params.date_on_stock_from ?? params.date_from);
+  assign("date_on_stock_to", params.date_on_stock_to ?? params.date_to);
+  assign("po_text", params.po_text ?? params.po_number);
+  assign("req_no", params.req_no);
+  assign("destination", params.destination);
   assign("min_weight", params.min_weight);
   assign("max_weight", params.max_weight);
   assign("min_value", params.min_value);
@@ -75,10 +59,6 @@ export const buildCommonStockJobFilters = (params = {}, endpointType = "stock") 
   assign("min_days", params.min_days);
   assign("max_days", params.max_days);
   assign("origin_text", params.origin_text);
-  // Jobs list APIs still accept `origin`; stock list uses `origin_text` only.
-  if (endpointType !== "stock") {
-    assign("origin", params.origin);
-  }
   assign("so_number", params.so_number);
   assign("stock_item_id", params.stock_item_id);
   assign("remarks", params.remarks);
@@ -102,11 +82,9 @@ export const buildCommonStockJobFilters = (params = {}, endpointType = "stock") 
     assign("sort_order", params.sort_order);
   }
 
-  const statusCsv = normalizeStatusForEndpoint(
-    params.status ?? params.stock_status,
-    endpointType
-  );
-  if (statusCsv) {
+  const statuses = normalizeStatusList(params.status ?? params.stock_status);
+  if (statuses.length) {
+    const statusCsv = statuses.join(",");
     requestParams.status = statusCsv;
     requestParams.stock_status = statusCsv;
   }

@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Badge,
   Box,
   Button,
   Checkbox,
@@ -45,47 +44,49 @@ import {
   MdTableChart,
 } from "react-icons/md";
 import clientStockApi from "api/clientStock";
-import clientJobsApi from "api/clientJobs";
 import clientVesselApi from "api/clientVessel";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import {
-  CLIENT_PORTAL_ACTIVE_STATUS_OPTIONS,
-  FALLBACK_ARCHIVE_STATUS_OPTIONS,
   getClientPortalStatusOptionsForActiveFilter,
+  formatStockStatusLabel,
   isArchiveStockStatus,
   normalizeStockStatusKey,
   resolveClientPortalNavStockStatus,
   resolveStockListActiveParam,
 } from "constants/stockStatus";
-import { getCappedStockReportEntriesForDisplay } from "utils/stockReportAttachmentsUi";
+import { getAttachmentEntriesNewestFirst } from "utils/stockReportAttachmentsUi";
 import { normalizeLegacyStockReportFilename } from "utils/stockReportPdf";
 import StockListAttachmentsCell from "components/stock-list/StockListAttachmentsCell";
 import StockCellText, { getStockCellTooltip } from "components/stock-list/StockCellText";
+import StockSoNumberLink from "components/stock-list/StockSoNumberLink";
+import { openClientShippingOrdersFiltered } from "utils/shippingOrderListState";
 import StockReportHistoryModal from "components/stock-list/StockReportHistoryModal";
 import { useStockAttachmentsGallery } from "hooks/useStockAttachmentsGallery";
 import StockHubSortMenuItems from "components/stock-list/StockHubSortMenuItems";
-import { getStockHubSortField, isStockHubSortOption } from "constants/stockHubSort";
+import {
+  StockStatusBadge,
+  getStockRowStatusStyle,
+} from "components/stock-list/StockStatusBadge";
+import {
+  getStockHubSortField,
+  isStockHubSortOption,
+} from "constants/stockHubSort";
 import {
   getClientStockSortButtonLabel,
   mapStockSortOptionToApiSortBy,
 } from "utils/stockSortOptions";
 import { formatStockValueDisplay } from "utils/stockValue";
-import { formatStockDestinationDisplay } from "utils/stockDestinationOptions";
+import { formatStockDestinationDisplay, getStockM2OId } from "utils/stockDestinationOptions";
 import {
   getStockEffectiveHubDisplay,
   getStockOriginDisplay,
   getStockViaHub1Display,
   getStockViaHub2Display,
+  resolveStockLocationOptionId,
 } from "utils/stockLocationOptions";
 import clientHubApi, { getClientHubFilterId, toClientHubOptionValue } from "api/clientHub";
 import { clearClientNavigationState } from "views/client/dashboard/clientDashboardNavigation";
 import * as XLSX from "xlsx";
-
-/**
- * Client portal only (/Client/Stock): stock report PDFs are shown only when status is Stock.
- * Admin stock list (/admin/stock-list/stocks) shows reports for every status — do not reuse here.
- */
-const isClientPortalStockStatus = (status) => normalizeStockStatusKey(status) === "stock";
 
 const toClientStockDisplay = (value) => {
   if (value == null || value === false || value === "") return "-";
@@ -98,12 +99,12 @@ const toClientStockDisplay = (value) => {
 };
 
 const mapClientStockRows = (stockList, clientName = "") =>
-  (Array.isArray(stockList) ? stockList : []).map((item, idx) => {
+  (Array.isArray(stockList) ? stockList : [])
+    .filter((item) => normalizeStockStatusKey(item.stock_status) !== "cancelled")
+    .map((item, idx) => {
     const stockStatusRaw = item.stock_status;
     const stockStatusKey = normalizeStockStatusKey(stockStatusRaw);
-    const reportEntries = isClientPortalStockStatus(stockStatusKey)
-      ? getCappedStockReportEntriesForDisplay(item.attachments)
-      : [];
+    const reportEntries = getAttachmentEntriesNewestFirst(item.attachments);
     const reportAttachments = reportEntries.map((e) => e.att);
     return {
       id: `${item.id ?? item.stock_item_id ?? "stock"}-${idx}`,
@@ -124,8 +125,12 @@ const mapClientStockRows = (stockList, clientName = "") =>
         Array.isArray(item.po_number) && item.po_number.length
           ? item.po_number.map((x) => String(x)).join(", ")
           : toClientStockDisplay(item.po_text),
+      reqNo:
+        Array.isArray(item.req_no) && item.req_no.length
+          ? item.req_no.map((x) => String(x)).join(", ")
+          : toClientStockDisplay(item.req_no).replace(/\n+/g, ", "),
       dgUnNumber: toClientStockDisplay(item.dg_un_number || item.dg_un),
-      boxes: formatStockValueDisplay(item.boxes ?? item.box ?? item.pieces ?? item.pcs?.count),
+      boxes: toClientStockDisplay(item.boxes ?? item.box ?? item.pieces ?? item.pcs?.count),
       weight: formatStockValueDisplay(item.weight ?? item.weight_kg),
       totalVolumeCbm: formatStockValueDisplay(item.total_volume_cbm),
       origin: toClientStockDisplay(getStockOriginDisplay(item)),
@@ -135,13 +140,18 @@ const mapClientStockRows = (stockList, clientName = "") =>
       viaHub2: toClientStockDisplay(getStockViaHub2Display(item)),
       effectiveHub: toClientStockDisplay(getStockEffectiveHubDisplay(item)),
       apDestination: toClientStockDisplay(formatStockDestinationDisplay(item, "ap")),
+      destinationId: getStockM2OId(item.narvi_stock_destination),
       destination: toClientStockDisplay(formatStockDestinationDisplay(item, "destination")),
       stockStatus: toClientStockDisplay(stockStatusRaw),
       stockStatusRaw,
-      soNumber: toClientStockDisplay(item.so_number),
+      so_id: item.so_id,
+      stock_so_number: item.stock_so_number,
+      so_number: item.so_number,
+      soNumber: toClientStockDisplay(item.so_number || item.stock_so_number || item.so_id),
       currency: toClientStockDisplay(item.currency),
       value: formatStockValueDisplay(item.value),
       deliveryIrregularities: toClientStockDisplay(item.delivery_irregularities),
+      remarks: toClientStockDisplay(item.remarks),
       poRemarks: toClientStockDisplay(item.po_remarks),
       createDate: toClientStockDisplay(item.create_date),
       writeDate: toClientStockDisplay(item.write_date),
@@ -176,44 +186,227 @@ const EMPTY_CLIENT_STOCK_FILTERS = {
   location: "",
   destination: "",
   poNumber: "",
+  reqNo: "",
 };
 
-const VARIANT_CONFIG = {
-  stock: {
-    title: "Stock Report",
-    excelSheet: "Stock Report",
-    excelFilePrefix: "stock-report",
-    loadingLabel: "Loading stock report...",
-    emptyLabel: "No stock records found.",
-    searchPlaceholder: "Search stock id, remarks, origin, vessel...",
-    showActiveToggle: true,
-    defaultActiveFilter: "true",
-  },
-  ongoing: {
-    title: "Ongoing Jobs",
-    excelSheet: "Ongoing Jobs",
-    excelFilePrefix: "ongoing-jobs",
-    loadingLabel: "Loading ongoing jobs...",
-    emptyLabel: "No ongoing jobs found.",
-    searchPlaceholder: "Search stock id, remarks, origin, vessel...",
-    showActiveToggle: true,
-    defaultActiveFilter: "true",
-  },
-  completed: {
-    title: "Completed Jobs",
-    excelSheet: "Completed Jobs",
-    excelFilePrefix: "completed-jobs",
-    loadingLabel: "Loading completed jobs...",
-    emptyLabel: "No completed jobs found.",
-    searchPlaceholder: "Search stock id, remarks, origin, vessel...",
-    showActiveToggle: true,
-    defaultActiveFilter: "false",
-  },
+const PAGE_COPY = {
+  title: "Stock Report",
+  excelSheet: "Stock Report",
+  excelFilePrefix: "stock-report",
+  loadingLabel: "Loading stock report...",
+  emptyLabel: "No stock records found.",
+  searchPlaceholder: "Search stock id, remarks, origin, vessel...",
 };
 
-const COMPLETED_JOB_STATUS_OPTIONS = FALLBACK_ARCHIVE_STATUS_OPTIONS.filter((option) =>
-  ["shipped", "delivered"].includes(option.value)
-);
+const CLIENT_STOCK_SEARCH_KEYS = [
+  "stockItemId",
+  "stockNumber",
+  "vessel",
+  "supplier",
+  "poNo",
+  "reqNo",
+  "origin",
+  "destination",
+  "viaHub1",
+  "viaHub2",
+  "apDestination",
+  "soNumber",
+  "client",
+  "remarks",
+  "poRemarks",
+  "shippingDoc",
+  "stockStatus",
+  "dgUnNumber",
+  "location",
+  "effectiveHub",
+  "exportDoc1",
+  "exportDoc2",
+];
+
+const STOCK_STATUS_SORT_ORDER = [
+  "pending",
+  "stock",
+  "in_transit",
+  "arrived",
+  "on_shipping",
+  "on_delivery",
+  "irregular",
+];
+
+const STOCK_STATUS_SORT_ALIASES = {
+  arrived_dest: "arrived",
+  arrived_destination: "arrived",
+  on_a_shipping_instr: "on_shipping",
+  on_a_shipping_instruction: "on_shipping",
+  on_a_shipping_order: "on_shipping",
+  on_shipping: "on_shipping",
+  on_a_delivery_instr: "on_delivery",
+  on_a_delivery_instruction: "on_delivery",
+  on_a_delivery_order: "on_delivery",
+  on_delivery: "on_delivery",
+  irregularities: "irregular",
+  irregular: "irregular",
+};
+
+const hasClientStockDisplayValue = (value) => {
+  const text = String(value ?? "").trim();
+  return Boolean(text) && text !== "-";
+};
+
+const filterClientStockSearch = (rows, query) => {
+  const q = String(query || "").trim().toLowerCase();
+  if (!q) return rows;
+  return rows.filter((row) =>
+    CLIENT_STOCK_SEARCH_KEYS.some((key) => {
+      const value = row[key];
+      if (!hasClientStockDisplayValue(value)) return false;
+      return String(value).toLowerCase().includes(q);
+    })
+  );
+};
+
+const filterClientStockByHubSort = (rows, sortOption) => {
+  if (!isStockHubSortOption(sortOption)) return rows;
+  return rows.filter((row) => {
+    if (sortOption === "origin_ap_destination") {
+      return hasClientStockDisplayValue(row.origin) && hasClientStockDisplayValue(row.apDestination);
+    }
+    if (sortOption === "via_hub") return hasClientStockDisplayValue(row.viaHub1);
+    if (sortOption === "via_hub_ap_destination") {
+      return hasClientStockDisplayValue(row.viaHub1) && hasClientStockDisplayValue(row.apDestination);
+    }
+    if (sortOption === "via_hub_via_hub2") {
+      return hasClientStockDisplayValue(row.viaHub1) && hasClientStockDisplayValue(row.viaHub2);
+    }
+    if (sortOption === "via_hub_via_hub2_ap_destination") {
+      return (
+        hasClientStockDisplayValue(row.viaHub1) &&
+        hasClientStockDisplayValue(row.viaHub2) &&
+        hasClientStockDisplayValue(row.apDestination)
+      );
+    }
+    return true;
+  });
+};
+
+const normalizeStatusForClientSort = (status) => {
+  const key = normalizeStockStatusKey(status);
+  return STOCK_STATUS_SORT_ALIASES[key] || key;
+};
+
+const sortClientStockRows = (rows, sortOption) => {
+  if (!sortOption || sortOption === "none") return rows;
+  const next = [...rows];
+  const getViaHub1 = (row) =>
+    String(row.viaHub1 && row.viaHub1 !== "-" ? row.viaHub1 : "").toLowerCase().trim();
+  const getViaHub2 = (row) =>
+    String(row.viaHub2 && row.viaHub2 !== "-" ? row.viaHub2 : "").toLowerCase().trim();
+  const getApDestination = (row) =>
+    String(row.apDestination && row.apDestination !== "-" ? row.apDestination : "").toLowerCase().trim();
+  const getViaHub = (row) =>
+    String(row.viaHub2 && row.viaHub2 !== "-" ? row.viaHub2 : row.viaHub1 || "").toLowerCase().trim();
+  const getEffectiveHub = (row) => {
+    const explicit = row.effectiveHub != null && row.effectiveHub !== "-" ? String(row.effectiveHub) : "";
+    if (explicit.trim()) return explicit.toLowerCase().trim();
+    return getViaHub(row);
+  };
+  const getVessel = (row) => String(row.vessel || "").toLowerCase().trim();
+  const compareStatus = (a, b) => {
+    const aStatus = normalizeStatusForClientSort(a.stockStatusRaw || a.stockStatus);
+    const bStatus = normalizeStatusForClientSort(b.stockStatusRaw || b.stockStatus);
+    const aRank = STOCK_STATUS_SORT_ORDER.indexOf(aStatus);
+    const bRank = STOCK_STATUS_SORT_ORDER.indexOf(bStatus);
+    const aOrder = aRank >= 0 ? aRank : 999;
+    const bOrder = bRank >= 0 ? bRank : 999;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return aStatus.localeCompare(bStatus);
+  };
+
+  if (isStockHubSortOption(sortOption)) {
+    const hubSortField = getStockHubSortField(sortOption);
+    const getHubSortValue = (row) => {
+      if (hubSortField === "narvi_stock_via_hub1") return getViaHub1(row);
+      if (hubSortField === "narvi_stock_via_hub2") return getViaHub2(row);
+      if (hubSortField === "narvi_stock_ap_destination") return getApDestination(row);
+      return getEffectiveHub(row);
+    };
+    next.sort((a, b) => getHubSortValue(a).localeCompare(getHubSortValue(b)));
+    return next;
+  }
+  if (sortOption === "via_vessel") {
+    next.sort((a, b) => getVessel(a).localeCompare(getVessel(b)));
+    return next;
+  }
+  if (sortOption === "status") {
+    next.sort(compareStatus);
+    return next;
+  }
+  if (sortOption === "via_hub_status") {
+    next.sort((a, b) => {
+      const hubCmp = getEffectiveHub(a).localeCompare(getEffectiveHub(b));
+      if (hubCmp !== 0) return hubCmp;
+      return compareStatus(a, b);
+    });
+    return next;
+  }
+  if (sortOption === "via_vessel_status") {
+    next.sort((a, b) => {
+      const vesselCmp = getVessel(a).localeCompare(getVessel(b));
+      if (vesselCmp !== 0) return vesselCmp;
+      return compareStatus(a, b);
+    });
+    return next;
+  }
+  if (sortOption === "via_vessel_via_hub_status") {
+    next.sort((a, b) => {
+      const vesselCmp = getVessel(a).localeCompare(getVessel(b));
+      if (vesselCmp !== 0) return vesselCmp;
+      const hubCmp = getEffectiveHub(a).localeCompare(getEffectiveHub(b));
+      if (hubCmp !== 0) return hubCmp;
+      return compareStatus(a, b);
+    });
+    return next;
+  }
+  return next;
+};
+
+const applyClientStockSearchSort = (rows, searchQuery, sortOption) =>
+  sortClientStockRows(
+    filterClientStockByHubSort(filterClientStockSearch(rows, searchQuery), sortOption),
+    sortOption
+  );
+
+const formatClientStockReportNames = (row) => {
+  const names = (row?.reportAttachments || [])
+    .map((att) => String(att?.filename || att?.name || "").trim())
+    .filter(Boolean);
+  return names.length ? names.join(", ") : "-";
+};
+
+const CLIENT_STOCK_EXPORT_COLUMNS = [
+  { header: "Vessel", value: (row) => row.vessel || "-" },
+  { header: "Stock ID", value: (row) => row.stockItemId || "-" },
+  { header: "Supplier", value: (row) => row.supplier || "-" },
+  { header: "Req No", value: (row) => row.reqNo || "-" },
+  { header: "PO#", value: (row) => row.poNo || "-" },
+  { header: "Stock Status", value: (row) => row.stockStatus || "-" },
+  { header: "Date On Stock", value: (row) => row.dateOnStock || "-" },
+  { header: "Boxes", value: (row) => row.boxes || "-" },
+  { header: "Weight", value: (row) => row.weight || "-" },
+  { header: "Total Volume CBM", value: (row) => row.totalVolumeCbm || "-" },
+  { header: "Origin", value: (row) => row.origin || "-" },
+  { header: "Via Hub 1", value: (row) => row.viaHub1 || "-" },
+  { header: "Via Hub 2", value: (row) => row.viaHub2 || "-" },
+  { header: "AP Destination", value: (row) => row.apDestination || "-" },
+  { header: "Destination", value: (row) => row.destination || "-" },
+  { header: "SO Number", value: (row) => row.soNumber || "-" },
+  { header: "Currency", value: (row) => row.currency || "-" },
+  { header: "Value", value: (row) => row.value || "-" },
+  { header: "Client", value: (row) => row.client || "-" },
+  { header: "DG/UN Number", value: (row) => row.dgUnNumber || "-" },
+  { header: "Report", value: (row) => formatClientStockReportNames(row) },
+];
+const DEFAULT_ACTIVE_FILTER = "true";
 
 const getClientStockNavState = (location) => {
   const state = location?.state;
@@ -237,9 +430,7 @@ const getClientStockNavState = (location) => {
   });
   const stockStatus = state.dashboardFilter?.stockStatus
     ? String(state.dashboardFilter.stockStatus)
-    : state.dashboardFilter?.jobStatus
-      ? String(state.dashboardFilter.jobStatus)
-      : "";
+    : "";
   return {
     selectedVessel,
     selectedVesselId,
@@ -263,9 +454,8 @@ const getInitialClientStockFilters = (nav) => ({
   status: resolveClientPortalNavStockStatus(nav.stockStatus),
 });
 
-function ClientStockReportView({ variant = "stock" }) {
+function ClientStockReportView() {
   const location = useLocation();
-  const variantConfig = VARIANT_CONFIG[variant] || VARIANT_CONFIG.stock;
   const [stockRows, setStockRows] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [clientName, setClientName] = useState("");
@@ -277,6 +467,8 @@ function ClientStockReportView({ variant = "stock" }) {
   );
   const [search, setSearch] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [poNumberQuery, setPoNumberQuery] = useState("");
+  const [reqNoQuery, setReqNoQuery] = useState("");
   const [entries, setEntries] = useState("50");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -296,11 +488,13 @@ function ClientStockReportView({ variant = "stock" }) {
   const [selectedDimensions, setSelectedDimensions] = useState([]);
   const [clientSortOption, setClientSortOption] = useState("none");
   const [activeFilter, setActiveFilter] = useState(() => {
-    const stockStatus = getClientStockNavState(location).stockStatus;
+    const stockStatus = resolveClientPortalNavStockStatus(
+      getClientStockNavState(location).stockStatus
+    );
     if (stockStatus) {
       return isArchiveStockStatus(stockStatus) ? "false" : "true";
     }
-    return variantConfig.defaultActiveFilter;
+    return DEFAULT_ACTIVE_FILTER;
   });
   const [previousReportsModal, setPreviousReportsModal] = useState({
     isOpen: false,
@@ -323,97 +517,85 @@ function ClientStockReportView({ variant = "stock" }) {
   const tableRowHoverBg = useColorModeValue("gray.50", "whiteAlpha.100");
   const tableRowEvenBg = useColorModeValue("blackAlpha.50", "whiteAlpha.50");
   const tableOverlayBg = useColorModeValue("whiteAlpha.800", "blackAlpha.500");
-  const statusColorMap = {
-    pending: "orange",
-    stock: "blue",
-    available: "green",
-    delivered: "green",
-    released: "gray",
-    shipped: "teal",
-    in_transit: "purple",
-    transit: "purple",
-    cancelled: "red",
-    lost: "red",
-    hold: "yellow",
-  };
 
-  const statusFilterOptions = useMemo(() => {
-    if (variant === "stock") {
-      return getClientPortalStatusOptionsForActiveFilter(activeFilter);
-    }
-    if (activeFilter === "false") return COMPLETED_JOB_STATUS_OPTIONS;
-    return CLIENT_PORTAL_ACTIVE_STATUS_OPTIONS;
-  }, [activeFilter, variant]);
+  const statusFilterOptions = useMemo(
+    () => getClientPortalStatusOptionsForActiveFilter(activeFilter),
+    [activeFilter]
+  );
 
   const resolvedVesselId = useMemo(() => {
     const fromOptions = vesselFilterOptions.find((v) => v.name === filters.vessel)?.id;
     return fromOptions ?? navVesselId ?? undefined;
   }, [filters.vessel, navVesselId, vesselFilterOptions]);
 
+  const usesLocalSearchSort =
+    Boolean(String(searchQuery || "").trim()) ||
+    Boolean(clientSortOption && clientSortOption !== "none");
+  const fetchPage = usesLocalSearchSort ? 1 : currentPage;
+
   const buildStockQueryParams = useCallback(
     (overrides = {}) => {
       const hubValue = String(filters.location || "").trim();
       const hubId = hubValue && !hubValue.startsWith("name:") ? getClientHubFilterId(hubValue) : null;
       const hubName = hubValue.startsWith("name:") ? hubValue.slice(5) : "";
+      const destinationValue = String(filters.destination || "").trim();
+      const destinationId = resolveStockLocationOptionId(destinationValue);
       return {
         search: searchQuery || undefined,
-        stock_status: filters.status || undefined,
+        name: searchQuery || undefined,
+        stock_status: resolveClientPortalNavStockStatus(filters.status) || undefined,
         sort_by: mapStockSortOptionToApiSortBy(clientSortOption),
         date_from: filters.fromDate || undefined,
         date_to: filters.toDate || undefined,
+        date_on_stock_from: filters.fromDate || undefined,
+        date_on_stock_to: filters.toDate || undefined,
         vessel_id: resolvedVesselId,
         narvi_stock_via_hub1: hubId != null ? hubId : undefined,
         via_hub: hubId == null && hubName ? hubName : undefined,
         hub: hubId == null && hubName ? hubName : undefined,
-        ...(variant === "stock"
-          ? { active: resolveStockListActiveParam(activeFilter) }
-          : {}),
+        po_text: poNumberQuery || undefined,
+        req_no: reqNoQuery || undefined,
+        narvi_stock_destination: destinationId ?? undefined,
+        destination: destinationId == null && destinationValue ? destinationValue : undefined,
+        active: resolveStockListActiveParam(activeFilter),
         ...overrides,
       };
     },
     [
       activeFilter,
       clientSortOption,
+      filters.destination,
       filters.fromDate,
       filters.location,
       filters.status,
       filters.toDate,
+      poNumberQuery,
+      reqNoQuery,
       resolvedVesselId,
       searchQuery,
-      variant,
     ]
-  );
-
-  const fetchStockList = useCallback(
-    async (params) => {
-      if (variant === "stock") {
-        return clientStockApi.getClientStock(params);
-      }
-      if (resolveStockListActiveParam(activeFilter) === "false") {
-        return clientJobsApi.getCompletedJobs(params);
-      }
-      return clientJobsApi.getActiveJobs(params);
-    },
-    [activeFilter, variant]
   );
 
   const fetchStock = useCallback(async () => {
     setIsLoading(true);
     try {
       const pageSize = Number(entries) || 50;
-      const res = await fetchStockList(
-        buildStockQueryParams({
-          page: currentPage,
-          page_size: pageSize,
-        })
+      const res = await clientStockApi.getClientStock(
+        buildStockQueryParams(
+          usesLocalSearchSort
+            ? { fetch_all: true }
+            : { page: fetchPage, page_size: pageSize }
+        )
       );
       const nextClientName = res?.client?.name || "";
       setStockRows(mapClientStockRows(res?.stock_list, nextClientName));
       setClientName(nextClientName);
-      setTotalCount(res.total_count ?? res.count ?? 0);
-      setTotalPages(Math.max(1, res.total_pages || 1));
-      setHasNext(Boolean(res.has_next));
-      setHasPrevious(Boolean(res.has_previous));
+      if (!usesLocalSearchSort) {
+        setTotalCount(res.total_count ?? res.count ?? 0);
+        setTotalPages(Math.max(1, res.total_pages || 1));
+        setHasNext(Boolean(res.has_next));
+        setHasPrevious(Boolean(res.has_previous));
+      }
     } catch (_e) {
       setStockRows([]);
       setClientName("");
@@ -424,7 +606,7 @@ function ClientStockReportView({ variant = "stock" }) {
     } finally {
       setIsLoading(false);
     }
-  }, [buildStockQueryParams, currentPage, entries, fetchStockList]);
+  }, [buildStockQueryParams, entries, fetchPage, usesLocalSearchSort]);
 
   const fetchVesselFilterOptions = useCallback(async () => {
     try {
@@ -485,6 +667,26 @@ function ClientStockReportView({ variant = "stock" }) {
   }, [search, searchQuery]);
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      const nextQuery = String(filters.poNumber || "").trim();
+      if (nextQuery === poNumberQuery) return;
+      setPoNumberQuery(nextQuery);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [filters.poNumber, poNumberQuery]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const nextQuery = String(filters.reqNo || "").trim();
+      if (nextQuery === reqNoQuery) return;
+      setReqNoQuery(nextQuery);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [filters.reqNo, reqNoQuery]);
+
+  useEffect(() => {
     fetchStock();
   }, [fetchStock]);
 
@@ -493,104 +695,46 @@ function ClientStockReportView({ variant = "stock" }) {
     fetchHubFilterOptions();
   }, [fetchHubFilterOptions, fetchVesselFilterOptions]);
 
-  const filteredRows = useMemo(
-    () =>
-      stockRows.filter((row) => {
-        if (filters.destination && row.destination !== filters.destination) return false;
-        if (filters.poNumber && row.poNo !== filters.poNumber) return false;
-        return true;
-      }),
-    [filters.destination, filters.poNumber, stockRows]
+  const processedRows = useMemo(
+    () => applyClientStockSearchSort(stockRows, searchQuery, clientSortOption),
+    [clientSortOption, searchQuery, stockRows]
   );
-  const sortedFilteredRows = useMemo(() => {
-    const rows = [...filteredRows];
-    const getViaHub1 = (row) => String(row.viaHub1 && row.viaHub1 !== "-" ? row.viaHub1 : "").toLowerCase().trim();
-    const getViaHub2 = (row) => String(row.viaHub2 && row.viaHub2 !== "-" ? row.viaHub2 : "").toLowerCase().trim();
-    const getApDestination = (row) =>
-      String(row.apDestination && row.apDestination !== "-" ? row.apDestination : "").toLowerCase().trim();
-    const getViaHub = (row) => String(row.viaHub2 && row.viaHub2 !== "-" ? row.viaHub2 : row.viaHub1 || "").toLowerCase().trim();
-    const getEffectiveHub = (row) => {
-      const explicit = row.effectiveHub != null && row.effectiveHub !== "-" ? String(row.effectiveHub) : "";
-      if (explicit.trim()) return explicit.toLowerCase().trim();
-      return getViaHub(row);
-    };
-    const getVessel = (row) => String(row.vessel || "").toLowerCase().trim();
-    const statusOrder = { pending: 1, stock: 2, in_transit: 3 };
-    const compareStatus = (a, b) => {
-      const aStatus = String(a.stockStatus || "").toLowerCase().trim();
-      const bStatus = String(b.stockStatus || "").toLowerCase().trim();
-      const aRank = statusOrder[aStatus] ?? 999;
-      const bRank = statusOrder[bStatus] ?? 999;
-      if (aRank !== bRank) return aRank - bRank;
-      return aStatus.localeCompare(bStatus);
-    };
-
-    if (isStockHubSortOption(clientSortOption)) {
-      const hubSortField = getStockHubSortField(clientSortOption);
-      const getHubSortValue = (row) => {
-        if (hubSortField === "narvi_stock_via_hub1") return getViaHub1(row);
-        if (hubSortField === "narvi_stock_via_hub2") return getViaHub2(row);
-        if (hubSortField === "narvi_stock_ap_destination") {
-          return getApDestination(row);
-        }
-        return getEffectiveHub(row);
-      };
-      rows.sort((a, b) => getHubSortValue(a).localeCompare(getHubSortValue(b)));
-      return rows;
-    }
-    if (clientSortOption === "via_vessel") {
-      rows.sort((a, b) => getVessel(a).localeCompare(getVessel(b)));
-      return rows;
-    }
-    if (clientSortOption === "status") {
-      rows.sort(compareStatus);
-      return rows;
-    }
-    if (clientSortOption === "via_hub_status") {
-      rows.sort((a, b) => {
-        const hubCmp = getEffectiveHub(a).localeCompare(getEffectiveHub(b));
-        if (hubCmp !== 0) return hubCmp;
-        return compareStatus(a, b);
-      });
-      return rows;
-    }
-    if (clientSortOption === "via_vessel_status") {
-      rows.sort((a, b) => {
-        const vesselCmp = getVessel(a).localeCompare(getVessel(b));
-        if (vesselCmp !== 0) return vesselCmp;
-        return compareStatus(a, b);
-      });
-      return rows;
-    }
-    if (clientSortOption === "via_vessel_via_hub_status") {
-      rows.sort((a, b) => {
-        const vesselCmp = getVessel(a).localeCompare(getVessel(b));
-        if (vesselCmp !== 0) return vesselCmp;
-        const hubCmp = getEffectiveHub(a).localeCompare(getEffectiveHub(b));
-        if (hubCmp !== 0) return hubCmp;
-        return compareStatus(a, b);
-      });
-      return rows;
-    }
-    return rows;
-  }, [clientSortOption, filteredRows]);
-  const pagedRows = sortedFilteredRows;
   const pageSize = Number(entries) || 50;
-  const pageStart = totalCount ? (currentPage - 1) * pageSize + 1 : 0;
-  const pageEnd = Math.min((currentPage - 1) * pageSize + pagedRows.length, totalCount);
+  const visibleTotalCount = usesLocalSearchSort ? processedRows.length : totalCount;
+  const visibleTotalPages = usesLocalSearchSort
+    ? Math.max(1, Math.ceil((processedRows.length || 0) / pageSize) || 1)
+    : totalPages;
+  const visibleHasNext = usesLocalSearchSort ? currentPage < visibleTotalPages : hasNext;
+  const visibleHasPrevious = usesLocalSearchSort ? currentPage > 1 : hasPrevious;
+  const pagedRows = useMemo(() => {
+    if (!usesLocalSearchSort) return processedRows;
+    const start = (currentPage - 1) * pageSize;
+    return processedRows.slice(start, start + pageSize);
+  }, [currentPage, pageSize, processedRows, usesLocalSearchSort]);
+  const pageStart = visibleTotalCount ? (currentPage - 1) * pageSize + 1 : 0;
+  const pageEnd = Math.min((currentPage - 1) * pageSize + pagedRows.length, visibleTotalCount);
+
+  useEffect(() => {
+    if (currentPage > visibleTotalPages) {
+      setCurrentPage(visibleTotalPages);
+    }
+  }, [currentPage, visibleTotalPages]);
 
   const allVisibleSelected =
     pagedRows.length > 0 && pagedRows.every((row) => selectedRowIds.includes(row.id));
 
   useEffect(() => {
-    const currentIds = new Set(pagedRows.map((row) => row.id));
-    setSelectedRowIds((prev) => prev.filter((id) => currentIds.has(id)));
-  }, [pagedRows]);
+    const availableIds = new Set(processedRows.map((row) => row.id));
+    setSelectedRowIds((prev) => {
+      const next = prev.filter((id) => availableIds.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [processedRows]);
 
   const handleFilterChange = (key, value) => {
     if (key === "vessel") setNavVesselId(null);
     setFilters((prev) => ({ ...prev, [key]: value }));
-    if (["fromDate", "toDate", "vessel", "status", "location"].includes(key)) {
+    if (["fromDate", "toDate", "vessel", "status", "location", "destination"].includes(key)) {
       setCurrentPage(1);
     }
   };
@@ -599,7 +743,10 @@ function ClientStockReportView({ variant = "stock" }) {
     const next = showActive ? "true" : "false";
     setActiveFilter(next);
     setFilters((prev) => {
-      if (prev.status && isArchiveStockStatus(prev.status) !== (next === "false")) {
+      const statusStillValid = getClientPortalStatusOptionsForActiveFilter(next).some(
+        (option) => option.value === prev.status
+      );
+      if (prev.status && !statusStillValid) {
         return { ...prev, status: "" };
       }
       return prev;
@@ -648,18 +795,15 @@ function ClientStockReportView({ variant = "stock" }) {
     setFilters({ ...EMPTY_CLIENT_STOCK_FILTERS });
     setSearch("");
     setSearchQuery("");
+    setPoNumberQuery("");
+    setReqNoQuery("");
+    setClientSortOption("none");
     setEntries("50");
     setCurrentPage(1);
     setSelectedRowIds([]);
-    setActiveFilter(variantConfig.defaultActiveFilter);
+    setActiveFilter(DEFAULT_ACTIVE_FILTER);
   };
-  const formatStatus = (status) => {
-    const value = String(status || "").trim();
-    if (!value) return "-";
-    return value
-      .replace(/_/g, " ")
-      .replace(/\b\w/g, (ch) => ch.toUpperCase());
-  };
+  const formatStatus = (status) => formatStockStatusLabel(status, statusFilterOptions);
 
   const vesselOptions = useMemo(() => {
     if (vesselFilterOptions.length) return vesselFilterOptions;
@@ -673,22 +817,26 @@ function ClientStockReportView({ variant = "stock" }) {
       new Set(stockRows.map((r) => r.effectiveHub).filter((v) => v && v !== "-"))
     ).map((name) => ({ id: `name:${name}`, name }));
   }, [stockRows, hubFilterOptions]);
-  const destinationOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(stockRows.map((r) => r.destination).filter((v) => v && v !== "-"))
-      ),
-    [stockRows]
-  );
-  const poOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(stockRows.map((r) => r.poNo).filter((v) => v && v !== "-"))
-      ),
-    [stockRows]
-  );
-  const toSelectOptions = (values) =>
-    values.map((value) => ({ id: value, name: value }));
+  const destinationOptions = useMemo(() => {
+    const unique = [];
+    const seen = new Set();
+    const add = (id, name) => {
+      const label = String(name || "").trim();
+      if (!label || label === "-") return;
+      const value = id != null && String(id).trim() !== "" ? String(id) : label;
+      if (seen.has(value)) return;
+      seen.add(value);
+      unique.push({ id: value, name: label });
+    };
+    stockRows.forEach((row) => add(row.destinationId, row.destination));
+    if (filters.destination) {
+      const selected = unique.find(
+        (opt) => opt.id === filters.destination || opt.name === filters.destination
+      );
+      if (!selected) add(filters.destination, filters.destination);
+    }
+    return unique;
+  }, [filters.destination, stockRows]);
 
   const reportKey = (row, attachment) => `${row.id}-${attachment?.id ?? attachment?.filename}`;
 
@@ -749,7 +897,6 @@ function ClientStockReportView({ variant = "stock" }) {
   };
 
   const handlePreviewAllAttachments = (row, attachments, startIndex = 0) => {
-    if (!isClientPortalStockStatus(row.stockStatusKey)) return;
     const stockRecordId = row.stockRecordId ?? row.stockItemId;
     const list = Array.isArray(attachments) ? attachments.filter((a) => a?.id != null) : [];
     if (!stockRecordId || !list.length) return;
@@ -789,7 +936,6 @@ function ClientStockReportView({ variant = "stock" }) {
   const buildPreviewItemsFromRows = async (rows) => {
     const nextPreviewItems = [];
     for (const rowItem of rows) {
-      if (!isClientPortalStockStatus(rowItem.stockStatusKey)) continue;
       const reports = rowItem.reportAttachments || [];
       if (!reports.length) continue;
       const latest = reports[0];
@@ -813,14 +959,11 @@ function ClientStockReportView({ variant = "stock" }) {
   };
 
   const handleOpenReportPreview = async (rows) => {
-    const eligible = rows.filter(
-      (r) => isClientPortalStockStatus(r.stockStatusKey) && (r.reportAttachments?.length || 0) > 0
-    );
+    const eligible = rows.filter((r) => (r.reportAttachments?.length || 0) > 0);
     if (!eligible.length) {
       toast({
         title: "No reports available",
-        description:
-          "Stock reports are only available for rows with status Stock that have an uploaded report.",
+        description: "Selected rows do not have uploaded attachments.",
         status: "info",
         duration: 3500,
         isClosable: true,
@@ -855,7 +998,6 @@ function ClientStockReportView({ variant = "stock" }) {
   };
 
   const handleDownloadReport = async (row, attachment) => {
-    if (!isClientPortalStockStatus(row.stockStatusKey)) return;
     const key = reportKey(row, attachment);
     setLoadingReportKey(key);
     try {
@@ -884,23 +1026,41 @@ function ClientStockReportView({ variant = "stock" }) {
 
   const handleDownloadSelectedReports = async () => {
     const selectedRows = pagedRows.filter((row) => selectedRowIds.includes(row.id));
+    if (!selectedRows.length) {
+      toast({
+        title: "No rows selected",
+        description: "Select one or more stock rows to download their reports.",
+        status: "info",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
     setIsBulkReportLoading(true);
     try {
       let count = 0;
       for (const row of selectedRows) {
-        if (!isClientPortalStockStatus(row.stockStatusKey)) continue;
-        if (row.latestReport) {
+        const attachments = Array.isArray(row.reportAttachments) ? row.reportAttachments : [];
+        for (const attachment of attachments) {
           // eslint-disable-next-line no-await-in-loop
-          await handleDownloadReport(row, row.latestReport);
+          await handleDownloadReport(row, attachment);
           count += 1;
         }
       }
       if (!count) {
         toast({
           title: "No reports to download",
-          description: "Selected rows must have status Stock and an attached report.",
+          description: "Selected rows do not have uploaded attachments.",
           status: "info",
           duration: 3000,
+          isClosable: true,
+        });
+      } else {
+        toast({
+          title: "Download started",
+          description: `${count} report file(s) queued for download.`,
+          status: "success",
+          duration: 2500,
           isClosable: true,
         });
       }
@@ -945,68 +1105,31 @@ function ClientStockReportView({ variant = "stock" }) {
   };
 
   const handleDownloadExcel = async () => {
-    const headers = [
-      "Vessel",
-      "Stock ID",
-      "Supplier",
-      "PO#",
-      "Stock Status",
-      "Date On Stock",
-      "Boxes",
-      "Weight",
-      "Total Volume CBM",
-      "Origin",
-      "Via Hub 1",
-      "Via Hub 2",
-      "AP Destination",
-      "Destination",
-      "Shipping Docs",
-      "Export Docs 1",
-      "Export Docs 2",
-      "SO Number",
-      "Currency",
-      "Value",
-      "Client",
-      "DG/UN Number",
-    ];
+    const headers = CLIENT_STOCK_EXPORT_COLUMNS.map((column) => column.header);
+    const selectedRows = processedRows.filter((row) => selectedRowIds.includes(row.id));
     try {
-      const res = await fetchStockList(
-        buildStockQueryParams({ fetch_all: true })
+      let exportRows = selectedRows;
+      if (!selectedRows.length) {
+        const res = await clientStockApi.getClientStock(
+          buildStockQueryParams({ fetch_all: true })
+        );
+        exportRows = applyClientStockSearchSort(
+          mapClientStockRows(res?.stock_list, res?.client?.name || clientName),
+          searchQuery,
+          clientSortOption
+        );
+      }
+      const rowsForExport = exportRows.map((row) =>
+        CLIENT_STOCK_EXPORT_COLUMNS.map((column) =>
+          column.header === "Stock Status" ? formatStatus(row.stockStatus) : column.value(row)
+        )
       );
-      const exportRows = mapClientStockRows(res?.stock_list, res?.client?.name || clientName).filter((row) => {
-        if (filters.destination && row.destination !== filters.destination) return false;
-        if (filters.poNumber && row.poNo !== filters.poNumber) return false;
-        return true;
-      });
-      const rowsForExport = exportRows.map((row) => [
-        row.vessel || "-",
-        row.stockItemId || "-",
-        row.supplier || "-",
-        row.poNo || "-",
-        formatStatus(row.stockStatus),
-        row.dateOnStock || "-",
-        row.boxes || "-",
-        row.weight || "-",
-        row.totalVolumeCbm || "-",
-        row.origin || "-",
-        row.viaHub1 || "-",
-        row.viaHub2 || "-",
-        row.apDestination || "-",
-        row.destination || "-",
-        row.shippingDoc || "-",
-        row.exportDoc1 || "-",
-        row.exportDoc2 || "-",
-        row.soNumber || "-",
-        row.currency || "-",
-        row.value || "-",
-        row.client || "-",
-        row.dgUnNumber || "-",
-      ]);
       const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rowsForExport]);
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, variantConfig.excelSheet);
+      XLSX.utils.book_append_sheet(workbook, worksheet, PAGE_COPY.excelSheet);
       const dateTag = new Date().toISOString().slice(0, 10);
-      XLSX.writeFile(workbook, `${variantConfig.excelFilePrefix}-${dateTag}.xlsx`);
+      const fileSuffix = selectedRows.length ? "selected" : "filtered";
+      XLSX.writeFile(workbook, `${PAGE_COPY.excelFilePrefix}-${fileSuffix}-${dateTag}.xlsx`);
     } catch (_error) {
       toast({
         title: "Export failed",
@@ -1040,20 +1163,14 @@ function ClientStockReportView({ variant = "stock" }) {
       <Flex align="center" justify="space-between" mb={4}>
         <Box>
           <Heading fontSize="24px" lineHeight="32px" color={headingColor}>
-            {variantConfig.title}
+            {PAGE_COPY.title}
           </Heading>
           <Text mt={1} fontSize="sm" color={muted}>
             {clientName
-              ? `Showing ${activeFilter === "false" ? "inactive" : "active"} ${
-                  variant === "stock" ? "stock" : "jobs"
-                } for ${clientName}.`
+              ? `Showing ${activeFilter === "false" ? "inactive" : "active"} stock for ${clientName}.`
               : activeFilter === "false"
-                ? variant === "stock"
-                  ? "Showing released / shipped / delivered / cancelled stock."
-                  : "Showing shipped / delivered jobs."
-                : variant === "stock"
-                  ? "Track inventory movement by vessel, location, and date range."
-                  : "Track jobs by vessel, location, and date range."}
+                ? "Showing released / shipped / delivered stock."
+                : "Track inventory movement by vessel, location, and date range."}
           </Text>
         </Box>
       </Flex>
@@ -1075,15 +1192,13 @@ function ClientStockReportView({ variant = "stock" }) {
             />
             <Text fontSize="xs" color={muted}>
               {activeFilter === "false"
-                ? variant === "stock"
-                  ? "Showing released / shipped / delivered / cancelled"
-                  : "Showing shipped / delivered"
+                ? "Showing released / shipped / delivered"
                 : "Showing active statuses"}
             </Text>
           </Flex>
         </Flex>
-        <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(3, 1fr)" }} gap={3}>
-          <GridItem>
+        <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }} gap={3}>
+          <GridItem colSpan={{ base: 1, md: 2, xl: 2 }}>
             <Text fontSize="xs" mb={1} color={muted}>Date Range</Text>
             <Flex gap={2}>
               <Input size="sm" type="date" p="20px 12px" value={filters.fromDate} onChange={(e) => handleFilterChange("fromDate", e.target.value)} />
@@ -1104,7 +1219,13 @@ function ClientStockReportView({ variant = "stock" }) {
           </GridItem>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Status</Text>
-            <Select size="sm" placeholder="All statuses" value={filters.status} onChange={(e) => handleFilterChange("status", e.target.value)}>
+            <Select
+              size="sm"
+              h="40px"
+              placeholder="All statuses"
+              value={filters.status}
+              onChange={(e) => handleFilterChange("status", e.target.value)}
+            >
               {statusFilterOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -1130,7 +1251,7 @@ function ClientStockReportView({ variant = "stock" }) {
               size="sm"
               value={filters.destination}
               onChange={(value) => handleFilterChange("destination", value || "")}
-              options={toSelectOptions(destinationOptions)}
+              options={destinationOptions}
               placeholder="All destinations"
               valueKey="id"
               displayKey="name"
@@ -1138,14 +1259,22 @@ function ClientStockReportView({ variant = "stock" }) {
           </GridItem>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>PO Number</Text>
-            <SimpleSearchableSelect
+            <Input
               size="sm"
+              h="40px"
+              placeholder="Search PO number"
               value={filters.poNumber}
-              onChange={(value) => handleFilterChange("poNumber", value || "")}
-              options={toSelectOptions(poOptions)}
-              placeholder="All PO numbers"
-              valueKey="id"
-              displayKey="name"
+              onChange={(e) => handleFilterChange("poNumber", e.target.value)}
+            />
+          </GridItem>
+          <GridItem>
+            <Text fontSize="xs" mb={1} color={muted}>Req No</Text>
+            <Input
+              size="sm"
+              h="40px"
+              placeholder="Search req no"
+              value={filters.reqNo}
+              onChange={(e) => handleFilterChange("reqNo", e.target.value)}
             />
           </GridItem>
         </Grid>
@@ -1182,9 +1311,15 @@ function ClientStockReportView({ variant = "stock" }) {
                 <Icon as={MdSearch} color="gray.400" />
               </InputLeftElement>
               <Input
-                placeholder={variantConfig.searchPlaceholder}
+                placeholder={PAGE_COPY.searchPlaceholder}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  const nextQuery = search.trim();
+                  setSearchQuery(nextQuery);
+                  setCurrentPage(1);
+                }}
                 size="sm"
               />
             </InputGroup>
@@ -1226,7 +1361,7 @@ function ClientStockReportView({ variant = "stock" }) {
               borderColor={borderColor}
               leftIcon={<Icon as={MdFileDownload} />}
             >
-              Download As
+              Download
             </MenuButton>
             <MenuList>
               <MenuItem
@@ -1234,10 +1369,12 @@ function ClientStockReportView({ variant = "stock" }) {
                 onClick={handleDownloadSelectedReports}
                 isDisabled={isBulkReportLoading}
               >
-                Reports (Selected, Stock status)
+                Download reports of the selected stock
               </MenuItem>
               <MenuItem icon={<Icon as={MdTableChart} color="green.500" />} onClick={handleDownloadExcel}>
-                Excel (All Filtered Rows)
+                {selectedRowIds.length
+                  ? "Download selected stock in Excel format"
+                  : "Download stock in Excel format"}
               </MenuItem>
             </MenuList>
           </Menu>
@@ -1257,12 +1394,12 @@ function ClientStockReportView({ variant = "stock" }) {
             zIndex={4}
           >
             <Spinner size="sm" />
-            <Text fontSize="sm" color={muted}>{variantConfig.loadingLabel}</Text>
+            <Text fontSize="sm" color={muted}>{PAGE_COPY.loadingLabel}</Text>
           </Flex>
         )}
         {!isLoading && pagedRows.length === 0 ? (
           <Text px={4} py={10} fontSize="sm" color={muted} textAlign="center">
-            {variantConfig.emptyLabel}
+            {PAGE_COPY.emptyLabel}
           </Text>
         ) : pagedRows.length > 0 ? (
         <Box
@@ -1321,6 +1458,7 @@ function ClientStockReportView({ variant = "stock" }) {
               <Th>Vessel</Th>
               <Th>STOCK ID</Th>
               <Th>SUPPLIER</Th>
+              <Th>REQ NO</Th>
               <Th>PO#</Th>
               <Th>STOCK STATUS</Th>
               <Th>DATE ON STOCK</Th>
@@ -1364,17 +1502,19 @@ function ClientStockReportView({ variant = "stock" }) {
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.supplier}</StockCellText>
                   </Td>
                   <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.reqNo}</StockCellText>
+                  </Td>
+                  <Td>
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.poNo}</StockCellText>
                   </Td>
                   <Td title={getStockCellTooltip(formatStatus(row.stockStatus))}>
-                    <Badge
-                      borderRadius="full"
-                      px={2.5}
-                      py={1}
-                      colorScheme={statusColorMap[String(row.stockStatus || "").toLowerCase()] || "gray"}
+                    <StockStatusBadge
+                      statusStyle={getStockRowStatusStyle(
+                        row.stockStatusKey || row.stockStatusRaw || row.stockStatus
+                      )}
                     >
                       {formatStatus(row.stockStatus)}
-                    </Badge>
+                    </StockStatusBadge>
                   </Td>
                   <Td>
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.dateOnStock}</StockCellText>
@@ -1411,7 +1551,12 @@ function ClientStockReportView({ variant = "stock" }) {
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.destination}</StockCellText>
                   </Td>
                   <Td>
-                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.soNumber}</StockCellText>
+                    <StockSoNumberLink
+                      item={row}
+                      label={row.soNumber}
+                      openFiltered={openClientShippingOrdersFiltered}
+                      textProps={{ fontSize: "sm", isTruncated: true, maxW: "240px" }}
+                    />
                   </Td>
                   <Td>
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.currency}</StockCellText>
@@ -1426,40 +1571,35 @@ function ClientStockReportView({ variant = "stock" }) {
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.dgUnNumber}</StockCellText>
                   </Td>
                   <Td>
-                    {isClientPortalStockStatus(row.stockStatusKey) ? (
-                      row.stockRecordId && (row.reportAttachments?.length || 0) > 0 ? (
-                        <StockListAttachmentsCell
-                          attachments={row.reportAttachments}
-                          stockItemId={row.stockRecordId}
-                          previousLabel="Previous status reports"
-                          emptyLabel="—"
-                          onPreviewAll={(attachments, stockRecordId) =>
-                            handlePreviewAllAttachments(
-                              {
-                                id: row.id,
-                                stockRecordId,
-                                stockStatusKey: row.stockStatusKey,
-                              },
-                              attachments
-                            )
-                          }
-                          onDownloadFile={(att, stockRecordId) =>
-                            handleDownloadReport({ ...row, stockRecordId }, att)
-                          }
-                          onOpenPreviousReports={(entries, stockRecordId) =>
-                            handleOpenPreviousReports(
-                              entries,
+                    {row.stockRecordId && (row.reportAttachments?.length || 0) > 0 ? (
+                      <StockListAttachmentsCell
+                        attachments={row.reportAttachments}
+                        stockItemId={row.stockRecordId}
+                        attachmentMode="all"
+                        previousLabel="Previous files"
+                        emptyLabel="—"
+                        onPreviewAll={(attachments, stockRecordId) =>
+                          handlePreviewAllAttachments(
+                            {
+                              id: row.id,
                               stockRecordId,
-                              row.stockStatusKey,
-                              row.id
-                            )
-                          }
-                        />
-                      ) : (
-                        <Text fontSize="xs" color={muted}>
-                          —
-                        </Text>
-                      )
+                              stockStatusKey: row.stockStatusKey,
+                            },
+                            attachments
+                          )
+                        }
+                        onDownloadFile={(att, stockRecordId) =>
+                          handleDownloadReport({ ...row, stockRecordId }, att)
+                        }
+                        onOpenPreviousReports={(entries, stockRecordId) =>
+                          handleOpenPreviousReports(
+                            entries,
+                            stockRecordId,
+                            row.stockStatusKey,
+                            row.id
+                          )
+                        }
+                      />
                     ) : (
                       <Text fontSize="xs" color={muted}>
                         —
@@ -1487,14 +1627,14 @@ function ClientStockReportView({ variant = "stock" }) {
           <Text fontSize="xs" color={muted}>
             {isLoading
               ? "Loading..."
-              : `Showing ${pageStart}-${pageEnd} of ${totalCount} entries`}
+              : `Showing ${pageStart}-${pageEnd} of ${visibleTotalCount} entries`}
           </Text>
           <Flex gap={1} align="center" wrap="wrap" justify="center">
             <Button
               size="xs"
               variant="outline"
               onClick={() => setCurrentPage(1)}
-              isDisabled={isLoading || !hasPrevious || currentPage <= 1}
+              isDisabled={isLoading || !visibleHasPrevious || currentPage <= 1}
             >
               First
             </Button>
@@ -1502,15 +1642,15 @@ function ClientStockReportView({ variant = "stock" }) {
               size="xs"
               variant="outline"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              isDisabled={isLoading || !hasPrevious || currentPage <= 1}
+              isDisabled={isLoading || !visibleHasPrevious || currentPage <= 1}
             >
               Previous
             </Button>
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+            {Array.from({ length: Math.min(5, visibleTotalPages) }, (_, i) => {
               let pageNum;
-              if (totalPages <= 5) pageNum = i + 1;
+              if (visibleTotalPages <= 5) pageNum = i + 1;
               else if (currentPage <= 3) pageNum = i + 1;
-              else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+              else if (currentPage >= visibleTotalPages - 2) pageNum = visibleTotalPages - 4 + i;
               else pageNum = currentPage - 2 + i;
               return (
                 <Button
@@ -1528,16 +1668,16 @@ function ClientStockReportView({ variant = "stock" }) {
             <Button
               size="xs"
               variant="outline"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              isDisabled={isLoading || !hasNext || currentPage >= totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(visibleTotalPages, p + 1))}
+              isDisabled={isLoading || !visibleHasNext || currentPage >= visibleTotalPages}
             >
               Next
             </Button>
             <Button
               size="xs"
               variant="outline"
-              onClick={() => setCurrentPage(totalPages)}
-              isDisabled={isLoading || !hasNext || currentPage >= totalPages}
+              onClick={() => setCurrentPage(visibleTotalPages)}
+              isDisabled={isLoading || !visibleHasNext || currentPage >= visibleTotalPages}
             >
               Last
             </Button>
@@ -1598,7 +1738,7 @@ function ClientStockReportView({ variant = "stock" }) {
       <StockReportHistoryModal
         isOpen={previousReportsModal.isOpen}
         onClose={handleClosePreviousReports}
-        title="Previous status reports"
+        title="Previous files"
         entries={previousReportsModal.entries}
         stockItemId={previousReportsModal.stockRecordId}
         showFileActions

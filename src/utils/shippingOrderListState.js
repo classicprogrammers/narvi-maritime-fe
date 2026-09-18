@@ -435,6 +435,11 @@ export function getShippingOrdersListPath() {
   return `${base}/admin/shipping-orders`;
 }
 
+export function getClientShippingOrdersListPath() {
+  const base = (process.env.PUBLIC_URL || "").replace(/\/$/, "");
+  return `${base}/Client/Shipping-Orders`;
+}
+
 export function parseSoFilterFromUrl(search) {
   if (!search) return null;
   const params = new URLSearchParams(search.startsWith("?") ? search : `?${search}`);
@@ -508,8 +513,7 @@ export function clearPendingSoFilter() {
   }
 }
 
-export function buildShippingOrdersFilteredUrl(filter) {
-  const path = getShippingOrdersListPath();
+export function buildShippingOrdersFilteredUrl(filter, path = getShippingOrdersListPath()) {
   const params = new URLSearchParams();
   if (filter.searchQuery) params.set("so_id", filter.searchQuery);
   if (filter.searchValue) params.set("so", filter.searchValue);
@@ -537,4 +541,14 @@ export function openShippingOrdersFiltered(filter) {
     page: 1,
   });
   window.open(buildShippingOrdersFilteredUrl(filter), "_blank", "noopener,noreferrer");
+}
+
+/** Open client portal shipping orders in a new tab, filtered to the selected SO. */
+export function openClientShippingOrdersFiltered(filter) {
+  if (!filter?.searchQuery && !filter?.searchValue) return;
+  window.open(
+    buildShippingOrdersFilteredUrl(filter, getClientShippingOrdersListPath()),
+    "_blank",
+    "noopener,noreferrer"
+  );
 }

@@ -20,6 +20,7 @@ const buildListParams = (params = {}) => {
     vessel_id,
     country_id,
     destination,
+    destination_id,
     done,
     so_id,
     name,
@@ -62,6 +63,9 @@ const buildListParams = (params = {}) => {
   }
   if (country_id != null && country_id !== "") {
     requestParams.country_id = country_id;
+  }
+  if (destination_id != null && destination_id !== "") {
+    requestParams.destination_id = destination_id;
   }
   if (destination != null && String(destination).trim() !== "") {
     requestParams.destination = String(destination).trim();

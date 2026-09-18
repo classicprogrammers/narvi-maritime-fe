@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   Avatar,
   Box,
@@ -10,28 +10,22 @@ import {
   TabList,
   Tabs,
   Text,
-  VStack,
   useColorModeValue,
 } from "@chakra-ui/react";
 import { Redirect, Route, Switch, useHistory, useLocation } from "react-router-dom";
 import {
-  MdCheckCircle,
   MdDashboard,
   MdDirectionsBoat,
   MdInventory,
-  MdKeyboardArrowDown,
   MdLocalShipping,
   MdLocationOn,
   MdLogout,
-  MdWorkOutline,
 } from "react-icons/md";
 import { useUser } from "redux/hooks/useUser";
 
 import ClientDashboard from "views/client/dashboard";
 import ClientShippingOrders from "views/client/shipping-orders";
 import ClientStock from "views/client/stock";
-import ClientCompletedJobs from "views/client/jobs/completed";
-import ClientOngoingJobs from "views/client/jobs/ongoing";
 import ClientHubLocations from "views/client/hub-locations";
 import ClientVessels from "views/client/vessels";
 
@@ -39,7 +33,6 @@ const clientTabs = [
   { label: "Dashboard", path: "/Client/Dashboard", icon: MdDashboard },
   { label: "Shipping Order", path: "/Client/Shipping-Orders", icon: MdLocalShipping },
   { label: "Stock Report", path: "/Client/Stock", icon: MdInventory },
-  { label: "Jobs", path: "/Client/Jobs", icon: MdWorkOutline },
   { label: "Vessels", path: "/Client/Vessels", icon: MdDirectionsBoat },
   { label: "Hub Locations", path: "/Client/Hub-Locations", icon: MdLocationOn },
 ];
@@ -48,7 +41,6 @@ function ClientLayout() {
   const history = useHistory();
   const location = useLocation();
   const { user, logout } = useUser();
-  const [jobsMenuOpen, setJobsMenuOpen] = useState(false);
 
   const bg = useColorModeValue("gray.50", "navy.900");
   const navBg = useColorModeValue("white", "navy.800");
@@ -123,90 +115,43 @@ function ClientLayout() {
           >
             {clientTabs.map((tab) => {
               const isActive = isTabActive(tab.path);
-              const isJobs = tab.path === "/Client/Jobs";
               return (
-                <Box
+                <Tab
                   key={tab.label}
-                  position="relative"
-                  onMouseEnter={() => isJobs && setJobsMenuOpen(true)}
-                  onMouseLeave={() => isJobs && setJobsMenuOpen(false)}
+                  mr={2}
+                  px={4}
+                  py={2.5}
+                  borderRadius="12px"
+                  fontWeight="600"
+                  fontSize="sm"
+                  color={isActive ? activeTabText : muted}
+                  bg={isActive ? activeTabBg : "transparent"}
+                  border="1px solid"
+                  borderColor={isActive ? "brandScheme.500" : "transparent"}
+                  boxShadow={isActive ? "0 10px 24px rgba(23, 70, 147, 0.24)" : "none"}
+                  _hover={{
+                    bg: isActive ? activeTabBg : "white",
+                    color: isActive ? activeTabText : "navy.700",
+                  }}
+                  onClick={() => history.push(tab.path)}
                 >
-                  <Tab
-                    mr={2}
-                    px={4}
-                    py={2.5}
-                    borderRadius="12px"
-                    fontWeight="600"
-                    fontSize="sm"
-                    color={isActive ? activeTabText : muted}
-                    bg={isActive ? activeTabBg : "transparent"}
-                    border="1px solid"
-                    borderColor={isActive ? "brandScheme.500" : "transparent"}
-                    boxShadow={isActive ? "0 10px 24px rgba(23, 70, 147, 0.24)" : "none"}
-                    _hover={{
-                      bg: isActive ? activeTabBg : "white",
-                      color: isActive ? activeTabText : "navy.700",
-                    }}
-                    onClick={() =>
-                      history.push(isJobs ? "/Client/Jobs/Ongoing" : tab.path)
-                    }
-                  >
-                    <HStack spacing={2.5}>
-                      <Flex
-                        w="22px"
-                        h="22px"
-                        borderRadius="8px"
-                        align="center"
-                        justify="center"
-                        bg={isActive ? tabIconBg : "transparent"}
-                        color={isActive ? "brand.500" : "inherit"}
-                      >
-                        <Icon as={tab.icon} fontSize="14px" />
-                      </Flex>
-                      <Text fontSize="sm" fontWeight="700">
-                        {tab.label}
-                      </Text>
-                      {isJobs ? <Icon as={MdKeyboardArrowDown} fontSize="16px" /> : null}
-                    </HStack>
-                  </Tab>
-
-                  {isJobs && jobsMenuOpen ? (
-                    <Box
-                      position="absolute"
-                      top="44px"
-                      left="0"
-                      zIndex="1200"
-                      minW="190px"
-                      p={2}
-                      borderRadius="12px"
-                      bg="white"
-                      border="1px solid"
-                      borderColor={borderColor}
-                      boxShadow="0 14px 30px rgba(112, 144, 176, 0.2)"
+                  <HStack spacing={2.5}>
+                    <Flex
+                      w="22px"
+                      h="22px"
+                      borderRadius="8px"
+                      align="center"
+                      justify="center"
+                      bg={isActive ? tabIconBg : "transparent"}
+                      color={isActive ? "brand.500" : "inherit"}
                     >
-                      <VStack spacing={1} align="stretch">
-                        <Button
-                          justifyContent="flex-start"
-                          variant="ghost"
-                          leftIcon={<Icon as={MdWorkOutline} />}
-                          fontSize="sm"
-                          onClick={() => history.push("/Client/Jobs/Ongoing")}
-                        >
-                          Ongoing Jobs
-                        </Button>
-                        <Button
-                          justifyContent="flex-start"
-                          variant="ghost"
-                          leftIcon={<Icon as={MdCheckCircle} />}
-                          fontSize="sm"
-                          onClick={() => history.push("/Client/Jobs/Completed")}
-                        >
-                          Completed Jobs
-                        </Button>
-                      </VStack>
-                    </Box>
-                  ) : null}
-                </Box>
+                      <Icon as={tab.icon} fontSize="14px" />
+                    </Flex>
+                    <Text fontSize="sm" fontWeight="700">
+                      {tab.label}
+                    </Text>
+                  </HStack>
+                </Tab>
               );
             })}
           </TabList>
@@ -218,9 +163,7 @@ function ClientLayout() {
           <Route exact path="/Client/Dashboard" component={ClientDashboard} />
           <Route exact path="/Client/Shipping-Orders" component={ClientShippingOrders} />
           <Route exact path="/Client/Stock" component={ClientStock} />
-          <Route exact path="/Client/Jobs/Ongoing" component={ClientOngoingJobs} />
-          <Route exact path="/Client/Jobs/Completed" component={ClientCompletedJobs} />
-          <Redirect exact from="/Client/Jobs" to="/Client/Jobs/Ongoing" />
+          <Redirect from="/Client/Jobs" to="/Client/Stock" />
           <Route exact path="/Client/Vessels" component={ClientVessels} />
           <Route exact path="/Client/Hub-Locations" component={ClientHubLocations} />
           <Redirect exact from="/Client" to="/Client/Vessels" />

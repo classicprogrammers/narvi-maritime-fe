@@ -4,7 +4,7 @@ import { resolveStockListActiveParam } from "../constants/stockStatus";
 
 export const getClientStock = async (params = {}) => {
   try {
-    const requestParams = buildCommonStockJobFilters(params, "stock");
+    const requestParams = buildCommonStockJobFilters(params);
     requestParams.active = resolveStockListActiveParam(params.active);
     const fetchAll = params.fetch_all === true || params.fetch_all === "true" || params.page_size === "all";
     if (fetchAll) {

@@ -9,7 +9,13 @@ import {
 /**
  * Clickable SO number — opens /admin/shipping-orders in a new tab, filtered to that SO.
  */
-export default function StockSoNumberLink({ item, label, children, textProps = {} }) {
+export default function StockSoNumberLink({
+  item,
+  label,
+  children,
+  textProps = {},
+  openFiltered = openShippingOrdersFiltered,
+}) {
   const filter = resolveSoFilterFromStockItem(item);
   const display = label ?? children ?? "-";
   const isEmpty = !display || display === "-";
@@ -18,7 +24,7 @@ export default function StockSoNumberLink({ item, label, children, textProps = {
     e.preventDefault();
     e.stopPropagation();
     if (!filter) return;
-    openShippingOrdersFiltered(filter);
+    openFiltered(filter);
   };
 
   if (!filter || isEmpty) {

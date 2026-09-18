@@ -21,12 +21,22 @@ const FALLBACK_LABELS = {
   pending: "Pending",
   stock: "Stock",
   on_shipping: "On Shipping Instr",
+  on_shipping_instr: "On Shipping Instr",
+  on_shipping_instruction: "On Shipping Instr",
+  on_a_shipping_instr: "On Shipping Instr",
+  on_a_shipping_instruction: "On Shipping Instr",
   on_delivery: "On Delivery Instr",
+  on_delivery_instr: "On Delivery Instr",
+  on_delivery_instruction: "On Delivery Instr",
+  on_a_delivery_instr: "On Delivery Instr",
+  on_a_delivery_instruction: "On Delivery Instr",
   in_transit: "In Transit",
   arrived: "Arrived Dest",
+  arrived_dest: "Arrived Dest",
   shipped: "Shipped",
   delivered: "Delivered",
   irregular: "Irregularities",
+  irregularities: "Irregularities",
   cancelled: "Cancelled",
 };
 
@@ -66,11 +76,22 @@ export const FALLBACK_ARCHIVE_STATUS_OPTIONS = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
-/** Client portal active stock/jobs only expose these three statuses. */
+/** Client portal active stock statuses — same labels as the stock list. */
 export const CLIENT_PORTAL_ACTIVE_STATUS_OPTIONS = [
   { value: "pending", label: "Pending" },
   { value: "stock", label: "Stock" },
+  { value: "on_shipping", label: "On Shipping Instr" },
+  { value: "on_delivery", label: "On Delivery Instr" },
   { value: "in_transit", label: "In Transit" },
+  { value: "arrived", label: "Arrived Dest" },
+  { value: "irregular", label: "Irregularities" },
+];
+
+/** Client portal inactive stock does not include cancelled records. */
+export const CLIENT_PORTAL_ARCHIVE_STATUS_OPTIONS = [
+  { value: "released", label: "Released" },
+  { value: "shipped", label: "Shipped" },
+  { value: "delivered", label: "Delivered" },
 ];
 
 export const getStatusOptionsForActiveFilter = (stockStatusOptions, activeFilter) => {
@@ -85,7 +106,7 @@ export const getStatusOptionsForActiveFilter = (stockStatusOptions, activeFilter
 };
 
 export const getClientPortalStatusOptionsForActiveFilter = (activeFilter) => {
-  if (activeFilter === "false") return FALLBACK_ARCHIVE_STATUS_OPTIONS;
+  if (activeFilter === "false") return CLIENT_PORTAL_ARCHIVE_STATUS_OPTIONS;
   return CLIENT_PORTAL_ACTIVE_STATUS_OPTIONS;
 };
 
@@ -93,7 +114,7 @@ export const resolveClientPortalNavStockStatus = (status) => {
   const key = normalizeStockStatusKey(status);
   if (!key) return "";
   if (CLIENT_PORTAL_ACTIVE_STATUS_OPTIONS.some((opt) => opt.value === key)) return key;
-  if (isArchiveStockStatus(key)) return key;
+  if (CLIENT_PORTAL_ARCHIVE_STATUS_OPTIONS.some((opt) => opt.value === key)) return key;
   return "";
 };
 

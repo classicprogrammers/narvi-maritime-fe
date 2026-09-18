@@ -66,8 +66,21 @@ export function normalizeOrder(order) {
     vessel_name: (vesselVal && typeof vesselVal === "object" ? vesselVal.name : null) || order.vessel_name || order.vessel || "",
     vessel_id: (vesselVal && typeof vesselVal === "object" ? vesselVal.id : vesselVal) ?? null,
     country_id: (countryVal && typeof countryVal === "object" ? countryVal.id : countryVal) ?? null,
+    country_name:
+      (countryVal && typeof countryVal === "object" ? countryVal.name : null) ||
+      order.country_name ||
+      order.country ||
+      "",
     destination_type: order.destination_type || "",
-    destination: order.destination || order.destination_name || "",
+    destination:
+      (order.destination && typeof order.destination === "object"
+        ? order.destination.name || order.destination.label
+        : order.destination) ||
+      order.destination_name ||
+      (order.destination_id && typeof order.destination_id === "object"
+        ? order.destination_id.name || order.destination_id.label
+        : "") ||
+      "",
     destination_id: order.destination_id || null,
     eta_date: order.eta_date,
     etb: order.etb,
@@ -112,6 +125,43 @@ export function getOrderAttachmentsForDisplay(order) {
     return order.attachments;
   }
   return mapExistingAttachmentsFromOrder(order._raw || order);
+}
+
+const relationDisplayName = (value) => {
+  if (value == null || value === false || value === "") return "";
+  if (typeof value === "object") {
+    const name = value.name || value.label || value.display_name;
+    return name != null && name !== false ? String(name).trim() : "";
+  }
+  return "";
+};
+
+/**
+ * Table/export destination text: destination, country — same as admin shipping orders.
+ */
+export function formatShippingOrderDestinationDisplay(order) {
+  if (!order) return "-";
+  const raw = order._raw || order;
+  const destDisplay = String(
+    order.destination ||
+      raw.destination_name ||
+      relationDisplayName(raw.destination) ||
+      relationDisplayName(raw.destination_id) ||
+      ""
+  ).trim();
+  const countryName = String(
+    order.country_name ||
+      relationDisplayName(raw.country_id) ||
+      relationDisplayName(raw.country) ||
+      raw.country_name ||
+      ""
+  ).trim();
+
+  const parts = [];
+  if (destDisplay && destDisplay !== "-") parts.push(destDisplay);
+  if (countryName && countryName !== "-") parts.push(countryName);
+  if (parts.length) return parts.join(", ");
+  return "-";
 }
 
 /**

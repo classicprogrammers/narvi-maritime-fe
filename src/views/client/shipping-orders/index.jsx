@@ -11,6 +11,13 @@ import {
   Input,
   InputGroup,
   InputLeftElement,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalOverlay,
   Select,
   Table,
   Tbody,
@@ -25,13 +32,17 @@ import {
   useToast,
 } from "@chakra-ui/react";
 import { MdFileDownload, MdRefresh, MdSearch, MdVisibility } from "react-icons/md";
+import { useHistory, useLocation } from "react-router-dom";
 import clientShippingOrdersApi from "api/clientShippingOrders";
 import clientVesselApi from "api/clientVessel";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import ShippingOrderStockList from "components/shipping-order/ShippingOrderStockList";
 import { useStockAttachmentsGallery } from "hooks/useStockAttachmentsGallery";
-import { normalizeOrder, toDateOnly } from "views/admin/shipping-order/shippingOrderUtils";
+import { formatShippingOrderDestinationDisplay, normalizeOrder, toDateOnly } from "views/admin/shipping-order/shippingOrderUtils";
 import { resolveShippingOrderDownloadFilename } from "utils/shippingOrderAttachments";
-import { SHIPPING_ORDER_STATUS_FILTER_OPTIONS } from "utils/shippingOrderListState";
+import {
+  parseSoFilterFromUrl,
+} from "utils/shippingOrderListState";
 import ClientPortalTableShell, {
   getClientPortalTableSx,
   useClientPortalTableColors,
@@ -112,13 +123,92 @@ const triggerBlobDownload = (blob, filename) => {
   URL.revokeObjectURL(url);
 };
 
+const soNumberFromSearch = (search) => {
+  const fromUrl = parseSoFilterFromUrl(search);
+  if (!fromUrl) return "";
+  return String(fromUrl.searchQuery || "").trim()
+    || String(fromUrl.searchValue || "").replace(/^SO[- ]?/i, "").trim();
+};
+
+const CLIENT_SHIPPING_ORDER_STATUS_OPTIONS = [
+  { value: "active", label: "Active" },
+  { value: "done", label: "Done" },
+];
+
+const getClientShippingOrderStockCount = (order) => {
+  const count = Number(order?.stock_item_count);
+  if (Number.isFinite(count)) return count;
+  if (Array.isArray(order?.stock_list)) return order.stock_list.length;
+  return 0;
+};
+
+const mergeClientShippingOrderDetail = (baseOrder, raw) => {
+  const normalized = normalizeOrder(raw);
+  if (!normalized) return baseOrder;
+  return {
+    ...baseOrder,
+    ...normalized,
+    so_number: raw?.name || normalized.so_number || baseOrder.so_number,
+    destinationDisplay:
+      formatShippingOrderDestinationDisplay(normalized) || baseOrder.destinationDisplay,
+    attachmentCount: Number(raw?.attachment_count ?? baseOrder.attachmentCount) || 0,
+    ciplCount: Number(raw?.cipl_file_count ?? baseOrder.ciplCount) || 0,
+    hasPackage: Boolean(raw?.has_shipping_package ?? baseOrder.hasPackage),
+    stock_items_url: normalized.stock_items_url || baseOrder.stock_items_url,
+  };
+};
+
+function ReadOnlyDetailField({ label, children, colSpan = 1 }) {
+  const muted = useColorModeValue("secondaryGray.600", "secondaryGray.500");
+  const bg = useColorModeValue("gray.50", "whiteAlpha.100");
+  const border = useColorModeValue("gray.200", "whiteAlpha.200");
+  const text = useColorModeValue("navy.700", "white");
+  return (
+    <GridItem colSpan={colSpan}>
+      <Text
+        fontSize="11px"
+        fontWeight="700"
+        color={muted}
+        mb={1}
+        textTransform="uppercase"
+        letterSpacing="0.04em"
+      >
+        {label}
+      </Text>
+      <Box
+        minH="40px"
+        px={3}
+        py={2}
+        bg={bg}
+        border="1px solid"
+        borderColor={border}
+        borderRadius="md"
+      >
+        {typeof children === "string" || children == null || typeof children === "number" ? (
+          <Text fontSize="sm" color={text} whiteSpace="pre-wrap">
+            {children || "—"}
+          </Text>
+        ) : (
+          children
+        )}
+      </Box>
+    </GridItem>
+  );
+}
+
 function ClientShippingOrders() {
   const toast = useToast();
+  const history = useHistory();
+  const location = useLocation();
   const [filters, setFilters] = useState({
     vessel: "",
     status: "",
     destination: "",
-    soNumber: "",
+    destinationQuery: "",
+    destinationLabel: "",
+    countryId: "",
+    destinationId: "",
+    soNumber: soNumberFromSearch(location.search),
   });
   const [search, setSearch] = useState("");
   const [entries, setEntries] = useState("50");
@@ -128,7 +218,14 @@ function ClientShippingOrders() {
   const [clientName, setClientName] = useState("");
   const [vesselOptions, setVesselOptions] = useState([]);
   const [loadingFilesOrderId, setLoadingFilesOrderId] = useState(null);
+  const [stockModal, setStockModal] = useState({
+    isOpen: false,
+    order: null,
+    stockList: [],
+    isLoading: false,
+  });
   const filesCacheRef = useRef(new Map());
+  const stockCacheRef = useRef(new Map());
 
   const cardBg = useColorModeValue("white", "navy.800");
   const borderColor = useColorModeValue("secondaryGray.200", "whiteAlpha.200");
@@ -200,6 +297,8 @@ function ClientShippingOrders() {
       const selectedVessel = vesselOptions.find(
         (v) => String(v.name) === String(filters.vessel)
       );
+      const destinationText = String(filters.destinationQuery || "").trim();
+      const countryId = filters.countryId;
       const res = await clientShippingOrdersApi.getClientShippingOrders({
         page: 1,
         page_size: 80,
@@ -207,13 +306,17 @@ function ClientShippingOrders() {
         sort_by: "so_id",
         sort_order: "desc",
         search: search.trim() || undefined,
+        name: search.trim() || undefined,
         done: filters.status || undefined,
         vessel_id: selectedVessel?.id,
-        destination: filters.destination || undefined,
+        destination: destinationText || undefined,
+        country_id: countryId || undefined,
+        destination_id: filters.destinationId || undefined,
         so_id: filters.soNumber || undefined,
       });
 
       filesCacheRef.current.clear();
+      stockCacheRef.current.clear();
 
       const mapped = (res?.orders || [])
         .map((item) => {
@@ -231,7 +334,7 @@ function ClientShippingOrders() {
             hasPackage,
             attachmentsUrl: raw.attachments_url || null,
             totalFileCount: attachmentCount + ciplCount + (hasPackage ? 1 : 0),
-            destinationDisplay: order.destination || "-",
+            destinationDisplay: formatShippingOrderDestinationDisplay(order),
           };
         })
         .filter(Boolean);
@@ -251,7 +354,9 @@ function ClientShippingOrders() {
       setIsLoading(false);
     }
   }, [
-    filters.destination,
+    filters.countryId,
+    filters.destinationId,
+    filters.destinationQuery,
     filters.soNumber,
     filters.status,
     filters.vessel,
@@ -265,49 +370,76 @@ function ClientShippingOrders() {
   }, [fetchVessels]);
 
   useEffect(() => {
+    const soNumber = soNumberFromSearch(location.search);
+    if (!soNumber) return;
+    setFilters((prev) => (prev.soNumber === soNumber ? prev : { ...prev, soNumber }));
+  }, [location.search]);
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       fetchOrders();
     }, 300);
     return () => clearTimeout(timer);
   }, [fetchOrders]);
 
-  const filteredRows = useMemo(() => {
-    return rows.filter((row) => {
-      if (
-        filters.destination &&
-        !String(row.destinationDisplay || "")
-          .toLowerCase()
-          .includes(filters.destination.toLowerCase())
-      ) {
-        return false;
-      }
-      if (filters.soNumber) {
-        const so = String(row.so_number || row.so_id || "").toLowerCase();
-        if (!so.includes(String(filters.soNumber).toLowerCase().replace(/^so[- ]?/i, ""))) {
-          return false;
-        }
-      }
-      return true;
-    });
-  }, [filters.destination, filters.soNumber, rows]);
-
   const pagedRows = useMemo(() => {
     const pageSize = Number(entries);
     const start = (currentPage - 1) * pageSize;
-    return filteredRows.slice(start, start + pageSize);
-  }, [currentPage, entries, filteredRows]);
+    return rows.slice(start, start + pageSize);
+  }, [currentPage, entries, rows]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / Number(entries)));
-  const pageStart = filteredRows.length ? (currentPage - 1) * Number(entries) + 1 : 0;
-  const pageEnd = Math.min(currentPage * Number(entries), filteredRows.length);
+  const totalPages = Math.max(1, Math.ceil(rows.length / Number(entries)));
+  const pageStart = rows.length ? (currentPage - 1) * Number(entries) + 1 : 0;
+  const pageEnd = Math.min(currentPage * Number(entries), rows.length);
 
-  const destinationOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(rows.map((row) => row.destinationDisplay).filter((v) => v && v !== "-"))
-      ).map((v) => ({ id: v, name: v })),
-    [rows]
-  );
+  const destinationOptions = useMemo(() => {
+    const unique = [];
+    const seen = new Set();
+    const add = (id, name, destination, countryId, destinationId) => {
+      const optionId = String(id || "").trim();
+      const label = String(name || "").trim();
+      if (!optionId || !label || label === "-" || seen.has(optionId)) return;
+      seen.add(optionId);
+      unique.push({
+        id: optionId,
+        name: label,
+        destination: String(destination || "").trim(),
+        country_id: countryId || "",
+        destination_id: destinationId || "",
+      });
+    };
+    rows.forEach((row) => {
+      const label = row.destinationDisplay;
+      const destText = String(row.destination || "").trim();
+      const countryId = row.country_id;
+      const destinationId =
+        row.destination_id && typeof row.destination_id === "object"
+          ? row.destination_id.id
+          : row.destination_id;
+      const optionId =
+        destText || (countryId != null && countryId !== "")
+          ? `${destText}::${countryId ?? ""}`
+          : label;
+      add(optionId, label, destText, countryId, destinationId);
+    });
+    if (filters.destination) {
+      add(
+        filters.destination,
+        filters.destinationLabel || filters.destinationQuery || filters.destination,
+        filters.destinationQuery,
+        filters.countryId,
+        filters.destinationId
+      );
+    }
+    return unique;
+  }, [
+    filters.countryId,
+    filters.destination,
+    filters.destinationId,
+    filters.destinationLabel,
+    filters.destinationQuery,
+    rows,
+  ]);
 
   const vesselFilterOptions = useMemo(
     () => vesselOptions.map((v) => ({ id: v.name, name: v.name })),
@@ -323,11 +455,18 @@ function ClientShippingOrders() {
       vessel: "",
       status: "",
       destination: "",
+      destinationQuery: "",
+      destinationLabel: "",
+      countryId: "",
+      destinationId: "",
       soNumber: "",
     });
     setSearch("");
     setEntries("50");
     setCurrentPage(1);
+    if (location.search) {
+      history.replace("/Client/Shipping-Orders");
+    }
   };
 
   const loadOrderFiles = useCallback(async (order) => {
@@ -433,6 +572,63 @@ function ClientShippingOrders() {
     }
   };
 
+  const handleCloseStockItems = () => {
+    setStockModal({
+      isOpen: false,
+      order: null,
+      stockList: [],
+      isLoading: false,
+    });
+  };
+
+  const handleOpenStockItems = async (order) => {
+    if (!order?.id) return;
+    const cacheKey = String(order.id);
+    const cachedStock = stockCacheRef.current.get(cacheKey);
+    const hasCachedStock = Array.isArray(cachedStock);
+    setStockModal({
+      isOpen: true,
+      order,
+      stockList: hasCachedStock ? cachedStock : [],
+      isLoading: !hasCachedStock,
+    });
+    try {
+      const [detailRes, stockRes] = await Promise.all([
+        clientShippingOrdersApi.getClientShippingOrderById(order.id).catch(() => null),
+        cachedStock
+          ? Promise.resolve({ stock_list: cachedStock })
+          : clientShippingOrdersApi.getClientShippingOrderStockApi(
+              order.id,
+              order.stock_items_url
+            ),
+      ]);
+      const rawDetail = detailRes?.order || null;
+      const detailOrder = rawDetail ? mergeClientShippingOrderDetail(order, rawDetail) : order;
+      const fromDetail = Array.isArray(detailOrder.stock_list) ? detailOrder.stock_list : [];
+      const fromStockApi = Array.isArray(stockRes?.stock_list) ? stockRes.stock_list : [];
+      const stockList = fromStockApi.length ? fromStockApi : fromDetail;
+      stockCacheRef.current.set(cacheKey, stockList);
+      setStockModal((prev) =>
+        prev.order?.id === order.id
+          ? { ...prev, order: detailOrder, stockList, isLoading: false }
+          : prev
+      );
+    } catch (err) {
+      setStockModal((prev) =>
+        prev.order?.id === order.id
+          ? { ...prev, stockList: [], isLoading: false }
+          : prev
+      );
+      toast({
+        title: "Unable to load stock items",
+        description: err?.message || "Please try again.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
   const handleDownloadExcel = () => {
     const headers = [
       "SO Number",
@@ -443,7 +639,6 @@ function ClientShippingOrders() {
       "ETB",
       "ETD",
       "SO Delivery Date",
-      "Next Action",
       "Client Case / Invoice Ref",
       "Vessel Agent Details",
       "Quotation",
@@ -453,7 +648,7 @@ function ClientShippingOrders() {
       "Package",
     ];
 
-    const rowsForExport = filteredRows.map((row) => [
+    const rowsForExport = rows.map((row) => [
       row.so_number || "-",
       formatStatusLabel(row.done),
       row.vessel_name || "-",
@@ -462,7 +657,6 @@ function ClientShippingOrders() {
       formatDate(row.etb),
       formatDate(row.etd),
       formatDate(row.so_delivery_date),
-      formatDate(row.next_action),
       row.client_case_invoice_ref || "-",
       row.vsls_agent_dtls || "-",
       row.quotation || "-",
@@ -558,7 +752,7 @@ function ClientShippingOrders() {
               onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
             >
               <option value="">All</option>
-              {SHIPPING_ORDER_STATUS_FILTER_OPTIONS.map((opt) => (
+              {CLIENT_SHIPPING_ORDER_STATUS_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
@@ -572,9 +766,19 @@ function ClientShippingOrders() {
             <SimpleSearchableSelect
               size="sm"
               value={filters.destination}
-              onChange={(value) =>
-                setFilters((prev) => ({ ...prev, destination: value || "" }))
-              }
+              onChange={(value) => {
+                const option = destinationOptions.find(
+                  (item) => String(item.id) === String(value || "")
+                );
+                setFilters((prev) => ({
+                  ...prev,
+                  destination: value || "",
+                  destinationLabel: option?.name || "",
+                  destinationQuery: option?.destination || "",
+                  countryId: option?.country_id || "",
+                  destinationId: option?.destination_id || "",
+                }));
+              }}
               options={destinationOptions}
               placeholder="All destinations"
               valueKey="id"
@@ -659,7 +863,7 @@ function ClientShippingOrders() {
         emptyLabel="No shipping orders found for the selected filters."
         pageStart={pageStart}
         pageEnd={pageEnd}
-        totalCount={filteredRows.length}
+        totalCount={rows.length}
         currentPage={currentPage}
         totalPages={totalPages}
         onChangePage={setCurrentPage}
@@ -668,14 +872,14 @@ function ClientShippingOrders() {
           <Thead>
             <Tr>
               <Th>SO Number</Th>
+              <Th>View Stock Items</Th>
               <Th>Status</Th>
               <Th>Vessel</Th>
               <Th>Destination</Th>
               <Th>ETA</Th>
               <Th>ETB</Th>
               <Th>ETD</Th>
-              <Th>SO Delivery</Th>
-              <Th>Next Action</Th>
+              <Th>SO Delivery Date</Th>
               <Th>Client Case / Invoice Ref</Th>
               <Th>Files</Th>
               <Th>Date Created</Th>
@@ -689,6 +893,25 @@ function ClientShippingOrders() {
                 _even={{ bg: tableRowEvenBg }}
               >
                 <Td fontWeight="600">{row.so_number || "-"}</Td>
+                <Td whiteSpace="nowrap">
+                  {getClientShippingOrderStockCount(row) > 0 || row.stock_items_url ? (
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      colorScheme="blue"
+                      leftIcon={<Icon as={MdVisibility} />}
+                      onClick={() => handleOpenStockItems(row)}
+                    >
+                      {getClientShippingOrderStockCount(row) > 0
+                        ? `View stock items (${getClientShippingOrderStockCount(row)})`
+                        : "View stock items"}
+                    </Button>
+                  ) : (
+                    <Text fontSize="sm" color={muted}>
+                      0 items
+                    </Text>
+                  )}
+                </Td>
                 <Td>
                   <Badge
                     colorScheme={statusColorScheme(row.done)}
@@ -712,7 +935,6 @@ function ClientShippingOrders() {
                 <Td>{formatDate(row.etb)}</Td>
                 <Td>{formatDate(row.etd)}</Td>
                 <Td>{formatDate(row.so_delivery_date)}</Td>
-                <Td>{formatDate(row.next_action)}</Td>
                 <Td maxW="180px">
                   <Tooltip
                     label={row.client_case_invoice_ref || "-"}
@@ -730,6 +952,129 @@ function ClientShippingOrders() {
           </Tbody>
         </Table>
       </ClientPortalTableShell>
+
+      <Modal
+        isOpen={stockModal.isOpen}
+        onClose={handleCloseStockItems}
+        size="6xl"
+        scrollBehavior="inside"
+      >
+        <ModalOverlay bg="blackAlpha.500" />
+        <ModalContent maxW="96vw" borderRadius="16px" overflow="hidden">
+          <ModalHeader
+            py={4}
+            px={6}
+            borderBottom="1px solid"
+            borderColor={borderColor}
+          >
+            <Flex align="center" justify="space-between" pr={8} gap={3} wrap="wrap">
+              <Box>
+                <Text fontSize="xl" fontWeight="800" color={headingColor}>
+                  {stockModal.order?.so_number || "Shipping order"}
+                </Text>
+                <Text fontSize="sm" color={muted} mt={0.5}>
+                  Shipping order details
+                </Text>
+              </Box>
+              {stockModal.order ? (
+                <Badge
+                  colorScheme={statusColorScheme(stockModal.order.done)}
+                  borderRadius="full"
+                  px={3}
+                  py={1}
+                  fontSize="sm"
+                >
+                  {formatStatusLabel(stockModal.order.done)}
+                </Badge>
+              ) : null}
+            </Flex>
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody px={6} py={5}>
+            {stockModal.order ? (
+              <Box
+                border="1px solid"
+                borderColor={borderColor}
+                borderRadius="12px"
+                p={5}
+                mb={5}
+                bg={cardBg}
+              >
+                <Text fontSize="md" fontWeight="700" color={headingColor} mb={4}>
+                  Order information
+                </Text>
+                <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }} gap={4}>
+                  <ReadOnlyDetailField label="SO Number">
+                    {stockModal.order.so_number || "—"}
+                  </ReadOnlyDetailField>
+                  <ReadOnlyDetailField label="Date Created">
+                    {formatDateTime(
+                      stockModal.order.date_created || stockModal.order.timestamp
+                    )}
+                  </ReadOnlyDetailField>
+                  <ReadOnlyDetailField label="Status">
+                    {formatStatusLabel(stockModal.order.done)}
+                  </ReadOnlyDetailField>
+                  <ReadOnlyDetailField label="Client">
+                    {stockModal.order.client || clientName || "—"}
+                  </ReadOnlyDetailField>
+                  <ReadOnlyDetailField label="Vessel">
+                    {stockModal.order.vessel_name || "—"}
+                  </ReadOnlyDetailField>
+                  <ReadOnlyDetailField label="Destination" colSpan={{ base: 1, md: 2 }}>
+                    {stockModal.order.destinationDisplay || "—"}
+                  </ReadOnlyDetailField>
+                  <ReadOnlyDetailField label="ETA">
+                    {formatDate(stockModal.order.eta_date)}
+                  </ReadOnlyDetailField>
+                  <ReadOnlyDetailField label="ETB">
+                    {formatDate(stockModal.order.etb)}
+                  </ReadOnlyDetailField>
+                  <ReadOnlyDetailField label="ETD">
+                    {formatDate(stockModal.order.etd)}
+                  </ReadOnlyDetailField>
+                  <ReadOnlyDetailField label="SO Delivery Date">
+                    {formatDate(stockModal.order.so_delivery_date)}
+                  </ReadOnlyDetailField>
+                  <ReadOnlyDetailField label="Quotation">
+                    {stockModal.order.quotation || "—"}
+                  </ReadOnlyDetailField>
+                  <ReadOnlyDetailField label="Client Case / Invoice Ref" colSpan={{ base: 1, md: 2 }}>
+                    {stockModal.order.client_case_invoice_ref || "—"}
+                  </ReadOnlyDetailField>
+                  <ReadOnlyDetailField label="Vessel Agent Details" colSpan={{ base: 1, xl: 4 }}>
+                    {stockModal.order.vsls_agent_dtls || "—"}
+                  </ReadOnlyDetailField>
+                </Grid>
+              </Box>
+            ) : null}
+            <Box
+              border="1px solid"
+              borderColor={borderColor}
+              borderRadius="12px"
+              p={5}
+              bg={cardBg}
+            >
+              <ShippingOrderStockList
+                title="Stock items"
+                variant="client"
+                stockList={stockModal.stockList}
+                isLoading={stockModal.isLoading}
+                stockItemCount={
+                  stockModal.stockList.length ||
+                  getClientShippingOrderStockCount(stockModal.order)
+                }
+                emptyLabel="No stock items linked to this shipping order."
+              />
+            </Box>
+          </ModalBody>
+          <ModalFooter borderTop="1px solid" borderColor={borderColor} px={6} py={3}>
+            <Button size="sm" variant="outline" onClick={handleCloseStockItems}>
+              Close
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       {galleryModal}
     </Box>

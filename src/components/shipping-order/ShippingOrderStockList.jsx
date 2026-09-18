@@ -1,6 +1,5 @@
 import React, { useMemo } from "react";
 import {
-  Badge,
   Box,
   Button,
   Flex,
@@ -16,6 +15,10 @@ import {
 } from "@chakra-ui/react";
 import StockCellText from "components/stock-list/StockCellText";
 import { formatStockStatusLabel, normalizeStockStatusKey } from "constants/stockStatus";
+import {
+  StockStatusBadge,
+  getStockRowStatusStyle,
+} from "components/stock-list/StockStatusBadge";
 import { formatStockDestinationDisplay } from "utils/stockDestinationOptions";
 import {
   getStockOriginDisplay,
@@ -23,24 +26,6 @@ import {
   getStockViaHub2Display,
 } from "utils/stockLocationOptions";
 import { formatStockValueDisplay } from "utils/stockValue";
-
-const STATUS_COLOR_MAP = {
-  pending: "orange",
-  stock: "blue",
-  available: "green",
-  delivered: "green",
-  released: "gray",
-  shipped: "teal",
-  in_transit: "purple",
-  transit: "purple",
-  on_shipping: "cyan",
-  on_delivery: "pink",
-  arrived: "green",
-  irregular: "yellow",
-  cancelled: "red",
-  lost: "red",
-  hold: "yellow",
-};
 
 const SUMMARY_COLUMNS = [
   { key: "stockItemId", label: "Stock ID" },
@@ -59,8 +44,10 @@ const FULL_COLUMNS = [
   { key: "vessel", label: "Vessel" },
   { key: "supplier", label: "Supplier" },
   { key: "poNo", label: "PO#" },
+  { key: "reqNo", label: "Req No" },
   { key: "boxes", label: "Boxes" },
   { key: "weight", label: "Weight" },
+  { key: "totalVolumeCbm", label: "Total Volume CBM" },
   { key: "origin", label: "Origin" },
   { key: "viaHub1", label: "Via hub 1" },
   { key: "viaHub2", label: "Via hub 2" },
@@ -70,6 +57,27 @@ const FULL_COLUMNS = [
   { key: "dateOnStock", label: "Date on stock" },
   { key: "currency", label: "Currency" },
   { key: "value", label: "Value" },
+];
+
+const CLIENT_COLUMNS = [
+  { key: "stockItemId", label: "Stock ID" },
+  { key: "vessel", label: "Vessel" },
+  { key: "supplier", label: "Supplier" },
+  { key: "reqNo", label: "Req No" },
+  { key: "poNo", label: "PO#" },
+  { key: "stockStatus", label: "Status", isStatus: true },
+  { key: "dateOnStock", label: "Date on stock" },
+  { key: "boxes", label: "Boxes" },
+  { key: "weight", label: "Weight" },
+  { key: "totalVolumeCbm", label: "Total Volume CBM" },
+  { key: "origin", label: "Origin" },
+  { key: "viaHub1", label: "Via hub 1" },
+  { key: "viaHub2", label: "Via hub 2" },
+  { key: "apDestination", label: "AP destination" },
+  { key: "destination", label: "Destination" },
+  { key: "currency", label: "Currency" },
+  { key: "value", label: "Value" },
+  { key: "dgUnNumber", label: "DG/UN Number" },
 ];
 
 const toDisplay = (value) => {
@@ -99,8 +107,13 @@ export const mapShippingOrderStockRows = (stockList) =>
         Array.isArray(item?.po_number) && item.po_number.length
           ? item.po_number.map((x) => String(x)).join(", ")
           : toDisplay(item?.po_text),
-      boxes: formatStockValueDisplay(item?.boxes ?? item?.box ?? item?.pieces ?? item?.pcs?.count),
+      reqNo:
+        Array.isArray(item?.req_no) && item.req_no.length
+          ? item.req_no.map((x) => String(x)).join(", ")
+          : toDisplay(item?.req_no).replace(/\n+/g, ", "),
+      boxes: toDisplay(item?.boxes ?? item?.box ?? item?.pieces ?? item?.pcs?.count),
       weight: formatStockValueDisplay(item?.weight_kg ?? item?.weight),
+      totalVolumeCbm: formatStockValueDisplay(item?.total_volume_cbm),
       origin: toDisplay(item?.origin_text || getStockOriginDisplay(item)),
       viaHub1: toDisplay(getStockViaHub1Display(item)),
       viaHub2: toDisplay(getStockViaHub2Display(item)),
@@ -109,10 +122,12 @@ export const mapShippingOrderStockRows = (stockList) =>
         item?.narvi_stock_destination?.name || formatStockDestinationDisplay(item, "destination")
       ),
       stockStatus: toDisplay(stockStatusRaw),
+      stockStatusRaw,
       stockStatusKey: normalizeStockStatusKey(stockStatusRaw),
       dateOnStock: toDisplay(item?.date_on_stock || item?.first_entry_date),
       currency: toDisplay(item?.currency),
       value: formatStockValueDisplay(item?.value),
+      dgUnNumber: toDisplay(item?.dg_un_number || item?.dg_un),
     };
   });
 
@@ -134,9 +149,9 @@ export default function ShippingOrderStockList({
   const headerBg = useColorModeValue("gray.50", "gray.700");
   const borderColor = useColorModeValue("gray.200", "whiteAlpha.200");
   const rowEvenBg = useColorModeValue("gray.50", "whiteAlpha.50");
-  const overlayBg = useColorModeValue("whiteAlpha.800", "blackAlpha.500");
 
-  const columns = variant === "summary" ? SUMMARY_COLUMNS : FULL_COLUMNS;
+  const columns =
+    variant === "summary" ? SUMMARY_COLUMNS : variant === "client" ? CLIENT_COLUMNS : FULL_COLUMNS;
   const rows = useMemo(() => mapShippingOrderStockRows(stockList), [stockList]);
   const countLabel =
     stockItemCount != null && Number.isFinite(Number(stockItemCount))
@@ -159,30 +174,31 @@ export default function ShippingOrderStockList({
             </Text>
           ) : null}
           <Text fontSize="sm" color={muted}>
-            {countLabel} item{countLabel === 1 ? "" : "s"}
+            {isLoading ? "Loading…" : `${countLabel} item${countLabel === 1 ? "" : "s"}`}
           </Text>
         </Flex>
       )}
       <Box position="relative" overflowX="auto" border="1px solid" borderColor={borderColor} borderRadius="md">
         {isLoading ? (
           <Flex
-            position="absolute"
-            inset={0}
             align="center"
             justify="center"
-            bg={overlayBg}
-            zIndex={1}
-            minH="120px"
+            direction="column"
+            gap={3}
+            minH="200px"
+            py={8}
           >
-            <Spinner size="md" color="blue.500" />
+            <Spinner size="md" color="blue.500" thickness="3px" />
+            <Text fontSize="sm" color={muted}>
+              Loading stock items...
+            </Text>
           </Flex>
-        ) : null}
-        {rows.length === 0 && !isLoading ? (
+        ) : rows.length === 0 ? (
           <Text fontSize="sm" color={muted} px={4} py={4}>
             {emptyLabel}
           </Text>
         ) : (
-          <Table size="sm" variant="simple" minW={variant === "summary" ? "980px" : "1480px"}>
+          <Table size="sm" variant="simple" minW={variant === "summary" ? "980px" : "1680px"}>
             <Thead bg={headerBg}>
               <Tr>
                 {columns.map((col) => (
@@ -193,42 +209,40 @@ export default function ShippingOrderStockList({
               </Tr>
             </Thead>
             <Tbody>
-              {rows.map((row, index) => (
-                <Tr key={row.id} bg={index % 2 === 0 ? undefined : rowEvenBg}>
-                  {columns.map((col) => (
-                    <Td key={col.key} py={2} px={3} whiteSpace="nowrap">
-                      {col.isStatus ? (
-                        <Badge
-                          borderRadius="full"
-                          px={2.5}
-                          py={0.5}
-                          fontSize="xs"
-                          textTransform="none"
-                          colorScheme={STATUS_COLOR_MAP[row.stockStatusKey] || "gray"}
-                        >
-                          {formatStockStatusLabel(row.stockStatus)}
-                        </Badge>
-                      ) : col.isStockLink && allowOpenInStockList && stockListHref(row.rawItem) ? (
-                        <Button
-                          as="a"
-                          href={stockListHref(row.rawItem)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          variant="link"
-                          size="sm"
-                          colorScheme="blue"
-                        >
-                          {row[col.key]}
-                        </Button>
-                      ) : (
-                        <StockCellText fontSize="sm" isTruncated maxW="240px">
-                          {row[col.key]}
-                        </StockCellText>
-                      )}
-                    </Td>
-                  ))}
-                </Tr>
-              ))}
+              {rows.map((row, index) => {
+                const statusStyle = getStockRowStatusStyle(
+                  row.stockStatusRaw || row.stockStatusKey || row.stockStatus
+                );
+                return (
+                  <Tr key={row.id} bg={index % 2 === 0 ? undefined : rowEvenBg}>
+                    {columns.map((col) => (
+                      <Td key={col.key} py={2} px={3} whiteSpace="nowrap">
+                        {col.isStatus ? (
+                          <StockStatusBadge statusStyle={statusStyle}>
+                            {formatStockStatusLabel(row.stockStatusRaw || row.stockStatus)}
+                          </StockStatusBadge>
+                        ) : col.isStockLink && allowOpenInStockList && stockListHref(row.rawItem) ? (
+                          <Button
+                            as="a"
+                            href={stockListHref(row.rawItem)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            variant="link"
+                            size="sm"
+                            colorScheme="blue"
+                          >
+                            {row[col.key]}
+                          </Button>
+                        ) : (
+                          <StockCellText fontSize="sm" isTruncated maxW="240px">
+                            {row[col.key]}
+                          </StockCellText>
+                        )}
+                      </Td>
+                    ))}
+                  </Tr>
+                );
+              })}
             </Tbody>
           </Table>
         )}
