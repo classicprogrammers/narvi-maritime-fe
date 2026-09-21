@@ -11,26 +11,15 @@ import {
   useColorModeValue,
   IconButton,
 } from "@chakra-ui/react";
-// Custom Components
-import { ItemContent } from "components/menu/ItemContent";
-import { SearchBar } from "components/navbar/searchBar/SearchBar";
 import { SidebarResponsive } from "components/sidebar/Sidebar";
 import PropTypes from "prop-types";
 import React, { useContext } from "react";
 import { SidebarContext } from "contexts/SidebarContext";
 import { useHistory } from "react-router-dom";
-// Assets
-import {
-  MdNotificationsNone,
-  MdMenu,
-  MdChevronLeft,
-} from "react-icons/md";
-import { FaEthereum } from "react-icons/fa";
+import { MdMenu, MdChevronLeft } from "react-icons/md";
 import routes from "routes.js";
-// Redux
 import { useUser } from "redux/hooks/useUser";
 import { clearMasterData } from "utils/masterDataCache";
-// import { ThemeEditor } from "./ThemeEditor";
 
 export default function HeaderLinks(props) {
   const { secondary } = props;
@@ -38,15 +27,10 @@ export default function HeaderLinks(props) {
   const history = useHistory();
   const { logout, user } = useUser();
 
-  // Chakra Color Mode
   const navbarIcon = useColorModeValue("gray.400", "white");
-  let menuBg = useColorModeValue("white", "navy.800");
+  const menuBg = useColorModeValue("white", "navy.800");
   const textColor = useColorModeValue("secondaryGray.900", "white");
-  const textColorBrand = useColorModeValue("#174693", "#174693");
-  const ethColor = useColorModeValue("gray.700", "white");
   const borderColor = useColorModeValue("#E6ECFA", "rgba(135, 140, 189, 0.3)");
-  const ethBg = useColorModeValue("secondaryGray.300", "navy.900");
-  const ethBox = useColorModeValue("white", "navy.800");
   const shadow = useColorModeValue(
     "14px 17px 40px 4px rgba(112, 144, 176, 0.18)",
     "14px 17px 40px 4px rgba(112, 144, 176, 0.06)"
@@ -81,12 +65,6 @@ export default function HeaderLinks(props) {
       borderRadius="30px"
       boxShadow={shadow}
     >
-      {/* <SearchBar
-        mb={secondary ? { base: "10px", md: "unset" } : "unset"}
-        me="10px"
-        borderRadius="30px"
-      /> */}
-
       <IconButton
         display={{ base: "none", xl: "flex" }}
         icon={<Icon as={toggleSidebar ? MdChevronLeft : MdMenu} />}
@@ -98,21 +76,6 @@ export default function HeaderLinks(props) {
         me="10px"
       />
       <SidebarResponsive routes={routes} />
-
-      {/* <Menu>
-        <MenuButton p="0px">
-          <Icon
-            mt="6px"
-            as={MdNotificationsNone}
-            color={navbarIcon}
-            w="18px"
-            h="18px"
-            me="10px"
-          />
-        </MenuButton>
-      </Menu> */}
-
-      {/* <ThemeEditor navbarIcon={navbarIcon} /> */}
 
       <Menu>
         <MenuButton p="0px">
@@ -150,7 +113,6 @@ export default function HeaderLinks(props) {
             </Text>
           </Flex>
           <Flex flexDirection="column" p="10px">
-
             <MenuItem
               _hover={{ bg: "none" }}
               _focus={{ bg: "none" }}

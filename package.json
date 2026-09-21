@@ -50,7 +50,6 @@
     "eject": "react-scripts eject",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d build",
-    "sitemap": "babel-node ./sitemap-builder.js",
     "postinstall": "node scripts/fix-ajv.js || true",
     "vercel-build": "cross-env GENERATE_SOURCEMAP=false SKIP_PREFLIGHT_CHECK=true TSC_COMPILE_ON_ERROR=true DISABLE_ESLINT_PLUGIN=true react-scripts build"
   },
