@@ -404,7 +404,7 @@ const CLIENT_STOCK_EXPORT_COLUMNS = [
   { header: "Value", value: (row) => row.value || "-" },
   { header: "Client", value: (row) => row.client || "-" },
   { header: "DG/UN Number", value: (row) => row.dgUnNumber || "-" },
-  { header: "Report", value: (row) => formatClientStockReportNames(row) },
+  { header: "Files", value: (row) => formatClientStockReportNames(row) },
 ];
 const DEFAULT_ACTIVE_FILTER = "true";
 
@@ -1475,7 +1475,7 @@ function ClientStockReportView() {
               <Th>VALUE</Th>
               <Th>CLIENT</Th>
               <Th>DG/UN NUMBER</Th>
-              <Th>REPORT</Th>
+              <Th>FILES</Th>
             </Tr>
           </Thead>
           <Tbody>
