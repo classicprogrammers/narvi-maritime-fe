@@ -70,16 +70,16 @@ export async function getNarviQuotation(id) {
     err.response = { data: result };
     throw err;
   }
-  if (Array.isArray(result?.data)) {
-    const match = result.data.find((row) => String(row.id) === String(id));
-    if (match) return match;
-    if (result.data.length === 1) return result.data[0];
+  if (result?.quotation && typeof result.quotation === "object" && !Array.isArray(result.quotation)) {
+    return result.quotation;
   }
   if (result?.data && typeof result.data === "object" && !Array.isArray(result.data)) {
     return result.data;
   }
-  if (result?.quotation && typeof result.quotation === "object") {
-    return result.quotation;
+  if (Array.isArray(result?.data)) {
+    const match = result.data.find((row) => String(row.id) === String(id));
+    if (match) return match;
+    if (result.data.length === 1) return result.data[0];
   }
   return result;
 }
@@ -123,6 +123,55 @@ export async function deleteNarviQuotation(id) {
   return ensureNarviSuccess(response.data, "Failed to delete quotation.");
 }
 
+export async function getQuotationBuildOrigins({ client_id, search } = {}) {
+  const response = await api.get("/api/narvi/quotation/build/origins", {
+    params: cleanNarviPayload({ client_id, search }),
+  });
+  return ensureNarviSuccess(response.data, "Failed to load origins.");
+}
+
+export async function getQuotationBuildRates(params = {}) {
+  const response = await api.get("/api/narvi/quotation/build/rates", {
+    params: cleanNarviPayload(params),
+  });
+  return ensureNarviSuccess(response.data, "Failed to load rates.");
+}
+
+export async function createQuotationFromSelection(payload) {
+  const response = await api.post("/api/narvi/quotation/create-from-selection", payload);
+  return ensureNarviSuccess(response.data, "Failed to create quotation.");
+}
+
+export async function acceptNarviQuotation(payload) {
+  const response = await api.post("/api/narvi/quotation/accept", payload);
+  return ensureNarviSuccess(response.data, "Failed to accept quotation.");
+}
+
+export async function reviseNarviQuotation(id) {
+  const response = await api.post("/api/narvi/quotation/revise", { id });
+  return ensureNarviSuccess(response.data, "Failed to revise quotation.");
+}
+
+export async function readyForInvoiceNarviQuotation(id) {
+  const response = await api.post("/api/narvi/quotation/ready-for-invoice", { id });
+  return ensureNarviSuccess(response.data, "Failed to mark quotation ready for invoice.");
+}
+
+export async function archiveNarviQuotation(id) {
+  const response = await api.post("/api/narvi/quotation/archive", { id });
+  return ensureNarviSuccess(response.data, "Failed to archive quotation.");
+}
+
+export async function getNarviQuotationCopyText(id) {
+  const response = await api.get("/api/narvi/quotation/copy-text", { params: { id } });
+  return ensureNarviSuccess(response.data, "Failed to load copy text.");
+}
+
+export async function getNarviQuotationVersions(id) {
+  const response = await api.get("/api/narvi/quotation/versions", { params: { id } });
+  return ensureNarviSuccess(response.data, "Failed to load versions.");
+}
+
 const narviQuotation = {
   getNarviQuotations,
   getNarviQuotation,
@@ -131,6 +180,15 @@ const narviQuotation = {
   createNarviQuotation,
   updateNarviQuotation,
   deleteNarviQuotation,
+  getQuotationBuildOrigins,
+  getQuotationBuildRates,
+  createQuotationFromSelection,
+  acceptNarviQuotation,
+  reviseNarviQuotation,
+  readyForInvoiceNarviQuotation,
+  archiveNarviQuotation,
+  getNarviQuotationCopyText,
+  getNarviQuotationVersions,
 };
 
 export default narviQuotation;

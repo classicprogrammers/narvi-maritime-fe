@@ -12,6 +12,7 @@ export const DEFAULT_RATE_FORM_ROW = {
   valid_until: "",
   remarks: "",
   sort_order: "",
+  charge_category: "standard",
   incl_in_tariff: false,
   import_group: "",
   last_update: "",
@@ -34,6 +35,7 @@ export const RATE_API_FIELDS = [
   "valid_until",
   "last_update",
   "sort_order",
+  "charge_category",
   "import_group",
   "incl_in_tariff",
   "active",
@@ -55,11 +57,24 @@ export const RATE_FORM_FIELDS = [
   "valid_until",
   "last_update",
   "sort_order",
+  "charge_category",
   "import_group",
   "incl_in_tariff",
   "active",
   "remarks",
 ];
+
+export const CHARGE_CATEGORY_OPTIONS = [
+  { id: "standard", label: "Standard" },
+  { id: "if_apply", label: "If Apply" },
+  { id: "dob_standard", label: "DOB Standard" },
+  { id: "dob_if_apply", label: "DOB If Apply" },
+];
+
+export function chargeCategoryLabel(value, label) {
+  if (label) return label;
+  return CHARGE_CATEGORY_OPTIONS.find((option) => option.id === value)?.label || "Standard";
+}
 
 export function emptyToNull(value) {
   if (value == null) return null;
@@ -123,6 +138,7 @@ export function mapRateItemToFormRow(item) {
     valid_until: toDateInputValue(item.valid_until),
     remarks: item.remarks || "",
     sort_order: item.sort_order ?? "",
+    charge_category: item.charge_category || "standard",
     incl_in_tariff: Boolean(item.incl_in_tariff),
     import_group: item.import_group || "",
     last_update: toDateInputValue(item.last_update),
@@ -197,6 +213,7 @@ export function buildRateApiPayload(formRow, { forCreate = false } = {}) {
 
   payload.incl_in_tariff = Boolean(formRow.incl_in_tariff);
   payload.active = formRow.active !== false;
+  payload.charge_category = formRow.charge_category || "standard";
 
   if (forCreate) {
     delete payload.id;

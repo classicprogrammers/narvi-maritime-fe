@@ -27,6 +27,7 @@ import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import { createRateListApi, updateRateListApi } from "../../../api/rate";
 import { useMasterData } from "../../../hooks/useMasterData";
 import {
+  CHARGE_CATEGORY_OPTIONS,
   buildRateCreatePayload,
   buildRateUpdateLine,
   DEFAULT_RATE_FORM_ROW,
@@ -477,7 +478,7 @@ export default function RateListForm() {
   };
 
   const tableMinWidth = useMemo(() => {
-    const columnCount = isEditing ? 19 : 18;
+    const columnCount = isEditing ? 20 : 19;
     return `${columnCount * 150}px`;
   }, [isEditing]);
 
@@ -586,6 +587,7 @@ export default function RateListForm() {
                   <Th {...thStyle}>Location Text</Th>
                   <Th {...thStyle}>Agent</Th>
                   <Th {...thStyle}>Rate Name</Th>
+                  <Th {...thStyle}>Charge Category</Th>
                   <Th {...thStyle}>Rate Cost</Th>
                   <Th {...thStyle}>Rate Fixed</Th>
                   <Th {...thStyle}>Rate Calculation</Th>
@@ -702,6 +704,26 @@ export default function RateListForm() {
                           {...cellInputProps}
                           htmlSize={getAutoHtmlSize(row.rate_name, "Rate Name")}
                         />
+                      )}
+                    </Td>
+                    <Td {...tdProps}>
+                      {assignCell(
+                        index,
+                        "charge_category",
+                        <Box minW="160px">
+                          <Select
+                            value={row.charge_category || "standard"}
+                            onChange={(e) => updateRow(index, "charge_category", e.target.value)}
+                            {...cellInputProps}
+                            w="100%"
+                          >
+                            {CHARGE_CATEGORY_OPTIONS.map((option) => (
+                              <option key={option.id} value={option.id}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </Select>
+                        </Box>
                       )}
                     </Td>
                     <Td {...tdProps}>

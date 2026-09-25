@@ -1,11 +1,10 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import narviLetterheadPrint from "../../../assets/letterHead/NarviLetterhead.jpeg";
-import { apiString } from "./quotationUtils";
+import { apiString, detailSections, isLineSelected, lineDisplayName, m2oName, quotationReference, quotationVesselName } from "./quotationUtils";
 
 export const DEFAULT_QUOTATION_REPORT_TERMS = [
-  "* Our quotation is subject to the space/rates upon booking confirmation!",
-  "* The quotation does not include Waiting Time, Overtime Services, DG Fee and any other accessorial charges that may apply during export/delivery to vessel!",
+  'All services provided by Narvi Maritime Pte Ltd ("the Company") are provided subject to the Company\'s Terms and Conditions, as amended from time to time, which are published at www.example.com/terms (the "Terms"). By accepting this offer, placing an order, or accepting delivery of the services, the Customer acknowledges that it has had the opportunity to read the Terms and agrees to be bound by them. In the event of any inconsistency between this document and the Terms, the Terms shall prevail unless expressly agreed otherwise in writing by the Company.',
 ];
 
 function normalizeRemark(value) {
@@ -219,6 +218,7 @@ export async function buildQuotationReportPdf(model) {
   };
 
   cursorY = writeMetaLine("Client", model.clientName, cursorY);
+  if (model.reference) cursorY = writeMetaLine("Quotation", model.reference, cursorY);
   cursorY = writeMetaLine("Vessel", model.vesselName, cursorY);
   cursorY += 6;
 
@@ -257,16 +257,44 @@ export async function buildQuotationReportPdf(model) {
     },
   });
 
-  cursorY = (doc.lastAutoTable?.finalY || cursorY) + 16;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
-  model.terms.forEach((term) => {
-    const wrapped = doc.splitTextToSize(term, contentWidth);
-    doc.text(wrapped, contentLeft, cursorY);
-    cursorY += wrapped.length * 11 + 4;
-  });
+  await drawCenteredTermsFooter(doc, model.terms, doc.lastAutoTable?.finalY || cursorY);
 
   return doc;
+}
+
+async function drawCenteredTermsFooter(doc, terms, contentEndY) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const side = 46;
+  const textWidth = pageWidth - side * 2;
+  const lineHeight = 9;
+  const bottomMargin = 26;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7.5);
+  const lines = (terms || []).flatMap((term) => doc.splitTextToSize(String(term || ""), textWidth));
+  if (!lines.length) return;
+
+  const blockHeight = lines.length * lineHeight;
+  let startY = pageHeight - bottomMargin - blockHeight;
+  if (contentEndY + 18 > startY) {
+    doc.addPage();
+    try {
+      await loadLetterheadOnPdf(doc);
+    } catch (error) {
+      console.error("Failed to load letterhead image for quotation PDF:", error);
+    }
+    startY = pageHeight - bottomMargin - blockHeight;
+  }
+
+  doc.setDrawColor(210, 210, 210);
+  doc.setLineWidth(0.6);
+  doc.line(side, startY - 10, pageWidth - side, startY - 10);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7.5);
+  doc.setTextColor(155, 155, 155);
+  doc.text(lines, pageWidth / 2, startY, { align: "center", lineHeightFactor: 1.15 });
+  doc.setTextColor(0, 0, 0);
 }
 
 export function getQuotationReportPdfFilename(model) {
@@ -276,4 +304,36 @@ export function getQuotationReportPdfFilename(model) {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
   return `quotation-${idPart || "report"}-${dateTag}.pdf`;
+}
+
+export async function downloadQuotationPdf(quotation) {
+  const rows = [];
+  (quotation?.scenarios || []).forEach((scenario) => {
+    const scenarioLabel = scenario?.origin || scenario?.name || "Scenario";
+    detailSections(scenario.sections).forEach((section) => {
+      section.lines.forEach((line) => {
+        if (!isLineSelected(line)) return;
+        rows.push({
+          rateName: `${scenarioLabel} — ${lineDisplayName(line)}`,
+          currency: "USD",
+          amount: formatReportAmount(line.rate_to_client),
+          remark: apiString(line.remark) || apiString(line.free_text),
+        });
+      });
+    });
+  });
+
+  const reference = quotationReference(quotation);
+  const model = {
+    reference,
+    clientName: quotation?.client_name || m2oName(quotation?.client_id, ""),
+    vesselName: quotationVesselName(quotation),
+    rows,
+    total: formatReportAmount(quotation?.totals?.grand_total_usd),
+    totalCurrency: "USD",
+    terms: DEFAULT_QUOTATION_REPORT_TERMS,
+    fileLabel: reference,
+  };
+  const doc = await buildQuotationReportPdf(model);
+  doc.save(getQuotationReportPdfFilename(model));
 }

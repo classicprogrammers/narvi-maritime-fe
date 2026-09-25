@@ -48,6 +48,8 @@ import Phonebook from "views/admin/phonebook";
 // Quotations Imports
 import Quotations from "views/admin/quotations";
 import QuotationForm from "views/admin/quotations/QuotationForm";
+import QuotationWizard from "views/admin/quotations/QuotationWizard";
+import QuotationDetail from "views/admin/quotations/QuotationDetail";
 import RateList from "views/admin/quotations/rate-list";
 import RateListForm from "views/admin/quotations/RateListForm";
 import ClientTariffs from "views/admin/quotations/client-tariffs";
@@ -464,7 +466,22 @@ const hiddenRoutes = [
     name: "Quotation Create",
     layout: "/admin",
     path: "/quotations/create",
+    exact: true,
+    component: QuotationWizard,
+  },
+  {
+    name: "Quotation Manual",
+    layout: "/admin",
+    path: "/quotations/manual",
+    exact: true,
     component: QuotationForm,
+  },
+  {
+    name: "Quotation View",
+    layout: "/admin",
+    path: "/quotations/view/:id",
+    exact: true,
+    component: QuotationDetail,
   },
   {
     name: "Quotation Edit",

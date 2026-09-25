@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Badge,
   Box,
   Button,
   Flex,
@@ -35,13 +36,18 @@ import {
 } from "../../../api/narviQuotation";
 import {
   formatClientOption,
+  formatUsd,
   formatVesselOption,
   intOrUndef,
   m2oName,
   normalizeClientOptions,
   normalizeVesselOptions,
-  quotationRateNames,
+  QUOTATION_STATE_TABS,
+  quotationGrandTotal,
+  quotationReference,
   quotationSoDisplay,
+  quotationStateColor,
+  quotationStateLabel,
   quotationVesselName,
 } from "./quotationUtils";
 
@@ -136,6 +142,7 @@ export default function Quotations() {
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [stateFilter, setStateFilter] = useState("");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
@@ -260,8 +267,23 @@ export default function Quotations() {
         validity_date: filters.validity_date || undefined,
       };
 
+      if (stateFilter === "archived") {
+        params.state = "archived";
+        params.is_current_revision = true;
+      } else {
+        params.is_current_revision = true;
+        if (stateFilter) params.state = stateFilter;
+      }
+
       const result = await getNarviQuotations(params);
-      const rows = Array.isArray(result.data) ? result.data : [];
+      if (result?.status === "error") {
+        throw new Error(result.message || "Failed to load quotations.");
+      }
+      const rows = Array.isArray(result.data)
+        ? result.data
+        : Array.isArray(result.quotations)
+          ? result.quotations
+          : [];
       setItems(rows);
       setTotalPages(result.total_pages || 1);
       setTotalCount(result.total_count ?? rows.length);
@@ -283,7 +305,7 @@ export default function Quotations() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedSearch, filters, toast]);
+  }, [page, pageSize, debouncedSearch, filters, stateFilter, toast]);
 
   useEffect(() => {
     loadList();
@@ -378,7 +400,7 @@ export default function Quotations() {
                   <Input
                     {...filterInputProps}
                     borderRadius="10px"
-                    placeholder="Search client, vessel, SO, rate name..."
+                    placeholder="Search reference, client, vessel, SO..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     pr={search ? "32px" : undefined}
@@ -556,17 +578,36 @@ export default function Quotations() {
             )}
           </Box>
 
+          <HStack spacing={2} px="25px" mb={4} flexWrap="wrap">
+            {QUOTATION_STATE_TABS.map((tab) => (
+              <Button
+                key={tab.id || "all"}
+                size="sm"
+                borderRadius="full"
+                variant={stateFilter === tab.id ? "solid" : "outline"}
+                colorScheme={stateFilter === tab.id ? "blue" : "gray"}
+                onClick={() => {
+                  setStateFilter(tab.id);
+                  setPage(1);
+                }}
+              >
+                {tab.label}
+              </Button>
+            ))}
+          </HStack>
+
           <Box px="15px" maxH="65vh" overflow="auto">
             <Table variant="unstyled" size="sm" minW="1000px" layout="fixed">
               <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1} boxShadow="sm">
                 <Tr>
                   {[
-                    { label: "Quotation", w: "12%" },
+                    { label: "Reference", w: "14%" },
+                    { label: "State", w: "14%" },
+                    { label: "Revision", w: "8%" },
                     { label: "Client", w: "16%" },
                     { label: "Vessel", w: "14%" },
-                    { label: "SO ID", w: "10%" },
-                    { label: "Rate Name", w: "24%" },
-                    { label: "Valid Date", w: "10%" },
+                    { label: "SO", w: "12%" },
+                    { label: "Grand Total (USD)", w: "14%" },
                     { label: "", w: "90px" },
                   ].map((col) => (
                     <Th key={col.label || "actions"} w={col.w} {...thStyle}>
@@ -578,7 +619,7 @@ export default function Quotations() {
               <Tbody>
                 {loading ? (
                   <Tr>
-                    <Td colSpan={7} textAlign="center" py="40px" {...tdStyle}>
+                    <Td colSpan={8} textAlign="center" py="40px" {...tdStyle}>
                       <Text color={tableTextColorSecondary} fontSize="sm">
                         Loading quotations...
                       </Text>
@@ -586,7 +627,7 @@ export default function Quotations() {
                   </Tr>
                 ) : items.length === 0 ? (
                   <Tr>
-                    <Td colSpan={7} textAlign="center" py="40px" {...tdStyle}>
+                    <Td colSpan={8} textAlign="center" py="40px" {...tdStyle}>
                       <Text color={tableTextColorSecondary} fontSize="sm">
                         No quotations found.
                       </Text>
@@ -599,12 +640,26 @@ export default function Quotations() {
                       bg={index % 2 === 0 ? tableRowBg : tableRowBgAlt}
                       border="1px"
                       borderColor={tableBorderColor}
+                      cursor="pointer"
                       _hover={{ bg: hoverBg }}
+                      onClick={() => history.push(`/admin/quotations/view/${item.id}`)}
                     >
                       <TruncatedCell
-                        value={item.name || `QT/${item.id}`}
-                        maxW="120px"
+                        value={quotationReference(item)}
+                        maxW="160px"
                         fontWeight="600"
+                        textColor={textColor}
+                        tdStyle={tdStyle}
+                        cellText={cellText}
+                      />
+                      <Td {...tdStyle}>
+                        <Badge colorScheme={quotationStateColor(item.state)} textTransform="none">
+                          {quotationStateLabel(item)}
+                        </Badge>
+                      </Td>
+                      <TruncatedCell
+                        value={item.revision_no != null ? String(item.revision_no) : "0"}
+                        maxW="80px"
                         textColor={textColor}
                         tdStyle={tdStyle}
                         cellText={cellText}
@@ -631,29 +686,22 @@ export default function Quotations() {
                         cellText={cellText}
                       />
                       <TruncatedCell
-                        value={quotationRateNames(item)}
-                        maxW="320px"
+                        value={formatUsd(quotationGrandTotal(item))}
+                        maxW="160px"
                         textColor={textColor}
                         tdStyle={tdStyle}
                         cellText={cellText}
                       />
-                      <TruncatedCell
-                        value={item.validity_date || "-"}
-                        maxW="140px"
-                        textColor={textColor}
-                        tdStyle={tdStyle}
-                        cellText={cellText}
-                      />
-                      <Td w="90px" {...tdStyle}>
+                      <Td w="90px" {...tdStyle} onClick={(event) => event.stopPropagation()}>
                         <HStack spacing={1}>
-                          <Tooltip label="Edit">
+                          <Tooltip label="Open">
                             <IconButton
-                              aria-label="Edit quotation"
+                              aria-label="Open quotation"
                               size="sm"
                               variant="ghost"
                               colorScheme="blue"
                               icon={<MdEdit />}
-                              onClick={() => history.push(`/admin/quotations/edit/${item.id}`)}
+                              onClick={() => history.push(`/admin/quotations/view/${item.id}`)}
                             />
                           </Tooltip>
                           <Tooltip label="Delete">

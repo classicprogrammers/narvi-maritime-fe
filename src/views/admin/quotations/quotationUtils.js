@@ -16,11 +16,14 @@ export function quotationVesselName(item) {
 
 export function quotationSoDisplay(item) {
   if (item?.so_number) return item.so_number;
-  if (item?.so_id != null && item.so_id !== "") return String(item.so_id);
-  const soName = m2oName(item?.sale_order_id, "");
-  if (soName) return soName;
+  if (item?.so_id != null && item.so_id !== "" && item.so_id !== false) return String(item.so_id);
+  if (item?.sale_order_id && typeof item.sale_order_id === "object") {
+    const soName = m2oName(item.sale_order_id, "");
+    if (soName) return soName;
+  }
   const soId = m2oId(item?.sale_order_id);
-  return soId ? String(soId) : "-";
+  if (soId && soId !== false) return String(soId);
+  return "-";
 }
 
 export function quotationRateNames(item) {
@@ -180,6 +183,19 @@ export function ensureSelectedOption(options, value, buildOption, previousOption
     ? previousOptions.find((opt) => String(opt.id) === String(value))
     : null;
   return fromPrevious ? [fromPrevious, ...options] : options;
+}
+
+function usableId(value) {
+  return value != null && value !== "" && value !== false;
+}
+
+export function normalizeQuotationOptions(result) {
+  const payload = result?.result && typeof result.result === "object" ? result.result : result || {};
+  return {
+    clients: normalizeClientOptions(payload.client_options).filter((item) => usableId(item.id)),
+    vessels: normalizeVesselOptions(payload.vessel_options).filter((item) => usableId(item.id)),
+    saleOrders: normalizeSoOptions(payload.so_options).filter((item) => usableId(item.id)),
+  };
 }
 
 export function formatClientOption(client) {
@@ -524,4 +540,350 @@ export function mergeHeaderFromApi(current, q) {
   if (q.general_mu != null) next.general_mu = String(q.general_mu);
   if (q.caf != null) next.caf = String(q.caf);
   return next;
+}
+
+export const QUOTATION_STATE_TABS = [
+  { id: "", label: "All" },
+  { id: "draft", label: "Draft" },
+  { id: "accepted", label: "Accepted" },
+  { id: "ready_for_invoice", label: "Ready for Invoice" },
+  { id: "archived", label: "Archived" },
+];
+
+const QUOTATION_STATE_LABELS = {
+  draft: "Draft",
+  accepted: "Accepted",
+  ready_for_invoice: "Ready for Invoice",
+  archived: "Archived",
+};
+
+export function quotationStateLabel(item) {
+  if (!item) return "—";
+  if (item.state_label) return item.state_label;
+  return QUOTATION_STATE_LABELS[item.state] || item.state || "—";
+}
+
+export function quotationStateColor(state) {
+  switch (state) {
+    case "accepted":
+      return "green";
+    case "ready_for_invoice":
+      return "blue";
+    case "archived":
+      return "orange";
+    default:
+      return "gray";
+  }
+}
+
+export function quotationReference(item) {
+  if (item?.name) return String(item.name);
+  if (item?.reference) return String(item.reference);
+  if (item?.id != null) return `QT-${String(item.id).padStart(4, "0")}`;
+  return "—";
+}
+
+export function quotationGrandTotal(item) {
+  const value = item?.totals?.grand_total_usd ?? item?.grand_total_usd ?? item?.grand_total ?? null;
+  if (value == null || value === false || value === "") return null;
+  return value;
+}
+
+export function formatUsd(value) {
+  if (value == null || value === false || value === "") return "—";
+  const n = Number(value);
+  if (Number.isNaN(n)) return "—";
+  return `USD ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export function formatAmountWithCurrencies(amount, currencies) {
+  const formatted = Number(amount || 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const unique = [...new Set((currencies || []).filter(Boolean))];
+  if (unique.length === 1) return `${unique[0]} ${formatted}`;
+  if (unique.length > 1) return `${formatted} (mixed currencies)`;
+  return formatted;
+}
+
+export const CHARGE_SECTIONS = [
+  { key: "standard", label: "Standard Charges", collapsible: false },
+  { key: "if_apply", label: "If Apply Charges", collapsible: false },
+  { key: "dob_standard", label: "DOB Standard", collapsible: true },
+  { key: "dob_if_apply", label: "DOB If Apply", collapsible: true },
+];
+
+export const RATE_TYPE_OPTIONS = [
+  { id: "general", label: "General" },
+  { id: "client_specific", label: "Client Specific" },
+];
+
+export function rateTypeLabel(value) {
+  return RATE_TYPE_OPTIONS.find((opt) => opt.id === value)?.label || value || "—";
+}
+
+export function isStandardCategory(category) {
+  return category === "standard" || category === "dob_standard";
+}
+
+export function rateAmount(rate) {
+  const n = Number(rate?.rate_float ?? rate?.buy_rate ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+let scenarioSeq = 0;
+
+export function createEmptyScenario() {
+  scenarioSeq += 1;
+  return {
+    key: `scenario-${Date.now()}-${scenarioSeq}`,
+    origin: "",
+    agent_id: "",
+    rate_type: "",
+    name: "",
+    agentRateTypes: [],
+    sections: [],
+    selectedByRateId: {},
+    ratesSignature: "",
+    ratesLoading: false,
+    ratesError: "",
+  };
+}
+
+export function normalizeBuildOrigins(result) {
+  const source = Array.isArray(result?.origins)
+    ? result.origins
+    : Array.isArray(result?.data?.origins)
+      ? result.data.origins
+      : [];
+  return source
+    .map((item) => ({
+      origin: item?.origin ? String(item.origin) : "",
+      rate_types: Array.isArray(item?.rate_types) ? item.rate_types : [],
+      agents: Array.isArray(item?.agents) ? item.agents : [],
+    }))
+    .filter((item) => item.origin);
+}
+
+export function findOrigin(origins, originName) {
+  return (origins || []).find((item) => item.origin === originName) || null;
+}
+
+export function rateTypesForSelection(origin, agent) {
+  const fromAgent = Array.isArray(agent?.rate_types) ? agent.rate_types : [];
+  if (fromAgent.length) return fromAgent;
+  return Array.isArray(origin?.rate_types) ? origin.rate_types : [];
+}
+
+export function sectionsFromRatesResponse(sections) {
+  const list = Array.isArray(sections) ? sections : [];
+  const byKey = Object.fromEntries(list.filter((section) => section?.key).map((section) => [section.key, section]));
+  return CHARGE_SECTIONS.map((meta) => {
+    const found = byKey[meta.key] || {};
+    const rates = Array.isArray(found.rates) ? [...found.rates] : [];
+    rates.sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
+    return {
+      key: meta.key,
+      label: found.label || meta.label,
+      collapsible: meta.collapsible,
+      rates,
+    };
+  });
+}
+
+export function detailSections(sections) {
+  const list = Array.isArray(sections) ? sections : null;
+  const source = sections && typeof sections === "object" && !Array.isArray(sections) ? sections : {};
+  return CHARGE_SECTIONS.map((meta) => {
+    const found = list ? list.find((section) => section.key === meta.key) || {} : source[meta.key] || {};
+    const lines = Array.isArray(found.lines) ? [...found.lines] : [];
+    lines.sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
+    return {
+      key: meta.key,
+      label: found.label || meta.label,
+      collapsible: meta.collapsible,
+      lines,
+    };
+  });
+}
+
+export function initialRateSelection(sections) {
+  const selected = {};
+  (sections || []).forEach((section) => {
+    (section.rates || []).forEach((rate) => {
+      const category = rate.charge_category || section.key;
+      selected[String(rate.id)] = category === "standard";
+    });
+  });
+  return selected;
+}
+
+export function previewScenarioTotals(scenario) {
+  const selected = scenario?.selectedByRateId || {};
+  let standard = 0;
+  let selectedTotal = 0;
+  const standardCurrencies = [];
+  const selectedCurrencies = [];
+  (scenario?.sections || []).forEach((section) => {
+    (section.rates || []).forEach((rate) => {
+      if (!selected[String(rate.id)]) return;
+      const amount = rateAmount(rate);
+      selectedTotal += amount;
+      if (rate.currency) selectedCurrencies.push(rate.currency);
+      const category = rate.charge_category || section.key;
+      if (isStandardCategory(category)) {
+        standard += amount;
+        if (rate.currency) standardCurrencies.push(rate.currency);
+      }
+    });
+  });
+  return { standard, selectedTotal, standardCurrencies, selectedCurrencies };
+}
+
+export function previewQuotationTotals(scenarios) {
+  return (scenarios || []).reduce(
+    (acc, scenario) => {
+      const totals = previewScenarioTotals(scenario);
+      acc.standard += totals.standard;
+      acc.selectedTotal += totals.selectedTotal;
+      acc.standardCurrencies.push(...totals.standardCurrencies);
+      acc.selectedCurrencies.push(...totals.selectedCurrencies);
+      return acc;
+    },
+    { standard: 0, selectedTotal: 0, standardCurrencies: [], selectedCurrencies: [] }
+  );
+}
+
+export function scenarioHasSelection(scenario) {
+  return Object.values(scenario?.selectedByRateId || {}).some(Boolean);
+}
+
+export function selectedRateCount(scenario) {
+  return Object.values(scenario?.selectedByRateId || {}).filter(Boolean).length;
+}
+
+export function selectedRatesPayload(scenario) {
+  const rows = [];
+  (scenario?.sections || []).forEach((section) => {
+    (section.rates || []).forEach((rate) => {
+      if (rate?.id == null) return;
+      rows.push({
+        rate_list_id: Number(rate.id),
+        selected: Boolean(scenario.selectedByRateId?.[String(rate.id)]),
+      });
+    });
+  });
+  return rows;
+}
+
+export function scenarioAgentName(scenario) {
+  const agent = scenario?.agent_id;
+  if (agent && typeof agent === "object") return formatAgentOption(agent) || agent.name || "—";
+  if (scenario?.agent_name) return scenario.agent_name;
+  if (agent) return `Agent ${agent}`;
+  return "—";
+}
+
+export function lineDisplayName(line) {
+  return (
+    apiString(line?.rate_name) ||
+    apiString(line?.rate_item_name) ||
+    apiString(line?.name) ||
+    apiString(line?.rate_id) ||
+    `Line ${line?.id ?? ""}`
+  );
+}
+
+export function isLineSelected(line) {
+  return !(line?.selected === false || line?.selected === 0 || line?.selected === "false");
+}
+
+export function lineToDraft(line) {
+  const text = (value) => (value != null && value !== false ? String(value) : "");
+  return {
+    selected: isLineSelected(line),
+    quantity: text(line?.quantity),
+    buy_rate: text(line?.buy_rate),
+    cost_actual: text(line?.cost_actual),
+    roe: text(line?.roe),
+    mu_percent: text(line?.mu_percent),
+    amended_value: text(line?.amended_value),
+    free_text: apiString(line?.free_text),
+    remark: apiString(line?.remark),
+  };
+}
+
+export function draftToLinePayload(id, draft) {
+  return {
+    id: Number(id),
+    selected: Boolean(draft.selected),
+    quantity: numOrNull(draft.quantity),
+    buy_rate: numOrNull(draft.buy_rate),
+    cost_actual: numOrNull(draft.cost_actual),
+    roe: numOrNull(draft.roe),
+    mu_percent: numOrNull(draft.mu_percent),
+    amended_value: numOrNull(draft.amended_value),
+    free_text: draft.free_text ?? "",
+    remark: draft.remark ?? "",
+  };
+}
+
+export function draftsFromQuotation(quotation) {
+  const drafts = {};
+  (quotation?.scenarios || []).forEach((scenario) => {
+    detailSections(scenario.sections).forEach((section) => {
+      section.lines.forEach((line) => {
+        if (line?.id == null) return;
+        drafts[String(line.id)] = lineToDraft(line);
+      });
+    });
+  });
+  return drafts;
+}
+
+export function namesFromQuotation(quotation) {
+  const names = {};
+  (quotation?.scenarios || []).forEach((scenario) => {
+    if (scenario?.id == null) return;
+    names[String(scenario.id)] = apiString(scenario.name);
+  });
+  return names;
+}
+
+export function extractCreatedQuotationId(result) {
+  if (!result || typeof result !== "object") return null;
+  return result.id || result.quotation_id || result.quotation?.id || result.data?.id || null;
+}
+
+export function extractRevisionId(result) {
+  if (!result || typeof result !== "object") return null;
+  const sourceId = result.source_quotation_id;
+  const dataId = result.data && !Array.isArray(result.data) ? result.data.id : null;
+  const candidates = [result.revision_id, result.quotation?.id, dataId];
+  return candidates.find((value) => value != null && value !== false && String(value) !== String(sourceId || "")) ?? null;
+}
+
+export function extractCopyText(result) {
+  if (typeof result === "string") return result;
+  if (!result || typeof result !== "object") return "";
+  return result.copy_text || result.text || "";
+}
+
+export function normalizeVersions(result) {
+  const raw = Array.isArray(result)
+    ? result
+    : result?.versions || result?.data || result?.revisions || [];
+  if (!Array.isArray(raw)) return [];
+  return [...raw].sort((a, b) => (Number(a.revision_no) || 0) - (Number(b.revision_no) || 0));
+}
+
+export function quotationClientId(quotation) {
+  const id = m2oId(quotation?.client_id);
+  return id && id !== false ? id : "";
+}
+
+export function quotationVesselId(quotation) {
+  const id = m2oId(quotation?.vessel_id);
+  return id && id !== false ? id : "";
 }

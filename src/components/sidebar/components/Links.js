@@ -63,7 +63,9 @@ export function SidebarLinks(props) {
     return (
       p === "/admin/quotations/create" ||
       p.startsWith("/admin/quotations/create/") ||
-      /^\/admin\/quotations\/edit\/\d+/.test(p)
+      p === "/admin/quotations/manual" ||
+      /^\/admin\/quotations\/edit\/\d+/.test(p) ||
+      /^\/admin\/quotations\/view\/\d+/.test(p)
     );
   };
 

@@ -63,6 +63,7 @@ import {
   getRateListPdfFilename,
   RATE_LIST_PDF_TYPES,
 } from "./rateListPdf";
+import { chargeCategoryLabel } from "../../../utils/rateListForm";
 
 const RATE_TYPE_FILTER_OPTIONS = [
   { id: "general", name: "General" },
@@ -1342,7 +1343,7 @@ export default function RateList() {
               },
             }}
           >
-            <Table variant="unstyled" size="sm" layout="fixed" w="100%" minW="1540px">
+            <Table variant="unstyled" size="sm" layout="fixed" w="100%" minW="1680px">
               <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
                 <Tr>
                   <Th w="36px" {...thStyle} textAlign="center">
@@ -1373,6 +1374,9 @@ export default function RateList() {
                   <Th w="250px" {...thStyle}>
                     Rate Name
                   </Th>
+                  <Th w="140px" {...thStyle}>
+                    Charge Category
+                  </Th>
                   <Th w="300px" {...thStyle}>
                     Rate Text
                   </Th>
@@ -1388,7 +1392,7 @@ export default function RateList() {
               <Tbody>
                 {loading ? (
                   <Tr>
-                    <Td colSpan={12} textAlign="center" py="40px" {...tdStyle}>
+                    <Td colSpan={13} textAlign="center" py="40px" {...tdStyle}>
                       <Text color={tableTextColorSecondary} fontSize="sm">
                         Loading rates...
                       </Text>
@@ -1396,7 +1400,7 @@ export default function RateList() {
                   </Tr>
                 ) : items.length === 0 ? (
                   <Tr>
-                    <Td colSpan={12} textAlign="center" py="40px" {...tdStyle}>
+                    <Td colSpan={13} textAlign="center" py="40px" {...tdStyle}>
                       <Text color={tableTextColorSecondary} fontSize="sm">
                         {hasAnyFilter ? "No rates match your search criteria." : "No rates available."}
                       </Text>
@@ -1469,6 +1473,13 @@ export default function RateList() {
                       <TruncatedCell
                         value={item.rate_name}
                         maxW="220px"
+                        textColor={textColor}
+                        cellText={cellText}
+                        tdStyle={tdStyle}
+                      />
+                      <TruncatedCell
+                        value={chargeCategoryLabel(item.charge_category, item.charge_category_label)}
+                        maxW="140px"
                         textColor={textColor}
                         cellText={cellText}
                         tdStyle={tdStyle}
