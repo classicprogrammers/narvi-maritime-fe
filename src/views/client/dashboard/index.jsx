@@ -22,6 +22,7 @@ import ReactApexChart from "react-apexcharts";
 import { MdRefresh } from "react-icons/md";
 import LineChart from "components/charts/LineChart";
 import clientDashboardApi from "api/clientDashboard";
+import { formatClientsHeading } from "utils/portalClients";
 import { formatDashboardCount, formatDashboardLabel } from "views/admin/default/dashboardUtils";
 import {
   getDashboardCardRoute,
@@ -189,6 +190,11 @@ function ClientDashboard() {
           <Heading fontSize="24px" lineHeight="32px" color={headingColor}>
             Dashboard
           </Heading>
+          {formatClientsHeading(dashboard?.clients) ? (
+            <Text mt={1} fontSize="sm" color={muted}>
+              {formatClientsHeading(dashboard.clients)}
+            </Text>
+          ) : null}
         </Box>
         <Button
           leftIcon={<Icon as={MdRefresh} />}

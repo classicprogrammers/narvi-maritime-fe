@@ -1,4 +1,5 @@
 import api from "./axios";
+import { extractClientsFromPayload } from "../utils/portalClients";
 
 export const getClientHubLabel = (hub) => {
   if (hub == null || hub === false) return "";
@@ -52,6 +53,7 @@ export const getClientHubs = async (params = {}) => {
     return {
       status: data.status || "success",
       count: data.count ?? 0,
+      clients: extractClientsFromPayload(data),
       client: data.client || null,
       hubs: Array.isArray(data.hubs) ? data.hubs.map(normalizeClientHub).filter(Boolean) : [],
     };

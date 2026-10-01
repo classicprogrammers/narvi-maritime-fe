@@ -15,6 +15,7 @@ import {
 import { MdDirectionsBoat, MdSearch } from "react-icons/md";
 import { useHistory } from "react-router-dom";
 import clientVesselApi from "api/clientVessel";
+import { formatClientsHeading, getRowClientName } from "utils/portalClients";
 
 function ClientVessels() {
   const history = useHistory();
@@ -34,7 +35,7 @@ function ClientVessels() {
         search: search.trim() || undefined,
       });
       setVessels(Array.isArray(res?.vessels) ? res.vessels : []);
-      setClientName(res?.client?.name || "");
+      setClientName(formatClientsHeading(res?.clients));
     } catch (_error) {
       setVessels([]);
       setClientName("");
@@ -128,7 +129,7 @@ function ClientVessels() {
                 {vessel.name}
               </Text>
               <Text fontSize="xs" fontWeight="500" color={muted}>
-                {vessel.client_id?.name || clientName || "-"}
+                {getRowClientName(vessel) || clientName || "-"}
               </Text>
             </Box>
           </Flex>

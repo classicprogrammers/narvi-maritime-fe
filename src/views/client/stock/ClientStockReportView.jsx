@@ -85,6 +85,7 @@ import {
   resolveStockLocationOptionId,
 } from "utils/stockLocationOptions";
 import clientHubApi, { getClientHubFilterId, toClientHubOptionValue } from "api/clientHub";
+import { formatClientsHeading, getRowClientName } from "utils/portalClients";
 import { clearClientNavigationState } from "views/client/dashboard/clientDashboardNavigation";
 import * as XLSX from "xlsx";
 
@@ -115,7 +116,7 @@ const mapClientStockRows = (stockList, clientName = "") =>
       reportAttachments,
       latestReport: reportEntries[0]?.att ?? null,
       previousReportEntries: reportEntries.slice(1),
-      client: toClientStockDisplay(item.client?.name || clientName),
+      client: toClientStockDisplay(getRowClientName(item) || clientName),
       dateOnStock: toClientStockDisplay(item.date_on_stock || item.first_entry_date),
       firstEntryDate: toClientStockDisplay(item.first_entry_date || item.date_on_stock),
       vessel: toClientStockDisplay(item.vessel?.name || item.vessel),
@@ -587,7 +588,7 @@ function ClientStockReportView() {
             : { page: fetchPage, page_size: pageSize }
         )
       );
-      const nextClientName = res?.client?.name || "";
+      const nextClientName = formatClientsHeading(res?.clients);
       setStockRows(mapClientStockRows(res?.stock_list, nextClientName));
       setClientName(nextClientName);
       if (!usesLocalSearchSort) {
@@ -1114,7 +1115,7 @@ function ClientStockReportView() {
           buildStockQueryParams({ fetch_all: true })
         );
         exportRows = applyClientStockSearchSort(
-          mapClientStockRows(res?.stock_list, res?.client?.name || clientName),
+          mapClientStockRows(res?.stock_list, formatClientsHeading(res?.clients) || clientName),
           searchQuery,
           clientSortOption
         );

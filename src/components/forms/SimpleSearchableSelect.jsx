@@ -280,9 +280,15 @@ const SimpleSearchableSelect = ({
     }
   };
 
+  // Inside a Chakra modal the list renders under the input; a body portal sits behind the modal's scroll lock
+  const [isInModal, setIsInModal] = useState(false);
+  useEffect(() => {
+    setIsInModal(Boolean(containerRef.current?.closest('.chakra-modal__content')));
+  }, []);
+
   // Calculate dropdown position when open
   useEffect(() => {
-    if (!isOpen || !containerRef.current || !dropdownRef.current) return;
+    if (isInModal || !isOpen || !containerRef.current || !dropdownRef.current) return;
 
     const updatePosition = () => {
       if (containerRef.current && dropdownRef.current) {
@@ -306,7 +312,7 @@ const SimpleSearchableSelect = ({
       window.removeEventListener('scroll', updatePosition, true);
       window.removeEventListener('resize', updatePosition);
     };
-  }, [isOpen, filteredOptions.length, isLoading]);
+  }, [isInModal, isOpen, filteredOptions.length, isLoading]);
 
   const showDropdown = isOpen && (isLoading || filteredOptions.length > 0);
   const hasClearableContent = String(inputValue ?? "").trim().length > 0;
@@ -332,6 +338,7 @@ const SimpleSearchableSelect = ({
       maxH="200px"
       overflowY="auto"
       zIndex={9999}
+      {...(isInModal ? { position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0 } : {})}
     >
       {isLoading ? (
         <Box p={3} textAlign="center">
@@ -442,8 +449,9 @@ const SimpleSearchableSelect = ({
             </InputRightElement>
           ) : null}
         </InputGroup>
+        {isInModal ? dropdownContent : null}
       </Box>
-      {typeof document !== 'undefined' && createPortal(dropdownContent, document.body)}
+      {!isInModal && typeof document !== 'undefined' && createPortal(dropdownContent, document.body)}
     </>
   );
 };

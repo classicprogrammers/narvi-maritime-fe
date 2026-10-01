@@ -31,14 +31,39 @@ export function normalizeCarbonMode(mode) {
   return key;
 }
 
+function normalizeLegs(rawLegs) {
+  const list = Array.isArray(rawLegs) ? rawLegs : [];
+  return list.map((leg) => ({
+    from: leg.from ?? "—",
+    to: leg.to ?? "—",
+    fromLocationId: leg.from_location_id ?? leg.fromLocationId ?? null,
+    toLocationId: leg.to_location_id ?? leg.toLocationId ?? null,
+    mode: normalizeCarbonMode(leg.mode),
+    modeLabel: leg.mode_label || leg.modeLabel || leg.mode,
+    distanceKm: Number(leg.distance_km ?? leg.distanceKm) || 0,
+    distanceSource: leg.distance_source ?? leg.distanceSource ?? "",
+    preventAutoCalculation: Boolean(leg.prevent_auto_calculation ?? leg.preventAutoCalculation),
+    co2eKg: Number(leg.co2e_kg ?? leg.co2eKg) || 0,
+    factor: leg.factor != null ? Number(leg.factor) : undefined,
+  }));
+}
+
+const CLIENT_MODES = ["air", "sea", "road"];
+
 export function normalizeEmissionFactorsList(data) {
   const raw = Array.isArray(data?.factors) ? data.factors : [];
-  return raw.map((row) => ({
-    mode: normalizeCarbonMode(row.mode),
-    label: row.label || row.mode,
-    factor: Number(row.factor),
-    unit: row.unit || "kg_co2e_per_tonne_km",
-  }));
+  const byMode = {};
+  raw.forEach((row) => {
+    const mode = normalizeCarbonMode(row.mode);
+    if (!CLIENT_MODES.includes(mode)) return;
+    byMode[mode] = {
+      mode,
+      label: row.label || row.mode,
+      factor: Number(row.factor),
+      unit: row.unit || "kg_co2e_per_tonne_km",
+    };
+  });
+  return CLIENT_MODES.filter((mode) => byMode[mode]).map((mode) => byMode[mode]);
 }
 
 export function factorsListToMap(factors = []) {
@@ -54,18 +79,13 @@ export function mapActiveFilterToApi(activeFilter) {
   return true;
 }
 
-function normalizeLegs(rawLegs) {
-  const list = Array.isArray(rawLegs) ? rawLegs : [];
-  return list.map((leg) => ({
-    from: leg.from ?? "—",
-    to: leg.to ?? "—",
-    mode: normalizeCarbonMode(leg.mode),
-    modeLabel: leg.mode_label || leg.modeLabel || leg.mode,
-    distanceKm: Number(leg.distance_km ?? leg.distanceKm) || 0,
-    co2eKg: Number(leg.co2e_kg ?? leg.co2eKg) || 0,
-    factor: leg.factor != null ? Number(leg.factor) : undefined,
-  }));
-}
+export const DISTANCE_SOURCE_LABELS = {
+  location_matrix: "From location distances",
+  location_matrix_no_auto: "Matrix row, no auto-calculation",
+  stock_manual: "Manual distance on this stock",
+  warehouse_road_default: "Default 120 km",
+  default_estimate: "Estimated 2500 km",
+};
 
 export function normalizeStockEmissionItem(item = {}) {
   const legs = normalizeLegs(item.legs ?? item.route_legs ?? item.routeLegs);
@@ -83,7 +103,13 @@ export function normalizeStockEmissionItem(item = {}) {
     primaryMode: normalizeCarbonMode(item.primary_mode ?? item.primaryMode),
     primaryModeLabel: item.primary_mode_label ?? item.primaryModeLabel,
     totalCo2eKg: Number(item.total_co2e_kg ?? item.totalCo2eKg) || 0,
-    isEstimate: item.is_estimate !== false,
+    totalDistanceKm: Number(item.total_distance_km ?? item.totalDistanceKm) || 0,
+    isEstimate: item.is_estimate === true,
+    carbonUseManualDistance: item.carbon_use_manual_distance === true,
+    carbonManualDistanceKm:
+      item.carbon_manual_distance_km === false || item.carbon_manual_distance_km == null
+        ? ""
+        : String(item.carbon_manual_distance_km),
     legs,
   };
 }
@@ -170,6 +196,81 @@ export async function getStockEmissionsApi(params = {}) {
   };
 }
 
+export function normalizeShippingOrderEmission(item = {}) {
+  const rawStocks = item.stock_items ?? item.stockItems;
+  return {
+    saleOrderId: item.sale_order_id ?? item.saleOrderId,
+    soId: item.so_id ?? item.soId ?? "",
+    name: item.name ?? "",
+    done: item.done ?? "",
+    clientName: item.client_name ?? item.clientName ?? "—",
+    vesselName: item.vessel_name ?? item.vesselName ?? "—",
+    destination: item.destination ?? "",
+    stockItemCount: Number(item.stock_item_count ?? item.stockItemCount) || 0,
+    totalWeightKg: Number(item.total_weight_kg ?? item.totalWeightKg) || 0,
+    totalCo2eKg: Number(item.total_co2e_kg ?? item.totalCo2eKg) || 0,
+    totalDistanceKm: Number(item.total_distance_km ?? item.totalDistanceKm) || 0,
+    isEstimate: item.is_estimate === true,
+    primaryMode: normalizeCarbonMode(item.primary_mode ?? item.primaryMode),
+    primaryModeLabel: item.primary_mode_label ?? item.primaryModeLabel ?? "",
+    stockItems: Array.isArray(rawStocks) ? rawStocks.map(normalizeStockEmissionItem) : null,
+  };
+}
+
+function readShippingOrderList(data) {
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.shipping_orders)) return data.shipping_orders;
+  if (Array.isArray(data?.shipping_order_emissions)) return data.shipping_order_emissions;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+}
+
+export async function getShippingOrderEmissionsApi(params = {}) {
+  const {
+    page = 1,
+    page_size = 20,
+    search = "",
+    client_id,
+    vessel_id,
+    so_id,
+    done,
+    with_stock_only,
+  } = params;
+
+  const payload = { page, page_size };
+  const trimmedSearch = search ? String(search).trim() : "";
+  if (trimmedSearch) payload.search = trimmedSearch;
+  if (client_id != null && client_id !== "") payload.client_id = client_id;
+  if (vessel_id != null && vessel_id !== "") payload.vessel_id = vessel_id;
+  if (so_id != null && String(so_id).trim() !== "") {
+    const raw = String(so_id).trim();
+    payload.so_id = /^\d+$/.test(raw) ? Number(raw) : raw;
+  }
+  if (done != null && String(done).trim() !== "") payload.done = String(done).trim();
+  if (with_stock_only === true) payload.with_stock_only = true;
+
+  const response = await api.post(getApiEndpoint("CARBON_SHIPPING_ORDER_EMISSIONS"), payload);
+  const data = unwrapResponse(response.data);
+  const items = readShippingOrderList(data).map(normalizeShippingOrderEmission);
+
+  return {
+    items,
+    page: data.page ?? page,
+    page_size: data.page_size ?? page_size,
+    total_count: data.total_count ?? items.length,
+    total_pages: data.total_pages ?? 1,
+  };
+}
+
+export async function getShippingOrderEmissionDetailApi(saleOrderId) {
+  const response = await api.post(getApiEndpoint("CARBON_SHIPPING_ORDER_EMISSIONS_DETAIL"), {
+    sale_order_id: Number(saleOrderId),
+  });
+  const data = unwrapResponse(response.data);
+  const order = data.shipping_order || data.order || data;
+  return normalizeShippingOrderEmission(order);
+}
+
 export async function calculateCarbonApi({ mode, distanceKm, weightKg }) {
   const response = await api.post(getApiEndpoint("CARBON_CALCULATE"), {
     mode: normalizeCarbonMode(mode) === "road" ? "road" : mode,
@@ -187,4 +288,25 @@ export async function calculateCarbonApi({ mode, distanceKm, weightKg }) {
     co2eKg: Number(data.co2e_kg ?? data.co2eKg) || 0,
     raw: data,
   };
+}
+
+export async function upsertLocationDistanceApi(payload) {
+  const response = await api.post(getApiEndpoint("CARBON_LOCATION_DISTANCE_UPSERT"), {
+    origin_location_id: Number(payload.origin_location_id),
+    destination_location_id: Number(payload.destination_location_id),
+    distance_km: Number(payload.distance_km) || 0,
+    prevent_auto_calculation: Boolean(payload.prevent_auto_calculation),
+  });
+  return unwrapResponse(response.data);
+}
+
+export async function setStockManualDistanceApi(payload) {
+  const response = await api.post(getApiEndpoint("CARBON_STOCK_MANUAL_DISTANCE"), {
+    stock_id: Number(payload.stock_id),
+    carbon_use_manual_distance: Boolean(payload.carbon_use_manual_distance),
+    carbon_manual_distance_km: Number(payload.carbon_manual_distance_km) || 0,
+  });
+  const data = unwrapResponse(response.data);
+  const item = data.item || data.stock || data;
+  return item?.stock_id || item?.stock_item_id ? normalizeStockEmissionItem(item) : data;
 }

@@ -31,6 +31,11 @@ import {
   Switch,
   Select,
   Textarea,
+  Tag,
+  TagLabel,
+  TagCloseButton,
+  Wrap,
+  WrapItem,
   AlertDialog,
   AlertDialogBody,
   AlertDialogFooter,
@@ -61,10 +66,41 @@ import {
   getClientLoginApi,
   listClientLoginApi,
   updateClientLoginApi,
+  parseClientLoginIds,
+  buildClientLoginIdsPayload,
 } from "api/clientLogin";
 import { getCustomersForSelect } from "api/entitySelects";
+import { parseNamedClients } from "utils/portalClients";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import { useUser } from "../../../redux/hooks/useUser";
+
+function ClientLoginClientsCell({ record }) {
+  const clients = parseNamedClients(record?.client_ids);
+  if (!clients.length) {
+    return (
+      <Text fontSize="sm" color="gray.500">
+        -
+      </Text>
+    );
+  }
+
+  return (
+    <Box minW="260px" maxW="420px">
+      {clients.map((client) => (
+        <Text
+          key={client.id}
+          fontSize="sm"
+          color="gray.700"
+          whiteSpace="normal"
+          wordBreak="break-word"
+          lineHeight="1.45"
+        >
+          {client.name}
+        </Text>
+      ))}
+    </Box>
+  );
+}
 
 export default function Users() {
   const textColor = useColorModeValue("secondaryGray.900", "white");
@@ -93,7 +129,7 @@ export default function Users() {
   const [isClientViewLoading, setIsClientViewLoading] = useState(false);
   const [showClientPassword, setShowClientPassword] = useState(false);
   const [clientFormData, setClientFormData] = useState({
-    client_id: "",
+    client_ids: [],
     email: "",
     password: "",
     confirm_password: "",
@@ -211,6 +247,19 @@ export default function Users() {
       const data = await listClientLoginApi(params);
       const list = Array.isArray(data?.data) ? data.data : Array.isArray(data?.result?.data) ? data.result.data : [];
       setClientLogins(list);
+      setClientOptions((prev) => {
+        const next = new Map(prev.map((option) => [Number(option.id), option]));
+        list.forEach((item) => {
+          (Array.isArray(item?.client_ids) ? item.client_ids : []).forEach((client) => {
+            const id = Number(client?.id ?? client);
+            if (!Number.isFinite(id)) return;
+            const name = client?.name;
+            if (name) next.set(id, { id, name, client_code: client.client_code || "" });
+            else if (!next.has(id)) next.set(id, { id, name: `Client ${id}` });
+          });
+        });
+        return Array.from(next.values());
+      });
     } catch (e) {
       setClientLogins([]);
     } finally {
@@ -242,7 +291,7 @@ export default function Users() {
 
   const resetClientForm = () => {
     setClientFormData({
-      client_id: "",
+      client_ids: [],
       email: "",
       password: "",
       confirm_password: "",
@@ -439,9 +488,20 @@ export default function Users() {
     try {
       const res = await getClientLoginApi(item.id);
       const fetched = res?.data || res?.result?.data || item;
+      if (Array.isArray(fetched?.client_ids)) {
+        setClientOptions((prev) => {
+          const next = new Map(prev.map((option) => [Number(option.id), option]));
+          fetched.client_ids.forEach((client) => {
+            const id = Number(client?.id ?? client);
+            if (!Number.isFinite(id) || next.has(id)) return;
+            next.set(id, { id, name: client?.name || `Client ${id}` });
+          });
+          return Array.from(next.values());
+        });
+      }
       setEditingClientLogin(item);
       setClientFormData({
-        client_id: String(fetched?.client_id ?? item.client_id ?? ""),
+        client_ids: parseClientLoginIds(fetched || item),
         email: fetched?.email ?? item.email ?? "",
         password: "",
         confirm_password: "",
@@ -476,18 +536,23 @@ export default function Users() {
 
   const clientAccessDetailsText = useMemo(() => {
     if (!viewingClientLogin) return "";
+    const clientLines = parseNamedClients(viewingClientLogin.client_ids)
+      .map((client) =>
+        client.client_code ? `${client.name} (${client.client_code})` : client.name
+      )
+      .join("\n");
     return [
-      `Name: ${viewingClientLogin?.client_name || "-"}`,
+      `Clients:\n${clientLines || "-"}`,
       `Email: ${viewingClientLogin?.email || "-"}`,
       `Password: ${viewingClientLogin?.password || "-"}`,
       "Login Link: https://narvi-maritime-fe.vercel.app/client/login",
-    ].join("\n");
+    ].join("\n\n");
   }, [viewingClientLogin]);
 
   const submitClientLogin = async () => {
     const hasPassword = Boolean(clientFormData.password || clientFormData.confirm_password);
-    if (!editingClientLogin && !clientFormData.client_id) {
-      toast({ title: "Client is required", status: "warning", duration: 2500, isClosable: true });
+    if (!clientFormData.client_ids.length) {
+      toast({ title: "Select at least one client", status: "warning", duration: 2500, isClosable: true });
       return;
     }
     if (!editingClientLogin && !clientFormData.email.trim()) {
@@ -513,6 +578,7 @@ export default function Users() {
           payload.confirm_password = clientFormData.confirm_password;
         }
         payload.active = Boolean(clientFormData.active);
+        payload.client_ids = buildClientLoginIdsPayload(clientFormData.client_ids);
         const res = await updateClientLoginApi(payload);
         toast({
           title: "Success",
@@ -523,7 +589,7 @@ export default function Users() {
         });
       } else {
         const payload = {
-          client_id: Number(clientFormData.client_id),
+          client_ids: buildClientLoginIdsPayload(clientFormData.client_ids),
           email: clientFormData.email.trim(),
           password: clientFormData.password,
           confirm_password: clientFormData.confirm_password,
@@ -707,7 +773,7 @@ export default function Users() {
                 <Table variant="simple">
                   <Thead>
                     <Tr>
-                      <Th borderColor={borderColor}>Client</Th>
+                      <Th borderColor={borderColor}>Clients</Th>
                       <Th borderColor={borderColor}>Email</Th>
                       <Th borderColor={borderColor}>User ID</Th>
                       <Th borderColor={borderColor}>Status</Th>
@@ -727,7 +793,9 @@ export default function Users() {
                       </Tr>
                     ) : clientLogins.map((item) => (
                       <Tr key={item.id}>
-                        <Td borderColor={borderColor}>{item.client_name || item.client_id}</Td>
+                        <Td borderColor={borderColor} py={3} verticalAlign="top">
+                          <ClientLoginClientsCell record={item} />
+                        </Td>
                         <Td borderColor={borderColor}>{item.email || "-"}</Td>
                         <Td borderColor={borderColor}>{item.user_id ?? "-"}</Td>
                         <Td borderColor={borderColor}>{item.active ? "Active" : "Inactive"}</Td>
@@ -881,17 +949,53 @@ export default function Users() {
           <ModalHeader>{editingClientLogin ? "Edit Client Access" : "Create Client Access"}</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
-            <FormControl mb="12px" isRequired={!editingClientLogin}>
-              <FormLabel>Client</FormLabel>
+            <FormControl mb="12px" isRequired>
+              <FormLabel>Clients</FormLabel>
               <SimpleSearchableSelect
-                value={clientFormData.client_id}
-                onChange={(value) => handleClientFormChange("client_id", String(value))}
-                options={clientOptions}
-                placeholder="Select client partner"
-                isDisabled={Boolean(editingClientLogin)}
+                value=""
+                onChange={(value) => {
+                  const nextId = Number(value);
+                  if (!Number.isFinite(nextId)) return;
+                  handleClientFormChange(
+                    "client_ids",
+                    clientFormData.client_ids.includes(nextId)
+                      ? clientFormData.client_ids
+                      : [...clientFormData.client_ids, nextId]
+                  );
+                }}
+                options={clientOptions.filter(
+                  (option) => !clientFormData.client_ids.includes(Number(option.id))
+                )}
+                placeholder="Add one or more clients"
                 displayKey="name"
                 valueKey="id"
               />
+              {clientFormData.client_ids.length ? (
+                <Wrap mt={3} spacing={2}>
+                  {clientFormData.client_ids.map((id) => {
+                    const option = clientOptions.find((item) => Number(item.id) === Number(id));
+                    return (
+                      <WrapItem key={id}>
+                        <Tag size="md" borderRadius="full" variant="subtle" colorScheme="blue">
+                          <TagLabel>{option?.name || `Client ${id}`}</TagLabel>
+                          <TagCloseButton
+                            onClick={() =>
+                              handleClientFormChange(
+                                "client_ids",
+                                clientFormData.client_ids.filter((clientId) => clientId !== id)
+                              )
+                            }
+                          />
+                        </Tag>
+                      </WrapItem>
+                    );
+                  })}
+                </Wrap>
+              ) : (
+                <Text mt={2} fontSize="sm" color="gray.500">
+                  Search and add every client this login should access. Saving replaces the full list.
+                </Text>
+              )}
             </FormControl>
             <FormControl mb="12px" isRequired={!editingClientLogin}>
               <FormLabel>Email</FormLabel>

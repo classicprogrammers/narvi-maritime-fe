@@ -1,4 +1,5 @@
 import api from "./axios";
+import { extractClientsFromPayload } from "../utils/portalClients";
 
 export async function getClientDashboard() {
   const response = await api.get("/api/client/dashboard");
@@ -17,6 +18,7 @@ export function normalizeClientDashboard(data) {
 
   return {
     generatedAt: payload.generated_at ?? null,
+    clients: extractClientsFromPayload(payload),
     client: payload.client ?? null,
     cards: Array.isArray(payload.cards) ? payload.cards : [],
     charts: {

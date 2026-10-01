@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Carbon Emission Calculator - Enterprise Freight Footprint Platform</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Font Awesome Icons -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet"/>
+<!-- Tailwind CSS v3 with Plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#1d4ed8',
+              600: '#1e40af',
+              700: '#1d3557',
+              900: '#0f172a',
+            },
+            carbon: {
+              dark: '#0c1524',
+              navy: '#111d33',
+              card: '#162540',
+              accent: '#38bdf8',
+              sea: '#34d399',
+              land: '#fbbf24',
+              air: '#38bdf8',
+            }
+          }
+        }
+      }
+    }
+  </script>
+<!-- BEGIN: Custom Style Adjustments -->
+<style data-purpose="custom-styling">
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    /* Subtle radial chart glow & custom animations */
+    .glow-cyan {
+      filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.45));
+    }
+    .glow-emerald {
+      filter: drop-shadow(0 0 8px rgba(52, 211, 153, 0.4));
+    }
+    .glow-amber {
+      filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.4));
+    }
+    /* Smooth transitions */
+    .mode-tab-active {
+      background-color: #1e3a8a;
+      border-color: #3b82f6;
+      color: #ffffff;
+      box-shadow: 0 10px 25px -5px rgba(30, 58, 138, 0.35);
+    }
+  </style>
+<!-- END: Custom Style Adjustments -->
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col justify-between selection:bg-blue-100 selection:text-blue-900">
+<!-- BEGIN: MainHeader -->
+<header class="w-full bg-white border-b border-slate-200/80 sticky top-0 z-40 backdrop-blur-md bg-white/95">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<div class="flex items-center justify-between h-20">
+<!-- Brand Identity & Status -->
+<div class="flex items-center gap-4">
+<div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-700 via-blue-600 to-sky-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/25 ring-4 ring-blue-50">
+<i class="fa-solid fa-cloud-bolt text-lg"></i>
+</div>
+<div>
+<div class="flex items-center gap-2.5">
+<h1 class="text-xl font-extrabold text-slate-900 tracking-tight">Carbon Emission Calculator</h1>
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                GLEC v3.0 Compliant
+              </span>
+</div>
+<p class="text-xs text-slate-500 font-medium">Enterprise Scope 3 Logistics Carbon Footprint Modeling</p>
+</div>
+</div>
+<!-- Utility Toolbar & Segmented Controls -->
+<div class="flex items-center gap-3">
+<!-- Metric System Toggle -->
+<div class="hidden md:flex items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold border border-slate-200">
+<button class="px-3 py-1.5 bg-white text-slate-900 rounded-lg shadow-xs font-bold" type="button">Metric (t / km)</button>
+<button class="px-3 py-1.5 text-slate-500 hover:text-slate-800 transition" type="button">Imperial (tn / mi)</button>
+</div>
+<!-- Quick Action Buttons -->
+<button class="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition shadow-xs" type="button">
+<i class="fa-solid fa-file-arrow-down text-slate-400"></i>
+<span>Export Report</span>
+</button>
+<button class="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition shadow-sm" type="button">
+<i class="fa-solid fa-sliders text-slate-300"></i>
+<span>Scope 3 Settings</span>
+</button>
+</div>
+</div>
+<!-- Navigation Tabs -->
+<nav class="flex space-x-1 border-t border-slate-100 pt-1 pb-3">
+<a class="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-blue-600 border-b-2 border-blue-600 bg-blue-50/50 rounded-t-lg transition" href="#calculator">
+<i class="fa-solid fa-calculator text-xs"></i>
+<span>Calculator</span>
+</a>
+<a class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-500 hover:text-slate-900 hover:bg-slate-50 rounded-t-lg transition" href="#stock-emissions">
+<i class="fa-solid fa-cubes-stacked text-xs"></i>
+<span>Stock list emissions</span>
+<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">12 items</span>
+</a>
+<a class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-500 hover:text-slate-900 hover:bg-slate-50 rounded-t-lg transition" href="#methodology">
+<i class="fa-solid fa-scale-balanced text-xs"></i>
+<span>Emission Factors Table</span>
+</a>
+</nav>
+</div>
+</header>
+<!-- END: MainHeader -->
+<!-- BEGIN: MainContent -->
+<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-grow">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+<!-- BEGIN: LeftColumnCalculator -->
+<section class="lg:col-span-6 bg-white rounded-3xl border border-slate-200/90 shadow-xl shadow-slate-200/40 p-6 sm:p-8" data-purpose="calculator-interface">
+<div class="mb-6">
+<h2 class="text-xl font-bold text-slate-900 tracking-tight">Quick estimate</h2>
+<p class="text-sm text-slate-500 mt-1 font-medium">
+            Estimate CO₂e for one movement. Weight times distance, using the factor for the selected mode.
+          </p>
+</div>
+<form class="space-y-6" id="footprint-form" onsubmit="event.preventDefault(); calculateFootprint();">
+<!-- Mode Selector Segment -->
+<div data-purpose="mode-selector">
+<div class="flex items-center justify-between mb-2.5">
+<label class="text-xs font-bold uppercase tracking-wider text-slate-600">Transport mode</label>
+<span class="text-xs text-blue-600 font-semibold cursor-pointer hover:underline" id="mode-helper-badge">Active: Air Freight (Long Haul)</span>
+</div>
+<div class="grid grid-cols-3 gap-3">
+<!-- Air Mode (Default Selected) -->
+<button class="relative flex flex-col items-center justify-center py-4 px-3 rounded-2xl border-2 transition-all duration-200 mode-tab-active group" id="mode-air" onclick="selectMode('air')" type="button">
+<span class="absolute top-2 right-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-900/50 text-blue-200">0.93 kg</span>
+<i class="fa-solid fa-plane-departure text-2xl mb-2 group-hover:scale-110 transition-transform"></i>
+<span class="text-sm font-bold">Air</span>
+<span class="text-[11px] text-blue-200 font-medium">Fast / High Carbon</span>
+</button>
+<!-- Sea Mode -->
+<button class="relative flex flex-col items-center justify-center py-4 px-3 rounded-2xl border-2 border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 text-slate-700 transition-all duration-200 group" id="mode-sea" onclick="selectMode('sea')" type="button">
+<span class="absolute top-2 right-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">0.016 kg</span>
+<i class="fa-solid fa-ship text-2xl mb-2 text-slate-400 group-hover:scale-110 group-hover:text-emerald-600 transition-all"></i>
+<span class="text-sm font-bold text-slate-800">Sea</span>
+<span class="text-[11px] text-slate-400 font-medium">-98.3% CO₂e</span>
+</button>
+<!-- Land Mode -->
+<button class="relative flex flex-col items-center justify-center py-4 px-3 rounded-2xl border-2 border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 text-slate-700 transition-all duration-200 group" id="mode-land" onclick="selectMode('land')" type="button">
+<span class="absolute top-2 right-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">0.096 kg</span>
+<i class="fa-solid fa-truck-moving text-2xl mb-2 text-slate-400 group-hover:scale-110 group-hover:text-amber-500 transition-all"></i>
+<span class="text-sm font-bold text-slate-800">Land</span>
+<span class="text-[11px] text-slate-400 font-medium">Regional Fleet</span>
+</button>
+</div>
+</div>
+<!-- Inputs Grid: Distance & Weight -->
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+<!-- Distance Input -->
+<div data-purpose="distance-field">
+<label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2" for="input-distance">Distance (km)</label>
+<div class="relative rounded-2xl shadow-xs">
+<input class="block w-full rounded-2xl border-slate-200 pl-4 pr-14 py-3.5 text-base font-bold text-slate-900 focus:border-blue-600 focus:ring-blue-600 placeholder-slate-400" id="input-distance" min="1" step="10" type="number" value="5000"/>
+<div class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
+<span class="text-xs font-bold text-slate-400 uppercase tracking-wide">km</span>
+</div>
+</div>
+<!-- Presets for Distance -->
+<div class="flex flex-wrap items-center gap-1.5 mt-2">
+<button class="text-[11px] font-semibold px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md transition" onclick="setDistance(1200)" type="button">+1,200 km</button>
+<button class="text-[11px] font-semibold px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md transition" onclick="setDistance(5000)" type="button">5,000 km</button>
+<button class="text-[11px] font-semibold px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md transition" onclick="setDistance(10500)" type="button">Transpacific (10.5k)</button>
+</div>
+</div>
+<!-- Weight Input -->
+<div data-purpose="weight-field">
+<label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2" for="input-weight">Weight (kg)</label>
+<div class="relative rounded-2xl shadow-xs">
+<input class="block w-full rounded-2xl border-slate-200 pl-4 pr-14 py-3.5 text-base font-bold text-slate-900 focus:border-blue-600 focus:ring-blue-600 placeholder-slate-400" id="input-weight" min="1" step="10" type="number" value="500"/>
+<div class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
+<span class="text-xs font-bold text-slate-400 uppercase tracking-wide">kg</span>
+</div>
+</div>
+<!-- Presets for Weight -->
+<div class="flex flex-wrap items-center gap-1.5 mt-2">
+<button class="text-[11px] font-semibold px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md transition" onclick="setWeight(500)" type="button">0.5 t (500 kg)</button>
+<button class="text-[11px] font-semibold px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md transition" onclick="setWeight(2000)" type="button">2 t</button>
+<button class="text-[11px] font-semibold px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md transition" onclick="setWeight(10000)" type="button">10 t</button>
+</div>
+</div>
+</div>
+<!-- Active Emission Factor Display Box -->
+<div>
+<label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">Emission factor applied</label>
+<div class="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center text-blue-700">
+<i class="fa-solid fa-atom text-xs"></i>
+</div>
+<div>
+<span class="text-sm font-extrabold text-slate-900" id="active-factor-text">0.93 kg CO₂e / tonne–km</span>
+<span class="block text-xs text-slate-400 font-medium">Standard well-to-wheel (WTW) aviation baseline</span>
+</div>
+</div>
+<span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-200/80 text-slate-700 flex items-center gap-1">
+<i class="fa-solid fa-shield-check text-emerald-600 text-xs"></i> Verified
+              </span>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="flex flex-col sm:flex-row gap-3 pt-2">
+<button class="flex-1 inline-flex items-center justify-center gap-2.5 bg-blue-700 hover:bg-blue-800 text-white font-bold py-4 px-6 rounded-2xl shadow-lg shadow-blue-700/25 active:scale-[0.99] transition cursor-pointer" type="submit">
+<i class="fa-solid fa-calculator text-base"></i>
+<span>Calculate Footprint</span>
+</button>
+<button class="px-5 py-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-2xl transition cursor-pointer flex items-center justify-center" onclick="resetCalculator()" title="Reset to defaults" type="button">
+<i class="fa-solid fa-arrow-rotate-left"></i>
+</button>
+</div>
+<!-- Computed Result Display Card -->
+<div class="p-5 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50/70 to-slate-50 text-slate-900 transition-all" id="result-box">
+<div class="flex items-start justify-between">
+<div>
+<span class="text-xs font-bold uppercase tracking-wider text-blue-800">Calculated Footprint Result</span>
+<div class="mt-1 flex items-baseline gap-2">
+<span class="text-3xl font-black text-slate-900" id="result-tonnes">2.325</span>
+<span class="text-base font-bold text-slate-700">t CO₂e</span>
+<span class="text-sm font-semibold text-slate-500" id="result-kg">(2,325 kg)</span>
+</div>
+</div>
+<span class="px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200 flex items-center gap-1.5">
+<i class="fa-solid fa-check-circle text-blue-600"></i> Modeled
+              </span>
+</div>
+<!-- Dynamic Insights Bar -->
+<div class="mt-4 pt-3 border-t border-blue-200/60 flex flex-wrap items-center justify-between text-xs text-slate-600 gap-2">
+<div class="flex items-center gap-1.5">
+<i class="fa-solid fa-seedling text-emerald-600"></i>
+<span>Estimated carbon offset: <strong class="text-slate-800 font-bold">$34.80 USD</strong></span>
+</div>
+<button class="font-bold text-blue-700 hover:text-blue-900 flex items-center gap-1" onclick="alert('Added to stock emission inventory log.')" type="button">
+<span>Add to Stock List</span>
+<i class="fa-solid fa-arrow-right text-[10px]"></i>
+</button>
+</div>
+</div>
+</form>
+</section>
+<!-- END: LeftColumnCalculator -->
+<!-- BEGIN: RightColumnVisualAnalytics -->
+<section class="lg:col-span-6 bg-carbon-dark text-white rounded-3xl p-6 sm:p-8 border border-slate-800 shadow-2xl relative overflow-hidden flex flex-col justify-between" data-purpose="emission-factors-dashboard">
+<!-- Header of Dark Panel -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
+<div>
+<div class="flex items-center gap-2">
+<h2 class="text-xl font-bold text-white tracking-tight">Emission factors &amp; Comparison</h2>
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">Live Benchmarks</span>
+</div>
+<p class="text-xs text-slate-400 mt-0.5">kg CO₂e per tonne–km across modalities</p>
+</div>
+<div class="flex items-center gap-2">
+<button class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition" onclick="calculateFootprint()" type="button">
+<i class="fa-solid fa-arrows-rotate text-[11px] text-slate-400"></i>
+<span>Refresh</span>
+</button>
+<button class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition shadow-md shadow-blue-600/30" onclick="alert('Custom emission factors modal unlocked for Enterprise tier.')" type="button">
+<i class="fa-solid fa-pen-to-square text-[11px]"></i>
+<span>Edit</span>
+</button>
+</div>
+</div>
+<!-- Center Data Visualization: Radial Concentric Rings -->
+<div class="my-6 grid grid-cols-1 md:grid-cols-12 items-center gap-6">
+<!-- Concentric SVG Radial Progress Rings -->
+<div class="md:col-span-7 flex justify-center items-center py-2 relative">
+<div class="relative w-64 h-64 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90" viewbox="0 0 240 240">
+<!-- Background Guides -->
+<circle class="opacity-40" cx="120" cy="120" fill="none" r="95" stroke="#1e293b" stroke-dasharray="4 4" stroke-width="12"></circle>
+<circle class="opacity-40" cx="120" cy="120" fill="none" r="75" stroke="#1e293b" stroke-dasharray="4 4" stroke-width="12"></circle>
+<circle class="opacity-40" cx="120" cy="120" fill="none" r="55" stroke="#1e293b" stroke-dasharray="4 4" stroke-width="12"></circle>
+<!-- Outer Ring: Air (0.93 - Cyan/Sky) -->
+<circle class="glow-cyan transition-all duration-700" cx="120" cy="120" fill="none" r="95" stroke="#38bdf8" stroke-dasharray="596.9" stroke-dashoffset="145" stroke-linecap="round" stroke-width="13"></circle>
+<!-- Middle Ring: Land (0.096 - Amber) -->
+<circle class="glow-amber transition-all duration-700" cx="120" cy="120" fill="none" r="75" stroke="#fbbf24" stroke-dasharray="471.2" stroke-dashoffset="310" stroke-linecap="round" stroke-width="12"></circle>
+<!-- Inner Ring: Sea (0.016 - Emerald) -->
+<circle class="glow-emerald transition-all duration-700" cx="120" cy="120" fill="none" r="55" stroke="#34d399" stroke-dasharray="345.5" stroke-dashoffset="290" stroke-linecap="round" stroke-width="11"></circle>
+</svg>
+<!-- Central Circular Stat Readout -->
+<div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+<span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Selected Ratio</span>
+<span class="text-2xl font-black text-white tracking-tight" id="center-display-stat">58.1x</span>
+<span class="text-[10px] font-semibold text-emerald-400">Air vs Sea Gap</span>
+</div>
+</div>
+</div>
+<!-- Legend & Factor Metrics -->
+<div class="md:col-span-5 space-y-3.5">
+<!-- Air Item -->
+<div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+<div class="flex items-center gap-2.5">
+<span class="w-3 h-3 rounded-full bg-carbon-air shadow-sm shadow-sky-400/50"></span>
+<span class="text-xs font-bold text-slate-200">Air Freight</span>
+</div>
+<div class="text-right">
+<span class="text-xs font-black text-white">0.93</span>
+<span class="text-[10px] text-slate-400 block -mt-0.5">kg / t-km</span>
+</div>
+</div>
+<!-- Land Item -->
+<div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+<div class="flex items-center gap-2.5">
+<span class="w-3 h-3 rounded-full bg-carbon-land shadow-sm shadow-amber-400/50"></span>
+<span class="text-xs font-bold text-slate-200">Land (HGV)</span>
+</div>
+<div class="text-right">
+<span class="text-xs font-black text-white">0.096</span>
+<span class="text-[10px] text-slate-400 block -mt-0.5">kg / t-km</span>
+</div>
+</div>
+<!-- Sea Item -->
+<div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+<div class="flex items-center gap-2.5">
+<span class="w-3 h-3 rounded-full bg-carbon-sea shadow-sm shadow-emerald-400/50"></span>
+<span class="text-xs font-bold text-slate-200">Sea Container</span>
+</div>
+<div class="text-right">
+<span class="text-xs font-black text-emerald-400">0.016</span>
+<span class="text-[10px] text-slate-400 block -mt-0.5">kg / t-km</span>
+</div>
+</div>
+<div class="p-2.5 bg-blue-950/40 rounded-xl border border-blue-900/40 text-[11px] text-blue-300">
+<i class="fa-solid fa-circle-info mr-1 text-blue-400"></i> Sea emits <strong>98.3% less</strong> CO₂e than air for equivalent cargo volume.
+            </div>
+</div>
+</div>
+<!-- Comparative Impact Spotlight Cards (Mirroring Reference UI Pods) -->
+<div class="grid grid-cols-2 gap-4 my-2">
+<!-- Selected Mode Spotlight Card -->
+<div class="relative bg-slate-900/90 rounded-2xl p-4 border border-blue-500/30 flex flex-col items-center text-center overflow-hidden">
+<div class="w-16 h-16 rounded-full border-4 border-carbon-air flex items-center justify-center mb-2 shadow-lg shadow-sky-500/20 bg-slate-950">
+<span class="text-lg font-black text-white" id="spotlight-selected-val">2.3 t</span>
+</div>
+<h3 class="text-xs font-bold text-white uppercase tracking-wider" id="spotlight-selected-name">Air Cargo</h3>
+<p class="text-[11px] text-slate-400 mt-0.5">Emissions for the distance &amp; weight entered</p>
+</div>
+<!-- Benchmark / Green Alternative Card -->
+<div class="relative bg-slate-900/90 rounded-2xl p-4 border border-emerald-500/30 flex flex-col items-center text-center overflow-hidden">
+<div class="w-16 h-16 rounded-full border-4 border-carbon-sea flex items-center justify-center mb-2 shadow-lg shadow-emerald-500/20 bg-slate-950">
+<span class="text-lg font-black text-emerald-400" id="spotlight-alt-val">40 kg</span>
+</div>
+<h3 class="text-xs font-bold text-emerald-300 uppercase tracking-wider">Sea Freight Alt</h3>
+<p class="text-[11px] text-slate-400 mt-0.5">Potential savings: <strong class="text-emerald-400 font-bold">2,285 kg CO₂e</strong></p>
+</div>
+</div>
+<!-- Footer Environmental Equivalency Metric -->
+<div class="mt-5 pt-4 border-t border-slate-800 text-xs text-slate-400 flex flex-col sm:flex-row items-center justify-between gap-2">
+<div class="flex items-center gap-2">
+<i class="fa-solid fa-tree text-emerald-400 text-sm"></i>
+<span>Equivalency: <strong>106 mature tree-years</strong> required to sequester this trip.</span>
+</div>
+<span class="text-[11px] font-mono text-slate-400">DEFRA / SmartWay 2026</span>
+</div>
+</section>
+<!-- END: RightColumnVisualAnalytics -->
+</div>
+<!-- Stock List Emissions Quick Table Section Preview -->
+<section class="mt-10 bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm" id="stock-emissions">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-slate-100 gap-4">
+<div>
+<div class="flex items-center gap-2">
+<h3 class="text-lg font-bold text-slate-900">Recent Movements &amp; Stock Batch Log</h3>
+<span class="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">3 Batches</span>
+</div>
+<p class="text-xs text-slate-500 mt-0.5">Consolidated multi-leg shipments tracked against corporate carbon reduction targets</p>
+</div>
+<div class="flex items-center gap-2">
+<button class="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 border border-slate-200 rounded-xl hover:bg-slate-50 transition" type="button">
+<i class="fa-solid fa-filter mr-1 text-slate-400"></i> Filter Scope
+          </button>
+<button class="px-3.5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition shadow-xs" type="button">
+<i class="fa-solid fa-plus mr-1"></i> New Entry
+          </button>
+</div>
+</div>
+<div class="overflow-x-auto mt-4">
+<table class="w-full text-left border-collapse text-xs">
+<thead>
+<tr class="border-b border-slate-200 text-slate-400 uppercase tracking-wider font-bold text-[10px]">
+<th class="py-3 px-4">Shipment ID</th>
+<th class="py-3 px-4">Route Origin / Dest</th>
+<th class="py-3 px-4">Mode</th>
+<th class="py-3 px-4">Distance</th>
+<th class="py-3 px-4">Weight</th>
+<th class="py-3 px-4">CO₂e Total</th>
+<th class="py-3 px-4 text-right">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100 font-medium text-slate-700">
+<tr class="hover:bg-slate-50/80 transition">
+<td class="py-3.5 px-4 font-mono font-bold text-slate-900">SHP-98421</td>
+<td class="py-3.5 px-4">Frankfurt (FRA) ➔ New York (JFK)</td>
+<td class="py-3.5 px-4">
+<span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-50 text-blue-700 font-bold text-[11px]">
+<i class="fa-solid fa-plane"></i> Air Cargo
+                </span>
+</td>
+<td class="py-3.5 px-4">6,200 km</td>
+<td class="py-3.5 px-4">1,400 kg</td>
+<td class="py-3.5 px-4 font-bold text-slate-900">8.09 t CO₂e</td>
+<td class="py-3.5 px-4 text-right">
+<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">Audited</span>
+</td>
+</tr>
+<tr class="hover:bg-slate-50/80 transition">
+<td class="py-3.5 px-4 font-mono font-bold text-slate-900">SHP-98422</td>
+<td class="py-3.5 px-4">Shanghai (SHA) ➔ Rotterdam (RTM)</td>
+<td class="py-3.5 px-4">
+<span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 font-bold text-[11px]">
+<i class="fa-solid fa-ship"></i> Sea Container
+                </span>
+</td>
+<td class="py-3.5 px-4">19,500 km</td>
+<td class="py-3.5 px-4">24,000 kg</td>
+<td class="py-3.5 px-4 font-bold text-slate-900">7.48 t CO₂e</td>
+<td class="py-3.5 px-4 text-right">
+<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">Pending Review</span>
+</td>
+</tr>
+<tr class="hover:bg-slate-50/80 transition">
+<td class="py-3.5 px-4 font-mono font-bold text-slate-900">SHP-98423</td>
+<td class="py-3.5 px-4">Lyon (LYS) ➔ Barcelona (BCN)</td>
+<td class="py-3.5 px-4">
+<span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-50 text-amber-800 font-bold text-[11px]">
+<i class="fa-solid fa-truck"></i> Road Freight
+                </span>
+</td>
+<td class="py-3.5 px-4">640 km</td>
+<td class="py-3.5 px-4">4,500 kg</td>
+<td class="py-3.5 px-4 font-bold text-slate-900">0.27 t CO₂e</td>
+<td class="py-3.5 px-4 text-right">
+<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">Audited</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</main>
+<!-- END: MainContent -->
+<!-- BEGIN: Footer -->
+<footer class="w-full bg-white border-t border-slate-200/80 py-6 text-xs text-slate-500">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+<div class="flex items-center gap-2">
+<span class="font-bold text-slate-800">© 2026 Classic UI.</span>
+<span>Corporate ESG Footprint &amp; Sustainability Engine.</span>
+</div>
+<div class="flex items-center gap-4 text-slate-500">
+<a class="hover:text-slate-900 transition" href="#terms">GLEC Methodology</a>
+<a class="hover:text-slate-900 transition" href="#privacy">API Documentation</a>
+<a class="hover:text-slate-900 transition" href="#support">Support Center</a>
+</div>
+</div>
+</footer>
+<!-- END: Footer -->
+<!-- BEGIN: CalculatorLogicScript -->
+<script data-purpose="calculator-interactivity">
+    // Default State & Factor Definitions (kg CO2e per tonne-km)
+    const EMISSION_FACTORS = {
+      air: {
+        factor: 0.93,
+        name: 'Air Freight',
+        description: '0.93 kg CO₂e / tonne–km',
+        baselineDesc: 'Standard well-to-wheel (WTW) aviation baseline',
+        helper: 'Active: Air Freight (Long Haul)',
+        color: '#38bdf8'
+      },
+      sea: {
+        factor: 0.016,
+        name: 'Sea Freight',
+        description: '0.016 kg CO₂e / tonne–km',
+        baselineDesc: 'Deep-sea container vessel average (IMO / GLEC)',
+        helper: 'Active: Sea Freight (Container vessel)',
+        color: '#34d399'
+      },
+      land: {
+        factor: 0.096,
+        name: 'Land Freight',
+        description: '0.096 kg CO₂e / tonne–km',
+        baselineDesc: 'Heavy Goods Vehicle (HGV diesel 32t+ fleet)',
+        helper: 'Active: Land / Road Transport (HGV)',
+        color: '#fbbf24'
+      }
+    };
+
+    let currentMode = 'air';
+
+    // Mode Selector Handler
+    function selectMode(mode) {
+      currentMode = mode;
+      
+      const modes = ['air', 'sea', 'land'];
+      modes.forEach(m => {
+        const btn = document.getElementById(`mode-${m}`);
+        if (m === mode) {
+          btn.className = "relative flex flex-col items-center justify-center py-4 px-3 rounded-2xl border-2 transition-all duration-200 mode-tab-active group";
+          const icon = btn.querySelector('i');
+          icon.className = icon.className.replace('text-slate-400', 'text-white');
+        } else {
+          btn.className = "relative flex flex-col items-center justify-center py-4 px-3 rounded-2xl border-2 border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 text-slate-700 transition-all duration-200 group";
+        }
+      });
+
+      // Update factor description text in input card
+      const modeData = EMISSION_FACTORS[mode];
+      document.getElementById('active-factor-text').textContent = modeData.description;
+      document.getElementById('mode-helper-badge').textContent = modeData.helper;
+
+      // Automatically recalculate output
+      calculateFootprint();
+    }
+
+    // Preset button setters
+    function setDistance(val) {
+      document.getElementById('input-distance').value = val;
+      calculateFootprint();
+    }
+
+    function setWeight(val) {
+      document.getElementById('input-weight').value = val;
+      calculateFootprint();
+    }
+
+    // Core Calculation Logic
+    function calculateFootprint() {
+      const distance = parseFloat(document.getElementById('input-distance').value) || 0;
+      const weightKg = parseFloat(document.getElementById('input-weight').value) || 0;
+      const weightTonnes = weightKg / 1000;
+
+      const activeFactor = EMISSION_FACTORS[currentMode].factor;
+      
+      // Formula: distance (km) * tonnes * factor (kg CO2e / t-km) = Total kg CO2e
+      const totalKg = distance * weightTonnes * activeFactor;
+      const totalTonnes = totalKg / 1000;
+
+      // Update Result display card
+      document.getElementById('result-tonnes').textContent = totalTonnes >= 10 ? totalTonnes.toFixed(2) : totalTonnes.toFixed(3);
+      document.getElementById('result-kg').textContent = `(${Math.round(totalKg).toLocaleString()} kg)`;
+
+      // Update Spotlight Pods in Dark Container
+      const selectedPodVal = document.getElementById('spotlight-selected-val');
+      const selectedPodName = document.getElementById('spotlight-selected-name');
+      
+      if (totalTonnes >= 1) {
+        selectedPodVal.textContent = `${totalTonnes.toFixed(2)} t`;
+      } else {
+        selectedPodVal.textContent = `${Math.round(totalKg)} kg`;
+      }
+      selectedPodName.textContent = EMISSION_FACTORS[currentMode].name;
+
+      // Update Sea Alternative comparison
+      const seaTotalKg = distance * weightTonnes * EMISSION_FACTORS.sea.factor;
+      const seaTotalTonnes = seaTotalKg / 1000;
+      const altVal = document.getElementById('spotlight-alt-val');
+      
+      if (seaTotalTonnes >= 1) {
+        altVal.textContent = `${seaTotalTonnes.toFixed(2)} t`;
+      } else {
+        altVal.textContent = `${Math.round(seaTotalKg)} kg`;
+      }
+
+      // Update center ratio stat
+      const airTotalKg = distance * weightTonnes * EMISSION_FACTORS.air.factor;
+      const ratio = seaTotalKg > 0 ? (airTotalKg / seaTotalKg).toFixed(1) : '58.1';
+      document.getElementById('center-display-stat').textContent = `${ratio}x`;
+    }
+
+    // Reset Calculator to initial default
+    function resetCalculator() {
+      document.getElementById('input-distance').value = 5000;
+      document.getElementById('input-weight').value = 500;
+      selectMode('air');
+    }
+
+    // Initialize calculation on DOM ready
+    document.addEventListener('DOMContentLoaded', () => {
+      calculateFootprint();
+    });
+  </script>
+<!-- END: CalculatorLogicScript -->
+</body></html>

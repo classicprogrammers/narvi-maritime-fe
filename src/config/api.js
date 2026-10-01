@@ -56,7 +56,11 @@ export const API_CONFIG = {
     CARBON_EMISSION_FACTORS: "/api/carbon/emission-factors",
     CARBON_EMISSION_FACTORS_UPDATE: "/api/carbon/emission-factors/update",
     CARBON_STOCK_EMISSIONS: "/api/carbon/stock-emissions",
+    CARBON_SHIPPING_ORDER_EMISSIONS: "/api/carbon/shipping-order-emissions",
+    CARBON_SHIPPING_ORDER_EMISSIONS_DETAIL: "/api/carbon/shipping-order-emissions/detail",
     CARBON_CALCULATE: "/api/carbon/calculate",
+    CARBON_LOCATION_DISTANCE_UPSERT: "/api/carbon/location-distance/upsert",
+    CARBON_STOCK_MANUAL_DISTANCE: "/api/carbon/stock-manual-distance",
   },
 
   // Request timeout in milliseconds

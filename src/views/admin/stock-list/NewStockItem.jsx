@@ -49,8 +49,9 @@ import {
     MdAttachFile,
     MdClose as MdRemove,
     MdVisibility,
+    MdPictureAsPdf,
 } from "react-icons/md";
-import { normalizeStockStatusKey, shouldGenerateStockReportForStatusChange } from "../../../constants/stockStatus";
+import { normalizeStockStatusKey } from "../../../constants/stockStatus";
 import { useStock } from "../../../redux/hooks/useStock";
 import { useUser } from "../../../redux/hooks/useUser";
 import { useMasterData } from "../../../hooks/useMasterData";
@@ -76,10 +77,12 @@ import {
     showStockBulkSaveToasts,
 } from "../../../utils/stockBulkSaveResult";
 import {
-    createAppendStockReportPdfOnStatusChange,
+    cloneStockFormRow,
+    createManualStockReportGenerator,
     createSaveRowBeforeStockReportPdf,
     createStockPdfRowHelpers,
 } from "../../../utils/stockReportPdf";
+import StockReportGenerateModal from "../../../components/stock-list/StockReportGenerateModal";
 import { partitionAttachmentsRow, collectRowAttachmentsForPreview } from "../../../utils/stockReportAttachmentsUi";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
 import { useStockAttachmentsGallery } from "../../../hooks/useStockAttachmentsGallery";
@@ -296,8 +299,10 @@ export default function StockForm() {
     const getPayloadRef = useRef(() => ({}));
     const [stockReportPdfLoadingRowIndex, setStockReportPdfLoadingRowIndex] = useState(null);
     const [stockReportHistoryRowIndex, setStockReportHistoryRowIndex] = useState(null);
+    const [stockReportPreview, setStockReportPreview] = useState(null);
+    const [stockReportPhase, setStockReportPhase] = useState("");
+    const stockReportSnapshotRef = useRef(null);
     const { openGallery, galleryModal } = useStockAttachmentsGallery();
-    const statusPdfScheduleDedupeRef = useRef(null);
 
     useEffect(() => {
         formRowsRef.current = formRows;
@@ -1240,17 +1245,6 @@ export default function StockForm() {
                 if (String(oldStatus) !== String(newStatus) && String(newStatus).trim() !== "") {
                     updatedRow.stockStatusChangedBy = statusChangeActorName;
                     updatedRow.stockStatusPreviousForPayload = oldStatus;
-                    if (shouldGenerateStockReportForStatusChange(oldStatus, newStatus)) {
-                        const snapshot = { ...updatedRow };
-                        const dedupeKey = `${rowIndex}|${String(oldStatus)}|${String(newStatus)}`;
-                        if (statusPdfScheduleDedupeRef.current !== dedupeKey) {
-                            statusPdfScheduleDedupeRef.current = dedupeKey;
-                            queueMicrotask(() => {
-                                statusPdfScheduleDedupeRef.current = null;
-                                appendStockReportPdfOnStatusChange(rowIndex, snapshot, oldStatus, newStatus);
-                            });
-                        }
-                    }
                 }
             }
 
@@ -1668,11 +1662,12 @@ export default function StockForm() {
         []
     );
 
-    const appendStockReportPdfOnStatusChange = useCallback(
-        createAppendStockReportPdfOnStatusChange({
+    const generateStockReportManually = useCallback(
+        createManualStockReportGenerator({
             formRowsRef,
             setFormRows,
             setStockReportPdfLoadingRowIndex,
+            setStockReportPhase,
             stockReportPdfHelpers,
             statusChangeActorName,
             toast,
@@ -1681,6 +1676,40 @@ export default function StockForm() {
         }),
         [stockReportPdfHelpers, statusChangeActorName, toast, shippingOrders, saveRowBeforeStockReportPdf]
     );
+
+    const openStockReportPreview = (rowIndex) => {
+        const row = formRowsRef.current?.[rowIndex] ?? formRows[rowIndex];
+        if (!row) return;
+        stockReportSnapshotRef.current = cloneStockFormRow(row);
+        setStockReportPreview({ rowIndex });
+    };
+
+    const cancelStockReportPreview = () => {
+        if (stockReportPdfLoadingRowIndex != null) return;
+        const snapshot = stockReportSnapshotRef.current;
+        const rowIndex = stockReportPreview?.rowIndex;
+        if (snapshot && rowIndex != null) {
+            setFormRows((prev) => {
+                const next = prev.map((row, index) => (index === rowIndex ? snapshot : row));
+                formRowsRef.current = next;
+                return next;
+            });
+        }
+        stockReportSnapshotRef.current = null;
+        setStockReportPreview(null);
+    };
+
+    const confirmStockReportPreview = async () => {
+        if (!stockReportPreview) return;
+        formRowsRef.current = formRows;
+        const ok = await generateStockReportManually(stockReportPreview.rowIndex);
+        if (ok) {
+            stockReportSnapshotRef.current = null;
+            setStockReportPreview(null);
+            setAddStockHasDataFlag(false);
+            history.push("/admin/stock-list/stocks");
+        }
+    };
 
     const handleSaveStockItem = async () => {
         try {
@@ -1974,7 +2003,8 @@ export default function StockForm() {
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Stock Status</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Files</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Cancel Reason</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Actions</Th>
+                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Actions</Th>
+                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase" textAlign="center">Stock Report</Th>
                                 </Tr>
                             </Thead>
                             <Tbody>
@@ -2805,12 +2835,6 @@ export default function StockForm() {
                                                     </Button>
                                                 </label>
 
-                                                {stockReportPdfLoadingRowIndex === rowIndex && (
-                                                    <Text fontSize="xs" color="gray.500" textAlign="center">
-                                                        Saving and generating stock report PDF…
-                                                    </Text>
-                                                )}
-
                                                 {(() => {
                                                     const { nonReportExisting, nonReportPending, reportEntries } =
                                                         partitionAttachmentsRow(row);
@@ -2985,6 +3009,27 @@ export default function StockForm() {
                                                 />
                                             </HStack>
                                         </Td>
+                                        <Td px="12px" py="8px" textAlign="center">
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                color="#1c4a95"
+                                                borderColor="#1c4a95"
+                                                bg="white"
+                                                borderRadius="md"
+                                                fontWeight="600"
+                                                fontSize="12px"
+                                                whiteSpace="nowrap"
+                                                leftIcon={<Icon as={MdPictureAsPdf} boxSize={4} />}
+                                                _hover={{ bg: "#1c4a95", color: "white" }}
+                                                _active={{ bg: "#163a76", color: "white" }}
+                                                onClick={() => openStockReportPreview(rowIndex)}
+                                                isLoading={stockReportPdfLoadingRowIndex === rowIndex}
+                                                loadingText="Generating..."
+                                            >
+                                                Generate Stock Report
+                                            </Button>
+                                        </Td>
                                     </Tr>
                                 ))}
                             </Tbody>
@@ -2992,6 +3037,85 @@ export default function StockForm() {
                     </Box>
                 </Card>
             </Box>
+            <StockReportGenerateModal
+                isOpen={!!stockReportPreview}
+                onClose={cancelStockReportPreview}
+                onConfirm={confirmStockReportPreview}
+                isSubmitting={stockReportPdfLoadingRowIndex != null}
+                phase={stockReportPhase}
+                row={stockReportPreview != null ? formRows[stockReportPreview.rowIndex] : null}
+                onFieldChange={(field, value) => {
+                    if (stockReportPreview == null) return;
+                    if (field === "stockStatus") {
+                        handleStockStatusSelectChange(stockReportPreview.rowIndex, value);
+                        return;
+                    }
+                    handleInputChange(stockReportPreview.rowIndex, field, value);
+                }}
+                onOriginChange={(name, option) => {
+                    if (stockReportPreview == null) return;
+                    const rowIndex = stockReportPreview.rowIndex;
+                    const text = normalizeStockOriginHubText(name || "");
+                    const match =
+                        (option?.id != null && !String(option.id).startsWith("legacy-") ? option : null) ||
+                        originTextOptions.find((o) => normalizeStockOriginHubText(o.name || "") === text);
+                    const nextId = match?.id != null && !String(match.id).startsWith("legacy-") ? match.id : null;
+                    if (nextId != null) pinOption("origin", match);
+                    setFormRows((prev) => {
+                        const next = [...prev];
+                        next[rowIndex] = {
+                            ...(next[rowIndex] || {}),
+                            origin_text: text,
+                            originId: nextId,
+                        };
+                        return next;
+                    });
+                }}
+                onHub1Change={(id, name) => {
+                    if (stockReportPreview == null) return;
+                    const rowIndex = stockReportPreview.rowIndex;
+                    if (id != null && name) pinOption("viaHub1", { id, name });
+                    setFormRows((prev) => {
+                        const next = [...prev];
+                        next[rowIndex] = {
+                            ...(next[rowIndex] || {}),
+                            narviStockViaHub1: id,
+                            narviStockViaHub1Name: name || "",
+                        };
+                        return next;
+                    });
+                }}
+                clients={stockReportPreview != null ? getClientOptionsForValue(formRows[stockReportPreview.rowIndex]?.client) : clients}
+                vesselOptions={
+                    stockReportPreview != null
+                        ? getVesselOptionsForClient(
+                            formRows[stockReportPreview.rowIndex]?.client,
+                            formRows[stockReportPreview.rowIndex]?.vessel
+                        )
+                        : vessels
+                }
+                supplierOptions={
+                    stockReportPreview != null
+                        ? getSupplierOptionsForValue(formRows[stockReportPreview.rowIndex]?.supplier)
+                        : suppliers
+                }
+                currencies={currencies}
+                originOptions={originTextOptions}
+                hubOptions={viaHub1Options}
+                onOriginSearch={setQOriginText}
+                onHubSearch={setQViaHub1}
+                onClientSearch={handleClientSearchChange}
+                onSupplierSearch={handleSupplierSearchChange}
+                onVesselSearch={(q) =>
+                    stockReportPreview != null &&
+                    handleVesselSearchChange(formRows[stockReportPreview.rowIndex]?.client, q)
+                }
+                isLoadingLocations={isLoadingDestinationOptions}
+                pcsField="item"
+                dgField="dgUn"
+                dateField="dateOnStock"
+                statusActorName={statusChangeActorName}
+            />
 
             {/* Dimensions Modal */}
             <Modal isOpen={isDimensionsModalOpen} onClose={onDimensionsModalClose} size="xl">
@@ -3257,8 +3381,8 @@ export default function StockForm() {
                 size="lg"
                 isCentered
             >
-                <ModalOverlay />
-                <ModalContent>
+                <ModalOverlay zIndex={2099999} />
+                <ModalContent containerProps={{ zIndex: 2100000 }}>
                     <ModalHeader>Cancel reason</ModalHeader>
                     <ModalCloseButton />
                     <ModalBody>

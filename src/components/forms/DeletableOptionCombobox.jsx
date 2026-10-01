@@ -108,8 +108,13 @@ export default function DeletableOptionCombobox({
     };
   }, [isOpen]);
 
+  const [isInModal, setIsInModal] = useState(false);
   useEffect(() => {
-    if (!isOpen || !containerRef.current || !dropdownRef.current) return undefined;
+    setIsInModal(Boolean(containerRef.current?.closest(".chakra-modal__content")));
+  }, []);
+
+  useEffect(() => {
+    if (isInModal || !isOpen || !containerRef.current || !dropdownRef.current) return undefined;
 
     const updatePosition = () => {
       if (!containerRef.current || !dropdownRef.current) return;
@@ -129,7 +134,7 @@ export default function DeletableOptionCombobox({
       window.removeEventListener("scroll", updatePosition, true);
       window.removeEventListener("resize", updatePosition);
     };
-  }, [isOpen, filteredOptions.length, isLoading]);
+  }, [isInModal, isOpen, filteredOptions.length, isLoading]);
 
   const selectOption = (event, option) => {
     event.preventDefault();
@@ -235,6 +240,7 @@ export default function DeletableOptionCombobox({
       maxH="220px"
       overflowY="auto"
       zIndex={9999}
+      {...(isInModal ? { position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, minW: "220px" } : {})}
     >
       {isLoading ? (
         <Box p={3} textAlign="center">
@@ -329,8 +335,9 @@ export default function DeletableOptionCombobox({
             </InputRightElement>
           ) : null}
         </InputGroup>
+        {isInModal ? dropdownContent : null}
       </Box>
-      {typeof document !== "undefined" && createPortal(dropdownContent, document.body)}
+      {!isInModal && typeof document !== "undefined" && createPortal(dropdownContent, document.body)}
     </>
   );
 }

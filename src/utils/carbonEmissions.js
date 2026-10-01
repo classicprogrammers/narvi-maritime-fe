@@ -4,20 +4,16 @@
  */
 
 export const TRANSPORT_MODES = [
-  { value: "air", label: "Air Freight" },
-  { value: "sea", label: "Sea Freight" },
-  { value: "road", label: "Road / Truck" },
-  { value: "rail", label: "Rail" },
-  { value: "courier", label: "Courier" },
+  { value: "air", label: "Air" },
+  { value: "sea", label: "Sea" },
+  { value: "road", label: "Land" },
 ];
 
-/** kg CO₂e per tonne-km (indicative GLEC-aligned defaults) */
+/** kg CO₂e per tonne-km (indicative defaults until factors load) */
 export const EMISSION_FACTORS = {
   air: 0.93,
   sea: 0.016,
   road: 0.096,
-  rail: 0.028,
-  courier: 0.65,
 };
 
 const MODE_LABELS = Object.fromEntries(TRANSPORT_MODES.map((m) => [m.value, m.label]));

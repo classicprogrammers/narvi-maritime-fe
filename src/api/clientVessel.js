@@ -1,4 +1,5 @@
 import api from "./axios";
+import { extractClientsFromPayload } from "../utils/portalClients";
 
 export const getClientVessels = async (params = {}) => {
   try {
@@ -17,6 +18,7 @@ export const getClientVessels = async (params = {}) => {
     return {
       status: data.status || "success",
       count: data.count ?? 0,
+      clients: extractClientsFromPayload(data),
       client: data.client || null,
       vessels: Array.isArray(data.vessels) ? data.vessels : [],
     };

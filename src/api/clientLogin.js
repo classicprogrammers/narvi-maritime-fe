@@ -62,3 +62,63 @@ export const deleteClientLoginApi = async (id) => {
   }
 };
 
+const toClientId = (value) => {
+  if (value == null || value === false || value === "") return null;
+  if (Array.isArray(value)) return toClientId(value[0]);
+  if (typeof value === "object") return toClientId(value.id);
+  const id = Number(value);
+  return Number.isFinite(id) ? id : null;
+};
+
+export function parseClientLoginIds(record) {
+  const ids = [];
+  const seen = new Set();
+  const add = (raw) => {
+    if (raw == null || raw === false || raw === "") return;
+    if (Array.isArray(raw)) {
+      const looksLikeTuple =
+        raw.length <= 2 &&
+        raw.length >= 1 &&
+        (typeof raw[0] === "number" || typeof raw[0] === "string") &&
+        raw.every((item) => item == null || typeof item !== "object");
+      if (looksLikeTuple) {
+        add(raw[0]);
+        return;
+      }
+      raw.forEach(add);
+      return;
+    }
+    const id = toClientId(raw);
+    if (id == null || seen.has(id)) return;
+    seen.add(id);
+    ids.push(id);
+  };
+  add(record?.client_ids);
+  return ids;
+}
+
+export function formatClientLoginNames(record) {
+  if (!Array.isArray(record?.client_ids) || !record.client_ids.length) return "";
+  return record.client_ids
+    .map((item) => {
+      if (item && typeof item === "object" && !Array.isArray(item)) {
+        return String(item.name || "").trim();
+      }
+      return "";
+    })
+    .filter(Boolean)
+    .join(", ");
+}
+
+export function buildClientLoginIdsPayload(clientIds) {
+  const ids = [];
+  const seen = new Set();
+  (Array.isArray(clientIds) ? clientIds : []).forEach((value) => {
+    const id = toClientId(value);
+    if (id == null || seen.has(id)) return;
+    seen.add(id);
+    ids.push(id);
+  });
+  return ids;
+}
+

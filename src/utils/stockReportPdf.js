@@ -29,7 +29,10 @@ import {
     toStockLocationDisplayValue,
 } from "./stockLocationOptions";
 import { getDimensionVolumeCbm, sumDimensionsVolumeCbm } from "./stockVolume";
-import { applyStockReportAttachmentOnStatusChange } from "./stockReportAttachmentsUi";
+import {
+    applyStockReportAttachmentOnStatusChange,
+    isStockReportAttachment,
+} from "./stockReportAttachmentsUi";
 import { formatStockValueDisplay } from "./stockValue";
 import { clearUploadedPendingAttachmentsFromRow } from "./stockUpdatePayload";
 
@@ -550,8 +553,8 @@ export function mapFormRowToAdminItemForPdf(row, helpers = {}) {
             row.destinationName
         ),
         warehouse_new: row.warehouseId,
-        date_on_stock: pickFormRowValue(row, "dateOnStock"),
-        first_entry_date: pickFormRowValue(row, "dateOnStock", "firstEntryDate", "slCreateDate"),
+        date_on_stock: pickFormRowValue(row, "dateOnStock", "expReadyInStock"),
+        first_entry_date: pickFormRowValue(row, "dateOnStock", "firstEntryDate", "expReadyInStock", "slCreateDate"),
         create_date: pickFormRowValue(row, "slCreateDate", "slCreateDateTime", "create_date"),
         write_date: row.write_date,
         weight_kg: pickFormRowValue(row, "weightKgs", "weight_kg"),
@@ -562,7 +565,7 @@ export function mapFormRowToAdminItemForPdf(row, helpers = {}) {
         stock_items_quantity: pickFormRowValue(row, "item", "items", "stock_items_quantity"),
         currency_id: row.currency,
         value: formatStockValueDisplay(row.value),
-        dg_un: pickFormRowValue(row, "dgUn", "dg_un"),
+        dg_un: pickFormRowValue(row, "dgUn", "dg_un", "details"),
         so_id: soM2O,
         so_number: soDisplay || undefined,
         dimensions: dims,
@@ -779,87 +782,163 @@ export function createSaveRowBeforeStockReportPdf({ getLinePayload, formRowsRef 
     };
 }
 
-/** Prefer the latest form row (ref) over the status-change snapshot when building the PDF. */
-export function resolveLatestFormRowForPdf(formRowsRef, rowIndex, fallbackRow) {
-    const rows = formRowsRef?.current;
-    const refRow = Array.isArray(rows) ? rows[rowIndex] : null;
-    if (refRow && fallbackRow) {
-        return {
-            ...fallbackRow,
-            ...refRow,
-            stockStatus: fallbackRow.stockStatus,
-            stockStatusChangedBy: fallbackRow.stockStatusChangedBy,
-            stockStatusPreviousForPayload: fallbackRow.stockStatusPreviousForPayload,
-        };
+export function cloneStockFormRow(row) {
+    if (!row || typeof row !== "object") return row;
+    if (typeof structuredClone === "function") {
+        try {
+            return structuredClone(row);
+        } catch {
+            /* fall through */
+        }
     }
-    if (refRow) return refRow;
-    return fallbackRow;
+    return JSON.parse(JSON.stringify(row));
+}
+
+function commitStockFormRow(formRowsRef, setFormRows, rowIndex, row) {
+    const prev = Array.isArray(formRowsRef?.current) ? formRowsRef.current : [];
+    const next = prev.map((existing, index) => (index === rowIndex ? row : existing));
+    if (formRowsRef) formRowsRef.current = next;
+    setFormRows(next);
+}
+
+function rowWithoutUnsavedStockReport(row) {
+    if (!row) return row;
+    return {
+        ...row,
+        attachments: (row.attachments || []).filter(
+            (file) => !(file?.datas && isStockReportAttachment(file))
+        ),
+    };
 }
 
 /**
- * Shared handler for status-change stock report PDF generation on create/edit forms.
+ * Confirm flow: save the row first. Generate the stock report only after the API returns an id,
+ * then attach that PDF with a follow-up update.
  */
-export function createAppendStockReportPdfOnStatusChange({
+export function createManualStockReportGenerator({
     formRowsRef,
     setFormRows,
     setStockReportPdfLoadingRowIndex,
+    setStockReportPhase,
     stockReportPdfHelpers,
     statusChangeActorName,
     toast,
     shippingOrders = [],
     saveRowBeforePdf,
 }) {
-    return async function appendStockReportPdfOnStatusChange(rowIndex, rowSnapshot, previousStatus, newStatus) {
+    return async function generateStockReportManually(rowIndex) {
         setStockReportPdfLoadingRowIndex(rowIndex);
+        let reportApplied = false;
+        let rowBeforeReport = null;
         try {
-            let latestRow = resolveLatestFormRowForPdf(formRowsRef, rowIndex, rowSnapshot);
-            let savedPatch = null;
-
-            if (saveRowBeforePdf) {
-                savedPatch = await saveRowBeforePdf(rowIndex, latestRow);
-                if (savedPatch) {
-                    latestRow = mergeSavedStockIdsIntoRow(latestRow, savedPatch);
-                    setFormRows((prev) => {
-                        const next = prev.map((r, i) =>
-                            i === rowIndex ? mergeSavedStockIdsIntoRow(r, savedPatch) : r
-                        );
-                        if (formRowsRef) formRowsRef.current = next;
-                        return next;
-                    });
-                }
+            let latestRow = formRowsRef?.current?.[rowIndex];
+            if (!latestRow) {
+                throw new Error("Stock row is no longer available.");
             }
 
+            const previousStatus = latestRow.stockStatusPreviousForPayload || "";
+            const newStatus = latestRow.stockStatus || "";
+
+            if (!saveRowBeforePdf) {
+                throw new Error("Cannot generate a stock report before the stock item is saved.");
+            }
+
+            // Save field changes only. The report PDF is not part of this request.
+            latestRow = rowWithoutUnsavedStockReport(latestRow);
+            commitStockFormRow(formRowsRef, setFormRows, rowIndex, latestRow);
+
+            setStockReportPhase?.("saving");
+            const savedPatch = await saveRowBeforePdf(rowIndex, latestRow);
+            const returnedId = savedPatch?.stockId;
+            if (returnedId == null || returnedId === false || String(returnedId).trim() === "") {
+                throw new Error(
+                    "The API did not return a stock id. The stock report was not generated."
+                );
+            }
+
+            latestRow = mergeSavedStockIdsIntoRow(
+                formRowsRef?.current?.[rowIndex] || latestRow,
+                savedPatch
+            );
+            if (savedPatch.stockItemId) {
+                latestRow = {
+                    ...latestRow,
+                    stockItemId: savedPatch.stockItemId,
+                    stockNumber: savedPatch.stockItemId,
+                };
+            }
+            commitStockFormRow(formRowsRef, setFormRows, rowIndex, latestRow);
+
+            setStockReportPhase?.("generating");
             const adminItem = mapFormRowToAdminItemForPdf(latestRow, { shippingOrders });
-            if (savedPatch?.stockItemId) {
+            adminItem.stock_id = returnedId;
+            if (savedPatch.stockItemId) {
                 adminItem.stock_number = savedPatch.stockItemId;
                 adminItem.stock_item_id = savedPatch.stockItemId;
             }
 
             const att = await buildStockReportPdfAttachmentForItem(adminItem, stockReportPdfHelpers, {
                 changedByName: statusChangeActorName || "Unknown user",
-                previousStatus: previousStatus || latestRow.stockStatusPreviousForPayload || "",
-                newStatus: newStatus || latestRow.stockStatus || "",
+                previousStatus,
+                newStatus,
             });
-            setFormRows((prev) => {
-                const next = prev.map((r, i) => {
-                    if (i !== rowIndex) return r;
-                    const withIds = mergeSavedStockIdsIntoRow(r, savedPatch);
-                    return applyStockReportAttachmentOnStatusChange(withIds, att);
-                });
-                if (formRowsRef) formRowsRef.current = next;
-                return next;
+
+            rowBeforeReport = formRowsRef?.current?.[rowIndex] || latestRow;
+            latestRow = applyStockReportAttachmentOnStatusChange(rowBeforeReport, att);
+            reportApplied = true;
+            commitStockFormRow(formRowsRef, setFormRows, rowIndex, latestRow);
+
+            const stockId = returnedId;
+            const reportFile = {
+                filename: att.filename,
+                name: att.filename,
+                mimetype: att.mimetype || "application/pdf",
+                datas: att.datas,
+            };
+            const reportUpdateLine = {
+                stock_id: stockId,
+                attachments: [reportFile],
+            };
+            if (latestRow.stockItemId) {
+                reportUpdateLine.stock_item_id = latestRow.stockItemId;
+            }
+            const reportDeletes = (latestRow.attachmentsToDelete || []).filter(
+                (id) => id != null && id !== false && String(id).trim() !== ""
+            );
+            if (reportDeletes.length) {
+                reportUpdateLine.attachment_to_delete = reportDeletes;
+            }
+
+            const response = await updateStockItemApi(stockId, { lines: [reportUpdateLine] });
+            assertStockSaveSucceeded(response);
+
+            latestRow = clearUploadedPendingAttachmentsFromRow(formRowsRef?.current?.[rowIndex] || latestRow);
+            commitStockFormRow(formRowsRef, setFormRows, rowIndex, latestRow);
+
+            toast({
+                title: "Stock report generated",
+                description: "The stock item was saved and the report was attached.",
+                status: "success",
+                duration: 4000,
+                isClosable: true,
             });
+            return true;
         } catch (err) {
+            if (reportApplied && rowBeforeReport) {
+                commitStockFormRow(formRowsRef, setFormRows, rowIndex, rowBeforeReport);
+            }
             console.error("Stock report PDF:", err);
             toast({
-                title: "Could not generate status report PDF",
+                title: "Could not generate stock report",
                 description: err?.message || "Please try again.",
                 status: "error",
                 duration: 5000,
                 isClosable: true,
             });
+            return false;
         } finally {
             setStockReportPdfLoadingRowIndex(null);
+            setStockReportPhase?.("");
         }
     };
 }

@@ -1,6 +1,7 @@
 import api from "./axios";
 import { buildCommonStockJobFilters } from "./commonFilterBuilder";
 import { resolveStockListActiveParam } from "../constants/stockStatus";
+import { extractClientsFromPayload } from "../utils/portalClients";
 
 export const getClientStock = async (params = {}) => {
   try {
@@ -47,6 +48,7 @@ export const getClientStock = async (params = {}) => {
       total_pages: totalPages,
       has_next: Boolean(data.has_next ?? page < totalPages),
       has_previous: Boolean(data.has_previous ?? page > 1),
+      clients: extractClientsFromPayload(data),
       client: data.client || data.result?.client || null,
       stock_list: list,
     };

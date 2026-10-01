@@ -15,6 +15,7 @@ import {
 import { MdLocationOn, MdSearch } from "react-icons/md";
 import { useHistory } from "react-router-dom";
 import clientHubApi from "api/clientHub";
+import { formatClientsHeading } from "utils/portalClients";
 
 function ClientHubLocations() {
   const history = useHistory();
@@ -34,7 +35,7 @@ function ClientHubLocations() {
         search: search.trim() || undefined,
       });
       setHubs(Array.isArray(res?.hubs) ? res.hubs : []);
-      setClientName(res?.client?.name || "");
+      setClientName(formatClientsHeading(res?.clients));
     } catch (_error) {
       setHubs([]);
       setClientName("");

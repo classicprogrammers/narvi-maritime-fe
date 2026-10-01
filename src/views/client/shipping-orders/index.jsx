@@ -39,6 +39,7 @@ import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import ShippingOrderStockList from "components/shipping-order/ShippingOrderStockList";
 import { useStockAttachmentsGallery } from "hooks/useStockAttachmentsGallery";
 import { formatShippingOrderDestinationDisplay, normalizeOrder, toDateOnly } from "views/admin/shipping-order/shippingOrderUtils";
+import { formatClientsHeading, getRowClientName } from "utils/portalClients";
 import { resolveShippingOrderDownloadFilename } from "utils/shippingOrderAttachments";
 import {
   parseSoFilterFromUrl,
@@ -285,7 +286,7 @@ function ClientShippingOrders() {
         .map((v) => ({ id: v?.id, name: typeof v === "string" ? v : v?.name }))
         .filter((v) => v.name);
       setVesselOptions(options);
-      if (res?.client?.name) setClientName(res.client.name);
+      if (res?.clients?.length) setClientName(formatClientsHeading(res.clients));
     } catch (_e) {
       setVesselOptions([]);
     }
@@ -340,7 +341,7 @@ function ClientShippingOrders() {
         .filter(Boolean);
 
       setRows(mapped);
-      if (res?.client?.name) setClientName(res.client.name);
+      if (res?.clients?.length) setClientName(formatClientsHeading(res.clients));
     } catch (err) {
       setRows([]);
       toast({
@@ -632,6 +633,7 @@ function ClientShippingOrders() {
   const handleDownloadExcel = () => {
     const headers = [
       "SO Number",
+      "Client",
       "Status",
       "Vessel",
       "Destination",
@@ -650,6 +652,7 @@ function ClientShippingOrders() {
 
     const rowsForExport = rows.map((row) => [
       row.so_number || "-",
+      getRowClientName(row) || "-",
       formatStatusLabel(row.done),
       row.vessel_name || "-",
       row.destinationDisplay || "-",
@@ -872,6 +875,7 @@ function ClientShippingOrders() {
           <Thead>
             <Tr>
               <Th>SO Number</Th>
+              <Th>Client</Th>
               <Th>View Stock Items</Th>
               <Th>Status</Th>
               <Th>Vessel</Th>
@@ -893,6 +897,7 @@ function ClientShippingOrders() {
                 _even={{ bg: tableRowEvenBg }}
               >
                 <Td fontWeight="600">{row.so_number || "-"}</Td>
+                <Td>{getRowClientName(row) || "—"}</Td>
                 <Td whiteSpace="nowrap">
                   {getClientShippingOrderStockCount(row) > 0 || row.stock_items_url ? (
                     <Button
@@ -1016,7 +1021,7 @@ function ClientShippingOrders() {
                     {formatStatusLabel(stockModal.order.done)}
                   </ReadOnlyDetailField>
                   <ReadOnlyDetailField label="Client">
-                    {stockModal.order.client || clientName || "—"}
+                    {getRowClientName(stockModal.order) || clientName || "—"}
                   </ReadOnlyDetailField>
                   <ReadOnlyDetailField label="Vessel">
                     {stockModal.order.vessel_name || "—"}

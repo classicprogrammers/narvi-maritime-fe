@@ -1,5 +1,6 @@
 import api from "./axios";
 import { parseContentDispositionFilename } from "../utils/shippingOrderAttachments";
+import { extractClientsFromPayload } from "../utils/portalClients";
 
 const CLIENT_SHIPPING_ORDER_BASE = "/api/client/shipping/order";
 
@@ -156,6 +157,9 @@ const normalizeListResponse = (data, fallback = {}) => {
       total_pages: source.total_pages || 0,
       has_next: source.has_next || false,
       has_previous: source.has_previous || false,
+      clients: extractClientsFromPayload(source).length
+        ? extractClientsFromPayload(source)
+        : extractClientsFromPayload(data),
       client: source.client || data?.client || null,
       sort_by: source.sort_by || fallback.sort_by,
       sort_order: source.sort_order || fallback.sort_order,
@@ -173,6 +177,9 @@ const normalizeListResponse = (data, fallback = {}) => {
     total_pages: 1,
     has_next: false,
     has_previous: false,
+    clients: extractClientsFromPayload(source).length
+      ? extractClientsFromPayload(source)
+      : extractClientsFromPayload(data),
     client: source.client || data?.client || null,
     sort_by: fallback.sort_by,
     sort_order: fallback.sort_order,

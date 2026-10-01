@@ -77,9 +77,9 @@ export function SidebarLinks(props) {
   const openInNewTab = (targetPath) =>
     (isClientEditMode || isAgentEditMode || isShippingOrderEditMode || isStockListEditMode || isAddStockWithData) && !isCurrentPath(targetPath);
 
-  const SidebarNavLink = ({ to, children }) => {
+  const SidebarNavLink = ({ to, children, blank = false }) => {
     const targetPath = (to || "").replace(/\/$/, "") || "/";
-    if (openInNewTab(targetPath)) {
+    if (blank || openInNewTab(targetPath)) {
       return (
         <a
           href={to}
@@ -375,7 +375,7 @@ export function SidebarLinks(props) {
               </Box>
             ) : (
               // Regular route without submenu
-              <SidebarNavLink to={route.layout + route.path}>
+              <SidebarNavLink to={route.layout + route.path} blank={route.blank}>
                 {route.icon ? (
                   <Box>
                     <HStack
