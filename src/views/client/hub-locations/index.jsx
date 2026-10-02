@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Flex,
@@ -27,20 +27,26 @@ function ClientHubLocations() {
   const [search, setSearch] = useState("");
   const [clientName, setClientName] = useState("");
   const [hubs, setHubs] = useState([]);
+  const hubsRequestIdRef = useRef(0);
 
   const fetchHubs = useCallback(async () => {
+    const requestId = ++hubsRequestIdRef.current;
     setIsLoading(true);
     try {
       const res = await clientHubApi.getClientHubs({
         search: search.trim() || undefined,
       });
+      if (requestId !== hubsRequestIdRef.current) return;
       setHubs(Array.isArray(res?.hubs) ? res.hubs : []);
       setClientName(formatClientsHeading(res?.clients));
     } catch (_error) {
+      if (requestId !== hubsRequestIdRef.current) return;
       setHubs([]);
       setClientName("");
     } finally {
-      setIsLoading(false);
+      if (requestId === hubsRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [search]);
 

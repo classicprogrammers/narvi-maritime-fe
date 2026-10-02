@@ -43,8 +43,14 @@ export const buildCommonStockJobFilters = (params = {}) => {
     }
   };
 
-  assign("search", params.search);
-  assign("name", params.name);
+  const trimmedSearch = isPresent(params.search) ? String(params.search).trim() : "";
+  const trimmedName = isPresent(params.name) ? String(params.name).trim() : "";
+  if (trimmedSearch) {
+    requestParams.search = trimmedSearch;
+  } else if (trimmedName) {
+    // Only pass name when search is not passed
+    requestParams.name = trimmedName;
+  }
   assign("date_from", params.date_from);
   assign("date_to", params.date_to);
   assign("date_on_stock_from", params.date_on_stock_from ?? params.date_from);

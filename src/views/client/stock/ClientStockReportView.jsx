@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Button,
@@ -488,6 +488,7 @@ function ClientStockReportView() {
   const [isDimensionsModalOpen, setIsDimensionsModalOpen] = useState(false);
   const [selectedDimensions, setSelectedDimensions] = useState([]);
   const [clientSortOption, setClientSortOption] = useState("none");
+  const stockRequestIdRef = useRef(0);
   const [activeFilter, setActiveFilter] = useState(() => {
     const stockStatus = resolveClientPortalNavStockStatus(
       getClientStockNavState(location).stockStatus
@@ -543,7 +544,6 @@ function ClientStockReportView() {
       const destinationId = resolveStockLocationOptionId(destinationValue);
       return {
         search: searchQuery || undefined,
-        name: searchQuery || undefined,
         stock_status: resolveClientPortalNavStockStatus(filters.status) || undefined,
         sort_by: mapStockSortOptionToApiSortBy(clientSortOption),
         date_from: filters.fromDate || undefined,
@@ -578,6 +578,7 @@ function ClientStockReportView() {
   );
 
   const fetchStock = useCallback(async () => {
+    const requestId = ++stockRequestIdRef.current;
     setIsLoading(true);
     try {
       const pageSize = Number(entries) || 50;
@@ -588,6 +589,7 @@ function ClientStockReportView() {
             : { page: fetchPage, page_size: pageSize }
         )
       );
+      if (requestId !== stockRequestIdRef.current) return;
       const nextClientName = formatClientsHeading(res?.clients);
       setStockRows(mapClientStockRows(res?.stock_list, nextClientName));
       setClientName(nextClientName);
@@ -598,6 +600,7 @@ function ClientStockReportView() {
         setHasPrevious(Boolean(res.has_previous));
       }
     } catch (_e) {
+      if (requestId !== stockRequestIdRef.current) return;
       setStockRows([]);
       setClientName("");
       setTotalCount(0);
@@ -605,7 +608,9 @@ function ClientStockReportView() {
       setHasNext(false);
       setHasPrevious(false);
     } finally {
-      setIsLoading(false);
+      if (requestId === stockRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [buildStockQueryParams, entries, fetchPage, usesLocalSearchSort]);
 

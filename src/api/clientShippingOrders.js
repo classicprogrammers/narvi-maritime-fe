@@ -51,12 +51,12 @@ const buildListParams = (params = {}) => {
   }
 
   const trimmedSearch = search ? String(search).trim() : "";
+  const trimmedName = name != null ? String(name).trim() : "";
   if (trimmedSearch) {
     requestParams.search = trimmedSearch;
-  }
-
-  if (name != null && String(name).trim() !== "") {
-    requestParams.name = String(name).trim();
+  } else if (trimmedName) {
+    // Only pass name when search is not passed
+    requestParams.name = trimmedName;
   }
 
   if (vessel_id != null && vessel_id !== "") {

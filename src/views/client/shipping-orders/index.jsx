@@ -143,6 +143,28 @@ const getClientShippingOrderStockCount = (order) => {
   return 0;
 };
 
+const mapClientShippingOrderListRows = (orders) =>
+  (Array.isArray(orders) ? orders : [])
+    .map((item) => {
+      const order = normalizeOrder(item);
+      if (!order) return null;
+      const raw = item || {};
+      const attachmentCount = Number(raw.attachment_count ?? 0) || 0;
+      const ciplCount = Number(raw.cipl_file_count ?? 0) || 0;
+      const hasPackage = Boolean(raw.has_shipping_package);
+      return {
+        ...order,
+        so_number: raw.name || order.so_number,
+        attachmentCount,
+        ciplCount,
+        hasPackage,
+        attachmentsUrl: raw.attachments_url || null,
+        totalFileCount: attachmentCount + ciplCount + (hasPackage ? 1 : 0),
+        destinationDisplay: formatShippingOrderDestinationDisplay(order),
+      };
+    })
+    .filter(Boolean);
+
 const mergeClientShippingOrderDetail = (baseOrder, raw) => {
   const normalized = normalizeOrder(raw);
   if (!normalized) return baseOrder;
@@ -214,6 +236,8 @@ function ClientShippingOrders() {
   const [search, setSearch] = useState("");
   const [entries, setEntries] = useState("50");
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [clientName, setClientName] = useState("");
@@ -227,6 +251,7 @@ function ClientShippingOrders() {
   });
   const filesCacheRef = useRef(new Map());
   const stockCacheRef = useRef(new Map());
+  const ordersRequestIdRef = useRef(0);
 
   const cardBg = useColorModeValue("white", "navy.800");
   const borderColor = useColorModeValue("secondaryGray.200", "whiteAlpha.200");
@@ -293,6 +318,7 @@ function ClientShippingOrders() {
   }, []);
 
   const fetchOrders = useCallback(async () => {
+    const requestId = ++ordersRequestIdRef.current;
     setIsLoading(true);
     try {
       const selectedVessel = vesselOptions.find(
@@ -300,14 +326,13 @@ function ClientShippingOrders() {
       );
       const destinationText = String(filters.destinationQuery || "").trim();
       const countryId = filters.countryId;
+      const pageSize = Number(entries) || 50;
       const res = await clientShippingOrdersApi.getClientShippingOrders({
-        page: 1,
-        page_size: 80,
-        fetch_all: true,
+        page: currentPage,
+        page_size: pageSize,
         sort_by: "so_id",
         sort_order: "desc",
         search: search.trim() || undefined,
-        name: search.trim() || undefined,
         done: filters.status || undefined,
         vessel_id: selectedVessel?.id,
         destination: destinationText || undefined,
@@ -316,34 +341,28 @@ function ClientShippingOrders() {
         so_id: filters.soNumber || undefined,
       });
 
+      if (requestId !== ordersRequestIdRef.current) return;
+
       filesCacheRef.current.clear();
       stockCacheRef.current.clear();
 
-      const mapped = (res?.orders || [])
-        .map((item) => {
-          const order = normalizeOrder(item);
-          if (!order) return null;
-          const raw = item || {};
-          const attachmentCount = Number(raw.attachment_count ?? 0) || 0;
-          const ciplCount = Number(raw.cipl_file_count ?? 0) || 0;
-          const hasPackage = Boolean(raw.has_shipping_package);
-          return {
-            ...order,
-            so_number: raw.name || order.so_number,
-            attachmentCount,
-            ciplCount,
-            hasPackage,
-            attachmentsUrl: raw.attachments_url || null,
-            totalFileCount: attachmentCount + ciplCount + (hasPackage ? 1 : 0),
-            destinationDisplay: formatShippingOrderDestinationDisplay(order),
-          };
-        })
-        .filter(Boolean);
+      const mapped = mapClientShippingOrderListRows(res?.orders);
+      const resolvedTotalCount = Number(res?.total_count ?? res?.count ?? mapped.length) || 0;
+      const resolvedPageSize = Number(res?.page_size) || pageSize;
+      const resolvedTotalPages = Math.max(
+        1,
+        Number(res?.total_pages) || Math.ceil(resolvedTotalCount / resolvedPageSize) || 1
+      );
 
       setRows(mapped);
+      setTotalCount(resolvedTotalCount);
+      setTotalPages(resolvedTotalPages);
       if (res?.clients?.length) setClientName(formatClientsHeading(res.clients));
     } catch (err) {
+      if (requestId !== ordersRequestIdRef.current) return;
       setRows([]);
+      setTotalCount(0);
+      setTotalPages(1);
       toast({
         title: "Unable to load shipping orders",
         description: err?.message || "Please try again.",
@@ -352,7 +371,9 @@ function ClientShippingOrders() {
         isClosable: true,
       });
     } finally {
-      setIsLoading(false);
+      if (requestId === ordersRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [
     filters.countryId,
@@ -361,6 +382,8 @@ function ClientShippingOrders() {
     filters.soNumber,
     filters.status,
     filters.vessel,
+    currentPage,
+    entries,
     search,
     toast,
     vesselOptions,
@@ -383,15 +406,9 @@ function ClientShippingOrders() {
     return () => clearTimeout(timer);
   }, [fetchOrders]);
 
-  const pagedRows = useMemo(() => {
-    const pageSize = Number(entries);
-    const start = (currentPage - 1) * pageSize;
-    return rows.slice(start, start + pageSize);
-  }, [currentPage, entries, rows]);
-
-  const totalPages = Math.max(1, Math.ceil(rows.length / Number(entries)));
-  const pageStart = rows.length ? (currentPage - 1) * Number(entries) + 1 : 0;
-  const pageEnd = Math.min(currentPage * Number(entries), rows.length);
+  const pageSize = Number(entries) || 50;
+  const pageStart = rows.length ? (currentPage - 1) * pageSize + 1 : 0;
+  const pageEnd = rows.length ? pageStart + rows.length - 1 : 0;
 
   const destinationOptions = useMemo(() => {
     const unique = [];
@@ -450,6 +467,12 @@ function ClientShippingOrders() {
   useEffect(() => {
     setCurrentPage(1);
   }, [entries, filters, search]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const handleReset = () => {
     setFilters({
@@ -630,7 +653,7 @@ function ClientShippingOrders() {
     }
   };
 
-  const handleDownloadExcel = () => {
+  const handleDownloadExcel = async () => {
     const headers = [
       "SO Number",
       "Client",
@@ -650,7 +673,36 @@ function ClientShippingOrders() {
       "Package",
     ];
 
-    const rowsForExport = rows.map((row) => [
+    let exportRows = rows;
+    try {
+      const selectedVessel = vesselOptions.find(
+        (v) => String(v.name) === String(filters.vessel)
+      );
+      const res = await clientShippingOrdersApi.getClientShippingOrders({
+        fetch_all: true,
+        sort_by: "so_id",
+        sort_order: "desc",
+        search: search.trim() || undefined,
+        done: filters.status || undefined,
+        vessel_id: selectedVessel?.id,
+        destination: String(filters.destinationQuery || "").trim() || undefined,
+        country_id: filters.countryId || undefined,
+        destination_id: filters.destinationId || undefined,
+        so_id: filters.soNumber || undefined,
+      });
+      exportRows = mapClientShippingOrderListRows(res?.orders);
+    } catch (err) {
+      toast({
+        title: "Export failed",
+        description: err?.message || "Could not download the Excel file.",
+        status: "error",
+        duration: 4000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    const rowsForExport = exportRows.map((row) => [
       row.so_number || "-",
       getRowClientName(row) || "-",
       formatStatusLabel(row.done),
@@ -825,7 +877,15 @@ function ClientShippingOrders() {
             <Text fontSize="sm" color={muted}>
               Show
             </Text>
-            <Select size="xs" w="72px" value={entries} onChange={(e) => setEntries(e.target.value)}>
+            <Select
+              size="xs"
+              w="72px"
+              value={entries}
+              onChange={(e) => {
+                setEntries(e.target.value);
+                setCurrentPage(1);
+              }}
+            >
               <option value="50">50</option>
               <option value="25">25</option>
               <option value="10">10</option>
@@ -861,12 +921,12 @@ function ClientShippingOrders() {
 
       <ClientPortalTableShell
         isLoading={isLoading}
-        hasRows={pagedRows.length > 0}
+        hasRows={rows.length > 0}
         loadingLabel="Loading shipping orders..."
         emptyLabel="No shipping orders found for the selected filters."
         pageStart={pageStart}
         pageEnd={pageEnd}
-        totalCount={rows.length}
+        totalCount={totalCount}
         currentPage={currentPage}
         totalPages={totalPages}
         onChangePage={setCurrentPage}
@@ -890,7 +950,7 @@ function ClientShippingOrders() {
             </Tr>
           </Thead>
           <Tbody>
-            {pagedRows.map((row) => (
+            {rows.map((row) => (
               <Tr
                 key={row.id || row.so_number}
                 _hover={{ bg: tableRowHoverBg }}

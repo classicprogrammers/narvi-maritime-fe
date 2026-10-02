@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Flex,
@@ -27,20 +27,26 @@ function ClientVessels() {
   const [search, setSearch] = useState("");
   const [clientName, setClientName] = useState("");
   const [vessels, setVessels] = useState([]);
+  const vesselsRequestIdRef = useRef(0);
 
   const fetchClientVessels = useCallback(async () => {
+    const requestId = ++vesselsRequestIdRef.current;
     setIsLoading(true);
     try {
       const res = await clientVesselApi.getClientVessels({
         search: search.trim() || undefined,
       });
+      if (requestId !== vesselsRequestIdRef.current) return;
       setVessels(Array.isArray(res?.vessels) ? res.vessels : []);
       setClientName(formatClientsHeading(res?.clients));
     } catch (_error) {
+      if (requestId !== vesselsRequestIdRef.current) return;
       setVessels([]);
       setClientName("");
     } finally {
-      setIsLoading(false);
+      if (requestId === vesselsRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [search]);
 
