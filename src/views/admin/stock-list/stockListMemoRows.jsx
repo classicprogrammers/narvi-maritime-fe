@@ -1,10 +1,19 @@
 import React, { memo } from "react";
 import {
     Badge,
+    Box,
     Checkbox,
+    Flex,
     HStack,
     Icon,
     IconButton,
+    Menu,
+    MenuButton,
+    MenuItem,
+    MenuItemOption,
+    MenuList,
+    MenuOptionGroup,
+    Portal,
     Table,
     Tbody,
     Td,
@@ -15,7 +24,8 @@ import {
     Tr,
     VStack,
 } from "@chakra-ui/react";
-import { MdEdit, MdPrint, MdVisibility } from "react-icons/md";
+import { MdEdit, MdFilterAlt, MdPrint, MdVisibility } from "react-icons/md";
+import { stockEmptyFilterParamForLabel } from "../../../utils/stockListFetchParams";
 import StockCellText from "../../../components/stock-list/StockCellText";
 import StockListAttachmentsCell from "../../../components/stock-list/StockListAttachmentsCell";
 import StockSoNumberLink from "../../../components/stock-list/StockSoNumberLink";
@@ -613,6 +623,62 @@ const STOCK_VIEW_HEADER_COLUMNS = [
     { label: "STOCKITEMID" },
 ];
 
+function StockColumnEmptyFilter({ label, value, onChange }) {
+    const isActive = value === "empty" || value === "not_empty";
+    return (
+        <Menu isLazy placement="bottom-start" gutter={4} strategy="fixed">
+            <MenuButton
+                as={IconButton}
+                aria-label={
+                    value === "empty"
+                        ? `${label}: showing empty values`
+                        : value === "not_empty"
+                            ? `${label}: showing values that are filled in`
+                            : `Filter ${label} by empty or not empty`
+                }
+                icon={<Icon as={MdFilterAlt} boxSize="14px" />}
+                size="xs"
+                variant="ghost"
+                minW="20px"
+                w="20px"
+                h="20px"
+                p={0}
+                flexShrink={0}
+                color={isActive ? "blue.700" : "gray.500"}
+                bg={isActive ? "blue.100" : "transparent"}
+                _hover={{ bg: isActive ? "blue.200" : "blackAlpha.100" }}
+                onClick={(event) => event.stopPropagation()}
+            />
+            <Portal>
+                <MenuList
+                    minW="168px"
+                    zIndex={2000}
+                    bg="white"
+                    boxShadow="lg"
+                    textTransform="none"
+                    fontWeight="normal"
+                    fontSize="sm"
+                    color="gray.800"
+                >
+                    <MenuOptionGroup
+                        type="radio"
+                        value={isActive ? value : ""}
+                        onChange={(next) => onChange(next)}
+                    >
+                        <MenuItemOption value="empty" fontSize="sm">Empty</MenuItemOption>
+                        <MenuItemOption value="not_empty" fontSize="sm">Not empty</MenuItemOption>
+                    </MenuOptionGroup>
+                    {isActive && (
+                        <MenuItem fontSize="sm" color="red.600" onClick={() => onChange("")}>
+                            Clear
+                        </MenuItem>
+                    )}
+                </MenuList>
+            </Portal>
+        </Menu>
+    );
+}
+
 function StockViewDataTableInner({
     displayedItems,
     selectedRows,
@@ -626,6 +692,8 @@ function StockViewDataTableInner({
     tableRowBg,
     tableTextColor,
     shippingOrders,
+    emptyFilters = {},
+    onEmptyFilterChange,
     onSelectAll,
     onSelect,
     onEdit,
@@ -663,16 +731,34 @@ function StockViewDataTableInner({
                             sx={STOCK_VIEW_CHECKBOX_SX}
                         />
                     </Th>
-                    {STOCK_VIEW_HEADER_COLUMNS.map((column) => (
-                        <Th
-                            key={column.label}
-                            {...headerProps}
-                            {...(column.stickyIndex != null ? stickyHeader[column.stickyIndex] : {})}
-                            {...(column.textAlign ? { textAlign: column.textAlign } : {})}
-                        >
-                            {column.label}
-                        </Th>
-                    ))}
+                    {STOCK_VIEW_HEADER_COLUMNS.map((column) => {
+                        const emptyParam = stockEmptyFilterParamForLabel(column.label);
+                        return (
+                            <Th
+                                key={column.label}
+                                {...headerProps}
+                                {...(column.stickyIndex != null ? stickyHeader[column.stickyIndex] : {})}
+                                {...(column.textAlign ? { textAlign: column.textAlign } : {})}
+                            >
+                                <Flex
+                                    align="center"
+                                    gap="1"
+                                    justify={column.textAlign === "center" ? "center" : "flex-start"}
+                                >
+                                    {emptyParam && (
+                                        <StockColumnEmptyFilter
+                                            label={column.label}
+                                            value={emptyFilters[emptyParam] || ""}
+                                            onChange={(mode) => onEmptyFilterChange?.(emptyParam, mode)}
+                                        />
+                                    )}
+                                    <Box as="span" overflow="hidden" textOverflow="ellipsis">
+                                        {column.label}
+                                    </Box>
+                                </Flex>
+                            </Th>
+                        );
+                    })}
                     {showCancelReason && (
                         <Th {...headerProps}>CANCEL REASON</Th>
                     )}
@@ -713,6 +799,8 @@ export const StockViewDataTable = memo(StockViewDataTableInner, (prev, next) => 
     prev.headerProps === next.headerProps &&
     prev.stickyBody === next.stickyBody &&
     prev.stickyHeader === next.stickyHeader &&
+    prev.emptyFilters === next.emptyFilters &&
+    prev.onEmptyFilterChange === next.onEmptyFilterChange &&
     prev.tableHeaderBg === next.tableHeaderBg &&
     prev.tableBorderColor === next.tableBorderColor &&
     prev.tableRowBg === next.tableRowBg &&

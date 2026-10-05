@@ -80,6 +80,7 @@ import Currencies from "views/admin/configurations/currencies";
 import Countries from "views/admin/configurations/countries";
 import Vessels from "views/admin/configurations/vessels";
 import VesselDetail from "views/admin/configurations/VesselDetail";
+import VesselForm from "views/admin/configurations/VesselForm";
 import UOM from "views/admin/configurations/uom";
 import Destinations from "views/admin/configurations/destinations";
 import Suppliers from "views/admin/configurations/suppliers";
@@ -537,6 +538,27 @@ const hiddenRoutes = [
     layout: "/admin",
     path: "/stock-list/form/:id?",
     component: StockForm,
+  },
+  {
+    name: "Vessel Create",
+    layout: "/admin",
+    path: "/configurations/vessels/create",
+    exact: true,
+    component: VesselForm,
+  },
+  {
+    name: "Vessel Bulk Edit",
+    layout: "/admin",
+    path: "/configurations/vessels/bulk-edit",
+    exact: true,
+    component: VesselForm,
+  },
+  {
+    name: "Vessel Edit",
+    layout: "/admin",
+    path: "/configurations/vessels/edit/:id",
+    exact: true,
+    component: VesselForm,
   },
   {
     name: "Vessel Detail",

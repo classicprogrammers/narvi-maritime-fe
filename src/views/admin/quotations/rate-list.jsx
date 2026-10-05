@@ -823,6 +823,12 @@ export default function RateList() {
   const deleteOne = async (id) => {
     try {
       await deleteRateListApi(id);
+      setSelectedRates((prev) => {
+        if (!Object.prototype.hasOwnProperty.call(prev, id)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
       toast({
         title: "Rate deleted",
         status: "success",

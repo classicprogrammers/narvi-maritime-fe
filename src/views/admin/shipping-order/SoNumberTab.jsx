@@ -640,10 +640,14 @@ const SoNumberTab = () => {
     nextActionSortOption,
   ]);
 
+  const ordersRequestIdRef = useRef(0);
+
   const fetchOrders = useCallback(async () => {
+    const requestId = ++ordersRequestIdRef.current;
     try {
       setIsLoading(true);
       const data = await getShippingOrders(buildListRequestParams({ page, page_size: pageSize }));
+      if (requestId !== ordersRequestIdRef.current) return;
 
       const list = Array.isArray(data.orders)
         ? data.orders
@@ -665,6 +669,7 @@ const SoNumberTab = () => {
       setHasNext(data.has_next || false);
       setHasPrevious(data.has_previous || false);
     } catch (error) {
+      if (requestId !== ordersRequestIdRef.current) return;
       console.error("Failed to fetch shipping orders", error);
       const apiMessage =
         error?.response?.data?.message ||
@@ -683,7 +688,9 @@ const SoNumberTab = () => {
       setHasNext(false);
       setHasPrevious(false);
     } finally {
-      setIsLoading(false);
+      if (requestId === ordersRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [
     buildListRequestParams,
@@ -724,11 +731,21 @@ const SoNumberTab = () => {
     fetchOrders,
   ]);
 
-  useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
+  // Refetch only when the actual query changes. PIC default ids and other
+  // state that do not alter the request must not start a second unfiltered load.
+  const listQueryKey = useMemo(
+    () => JSON.stringify(buildListRequestParams({ page, page_size: pageSize })),
+    [buildListRequestParams, page, pageSize]
+  );
+  const fetchOrdersRef = useRef(fetchOrders);
+  fetchOrdersRef.current = fetchOrders;
 
-  // Reset to first page when page size, search, or filters change (skip initial mount to preserve persisted page)
+  useEffect(() => {
+    fetchOrdersRef.current();
+  }, [listQueryKey]);
+
+  // Reset to first page when search or filters change (skip initial mount to preserve persisted page).
+  // PIC id arrays are omitted: default PIC hydration must not reset the page and refetch.
   const isFirstResetPageRun = useRef(true);
   useEffect(() => {
     if (isFirstResetPageRun.current) {
@@ -740,10 +757,6 @@ const SoNumberTab = () => {
     pageSize,
     searchQuery,
     activeFilters,
-    activeATHPics,
-    activeSINPics,
-    athReadyForInvoicePics,
-    sinReadyForInvoicePics,
     activeClientFilter,
     readyForInvoiceClientFilter,
     searchClientFilter,
@@ -1604,7 +1617,6 @@ const SoNumberTab = () => {
                     setSearchStatusFilter(e.target.value);
                     setPage(1);
                   }}
-                  placeholder="All statuses"
                   bg={inputBg}
                   color={inputText}
                   borderColor={borderColor}

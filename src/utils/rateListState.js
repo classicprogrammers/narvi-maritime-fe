@@ -92,6 +92,20 @@ export function writePersistedRateListState(state) {
   }
 }
 
+export function removeRatesFromSelection(state, rateIds = []) {
+  if (!state?.selectedRates || !rateIds.length) return state;
+  const removed = new Set(rateIds.map(String));
+  const selectedRates = Object.fromEntries(
+    Object.entries(state.selectedRates).filter(([id]) => !removed.has(String(id)))
+  );
+  return { ...state, selectedRates };
+}
+
+export function removeRatesFromPersistedSelection(rateIds = []) {
+  const persisted = readPersistedRateListState();
+  if (persisted) writePersistedRateListState(removeRatesFromSelection(persisted, rateIds));
+}
+
 export function clearPersistedRateListState() {
   try {
     if (typeof sessionStorage === "undefined") return;

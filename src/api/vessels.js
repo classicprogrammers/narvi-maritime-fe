@@ -395,7 +395,104 @@ export const deleteVessel = async (id) => {
   }
 };
 
+const VESSEL_FIELD_NORMALIZERS = {
+  name: (value) => (value == null ? "" : String(value).trim()),
+  client_id: (value) => (value == null || value === "" ? false : Number(value)),
+  status: (value) => value || "active",
+  imo: (value) => value || "",
+  vessel_type: (value) => value || "",
+  vessel_type_selec: (value) => value || false,
+  procurement_person_id: (value) => (value != null && value !== "" ? Number(value) : false),
+  procurement_email: (value) => (value && value !== false ? String(value) : ""),
+  vessel_email: (value) => value || "",
+  team: (value) => value || "",
+  invoice_address: (value) => (value && String(value).trim() ? String(value) : false),
+};
+
+const normalizeVesselFields = (data = {}) => {
+  const fields = {};
+  Object.keys(VESSEL_FIELD_NORMALIZERS).forEach((key) => {
+    if (data[key] !== undefined) fields[key] = VESSEL_FIELD_NORMALIZERS[key](data[key]);
+  });
+  if (Array.isArray(data.attachments) && data.attachments.length) {
+    fields.attachments = data.attachments;
+  }
+  if (Array.isArray(data.attachment_to_delete) && data.attachment_to_delete.length) {
+    fields.attachment_to_delete = data.attachment_to_delete;
+  }
+  return fields;
+};
+
+/**
+ * Create many vessels in one call (all-or-nothing).
+ * POST /api/vessel/create with { vessels: [...] }
+ */
+export const bulkCreateVessels = async (vesselRows = []) => {
+  const payload = {
+    current_user: getCurrentUserId(),
+    is_client: true,
+    vessels: vesselRows.map((row) => {
+      const fields = normalizeVesselFields(row);
+      if (fields.procurement_person_id === false) delete fields.procurement_person_id;
+      return fields;
+    }),
+  };
+  const response = await axios.post(`/api/vessel/create`, payload);
+  return { result: response.data };
+};
+
+/**
+ * Update many vessels with different changes per vessel (all-or-nothing).
+ * POST /api/vessel/update with { vessels: [{ vessel_id, ...changes }] }
+ */
+export const bulkUpdateVesselItems = async (items = []) => {
+  const payload = {
+    current_user: getCurrentUserId(),
+    is_client: true,
+    vessels: items.map(({ vessel_id, ...changes }) => ({
+      vessel_id: Number(vessel_id),
+      ...normalizeVesselFields(changes),
+    })),
+  };
+  const response = await axios.post(`/api/vessel/update`, payload);
+  return { result: response.data };
+};
+
+/**
+ * Delete several vessels one by one. Not atomic: returns which ids failed.
+ * @param {Array<number>} vesselIds
+ */
+export const deleteVessels = async (vesselIds) => {
+  const deleted = [];
+  const failed = [];
+  for (const id of Array.isArray(vesselIds) ? vesselIds : []) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const res = await deleteVessel(id);
+      const data = res?.result;
+      if (data?.status === "error" || data?.result?.status === "error") {
+        failed.push({ id, message: data?.message || data?.result?.message || "Failed to delete vessel" });
+      } else {
+        deleted.push(id);
+      }
+    } catch (error) {
+      failed.push({
+        id,
+        message:
+          error?.response?.data?.message ||
+          error?.response?.data?.result?.message ||
+          error?.message ||
+          "Failed to delete vessel",
+      });
+    }
+  }
+  return { deleted, failed };
+};
+
 const vessels = {
+  bulkCreateVessels,
+  bulkUpdateVesselItems,
+  deleteVessels,
   getVessels,
   getVessel,
   getVesselById,

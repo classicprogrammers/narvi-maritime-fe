@@ -9,10 +9,11 @@ import AuthLayout from "layouts/auth";
 import AdminLayout from "layouts/admin";
 import ClientLayout from "layouts/client";
 import ClientLogin from "views/client/login";
-import { ChakraProvider } from "@chakra-ui/react";
+import { Box, ChakraProvider } from "@chakra-ui/react";
 import theme from "theme/theme";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AppWrapper from "./components/AppWrapper";
+import StagingBanner, { isStagingEnvironment, STAGING_BANNER_HEIGHT } from "./components/StagingBanner";
 
 const container = document.getElementById("root");
 const root = createRoot(container);
@@ -21,7 +22,9 @@ root.render(
     <ChakraProvider theme={theme}>
       <React.StrictMode>
         <BrowserRouter>
+          <StagingBanner />
           <AppWrapper>
+            <Box pt={isStagingEnvironment ? STAGING_BANNER_HEIGHT : 0}>
             <Switch>
               <Route exact path="/" render={() => <Redirect to="/auth/sign-in" />} />
               <Route path={`/auth`} component={AuthLayout} />
@@ -33,6 +36,7 @@ root.render(
                 redirectPath="/Client/login"
               />
             </Switch>
+            </Box>
           </AppWrapper>
         </BrowserRouter>
       </React.StrictMode>

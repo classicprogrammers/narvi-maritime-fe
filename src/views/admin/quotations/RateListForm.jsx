@@ -1,6 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHistory, useLocation } from "react-router-dom";
 import {
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogOverlay,
   Box,
   Button,
   Flex,
@@ -20,11 +26,11 @@ import {
   useColorModeValue,
   useToast,
 } from "@chakra-ui/react";
-import { MdAdd, MdChevronLeft, MdSave } from "react-icons/md";
+import { MdAdd, MdChevronLeft, MdDelete, MdSave } from "react-icons/md";
 import Card from "components/card/Card";
 import { CellWithAssignMenu } from "components/forms/AssignToRowsBelowMenu";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
-import { createRateListApi, updateRateListApi } from "../../../api/rate";
+import { createRateListApi, deleteRateListApi, updateRateListApi } from "../../../api/rate";
 import { useMasterData } from "../../../hooks/useMasterData";
 import {
   CHARGE_CATEGORY_OPTIONS,
@@ -35,6 +41,10 @@ import {
   toDateInputValue,
   validateRateFormRow,
 } from "../../../utils/rateListForm";
+import {
+  removeRatesFromPersistedSelection,
+  removeRatesFromSelection,
+} from "../../../utils/rateListState";
 
 const RATE_TYPE_OPTIONS = [
   { id: "general", name: "General" },
@@ -108,8 +118,21 @@ function buildAgentOptionFromItem(item) {
   };
 }
 
+let newRowKeySeed = 0;
+
 function createEmptyRow() {
-  return { ...DEFAULT_RATE_FORM_ROW };
+  newRowKeySeed += 1;
+  return { ...DEFAULT_RATE_FORM_ROW, _key: `new-rate-${Date.now()}-${newRowKeySeed}` };
+}
+
+function removeIndexFromPins(pins, removedIndex) {
+  const next = {};
+  Object.entries(pins).forEach(([key, value]) => {
+    const index = Number(key);
+    if (index < removedIndex) next[index] = value;
+    else if (index > removedIndex) next[index - 1] = value;
+  });
+  return next;
 }
 
 export default function RateListForm() {
@@ -130,6 +153,10 @@ export default function RateListForm() {
   const [clientOptionPins, setClientOptionPins] = useState({});
   const [currencyOptionPins, setCurrencyOptionPins] = useState({});
   const [saving, setSaving] = useState(false);
+  const [rateToDelete, setRateToDelete] = useState(null);
+  const [isDeletingRate, setIsDeletingRate] = useState(false);
+  const cancelDeleteRef = useRef(null);
+  const deletedRateIdsRef = useRef(new Set());
   const initializedForKeyRef = useRef(null);
 
   const textColor = useColorModeValue("secondaryGray.900", "white");
@@ -357,7 +384,7 @@ export default function RateListForm() {
       pathname: "/admin/quotations/rate-list",
       state: filterState
         ? {
-            filterState,
+            filterState: removeRatesFromSelection(filterState, Array.from(deletedRateIdsRef.current)),
             fromRateForm: true,
           }
         : undefined,
@@ -366,6 +393,60 @@ export default function RateListForm() {
 
   const handleAddRow = () => {
     setFormRows((prev) => [...prev, createEmptyRow()]);
+  };
+
+  const confirmDeleteRate = async () => {
+    if (!rateToDelete) return;
+    setIsDeletingRate(true);
+    try {
+      const result = await deleteRateListApi(rateToDelete.id);
+      if (result?.status === "error") {
+        throw new Error(result.message || "Failed to delete rate.");
+      }
+      deletedRateIdsRef.current.add(String(rateToDelete.id));
+      removeRatesFromPersistedSelection([rateToDelete.id]);
+      const removedIndex = formRows.findIndex((row) => String(row.id) === String(rateToDelete.id));
+      setFormRows((prev) => {
+        const remaining = prev.filter((row) => String(row.id) !== String(rateToDelete.id));
+        return remaining.length ? remaining : [createEmptyRow()];
+      });
+      setOriginalRows((prev) => prev.filter((row) => String(row.id) !== String(rateToDelete.id)));
+      if (removedIndex !== -1) {
+        setAgentOptionPins((prev) => removeIndexFromPins(prev, removedIndex));
+        setClientOptionPins((prev) => removeIndexFromPins(prev, removedIndex));
+        setCurrencyOptionPins((prev) => removeIndexFromPins(prev, removedIndex));
+      }
+      toast({
+        title: "Rate deleted",
+        description: result?.message || `${rateToDelete.label || "Rate"} was deleted.`,
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      setRateToDelete(null);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description:
+          error?.response?.data?.result?.message ||
+          error?.response?.data?.message ||
+          error?.message ||
+          "Failed to delete rate.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsDeletingRate(false);
+    }
+  };
+
+  const handleRemoveNewRow = (index) => {
+    if (formRows.length <= 1 || formRows[index]?.id) return;
+    setFormRows((prev) => prev.filter((_, rowIndex) => rowIndex !== index));
+    setAgentOptionPins((prev) => removeIndexFromPins(prev, index));
+    setClientOptionPins((prev) => removeIndexFromPins(prev, index));
+    setCurrencyOptionPins((prev) => removeIndexFromPins(prev, index));
   };
 
   const handleDiscard = () => {
@@ -393,27 +474,32 @@ export default function RateListForm() {
       }
     }
 
+    const originalById = new Map(originalRows.map((row) => [String(row.id), row]));
+    const changedLines = formRows
+      .filter((row) => row.id)
+      .map((row) => buildRateUpdateLine(row, originalById.get(String(row.id)) || {}))
+      .filter(Boolean);
+    const newRows = formRows.filter((row) => !row.id);
+
+    if (!changedLines.length && !newRows.length) {
+      toast({
+        title: "No changes",
+        description: "No fields have been modified.",
+        status: "info",
+        duration: 3000,
+        isClosable: true,
+      });
+      navigateBackToRateList();
+      return;
+    }
+
     setSaving(true);
+    let updateDone = !changedLines.length;
+    const createdKeys = [];
     try {
-      if (isEditing) {
-        const changedLines = [];
-        for (let index = 0; index < formRows.length; index += 1) {
-          const line = buildRateUpdateLine(formRows[index], originalRows[index] || {});
-          if (line) changedLines.push(line);
-        }
-
-        if (!changedLines.length) {
-          toast({
-            title: "No changes",
-            description: "No fields have been modified.",
-            status: "info",
-            duration: 3000,
-            isClosable: true,
-          });
-          return;
-        }
-
+      if (changedLines.length) {
         const result = await updateRateListApi({ lines: changedLines });
+        updateDone = true;
         const message =
           result.message ||
           result.result?.message ||
@@ -441,25 +527,50 @@ export default function RateListForm() {
             isClosable: true,
           });
         }
-
-        navigateBackFromEdit();
-        return;
       }
 
-      for (let index = 0; index < formRows.length; index += 1) {
-        await createRateListApi(buildRateCreatePayload(formRows[index]));
+      for (const row of newRows) {
+        // eslint-disable-next-line no-await-in-loop
+        await createRateListApi(buildRateCreatePayload(row));
+        createdKeys.push(row._key);
       }
 
-      toast({
-        title: "Rate(s) created",
-        description: `${formRows.length} rate${formRows.length === 1 ? "" : "s"} created successfully.`,
-        status: "success",
-        duration: 3000,
-        isClosable: true,
-      });
+      if (newRows.length) {
+        toast({
+          title: "Rate(s) created",
+          description: `${newRows.length} new rate${newRows.length === 1 ? "" : "s"} created successfully.`,
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+      }
 
       navigateBackToRateList();
     } catch (error) {
+      if (updateDone) {
+        setOriginalRows(formRows.filter((row) => row.id).map((row) => ({ ...row })));
+      }
+      if (createdKeys.length) {
+        const keptIndices = formRows
+          .map((row, index) => (createdKeys.includes(row._key) ? -1 : index))
+          .filter((index) => index >= 0);
+        const remapPins = (pins) =>
+          keptIndices.reduce((acc, oldIndex, newIndex) => {
+            if (pins[oldIndex]) acc[newIndex] = pins[oldIndex];
+            return acc;
+          }, {});
+        setFormRows(keptIndices.length ? keptIndices.map((index) => formRows[index]) : [createEmptyRow()]);
+        setAgentOptionPins(remapPins);
+        setClientOptionPins(remapPins);
+        setCurrencyOptionPins(remapPins);
+        toast({
+          title: "Some rates were saved",
+          description: `${createdKeys.length} new rate(s) were created and removed from the table. Fix the remaining rows and save again.`,
+          status: "warning",
+          duration: 7000,
+          isClosable: true,
+        });
+      }
       const backendMessage =
         error?.response?.data?.result?.message ||
         error?.response?.data?.message ||
@@ -478,14 +589,17 @@ export default function RateListForm() {
   };
 
   const tableMinWidth = useMemo(() => {
-    const columnCount = isEditing ? 20 : 19;
+    const columnCount = isEditing ? 21 : 20;
     return `${columnCount * 150}px`;
   }, [isEditing]);
 
+  const newRowCount = formRows.filter((row) => !row.id).length;
+  const existingRowCount = formRows.length - newRowCount;
+
   const pageTitle = isBulkEdit
-    ? `Bulk Edit Rates (${formRows.length})`
+    ? `Bulk Edit Rates (${existingRowCount}${newRowCount ? ` + ${newRowCount} new` : ""})`
     : isEditing
-      ? `Edit Rate${formRows.length > 1 ? `s (${formRows.length})` : ""}`
+      ? `Edit Rate${existingRowCount > 1 ? `s (${existingRowCount})` : ""}${newRowCount ? ` + ${newRowCount} new` : ""}`
       : "Create New Rate";
 
   return (
@@ -522,21 +636,21 @@ export default function RateListForm() {
         </HStack>
 
         <HStack spacing="3">
+          <Button
+            leftIcon={<Icon as={MdAdd} />}
+            bg="blue.500"
+            color="white"
+            size="sm"
+            px="6"
+            py="3"
+            borderRadius="md"
+            _hover={{ bg: "blue.600" }}
+            onClick={handleAddRow}
+          >
+            Add Row
+          </Button>
           {!isEditing && (
             <>
-              <Button
-                leftIcon={<Icon as={MdAdd} />}
-                bg="blue.500"
-                color="white"
-                size="sm"
-                px="6"
-                py="3"
-                borderRadius="md"
-                _hover={{ bg: "blue.600" }}
-                onClick={handleAddRow}
-              >
-                Add Row
-              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -565,11 +679,11 @@ export default function RateListForm() {
             isLoading={saving}
             loadingText="Saving..."
           >
-            {isBulkEdit || isEditFromList
-              ? `Update All (${formRows.length} items)`
-              : isEditing
-                ? "Update Rate"
-                : `Save ${formRows.length} Item(s)`}
+            {isEditing
+              ? newRowCount > 0
+                ? `Update ${formRows.length - newRowCount} & Create ${newRowCount}`
+                : `Update All (${formRows.length} items)`
+              : `Save ${formRows.length} Item(s)`}
           </Button>
         </HStack>
       </Flex>
@@ -599,18 +713,23 @@ export default function RateListForm() {
                   <Th {...thStyle}>Active</Th>
                   <Th {...thStyle}>Rate Text</Th>
                   <Th {...thStyle}>Remarks</Th>
+                  <Th {...thStyle} minW="90px" borderRight="none">Actions</Th>
                 </Tr>
               </Thead>
               <Tbody>
                 {formRows.map((row, index) => (
-                  <Tr key={row.id ?? `new-${index}`} _hover={{ bg: rowHoverBg }}>
+                  <Tr key={row.id ?? row._key ?? `new-${index}`} _hover={{ bg: rowHoverBg }}>
                     {isEditing && (
                       <Td {...tdProps}>
                         <Input
-                          value={row.rate_id || ""}
+                          value={row.id ? row.rate_id || "" : ""}
+                          placeholder={row.id ? "Rate ID" : "ID will be assigned after save"}
                           isReadOnly
                           {...cellInputProps}
-                          htmlSize={getAutoHtmlSize(row.rate_id, "Rate ID")}
+                          htmlSize={getAutoHtmlSize(
+                            row.rate_id,
+                            row.id ? "Rate ID" : "ID will be assigned after save"
+                          )}
                         />
                       </Td>
                     )}
@@ -882,6 +1001,20 @@ export default function RateListForm() {
                         "flex-start"
                       )}
                     </Td>
+                    <Td {...tdProps} minW="90px">
+                      <IconButton
+                        icon={<Icon as={MdDelete} />}
+                        size="sm"
+                        colorScheme="red"
+                        variant="ghost"
+                        aria-label={row.id ? "Delete rate" : "Delete row"}
+                        title={row.id ? "Delete this rate permanently" : "Delete row"}
+                        onClick={() =>
+                          row.id ? setRateToDelete({ id: row.id, label: row.rate_id || row.rate_name }) : handleRemoveNewRow(index)
+                        }
+                        isDisabled={formRows.length === 1 || saving}
+                      />
+                    </Td>
                   </Tr>
                 ))}
               </Tbody>
@@ -889,6 +1022,34 @@ export default function RateListForm() {
           </Box>
         </Card>
       </Box>
+
+      <AlertDialog
+        isOpen={Boolean(rateToDelete)}
+        leastDestructiveRef={cancelDeleteRef}
+        onClose={() => !isDeletingRate && setRateToDelete(null)}
+        isCentered
+      >
+        <AlertDialogOverlay zIndex={2099999}>
+          <AlertDialogContent containerProps={{ zIndex: 2100000 }}>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Rate
+            </AlertDialogHeader>
+            <AlertDialogBody>
+              Are you sure you want to delete{" "}
+              <Text as="span" fontWeight="semibold">{rateToDelete?.label || "this rate"}</Text>?
+              This cannot be undone.
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={cancelDeleteRef} onClick={() => setRateToDelete(null)} isDisabled={isDeletingRate}>
+                Cancel
+              </Button>
+              <Button colorScheme="red" onClick={confirmDeleteRate} ml={3} isLoading={isDeletingRate}>
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Box>
   );
 }

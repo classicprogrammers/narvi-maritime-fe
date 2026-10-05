@@ -146,7 +146,7 @@ import {
     normalizeStockStatusKey,
     resolveStockListActiveParam,
 } from "../../../constants/stockStatus";
-import { stockListHasSearchFilters, withStockListFetchMode } from "../../../utils/stockListFetchParams";
+import { mergeStockEmptyFilters, readStockEmptyFilters, stockListHasSearchFilters, withStockListFetchMode } from "../../../utils/stockListFetchParams";
 import StockListAttachmentsCell from "../../../components/stock-list/StockListAttachmentsCell";
 import StockCellText from "../../../components/stock-list/StockCellText";
 import StockSoNumberLink from "../../../components/stock-list/StockSoNumberLink";
@@ -423,6 +423,7 @@ function readPersistedStockViewEditState() {
                 ? p.stockViewOrigin
                 : (p.stockViewOrigin != null ? String(p.stockViewOrigin) : null),
             stockViewActiveFilter: typeof p.stockViewActiveFilter === "string" ? p.stockViewActiveFilter : "true",
+            stockViewEmptyFilters: readStockEmptyFilters(p.stockViewEmptyFilters),
             sortOption: typeof p.sortOption === "string"
                 ? (normalizeStockHubSortOption(p.sortOption) ?? p.sortOption)
                 : "none",
@@ -486,6 +487,7 @@ const defaultStockViewEditState = {
     stockViewApDestination: null,
     stockViewOrigin: null,
     stockViewActiveFilter: "true",
+    stockViewEmptyFilters: {},
     sortOption: "none",
     clientSortOption: "none",
 };
@@ -597,6 +599,9 @@ export default function Stocks() {
     const [stockViewApDestination, setStockViewApDestination] = useState(savedState.stockViewApDestination);
     const [stockViewOrigin, setStockViewOrigin] = useState(savedState.stockViewOrigin);
     const [stockViewActiveFilter, setStockViewActiveFilter] = useState(savedState.stockViewActiveFilter);
+    const [stockViewEmptyFilters, setStockViewEmptyFilters] = useState(
+        () => readStockEmptyFilters(savedState.stockViewEmptyFilters)
+    );
     const stockViewStatusFilterOptions = useMemo(
         () => getStatusOptionsForActiveFilter(stockStatusOptions, stockViewActiveFilter),
         [stockStatusOptions, stockViewActiveFilter]
@@ -639,10 +644,11 @@ export default function Stocks() {
             stockViewApDestination,
             stockViewOrigin,
             stockViewActiveFilter,
+            stockViewEmptyFilters,
             sortOption,
             clientSortOption,
         });
-    }, [activeTab, stockViewPage, clientViewPage, vesselViewClient, vesselViewVessel, vesselViewStatuses, clientViewClient, clientViewStatuses, clientViewFilterType, clientViewSearchClient, clientViewSearchVessel, clientViewVesselFilter, stockViewClient, stockViewVessel, stockViewStatus, stockViewStockItemId, stockViewDateOnStock, stockViewDaysOnStock, stockViewFilterSO, stockViewFilterSI, stockViewFilterSICombined, stockViewFilterDI, stockViewFilterPO, stockViewFilterReqNo, stockViewFilterWarehouseNew, stockViewSearchFilter, stockViewHasDestination, stockViewViaHub1, stockViewViaHub2, stockViewApDestination, stockViewOrigin, stockViewActiveFilter, sortOption, clientSortOption]);
+    }, [activeTab, stockViewPage, clientViewPage, vesselViewClient, vesselViewVessel, vesselViewStatuses, clientViewClient, clientViewStatuses, clientViewFilterType, clientViewSearchClient, clientViewSearchVessel, clientViewVesselFilter, stockViewClient, stockViewVessel, stockViewStatus, stockViewStockItemId, stockViewDateOnStock, stockViewDaysOnStock, stockViewFilterSO, stockViewFilterSI, stockViewFilterSICombined, stockViewFilterDI, stockViewFilterPO, stockViewFilterReqNo, stockViewFilterWarehouseNew, stockViewSearchFilter, stockViewHasDestination, stockViewViaHub1, stockViewViaHub2, stockViewApDestination, stockViewOrigin, stockViewActiveFilter, stockViewEmptyFilters, sortOption, clientSortOption]);
 
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
@@ -853,6 +859,75 @@ export default function Stocks() {
         setApiFetchTrigger((t) => t + 1);
     });
 
+    const handleColumnEmptyFilter = useEventCallback((param, mode) => {
+        const presence = mode === "empty" || mode === "not_empty" ? mode : "";
+        setStockViewEmptyFilters((prev) => {
+            const next = { ...prev };
+            if (presence) next[param] = presence;
+            else delete next[param];
+            return next;
+        });
+        if (!presence) return;
+        switch (param) {
+            case "vessel_id":
+                setStockViewVessel(null);
+                break;
+            case "client_id":
+                setStockViewClient(null);
+                break;
+            case "stock_status":
+                setStockViewStatus("");
+                setVesselViewStatuses(new Set());
+                break;
+            case "so_id":
+                setStockViewFilterSO("");
+                break;
+            case "si_number":
+                setStockViewFilterSI("");
+                break;
+            case "si_combined":
+                setStockViewFilterSICombined("");
+                break;
+            case "di_no":
+                setStockViewFilterDI("");
+                break;
+            case "po_text":
+                setStockViewFilterPO("");
+                break;
+            case "req_no":
+                setStockViewFilterReqNo("");
+                break;
+            case "warehouse_new":
+                setStockViewFilterWarehouseNew("");
+                break;
+            case "origin_text":
+                setStockViewOrigin(null);
+                break;
+            case "date_on_stock":
+                setStockViewDateOnStock("");
+                setCreateDateFrom("");
+                setCreateDateTo("");
+                break;
+            case "via_hub":
+                setStockViewViaHub1(null);
+                break;
+            case "via_hub2":
+                setStockViewViaHub2(null);
+                break;
+            case "ap_destination_new":
+                setStockViewApDestination(null);
+                break;
+            case "destination_new":
+                setStockViewHasDestination(false);
+                break;
+            case "stock_item_id":
+                setStockViewStockItemId("");
+                break;
+            default:
+                break;
+        }
+    });
+
     const currentApiPage = activeTab === 0 ? stockViewPage : clientViewPage;
 
     // Build API params from current tab's filters (stored in ref for use in fetch effect)
@@ -899,6 +974,7 @@ export default function Stocks() {
                 origin_text: stockViewOrigin?.trim() || undefined,
                 active: stockViewActiveFilter,
                 has_destination: stockViewHasDestination || undefined,
+                ...stockViewEmptyFilters,
             });
         }
         return stockListHasSearchFilters({
@@ -943,6 +1019,7 @@ export default function Stocks() {
         createDateTo,
         daysRangeFrom,
         daysRangeTo,
+        stockViewEmptyFilters,
     ]);
 
     // Auto-uncheck Fetch all when all filters are cleared
@@ -980,6 +1057,7 @@ export default function Stocks() {
         stockViewApDestination,
         stockViewOrigin,
         stockViewActiveFilter,
+        stockViewEmptyFilters,
         vesselViewClient,
         vesselViewVessel,
         vesselViewStatuses,
@@ -1039,6 +1117,66 @@ export default function Stocks() {
         clientViewClient,
         clientViewVesselFilter,
         clientViewStatuses,
+        stockViewEmptyFilters,
+    ]);
+
+    // A column value filter replaces an empty / not-empty filter on that same column.
+    useEffect(() => {
+        setStockViewEmptyFilters((prev) => {
+            if (!prev || Object.keys(prev).length === 0) return prev;
+            const next = { ...prev };
+            let changed = false;
+            const drop = (param) => {
+                if (!next[param]) return;
+                delete next[param];
+                changed = true;
+            };
+            if (stockViewVessel) drop("vessel_id");
+            if (stockViewClient) drop("client_id");
+            if ((stockViewStatus && stockViewStatus.trim()) || vesselViewStatuses.size > 0) drop("stock_status");
+            if (stockViewFilterSO && stockViewFilterSO.trim()) drop("so_id");
+            if (stockViewFilterSI && stockViewFilterSI.trim()) drop("si_number");
+            if (stockViewFilterSICombined && stockViewFilterSICombined.trim()) drop("si_combined");
+            if (stockViewFilterDI && stockViewFilterDI.trim()) drop("di_no");
+            if (stockViewFilterPO && stockViewFilterPO.trim()) drop("po_text");
+            if (stockViewFilterReqNo && stockViewFilterReqNo.trim()) drop("req_no");
+            if (stockViewFilterWarehouseNew && stockViewFilterWarehouseNew.trim()) drop("warehouse_new");
+            if (stockViewOrigin && String(stockViewOrigin).trim()) drop("origin_text");
+            if (
+                (stockViewDateOnStock && stockViewDateOnStock.trim()) ||
+                (createDateFrom && createDateFrom.trim()) ||
+                (createDateTo && createDateTo.trim())
+            ) {
+                drop("date_on_stock");
+            }
+            if (stockViewViaHub1) drop("via_hub");
+            if (stockViewViaHub2) drop("via_hub2");
+            if (stockViewApDestination) drop("ap_destination_new");
+            if (stockViewHasDestination) drop("destination_new");
+            if (stockViewStockItemId && stockViewStockItemId.trim()) drop("stock_item_id");
+            return changed ? next : prev;
+        });
+    }, [
+        stockViewVessel,
+        stockViewClient,
+        stockViewStatus,
+        vesselViewStatuses,
+        stockViewFilterSO,
+        stockViewFilterSI,
+        stockViewFilterSICombined,
+        stockViewFilterDI,
+        stockViewFilterPO,
+        stockViewFilterReqNo,
+        stockViewFilterWarehouseNew,
+        stockViewOrigin,
+        stockViewDateOnStock,
+        createDateFrom,
+        createDateTo,
+        stockViewViaHub1,
+        stockViewViaHub2,
+        stockViewApDestination,
+        stockViewHasDestination,
+        stockViewStockItemId,
     ]);
 
     // Fetch stock list with API params from current tab filters
@@ -1067,33 +1205,36 @@ export default function Stocks() {
 
             getStockList(
                 withStockListFetchMode(
-                    {
-                        client_id: clientId ?? undefined,
-                        vessel_id: vesselId ?? undefined,
-                        stock_status: statusParam,
-                        active: resolveStockListActiveParam(f.stockViewActiveFilter),
-                        search: f.stockViewSearchFilter?.trim() || undefined,
-                        so_id: normalizeSoNumber(f.stockViewFilterSO) || undefined,
-                        si_number: f.stockViewFilterSI?.trim() || undefined,
-                        si_combined: f.stockViewFilterSICombined?.trim() || undefined,
-                        di_no: f.stockViewFilterDI?.trim() || undefined,
-                        po_text: f.stockViewFilterPO?.trim() || undefined,
-                        req_no: f.stockViewFilterReqNo?.trim() || undefined,
-                        warehouse_new: f.stockViewFilterWarehouseNew?.trim() || undefined,
-                        stock_item_id: f.stockViewStockItemId?.trim() || undefined,
-                        date_on_stock: f.stockViewDateOnStock?.trim() || undefined,
-                        days_on_stock: f.stockViewDaysOnStock?.trim() || undefined,
-                        days_on_stock_min: f.daysRangeFrom?.trim() || undefined,
-                        days_on_stock_max: f.daysRangeTo?.trim() || undefined,
-                        date_on_stock_from: f.createDateFrom?.trim() || undefined,
-                        date_on_stock_to: f.createDateTo?.trim() || undefined,
-                        narvi_stock_via_hub1: viaHub1Id ?? undefined,
-                        narvi_stock_via_hub2: viaHub2Id ?? undefined,
-                        narvi_stock_ap_destination: apDestId ?? undefined,
-                        origin_text: originText || undefined,
-                        has_destination: f.stockViewHasDestination ? true : undefined,
-                        sort_by,
-                    },
+                    mergeStockEmptyFilters(
+                        {
+                            client_id: clientId ?? undefined,
+                            vessel_id: vesselId ?? undefined,
+                            stock_status: statusParam,
+                            active: resolveStockListActiveParam(f.stockViewActiveFilter),
+                            search: f.stockViewSearchFilter?.trim() || undefined,
+                            so_id: normalizeSoNumber(f.stockViewFilterSO) || undefined,
+                            si_number: f.stockViewFilterSI?.trim() || undefined,
+                            si_combined: f.stockViewFilterSICombined?.trim() || undefined,
+                            di_no: f.stockViewFilterDI?.trim() || undefined,
+                            po_text: f.stockViewFilterPO?.trim() || undefined,
+                            req_no: f.stockViewFilterReqNo?.trim() || undefined,
+                            warehouse_new: f.stockViewFilterWarehouseNew?.trim() || undefined,
+                            stock_item_id: f.stockViewStockItemId?.trim() || undefined,
+                            date_on_stock: f.stockViewDateOnStock?.trim() || undefined,
+                            days_on_stock: f.stockViewDaysOnStock?.trim() || undefined,
+                            days_on_stock_min: f.daysRangeFrom?.trim() || undefined,
+                            days_on_stock_max: f.daysRangeTo?.trim() || undefined,
+                            date_on_stock_from: f.createDateFrom?.trim() || undefined,
+                            date_on_stock_to: f.createDateTo?.trim() || undefined,
+                            narvi_stock_via_hub1: viaHub1Id ?? undefined,
+                            narvi_stock_via_hub2: viaHub2Id ?? undefined,
+                            narvi_stock_ap_destination: apDestId ?? undefined,
+                            origin_text: originText || undefined,
+                            has_destination: f.stockViewHasDestination ? true : undefined,
+                            sort_by,
+                        },
+                        f.stockViewEmptyFilters
+                    ),
                     { page, page_size: PAGE_SIZE, fetchAll: listUsesFetchAll }
                 )
             );
@@ -4910,7 +5051,7 @@ export default function Stocks() {
                                                             <Text fontSize="md" fontWeight="700" color={textColor}>Basic Filters</Text>
                                                         </HStack>
                                                         <HStack>
-                                                            {(stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewOrigin || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || stockViewHasDestination || createDateFrom || createDateTo || daysRangeFrom || daysRangeTo || vesselViewStatuses.size > 0) && (
+                                                            {(stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewOrigin || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || stockViewHasDestination || createDateFrom || createDateTo || daysRangeFrom || daysRangeTo || vesselViewStatuses.size > 0 || Object.keys(stockViewEmptyFilters).length > 0) && (
                                                                 <Button
                                                                     size="xs"
                                                                     leftIcon={<Icon as={MdClose} />}
@@ -4941,6 +5082,7 @@ export default function Stocks() {
                                                                         setStockViewSearchFilter("");
                                                                         setStockViewHasDestination(false);
                                                                         setVesselViewStatuses(new Set());
+                                                                        setStockViewEmptyFilters({});
                                                                     }}
                                                                 >
                                                                     Clear All
@@ -5568,6 +5710,8 @@ export default function Stocks() {
                                             tableRowBg={tableRowBg}
                                             tableTextColor={tableTextColor}
                                             shippingOrders={shippingOrdersFromStock}
+                                            emptyFilters={stockViewEmptyFilters}
+                                            onEmptyFilterChange={handleColumnEmptyFilter}
                                             onSelectAll={handleSelectAll}
                                             onSelect={handleRowSelect}
                                             onEdit={handleEditItem}

@@ -2,6 +2,7 @@
 import { getApiEndpoint } from "../config/api";
 import api from "./axios";
 import { sanitizeStockCreateLine } from "../utils/stockCreatePayload";
+import { isStockEmptyPresence, STOCK_EMPTY_FILTER_PARAMS } from "../utils/stockListFetchParams";
 
 // Import the global modal system
 import { showApiModal } from "../components/ApiModal";
@@ -245,7 +246,10 @@ export const getStockListApi = async (params = {}) => {
     if (req_no != null && String(req_no).trim() !== "") requestParams.req_no = String(req_no).trim();
     if (remarks != null && String(remarks).trim() !== "") requestParams.remarks = String(remarks).trim();
     if (stock_item_id != null && String(stock_item_id).trim() !== "") requestParams.stock_item_id = String(stock_item_id).trim();
-    if (date_on_stock != null && String(date_on_stock).trim() !== "") {
+    const dateOnStockPresence = isStockEmptyPresence(date_on_stock);
+    if (dateOnStockPresence) {
+      requestParams.date_on_stock = dateOnStockPresence;
+    } else if (date_on_stock != null && String(date_on_stock).trim() !== "") {
       // Backend expects date_on_stock_from instead of date_on_stock
       requestParams.date_on_stock_from = String(date_on_stock).trim();
     }
@@ -255,10 +259,10 @@ export const getStockListApi = async (params = {}) => {
     if (create_date_to != null && String(create_date_to).trim() !== "") {
       requestParams.create_date_to = String(create_date_to).trim();
     }
-    if (date_on_stock_from != null && String(date_on_stock_from).trim() !== "") {
+    if (!dateOnStockPresence && date_on_stock_from != null && String(date_on_stock_from).trim() !== "") {
       requestParams.date_on_stock_from = String(date_on_stock_from).trim();
     }
-    if (date_on_stock_to != null && String(date_on_stock_to).trim() !== "") {
+    if (!dateOnStockPresence && date_on_stock_to != null && String(date_on_stock_to).trim() !== "") {
       requestParams.date_on_stock_to = String(date_on_stock_to).trim();
     }
     // Backend expects days_on_stock_min / days_on_stock_max for "days on stock" range filter.
@@ -296,6 +300,23 @@ export const getStockListApi = async (params = {}) => {
     if (currency_id != null && currency_id !== "") requestParams.currency_id = currency_id;
     if (has_destination === true || has_destination === "true") {
       requestParams.has_destination = true;
+    }
+
+    for (const key of STOCK_EMPTY_FILTER_PARAMS) {
+      const presence = isStockEmptyPresence(params[key]);
+      if (!presence) continue;
+      requestParams[key] = presence;
+      if (key === "date_on_stock") {
+        delete requestParams.date_on_stock_from;
+        delete requestParams.date_on_stock_to;
+      }
+      if (key === "via_hub") delete requestParams.narvi_stock_via_hub1;
+      if (key === "via_hub2") delete requestParams.narvi_stock_via_hub2;
+      if (key === "ap_destination_new") delete requestParams.narvi_stock_ap_destination;
+      if (key === "destination_new") {
+        delete requestParams.has_destination;
+        delete requestParams.narvi_stock_destination;
+      }
     }
 
     const response = await api.get(getApiEndpoint("STOCK_LIST"), {

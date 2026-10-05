@@ -22,6 +22,7 @@ import {
   MdLogout,
 } from "react-icons/md";
 import { useUser } from "redux/hooks/useUser";
+import { isStagingEnvironment, STAGING_BANNER_HEIGHT } from "components/StagingBanner";
 
 import ClientDashboard from "views/client/dashboard";
 import ClientShippingOrders from "views/client/shipping-orders";
@@ -73,7 +74,7 @@ function ClientLayout() {
         px={{ base: 4, md: 6 }}
         py={3}
         position="sticky"
-        top={0}
+        top={isStagingEnvironment ? STAGING_BANNER_HEIGHT : 0}
         zIndex={30}
       >
         <Flex align="center" justify="space-between" mb={3}>

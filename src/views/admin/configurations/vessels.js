@@ -19,17 +19,7 @@ import {
   VStack,
   IconButton,
   useColorModeValue,
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalFooter,
-  ModalBody,
-  ModalCloseButton,
   useDisclosure,
-  FormControl,
-  FormLabel,
-  Textarea,
   useToast,
   Tooltip,
   Select,
@@ -41,6 +31,7 @@ import {
   AlertDialogOverlay,
   Badge,
   Spinner,
+  Checkbox,
 } from "@chakra-ui/react";
 import {
   MdAdd,
@@ -49,21 +40,14 @@ import {
   MdDelete,
   MdDirectionsBoat,
   MdVisibility,
-  MdPrint,
   MdClear,
 } from "react-icons/md";
-import { CloseIcon } from "@chakra-ui/icons";
-import { List, ListItem } from "@chakra-ui/react";
 import { useHistory } from "react-router-dom";
 import vesselsAPI from "../../../api/vessels";
 import { refreshMasterData, MASTER_KEYS } from "../../../utils/masterDataCache";
 import { useMasterData } from "../../../hooks/useMasterData";
-import SearchableSelect from "../../../components/forms/SearchableSelect";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
-import {
-  VESSEL_TYPE_SELEC_OPTIONS,
-  normalizeVesselTypeSelec,
-} from "../../../constants/vesselTypeSelectOptions";
+import { VESSEL_TYPE_SELEC_OPTIONS } from "../../../constants/vesselTypeSelectOptions";
 
 const VESSELS_LIST_STORAGE_KEY = "narvi_vessels_list_state";
 
@@ -135,8 +119,9 @@ export default function Vessels() {
   const [hasPrevious, setHasPrevious] = useState(false);
   const [sortBy, setSortBy] = useState(savedListState.sortBy);
   const [sortOrder, setSortOrder] = useState(savedListState.sortOrder);
-  const [editingVessel, setEditingVessel] = useState(null);
   const [deleteVesselId, setDeleteVesselId] = useState(null);
+  const [selectedVesselIds, setSelectedVesselIds] = useState([]);
+  const [isBulkSaving, setIsBulkSaving] = useState(false);
 
   const { clients } = useMasterData();
   const clientOptions = useMemo(() => {
@@ -196,8 +181,8 @@ export default function Vessels() {
       setClientFilterLabel(match.name || match.company_name || "");
     }
   }, [clientFilter, clientFilterLabel, clients]);
-  const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
+  const { isOpen: isBulkDeleteOpen, onOpen: onBulkDeleteOpen, onClose: onBulkDeleteClose } = useDisclosure();
 
   const toast = useToast();
 
@@ -235,71 +220,6 @@ export default function Vessels() {
     overflow: "visible",
     display: "block",
   };
-
-  // Form state
-  const [formData, setFormData] = useState({
-    name: "",
-    client_id: "",
-    status: "active",
-    imo: "",
-    vessel_type: "",
-    vessel_type_selec: "",
-    procurement_person_id: "",
-    procurement_email: "",
-    vessel_email: "",
-    team: "",
-    invoice_address: "",
-    attachments: [],
-    // For updates: IDs of existing attachments the user removed
-    attachment_to_delete: [],
-  });
-  const [procurementPeopleOptions, setProcurementPeopleOptions] = useState([]);
-  const [isAutoSaving, setIsAutoSaving] = useState(false);
-  const autoSaveTimerRef = useRef(null);
-  const lastSavedSignatureRef = useRef("");
-  const createdVesselIdRef = useRef(null);
-  const createInFlightRef = useRef(false);
-  const clientChangeUserControlledRef = useRef(false);
-
-  const [previewFile, setPreviewFile] = useState(null);
-
-  const handleView = (file) => {
-    let fileUrl = null;
-
-    // ✅ Case 1: actual uploaded file
-    if (file instanceof File || file instanceof Blob) {
-      fileUrl = URL.createObjectURL(file);
-    }
-
-    // ✅ Case 2: backend URL
-    else if (file.url) {
-      fileUrl = file.url;
-    }
-
-    // ✅ Case 3: base64 data (like your case)
-    else if (file.datas) {
-      const mimeType = file.mimetype || "application/octet-stream";
-      fileUrl = `data:${mimeType};base64,${file.datas}`;
-    }
-
-    // ✅ Case 4: fallback path
-    else if (file.path) {
-      fileUrl = file.path;
-    }
-
-    const fileType =
-      file.mimetype ||
-      file.type ||
-      file.filename?.split(".").pop() ||
-      "application/octet-stream";
-
-    if (fileUrl) {
-      setPreviewFile({ ...file, fileUrl, fileType });
-    } else {
-      console.warn("⚠️ No valid file URL found for preview:", file);
-    }
-  };
-
 
   // Fetch vessels with pagination and search
   const fetchVessels = useCallback(async () => {
@@ -378,7 +298,7 @@ export default function Vessels() {
     setPage(1);
   }, [searchQuery, clientFilter, vesselTypeFilter]);
 
-  // Search on change (debounced) – skip initial mount
+  // Search on change (debounced) â€“ skip initial mount
   const isFirstSearchRun = useRef(true);
   useEffect(() => {
     if (isFirstSearchRun.current) {
@@ -401,439 +321,88 @@ export default function Vessels() {
     setPage(1);
   };
 
-  const handleInputChange = (field, value) => {
-    if (field === "client_id") {
-      clientChangeUserControlledRef.current = true;
-      const nextClientId = value || "";
-      setFormData(prev => ({
-        ...prev,
-        client_id: nextClientId,
-        procurement_person_id: "",
-        procurement_email: "",
-      }));
-      return;
-    }
-
-    if (field === "procurement_person_id") {
-      const selected = procurementPeopleOptions.find((p) => String(p.id) === String(value));
-      setFormData(prev => ({
-        ...prev,
-        procurement_person_id: value || "",
-        procurement_email: selected?.email && selected.email !== false ? String(selected.email) : "",
-      }));
-      return;
-    }
-
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+  const handleNewVessel = () => {
+    history.push("/admin/configurations/vessels/create");
   };
 
-  const resetForm = () => {
-    setFormData({
-      name: "",
-      client_id: "",
-      status: "active",
-      imo: "",
-      vessel_type: "",
-      vessel_type_selec: "",
-      procurement_person_id: "",
-      procurement_email: "",
-      vessel_email: "",
-      team: "",
-      invoice_address: "",
-      attachments: [],
-      attachment_to_delete: [],
+  const handleEditVessel = (vessel) => {
+    history.push(`/admin/configurations/vessels/edit/${vessel.id}`);
+  };
+
+  const openBulkEdit = () => {
+    if (!selectedVesselIds.length) return;
+    history.push(
+      `/admin/configurations/vessels/bulk-edit?ids=${selectedVesselIds.join(",")}`,
+      {
+        vessels: vessels
+          .filter((vessel) => selectedVesselIds.includes(vessel.id))
+          .map((vessel) => ({ id: vessel.id, name: vessel.name })),
+      }
+    );
+  };
+
+  useEffect(() => {
+    const visibleIds = new Set(vessels.map((vessel) => vessel.id));
+    setSelectedVesselIds((prev) => {
+      const next = prev.filter((id) => visibleIds.has(id));
+      return next.length === prev.length ? prev : next;
     });
-    setEditingVessel(null);
-    setPreviewFile(null);
-    setProcurementPeopleOptions([]);
-    clientChangeUserControlledRef.current = false;
-    lastSavedSignatureRef.current = "";
-    createdVesselIdRef.current = null;
-    createInFlightRef.current = false;
+  }, [vessels]);
+
+  const allVisibleSelected =
+    vessels.length > 0 && vessels.every((vessel) => selectedVesselIds.includes(vessel.id));
+  const someVisibleSelected =
+    !allVisibleSelected && vessels.some((vessel) => selectedVesselIds.includes(vessel.id));
+
+  const toggleVesselSelected = (vesselId) => {
+    setSelectedVesselIds((prev) =>
+      prev.includes(vesselId) ? prev.filter((id) => id !== vesselId) : [...prev, vesselId]
+    );
   };
 
-  const handleModalClose = useCallback(() => {
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-      autoSaveTimerRef.current = null;
-    }
-    const shouldRefreshList =
-      Boolean(editingVessel) ||
-      Boolean(lastSavedSignatureRef.current) ||
-      Boolean(createdVesselIdRef.current);
-    onModalClose();
-    resetForm();
-    if (shouldRefreshList) {
+  const toggleSelectAllVisible = (checked) => {
+    const visibleIds = vessels.map((vessel) => vessel.id);
+    setSelectedVesselIds((prev) =>
+      checked
+        ? Array.from(new Set([...prev, ...visibleIds]))
+        : prev.filter((id) => !visibleIds.includes(id))
+    );
+  };
+
+  const vesselNameById = (id) =>
+    vessels.find((vessel) => String(vessel.id) === String(id))?.name || `Vessel ${id}`;
+
+  const confirmBulkDelete = async () => {
+    if (!selectedVesselIds.length) return;
+    setIsBulkSaving(true);
+    try {
+      const { deleted, failed } = await vesselsAPI.deleteVessels(selectedVesselIds);
+      if (deleted.length) {
+        toast({
+          title: "Vessels deleted",
+          description: `${deleted.length} vessel(s) deleted.`,
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+      if (failed.length) {
+        toast({
+          title: `${failed.length} vessel(s) could not be deleted`,
+          description: failed
+            .map((item) => `${vesselNameById(item.id)}: ${item.message}`)
+            .join("\n"),
+          status: "error",
+          duration: 8000,
+          isClosable: true,
+        });
+      }
+      onBulkDeleteClose();
+      setSelectedVesselIds(failed.map((item) => item.id));
       fetchVessels();
       refreshMasterData(MASTER_KEYS.VESSELS).catch(() => { });
-    }
-  }, [editingVessel, fetchVessels, onModalClose]);
-
-  const handleNewVessel = () => {
-    resetForm();
-    onModalOpen();
-  };
-
-  const handleEditVessel = async (vessel) => {
-    try {
-      setIsLoading(true);
-      onModalOpen();
-      const vesselData = await vesselsAPI.getVessel(vessel.id);
-      const vesselInfo = vesselData.vessel || vesselData.result?.vessel || vesselData;
-
-      setFormData({
-        name: vesselInfo.name || "",
-        client_id: vesselInfo.client_id && typeof vesselInfo.client_id === "object"
-          ? vesselInfo.client_id.id
-          : (vesselInfo.client_id || ""),
-        status: vesselInfo.status || "active",
-        imo: vesselInfo.imo || "",
-        vessel_type: vesselInfo.vessel_type || "",
-        vessel_type_selec: normalizeVesselTypeSelec(vesselInfo.vessel_type_selec),
-        procurement_person_id:
-          vesselInfo.procurement_person && typeof vesselInfo.procurement_person === "object"
-            ? String(vesselInfo.procurement_person.id || "")
-            : String(vesselInfo.procurement_person_id || ""),
-        procurement_email:
-          vesselInfo.procurement_person && typeof vesselInfo.procurement_person === "object"
-            ? (
-              vesselInfo.procurement_person.email && vesselInfo.procurement_person.email !== false
-                ? String(vesselInfo.procurement_person.email)
-                : (
-                  vesselInfo.procurement_email && vesselInfo.procurement_email !== false
-                    ? String(vesselInfo.procurement_email)
-                    : ""
-                )
-            )
-            : (
-              vesselInfo.procurement_email && vesselInfo.procurement_email !== false
-                ? String(vesselInfo.procurement_email)
-                : ""
-            ),
-        vessel_email: vesselInfo.vessel_email || "",
-        team: vesselInfo.team || "",
-        invoice_address:
-          vesselInfo.invoice_address && vesselInfo.invoice_address !== false
-            ? String(vesselInfo.invoice_address)
-            : "",
-        attachments: vesselInfo.attachments || [],
-        attachment_to_delete: [],
-      });
-      const people = Array.isArray(vesselInfo.procurement_people) ? vesselInfo.procurement_people : [];
-      const options = people
-        .map((person) => ({
-          id: person?.id,
-          name: person?.name || `Person ${person?.id}`,
-          email: person?.email && person.email !== false ? String(person.email) : "",
-        }))
-        .filter((person) => person.id);
-      setProcurementPeopleOptions(options);
-      setEditingVessel({
-        ...vessel,
-        ...vesselInfo,
-        vessel_type_selec: normalizeVesselTypeSelec(vesselInfo.vessel_type_selec),
-      });
-      clientChangeUserControlledRef.current = false;
-      lastSavedSignatureRef.current = "";
-      createdVesselIdRef.current = vesselInfo?.id || vessel?.id || null;
-      createInFlightRef.current = false;
-
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: `Failed to load vessel data: ${error.message}`,
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
     } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const getSavePayload = useCallback(() => ({
-    name: formData.name?.trim() || "",
-    client_id: formData.client_id || "",
-    status: formData.status || "active",
-    imo: formData.imo || "",
-    vessel_type: formData.vessel_type || "",
-    vessel_type_selec: formData.vessel_type_selec || false,
-    procurement_person_id: formData.procurement_person_id || "",
-    procurement_email: formData.procurement_email || "",
-    vessel_email: formData.vessel_email || "",
-    team: formData.team || "",
-    invoice_address:
-      formData.invoice_address && String(formData.invoice_address).trim()
-        ? formData.invoice_address
-        : false,
-    attachments: formData.attachments || [],
-    attachment_to_delete: formData.attachment_to_delete || [],
-  }), [formData]);
-
-  const fetchProcurementPeopleByClient = useCallback(async (clientId) => {
-    if (!clientId) {
-      setProcurementPeopleOptions([]);
-      return;
-    }
-    try {
-      const response = await vesselsAPI.getVessels({
-        page: 1,
-        page_size: 80,
-        client_id: clientId,
-      });
-      const vesselsList = Array.isArray(response?.vessels) ? response.vessels : [];
-      const peopleMap = new Map();
-      vesselsList.forEach((vesselItem) => {
-        const people = Array.isArray(vesselItem?.procurement_people) ? vesselItem.procurement_people : [];
-        people.forEach((person) => {
-          if (person?.id && !peopleMap.has(String(person.id))) {
-            peopleMap.set(String(person.id), {
-              id: person.id,
-              name: person.name || `Person ${person.id}`,
-              email: person.email || "",
-            });
-          }
-        });
-      });
-      setProcurementPeopleOptions(Array.from(peopleMap.values()));
-    } catch (_error) {
-      setProcurementPeopleOptions([]);
-    }
-  }, []);
-
-  const resolveCreatedVesselId = useCallback(async (savePayload, createResponse) => {
-    const responseCandidates = [
-      createResponse?.result?.vessel?.id,
-      createResponse?.result?.data?.id,
-      createResponse?.result?.result?.vessel?.id,
-      createResponse?.result?.result?.data?.id,
-      createResponse?.result?.id,
-      createResponse?.result?.vessel_id,
-      createResponse?.result?.result?.vessel_id,
-      createResponse?.result?.data?.vessel_id,
-      createResponse?.result?.result?.data?.vessel_id,
-    ];
-    const responseId = responseCandidates.find((candidate) => candidate != null && candidate !== "");
-    if (responseId) return String(responseId);
-
-    try {
-      // Fallback: query list and find exact matching vessel.
-      const lookup = await vesselsAPI.getVessels({
-        page: 1,
-        page_size: 80,
-        search: savePayload.name,
-        client_id: savePayload.client_id,
-        sort_by: "id",
-        sort_order: "desc",
-      });
-      const candidates = Array.isArray(lookup?.vessels) ? lookup.vessels : [];
-      const normalizedName = (savePayload.name || "").trim().toLowerCase();
-      const matched = candidates.find((item) => {
-        const itemName = (item?.name || "").trim().toLowerCase();
-        const itemClientId =
-          item?.client_id && typeof item.client_id === "object"
-            ? String(item.client_id.id || "")
-            : String(item?.client_id || "");
-        return itemName === normalizedName && itemClientId === String(savePayload.client_id);
-      });
-      return matched?.id ? String(matched.id) : "";
-    } catch (_error) {
-      return "";
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!isModalOpen) return;
-    if (!clientChangeUserControlledRef.current) return;
-    fetchProcurementPeopleByClient(formData.client_id);
-  }, [fetchProcurementPeopleByClient, formData.client_id, isModalOpen]);
-
-  useEffect(() => {
-    if (!isModalOpen) return;
-    const savePayload = getSavePayload();
-    // Create/update starts after the required create fields exist.
-    if (!savePayload.name || !savePayload.client_id) return;
-    const vesselId = editingVessel?.id || createdVesselIdRef.current || "";
-
-    const signature = JSON.stringify({
-      ...savePayload,
-      attachments: (savePayload.attachments || []).map((a) => a.id || a.filename || a.name || ""),
-      attachment_to_delete: savePayload.attachment_to_delete || [],
-      vessel_id: vesselId,
-    });
-    if (signature === lastSavedSignatureRef.current) return;
-
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-    }
-
-    autoSaveTimerRef.current = setTimeout(async () => {
-      try {
-        if (!vesselId && createInFlightRef.current) return;
-        setIsAutoSaving(true);
-        if (vesselId) {
-          await vesselsAPI.updateVessel({
-            vessel_id: vesselId,
-            ...savePayload,
-          });
-          toast({
-            title: "Vessel updated",
-            description: "Your vessel data updated successfully.",
-            status: "success",
-            duration: 2000,
-            isClosable: true,
-          });
-        } else {
-          createInFlightRef.current = true;
-          const response = await vesselsAPI.createVessel(savePayload);
-          const created =
-            response?.result?.vessel ||
-            response?.result?.data ||
-            response?.result?.result?.vessel ||
-            response?.result?.result?.data ||
-            response?.result ||
-            null;
-          const createdId = await resolveCreatedVesselId(savePayload, response);
-          if (createdId) {
-            createdVesselIdRef.current = createdId;
-            setEditingVessel((prev) => ({ ...(prev || {}), id: createdId, ...(created || {}) }));
-          } else {
-            // Prevent duplicate create spam if backend doesn't return id deterministically.
-            lastSavedSignatureRef.current = signature;
-          }
-          toast({
-            title: "Vessel created",
-            description: "Your vessel data created successfully.",
-            status: "success",
-            duration: 2000,
-            isClosable: true,
-          });
-        }
-        lastSavedSignatureRef.current = signature;
-      } catch (error) {
-        toast({
-          title: "Autosave failed",
-          description: error?.response?.data?.message || error?.message || "Could not save vessel changes",
-          status: "error",
-          duration: 3000,
-          isClosable: true,
-        });
-      } finally {
-        createInFlightRef.current = false;
-        setIsAutoSaving(false);
-      }
-    }, 500);
-
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-    };
-  }, [editingVessel, formData, getSavePayload, isModalOpen, resolveCreatedVesselId, toast]);
-
-  const handleSubmit = async () => {
-    try {
-      if (!formData.name.trim()) {
-        toast({
-          title: "Error",
-          description: "Vessel name is required",
-          status: "error",
-          duration: 3000,
-          isClosable: true,
-        });
-        return;
-      }
-
-      if (!formData.client_id) {
-        toast({
-          title: "Error",
-          description: "Client ID is required",
-          status: "error",
-          duration: 3000,
-          isClosable: true,
-        });
-        return;
-      }
-
-      setIsLoading(true);
-      let finalFormData = { ...formData, vessel_id: editingVessel?.id };
-
-      if (editingVessel) {
-        const response = await vesselsAPI.updateVessel(finalFormData, null, editingVessel);
-        let successMessage = "Vessel updated successfully";
-        let status = "success";
-
-        if (response && response.result) {
-          if (response.result && response.result.message) {
-            successMessage = response.result.message;
-            status = response.result.status;
-          } else if (response.result.message) {
-            successMessage = response.result.message;
-            status = response.result.status;
-          }
-        }
-
-        toast({
-          title: status,
-          description: successMessage,
-          status: status,
-          duration: 3000,
-          isClosable: true,
-        });
-      } else {
-        const response = await vesselsAPI.createVessel(finalFormData);
-        let successMessage = "Vessel created successfully";
-        let status = "success";
-
-        if (response && response.result) {
-          if (response.result && response.result.message) {
-            successMessage = response.result.message;
-            status = response.result.status;
-          } else if (response.result.message) {
-            successMessage = response.result.message;
-            status = response.result.status;
-          }
-        }
-
-        toast({
-          title: status,
-          description: successMessage,
-          status: status,
-          duration: 3000,
-          isClosable: true,
-        });
-      }
-
-      handleModalClose();
-    } catch (error) {
-      let errorMessage = `Failed to ${editingVessel ? 'update' : 'create'} vessel`;
-      let status = "error";
-
-      if (error.response && error.response.data) {
-        if (error.response.data.result && error.response.data.result.message) {
-          errorMessage = error.response.data.result.message;
-          status = error.response.data.result.status;
-        } else if (error.response.data.message) {
-          errorMessage = error.response.data.message;
-          status = error.response.data.result.status;
-        }
-      } else if (error.message) {
-        errorMessage = error.message;
-        status = "error";
-      }
-
-      toast({
-        title: status,
-        description: errorMessage,
-        status: status,
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      setIsLoading(false);
+      setIsBulkSaving(false);
     }
   };
 
@@ -980,6 +549,38 @@ export default function Vessels() {
           </Flex>
         </Box>
 
+        {selectedVesselIds.length > 0 && (
+          <Box px="25px">
+            <Flex
+              align="center"
+              justify="space-between"
+              gap={3}
+              flexWrap="wrap"
+              bg="blue.50"
+              border="1px solid"
+              borderColor="blue.100"
+              borderRadius="8px"
+              px={4}
+              py={2}
+            >
+              <Text fontSize="sm" fontWeight="600" color="blue.700">
+                {selectedVesselIds.length} vessel(s) selected
+              </Text>
+              <HStack spacing={2}>
+                <Button size="sm" variant="ghost" onClick={() => setSelectedVesselIds([])}>
+                  Clear selection
+                </Button>
+                <Button size="sm" colorScheme="blue" leftIcon={<Icon as={MdEdit} />} onClick={openBulkEdit}>
+                  Edit selected
+                </Button>
+                <Button size="sm" colorScheme="red" leftIcon={<Icon as={MdDelete} />} onClick={onBulkDeleteOpen}>
+                  Delete selected
+                </Button>
+              </HStack>
+            </Flex>
+          </Box>
+        )}
+
         {/* Vessels Table */}
         <Box px="25px">
           <Box
@@ -1009,6 +610,15 @@ export default function Vessels() {
             <Table variant="unstyled" size="sm">
               <Thead bg="gray.100" position="sticky" top="0" zIndex="1">
                 <Tr>
+                  <Th py="12px" px="16px" w="40px">
+                    <Checkbox
+                      isChecked={allVisibleSelected}
+                      isIndeterminate={someVisibleSelected}
+                      isDisabled={!vessels.length}
+                      onChange={(e) => toggleSelectAllVisible(e.target.checked)}
+                      aria-label="Select all vessels on this page"
+                    />
+                  </Th>
                   <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
                     Vessel
                   </Th>
@@ -1044,7 +654,7 @@ export default function Vessels() {
               <Tbody>
                 {isLoading ? (
                   <Tr>
-                    <Td colSpan={10} py="40px" textAlign="center">
+                    <Td colSpan={11} py="40px" textAlign="center">
                       <Spinner size="lg" />
                     </Td>
                   </Tr>
@@ -1059,6 +669,13 @@ export default function Vessels() {
                       borderBottom="1px"
                       borderColor="gray.200"
                     >
+                      <Td py="12px" px="16px" w="40px" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          isChecked={selectedVesselIds.includes(vessel.id)}
+                          onChange={() => toggleVesselSelected(vessel.id)}
+                          aria-label={`Select ${vessel.name || "vessel"}`}
+                        />
+                      </Td>
                       <Td py="12px" px="16px" {...tableCellProps}>
                         <HStack spacing={2}>
                           <Icon as={MdDirectionsBoat} color="blue.500" w="16px" h="16px" />
@@ -1173,7 +790,7 @@ export default function Vessels() {
                   ))
                 ) : (
                   <Tr>
-                    <Td colSpan={10} py="40px" textAlign="center">
+                    <Td colSpan={11} py="40px" textAlign="center">
                       <VStack spacing={3}>
                         <Icon as={MdDirectionsBoat} color="gray.400" boxSize={12} />
                         <Text color="gray.500" fontSize="md" fontWeight="500">
@@ -1265,404 +882,6 @@ export default function Vessels() {
         )}
       </VStack>
 
-      {/* Create/Edit Modal */}
-      <Modal isOpen={isModalOpen} onClose={handleModalClose} size="6xl">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader bg="blue.600" color="white" borderRadius="md">
-            <HStack spacing={3}>
-              <Icon as={editingVessel ? MdEdit : MdAdd} />
-              <Text>{editingVessel ? "Edit Vessel" : "Create New Vessel"}</Text>
-            </HStack>
-          </ModalHeader>
-          <ModalCloseButton color="white" />
-          <ModalBody py="6">
-            <VStack spacing="4" align="stretch">
-              <FormControl isRequired>
-                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                  Vessel Name
-                </FormLabel>
-                <Input
-                  size="md"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange("name", e.target.value)}
-                  placeholder="Enter vessel name (e.g., Test Vessel)"
-                  borderRadius="md"
-                />
-              </FormControl>
-
-              <FormControl isRequired>
-                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                  Client (Customer)
-                </FormLabel>
-                <SearchableSelect
-                  value={formData.client_id}
-                  onChange={(value) => handleInputChange("client_id", value)}
-                  options={clientOptions}
-                  placeholder={clientOptions.length === 0 ? "No company clients found" : "Select customer"}
-                  displayKey="name"
-                  valueKey="id"
-                  formatOption={(customer) => `${customer.name || customer.company_name || `Customer ${customer.id}`} (ID: ${customer.id})`}
-                  isRequired
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                  Procurement Person
-                </FormLabel>
-                <Select
-                  size="md"
-                  value={formData.procurement_person_id}
-                  onChange={(e) => handleInputChange("procurement_person_id", e.target.value)}
-                  borderRadius="md"
-                  placeholder={formData.client_id ? "Select procurement person" : "Select client first"}
-                  isDisabled={!formData.client_id}
-                >
-                  {procurementPeopleOptions.map((person) => (
-                    <option key={person.id} value={person.id}>
-                      {person.name}
-                    </option>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                  Procurement Email
-                </FormLabel>
-                <Input
-                  size="md"
-                  value={formData.procurement_email || "no email found"}
-                  isReadOnly
-                  placeholder="Auto-filled from procurement person"
-                  borderRadius="md"
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                  Vessel Email
-                </FormLabel>
-                <Input
-                  size="md"
-                  value={formData.vessel_email}
-                  onChange={(e) => handleInputChange("vessel_email", e.target.value)}
-                  placeholder="Enter vessel email"
-                  borderRadius="md"
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                  Team
-                </FormLabel>
-                <Input
-                  size="md"
-                  value={formData.team}
-                  onChange={(e) => handleInputChange("team", e.target.value)}
-                  placeholder="Enter team"
-                  borderRadius="md"
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                  Invoice Address
-                </FormLabel>
-                <Textarea
-                  size="md"
-                  value={formData.invoice_address}
-                  onChange={(e) => handleInputChange("invoice_address", e.target.value)}
-                  placeholder="Enter invoice address"
-                  borderRadius="md"
-                  rows={4}
-                  resize="vertical"
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                  IMO
-                </FormLabel>
-                <Input
-                  size="md"
-                  value={formData.imo}
-                  onChange={(e) => handleInputChange("imo", e.target.value)}
-                  placeholder="Enter IMO number"
-                  borderRadius="md"
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                  Vessel Type
-                </FormLabel>
-                <Select
-                  size="md"
-                  value={formData.vessel_type_selec}
-                  onChange={(e) => handleInputChange("vessel_type_selec", e.target.value)}
-                  borderRadius="md"
-                >
-                  <option value="">Select vessel type</option>
-                  {vesselTypeSelecOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                  Vessel Type (Text)
-                </FormLabel>
-                <Input
-                  size="md"
-                  value={formData.vessel_type}
-                  onChange={(e) => handleInputChange("vessel_type", e.target.value)}
-                  placeholder="Enter additional vessel type text"
-                  borderRadius="md"
-                />
-              </FormControl>
-
-              <FormControl isRequired>
-                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                  Status
-                </FormLabel>
-                <Select
-                  size="md"
-                  value={formData.status}
-                  onChange={(e) => handleInputChange("status", e.target.value)}
-                  borderRadius="md"
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="tbn">TBN</option>
-                  <option value="new_building">New Building</option>
-                </Select>
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                  Attachments
-                </FormLabel>
-                <Input
-                  type="file"
-                  multiple
-                  onChange={(e) => {
-                    const files = Array.from(e.target.files || []);
-                    const filePromises = files.map(file => new Promise((resolve) => {
-                      const reader = new FileReader();
-                      reader.onloadend = () => {
-                        const result = reader.result || '';
-                        const base64data = typeof result === 'string' && result.includes(',') ? result.split(',')[1] : '';
-                        resolve({ filename: file.name, datas: base64data, mimetype: file.type });
-                      };
-                      reader.readAsDataURL(file);
-                    }));
-                    Promise.all(filePromises).then(attachments => {
-                      setFormData(prev => ({ ...prev, attachments: [...(prev.attachments || []), ...attachments] }));
-                    });
-                  }}
-                  accept="application/pdf,image/*"
-                  py={1}
-                />
-                {formData.attachments && formData.attachments.length > 0 && (
-                  <Box mt={2}>
-                    <Text fontSize="sm" fontWeight="medium" mb={1}>
-                      Attached Files:
-                    </Text>
-                    <List spacing={1}>
-                      {formData.attachments.map((file, index) => (
-                        <ListItem
-                          key={index}
-                          display="flex"
-                          alignItems="center"
-                          justifyContent="space-between"
-                          border="1px solid"
-                          borderColor="gray.200"
-                          borderRadius="md"
-                          p={2}
-                        >
-                          <Text fontSize="sm">{file.filename}</Text>
-
-                          <Box>
-                            <Button
-                              size="xs"
-                              colorScheme="blue"
-                              variant="outline"
-                              onClick={() => handleView(file)}
-                              mr={2}
-                            >
-                              View
-                            </Button>
-                            <IconButton
-                              size="xs"
-                              icon={<CloseIcon />}
-                              aria-label="Remove attachment"
-                              onClick={() => {
-                                setFormData((prev) => {
-                                  const attachmentToRemove = prev.attachments[index];
-                                  const updatedAttachments = prev.attachments.filter((_, i) => i !== index);
-
-                                  // If this attachment came from the backend and has an id,
-                                  // track it so the API can delete it.
-                                  const updatedAttachmentsToDelete = [
-                                    ...(prev.attachment_to_delete || []),
-                                  ];
-
-                                  if (attachmentToRemove && attachmentToRemove.id) {
-                                    updatedAttachmentsToDelete.push(attachmentToRemove.id);
-                                  }
-
-                                  return {
-                                    ...prev,
-                                    attachments: updatedAttachments,
-                                    attachment_to_delete: updatedAttachmentsToDelete,
-                                  };
-                                });
-                              }}
-                            />
-                          </Box>
-                        </ListItem>
-                      ))}
-                    </List>
-                  </Box>
-                )}
-              </FormControl>
-
-            </VStack>
-
-          </ModalBody >
-          <ModalFooter bg="gray.50" borderTop="1px" borderColor="gray.200">
-            <Button variant="outline" mr={3} onClick={handleModalClose}>
-              Cancel
-            </Button>
-            <Text color={isAutoSaving ? "blue.600" : "green.600"} fontSize="sm" fontWeight="medium">
-              {isAutoSaving ? "Saving..." : "Your data saved"}
-            </Text>
-          </ModalFooter>
-        </ModalContent >
-      </Modal >
-
-      {/* File Preview Modal - 65% viewing mode, A4 only when printing */}
-      <Modal isOpen={!!previewFile} onClose={() => setPreviewFile(null)} size="full">
-        <ModalOverlay bg="rgba(0, 0, 0, 0.8)" />
-        <ModalContent maxW="65vw" maxH="65vh" m="auto" bg="white">
-          <ModalHeader bg="gray.100" borderBottom="1px" borderColor="gray.200">
-            <Flex justify="space-between" align="center">
-              <Text fontSize="lg" fontWeight="600">
-                {previewFile?.filename || "File Preview"}
-              </Text>
-              <Button
-                size="sm"
-                leftIcon={<Icon as={MdPrint} />}
-                onClick={() => {
-                  const printWindow = window.open();
-                  if (printWindow && previewFile?.fileUrl) {
-                    printWindow.document.write(`
-                      <html>
-                        <head>
-                          <title>${previewFile.filename}</title>
-                          <style>
-                            @page {
-                              size: A4;
-                              margin: 0;
-                            }
-                            body {
-                              margin: 0;
-                              padding: 0;
-                            }
-                            img, iframe {
-                              width: 100%;
-                              height: 100vh;
-                              object-fit: contain;
-                            }
-                          </style>
-                        </head>
-                        <body>
-                          ${previewFile.fileType?.startsWith("image/")
-                        ? `<img src="${previewFile.fileUrl}" alt="${previewFile.filename}" />`
-                        : previewFile.fileType === "application/pdf"
-                          ? `<iframe src="${previewFile.fileUrl}" style="width: 100%; height: 100vh; border: none;"></iframe>`
-                          : `<p>Preview not available. <a href="${previewFile.fileUrl}" download>Download file</a></p>`
-                      }
-                        </body>
-                      </html>
-                    `);
-                    printWindow.document.close();
-                    setTimeout(() => printWindow.print(), 250);
-                  }
-                }}
-              >
-                Print
-              </Button>
-            </Flex>
-          </ModalHeader>
-          <ModalCloseButton />
-          <ModalBody p={0} bg="gray.50" display="flex" justifyContent="center" alignItems="center" minH="calc(100vh - 120px)">
-            {previewFile && (
-              previewFile.fileType?.startsWith("image/") ? (
-                <Box
-                  w="100%"
-                  h="100%"
-                  display="flex"
-                  justifyContent="center"
-                  alignItems="center"
-                  p={4}
-                >
-                  <img
-                    src={previewFile.fileUrl}
-                    alt={previewFile.filename}
-                    style={{
-                      maxWidth: "100%",
-                      maxHeight: "calc(100vh - 120px)",
-                      objectFit: "contain",
-                      borderRadius: "8px",
-                      boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-                    }}
-                  />
-                </Box>
-              ) : previewFile.fileType === "application/pdf" ? (
-                <Box
-                  w="100%"
-                  h="calc(100vh - 120px)"
-                  display="flex"
-                  justifyContent="center"
-                  alignItems="center"
-                  bg="gray.100"
-                >
-                  <iframe
-                    src={previewFile.fileUrl}
-                    title={previewFile.filename}
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      border: "none",
-                      borderRadius: "8px",
-                      boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-                    }}
-                  />
-                </Box>
-              ) : (
-                <Box p={8} textAlign="center">
-                  <Text mb={4}>File preview not available for this file type.</Text>
-                  <Button
-                    as="a"
-                    href={previewFile.fileUrl}
-                    download={previewFile.filename}
-                    colorScheme="blue"
-                  >
-                    Download File
-                  </Button>
-                </Box>
-              )
-            )}
-          </ModalBody>
-        </ModalContent>
-      </Modal>
-
       {/* Delete Confirmation Dialog */}
       < AlertDialog
         isOpen={isDeleteOpen}
@@ -1693,6 +912,31 @@ export default function Vessels() {
           </AlertDialogContent>
         </AlertDialogOverlay>
       </AlertDialog >
+
+      <AlertDialog
+        isOpen={isBulkDeleteOpen}
+        onClose={onBulkDeleteClose}
+        leastDestructiveRef={undefined}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete {selectedVesselIds.length} vessel(s)
+            </AlertDialogHeader>
+            <AlertDialogBody>
+              Are you sure you want to delete the selected vessels? This action cannot be undone.
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button onClick={onBulkDeleteClose} isDisabled={isBulkSaving}>
+                Cancel
+              </Button>
+              <Button colorScheme="red" onClick={confirmBulkDelete} ml={3} isLoading={isBulkSaving}>
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Box >
   );
 };

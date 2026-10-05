@@ -235,7 +235,7 @@ const VesselDetail = () => {
   };
 
   const handleEdit = () => {
-    history.push(`/admin/configurations/vessels`, { vessel, editMode: true });
+    history.push(`/admin/configurations/vessels/edit/${vessel?.id ?? id}`);
   };
 
   const clientName =
