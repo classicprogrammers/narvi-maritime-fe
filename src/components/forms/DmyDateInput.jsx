@@ -39,7 +39,14 @@ export const formatIsoToDisplayDate = (value) => {
   return text;
 };
 
-export default function DmyDateInput({ id, value, onChange, placeholder = "dd/mm/yyyy", ...inputProps }) {
+export default function DmyDateInput({
+  id,
+  value,
+  onChange,
+  placeholder = "dd/mm/yyyy",
+  iconColor = "whiteAlpha.900",
+  ...inputProps
+}) {
   const pickerRef = React.useRef(null);
   const displayValue = formatIsoToDisplayDate(value);
   const pickerValue = normalizeToIsoDate(value);
@@ -88,7 +95,7 @@ export default function DmyDateInput({ id, value, onChange, placeholder = "dd/mm
         icon={<Icon as={MdCalendarToday} />}
         size="xs"
         variant="ghost"
-        color="whiteAlpha.900"
+        color={iconColor}
         position="absolute"
         right="0"
         top="50%"

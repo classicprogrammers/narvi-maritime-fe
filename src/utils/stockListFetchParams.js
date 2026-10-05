@@ -6,7 +6,8 @@ function isNonEmpty(value) {
 
 /**
  * Stock view/edit columns that GET /api/stock/list can filter with empty / not_empty.
- * days_on_stock is calculated and is rejected by the API.
+ * days_on_stock is calculated and is rejected by the API, so DAYS ON STOCK shares
+ * the DATE ON STOCK presence filter (days only exist once a date on stock is set).
  * Hub and destination empty filters use the presence params, not the id filters.
  */
 export const STOCK_EMPTY_FILTER_PARAM_BY_LABEL = {
@@ -25,15 +26,25 @@ export const STOCK_EMPTY_FILTER_PARAM_BY_LABEL = {
   "VIA HUB 2": "via_hub2",
   "AP DESTINATION": "ap_destination_new",
   DESTINATION: "destination_new",
+  "SHIPPING DOCS": "shipping_doc",
+  "EXPORT DOC 1": "export_doc",
+  "EXPORT DOC 2": "export_doc_2",
+  "EXP READY FROM SUPPLIER": "exp_ready_in_stock",
   "DATE ON STOCK": "date_on_stock",
+  "DAYS ON STOCK": "date_on_stock",
   "SHIPPED DATE": "shipped_date",
   "DELIVERED DATE": "delivered_date",
+  "DG/UN NUMBER": "dg_un",
   REMARKS: "remarks",
+  BOXES: "item",
   "WEIGHT KGS": "weight_kg",
+  "LWH TEXT": "lwh_text",
   "TOTAL VOLUME CBM": "volume_cbm",
+  "TOTAL CW AIR FREIGHT": "cw_air_freight_new",
   CURRENCY: "currency_id",
   VALUE: "value",
   CLIENT: "client_id",
+  "INTERNAL REMARKS": "internal_remark",
   FILES: "attachments",
   STOCKITEMID: "stock_item_id",
 };

@@ -44,6 +44,7 @@ import RemoteSearchableSelect from "../forms/RemoteSearchableSelect";
 import StockIdNameSearchableSelect from "../forms/StockIdNameSearchableSelect";
 import StockOriginCountrySelect from "../forms/StockOriginCountrySelect";
 import StockValueInput from "../forms/StockValueInput";
+import DmyDateInput, { normalizeToIsoDate } from "../forms/DmyDateInput";
 import { formatStatusForPdf } from "../../utils/stockReportPdf";
 import { calculateVolumeCbmFromLwhCm } from "../../utils/stockVolume";
 
@@ -382,11 +383,12 @@ function StockReportPreview({
                                     ) : null}
                                     {shown(dateField) ? (
                                         <Field label="First entry date">
-                                            <Input
+                                            <DmyDateInput
                                                 {...fieldInputProps}
-                                                type="date"
                                                 value={row[dateField] || ""}
-                                                onChange={(e) => onFieldChange(dateField, e.target.value)}
+                                                onChange={(next) => onFieldChange(dateField, normalizeToIsoDate(next))}
+                                                iconColor="gray.600"
+                                                _placeholder={{ color: "gray.400" }}
                                             />
                                         </Field>
                                     ) : null}

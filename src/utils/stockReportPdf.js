@@ -459,8 +459,12 @@ export function createStockPdfRowHelpers({
 
     const formatDate = (dateString) => {
         if (!dateString) return "-";
+        const isoDate = String(dateString).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (isoDate) return `${isoDate[3]}/${isoDate[2]}/${isoDate[1]}`;
         const parsed = new Date(dateString);
-        return Number.isNaN(parsed.getTime()) ? String(dateString) : parsed.toLocaleDateString();
+        return Number.isNaN(parsed.getTime())
+            ? String(dateString)
+            : parsed.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
     };
 
     const getStatusLabel = (status) => formatStatusForPdf(status);

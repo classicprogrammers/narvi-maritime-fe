@@ -634,7 +634,7 @@ function StockColumnEmptyFilter({ label, value, onChange }) {
                         ? `${label}: showing empty values`
                         : value === "not_empty"
                             ? `${label}: showing values that are filled in`
-                            : `Filter ${label} by empty or not empty`
+                            : `Filter ${label} by empty or filled`
                 }
                 icon={<Icon as={MdFilterAlt} boxSize="14px" />}
                 size="xs"
@@ -666,7 +666,7 @@ function StockColumnEmptyFilter({ label, value, onChange }) {
                         onChange={(next) => onChange(next)}
                     >
                         <MenuItemOption value="empty" fontSize="sm">Empty</MenuItemOption>
-                        <MenuItemOption value="not_empty" fontSize="sm">Not empty</MenuItemOption>
+                        <MenuItemOption value="not_empty" fontSize="sm">Filled</MenuItemOption>
                     </MenuOptionGroup>
                     {isActive && (
                         <MenuItem fontSize="sm" color="red.600" onClick={() => onChange("")}>

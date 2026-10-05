@@ -907,6 +907,9 @@ export default function Stocks() {
                 setStockViewDateOnStock("");
                 setCreateDateFrom("");
                 setCreateDateTo("");
+                setStockViewDaysOnStock("");
+                setDaysRangeFrom("");
+                setDaysRangeTo("");
                 break;
             case "via_hub":
                 setStockViewViaHub1(null);
