@@ -92,6 +92,7 @@ import {
   clearPendingSoFilter,
   getInitialShippingOrderListState,
   parseSoFilterFromUrl,
+  parseVesselFilterFromUrl,
   resolvePicIdsByNames,
   SHIPPING_ORDER_DEFAULT_ATH_PIC_NAMES,
   SHIPPING_ORDER_DEFAULT_SIN_PIC_NAMES,
@@ -270,7 +271,7 @@ const SoNumberTab = () => {
   const [savedState] = useState(() => getInitialShippingOrderListState(location.search));
 
   useEffect(() => {
-    if (parseSoFilterFromUrl(location.search)) {
+    if (parseSoFilterFromUrl(location.search) || parseVesselFilterFromUrl(location.search)) {
       history.replace(location.pathname);
     }
     const timer = setTimeout(() => clearPendingSoFilter(), 500);
@@ -308,7 +309,9 @@ const SoNumberTab = () => {
   const picFilterModalDisclosure = useDisclosure();
   const vslsAgentDtlsDisclosure = useDisclosure();
   const packageLinkDisclosure = useDisclosure();
-  const advancedFiltersDisclosure = useDisclosure({ defaultIsOpen: false });
+  const advancedFiltersDisclosure = useDisclosure({
+    defaultIsOpen: Boolean(savedState.searchVesselFilter),
+  });
 
   const [mergingOrderId, setMergingOrderId] = useState(null);
   const [packageLinkData, setPackageLinkData] = useState({ url: "", soNumber: "" });

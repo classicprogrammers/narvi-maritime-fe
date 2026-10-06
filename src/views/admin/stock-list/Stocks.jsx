@@ -374,6 +374,22 @@ function getStockItemIdFilterFromSearch(search) {
     return value;
 }
 
+/** URL filters for links from other pages, e.g. ?vessel_id=12&active=all */
+function getStockViewFiltersFromSearch(search) {
+    const params = new URLSearchParams(search || "");
+    const stockItemId = getStockItemIdFilterFromSearch(search);
+    const vesselParam = (params.get("vessel_id") || "").trim();
+    const vesselId = vesselParam && Number.isFinite(Number(vesselParam)) ? Number(vesselParam) : null;
+    const activeParam = (params.get("active") || "").trim().toLowerCase();
+    const active = ["true", "false", "all"].includes(activeParam) ? activeParam : null;
+    if (!stockItemId && vesselId == null) return null;
+    return {
+        ...(stockItemId ? { stockViewStockItemId: stockItemId } : {}),
+        ...(vesselId != null ? { stockViewVessel: vesselId } : {}),
+        ...(active ? { stockViewActiveFilter: active } : {}),
+    };
+}
+
 function readPersistedStockViewEditState() {
     try {
         const raw = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(STOCK_VIEW_EDIT_STORAGE_KEY) : null;
@@ -497,12 +513,12 @@ export default function Stocks() {
     const location = useLocation();
     const [selectedRows, setSelectedRows] = useState(new Set());
     const [savedState] = useState(() => {
-        const fromUrl = getStockItemIdFilterFromSearch(location.search);
+        const fromUrl = getStockViewFiltersFromSearch(location.search);
         if (fromUrl) {
             return {
                 ...defaultStockViewEditState,
                 activeTab: 0,
-                stockViewStockItemId: fromUrl,
+                ...fromUrl,
             };
         }
         return readPersistedStockViewEditState() || defaultStockViewEditState;
@@ -608,6 +624,18 @@ export default function Stocks() {
     );
     const [sortOption, setSortOption] = useState(savedState.sortOption);
     const [clientSortOption, setClientSortOption] = useState(savedState.clientSortOption || "none");
+
+    useEffect(() => {
+        const fromUrl = getStockViewFiltersFromSearch(location.search);
+        if (!fromUrl) return;
+        setActiveTab(0);
+        setShowFilters(true);
+        setStockViewPage(1);
+        if (fromUrl.stockViewStockItemId != null) setStockViewStockItemId(fromUrl.stockViewStockItemId);
+        if (fromUrl.stockViewVessel != null) setStockViewVessel(fromUrl.stockViewVessel);
+        if (fromUrl.stockViewActiveFilter != null) setStockViewActiveFilter(fromUrl.stockViewActiveFilter);
+        history.replace({ pathname: location.pathname, state: location.state || {} });
+    }, [history, location.pathname, location.search, location.state]);
 
     // Persist filter and pagination state so it survives navigation (e.g. edit item then back)
     useEffect(() => {

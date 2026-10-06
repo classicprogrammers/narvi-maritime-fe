@@ -20,10 +20,17 @@ export const defaultRateListState = {
     incl_in_tariff: "",
   },
   page: 1,
-  pageSize: 50,
+  sort: { ...RATE_LIST_DEFAULT_SORT },
   showFilterFields: false,
   selectedRates: {},
 };
+
+function normalizeRateListSort(sort) {
+  const sortBy = typeof sort?.sort_by === "string" ? sort.sort_by.trim() : "";
+  const sortOrder = sort?.sort_order === "asc" || sort?.sort_order === "desc" ? sort.sort_order : "";
+  if (!sortBy || !sortOrder) return { ...RATE_LIST_DEFAULT_SORT };
+  return { sort_by: sortBy, sort_order: sortOrder };
+}
 
 export function buildRateListFilterSnapshot(state = {}) {
   const defaultFilters = defaultRateListState.filters;
@@ -62,7 +69,7 @@ export function buildRateListFilterSnapshot(state = {}) {
           : defaultFilters.incl_in_tariff,
     },
     page: typeof state.page === "number" && state.page >= 1 ? state.page : 1,
-    pageSize: typeof state.pageSize === "number" && state.pageSize >= 1 ? state.pageSize : 50,
+    sort: normalizeRateListSort(state.sort),
     showFilterFields: Boolean(state.showFilterFields),
     selectedRates:
       state.selectedRates && typeof state.selectedRates === "object" ? state.selectedRates : {},

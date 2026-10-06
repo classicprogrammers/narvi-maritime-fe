@@ -453,6 +453,18 @@ export function parseSoFilterFromUrl(search) {
   return built;
 }
 
+/** Vessel advanced filter from ?vessel_id= — not the SO number search box. */
+export function parseVesselFilterFromUrl(search) {
+  if (!search) return null;
+  const params = new URLSearchParams(search.startsWith("?") ? search : `?${search}`);
+  const vesselParam = (params.get("vessel_id") || "").trim();
+  if (!vesselParam) return null;
+  const asNumber = Number(vesselParam);
+  return {
+    searchVesselFilter: Number.isFinite(asNumber) ? asNumber : vesselParam,
+  };
+}
+
 export function stashSoFilterForNavigation(filter) {
   if (!filter?.searchQuery && !filter?.searchValue) return;
   pendingSoFilterCache = {
@@ -524,8 +536,13 @@ export function buildShippingOrdersFilteredUrl(filter, path = getShippingOrdersL
 
 export function getInitialShippingOrderListState(locationSearch = "") {
   const pending = takePendingSoFilter(locationSearch);
-  if (pending) {
-    return { ...defaultShippingOrderListState, ...pending };
+  const vesselFromUrl = parseVesselFilterFromUrl(locationSearch);
+  if (pending || vesselFromUrl) {
+    return {
+      ...defaultShippingOrderListState,
+      ...(pending || {}),
+      ...(vesselFromUrl || {}),
+    };
   }
   return readPersistedShippingOrderListState() || defaultShippingOrderListState;
 }

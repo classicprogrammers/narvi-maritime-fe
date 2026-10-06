@@ -1,10 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHistory, useLocation } from "react-router-dom";
 import {
+  Badge,
   Box,
   Button,
   Checkbox,
+  Collapse,
   Flex,
+  FormControl,
+  FormLabel,
   HStack,
   Icon,
   IconButton,
@@ -20,7 +24,9 @@ import {
   ModalHeader,
   ModalOverlay,
   Select,
+  SimpleGrid,
   Table,
+  Tag,
   Tbody,
   Td,
   Text,
@@ -36,15 +42,19 @@ import {
 } from "@chakra-ui/react";
 import {
   MdAdd,
-  MdClose,
+  MdArrowDownward,
+  MdArrowUpward,
+  MdAttachMoney,
+  MdClear,
   MdDelete,
   MdEdit,
   MdFilterList,
   MdPictureAsPdf,
   MdPrint,
+  MdRefresh,
   MdSearch,
+  MdUnfoldMore,
 } from "react-icons/md";
-import Card from "components/card/Card";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import api from "../../../api/axios";
 import { deleteRateListApi, getRateListOptionsApi } from "../../../api/rate";
@@ -187,17 +197,19 @@ function mergeSelectedOption(options, selectedValue, selectedOption, valueKey = 
   return [selectedOption, ...options];
 }
 
-function TruncatedCell({ value, maxW = "180px", fontWeight, textColor, cellText, tdStyle }) {
+function RateCell({ value, cellProps, fontWeight, color, isNumeric, noOfLines = 2 }) {
   const text = value || "-";
+  const isEmpty = text === "-";
   return (
-    <Td
-      maxW={maxW}
-      isTruncated
-      fontWeight={fontWeight}
-      title={text !== "-" ? text : undefined}
-      {...tdStyle}
-    >
-      <Text color={textColor} fontSize="sm" fontWeight={fontWeight} {...cellText}>
+    <Td {...cellProps} isNumeric={isNumeric}>
+      <Text
+        fontSize="sm"
+        fontWeight={fontWeight}
+        color={isEmpty ? "gray.400" : color}
+        noOfLines={noOfLines}
+        wordBreak="break-word"
+        title={isEmpty ? undefined : text}
+      >
         {text}
       </Text>
     </Td>
@@ -220,6 +232,60 @@ function formatRateCost(item) {
 function displayText(value) {
   if (value === false || value == null || String(value).trim() === "") return "-";
   return String(value);
+}
+
+const RATE_LIST_PAGE_SIZE = 50;
+const STICKY_CHECKBOX_WIDTH = "44px";
+const STICKY_ACTIONS_WIDTH = "104px";
+
+/** Sort keys sent as sort_by to GET /api/rate/list for each sortable table column. */
+const RATE_LIST_COLUMNS = [
+  { label: "Rate Type", sortKey: "rate_type", minW: "130px" },
+  { label: "Location", sortKey: "location_text", aliases: ["location"], minW: "130px" },
+  { label: "Client", sortKey: "client_id", minW: "170px" },
+  { label: "Agent", sortKey: "agent", aliases: ["agent_text"], minW: "190px" },
+  { label: "Group Name", sortKey: "import_group", minW: "150px" },
+  { label: "Rate Name", sortKey: "rate_name", minW: "240px" },
+  { label: "Charge Category", sortKey: "charge_category", aliases: ["charge_category_label"], minW: "160px" },
+  { label: "Rate Text", sortKey: "rate_text", minW: "280px" },
+  { label: "Rate Cost", sortKey: "rate_float", minW: "110px", isNumeric: true },
+  { label: "Rate Fixed", sortKey: "fixed_sales_rate", minW: "110px", isNumeric: true },
+];
+
+function SortableHeader({ column, sort, isSortable, onSort, headerCellProps, hoverBg }) {
+  const isActive = sort.sort_by === column.sortKey;
+  const icon = !isActive ? MdUnfoldMore : sort.sort_order === "asc" ? MdArrowUpward : MdArrowDownward;
+  const direction = isActive ? (sort.sort_order === "asc" ? "ascending" : "descending") : "none";
+
+  return (
+    <Th
+      {...headerCellProps}
+      minW={column.minW}
+      isNumeric={column.isNumeric}
+      aria-sort={isSortable ? direction : undefined}
+      color={isActive ? "blue.600" : headerCellProps.color}
+      cursor={isSortable ? "pointer" : undefined}
+      tabIndex={isSortable ? 0 : undefined}
+      title={isSortable ? `Sort by ${column.label}` : undefined}
+      _hover={isSortable ? { bg: hoverBg } : undefined}
+      onClick={isSortable ? () => onSort(column.sortKey) : undefined}
+      onKeyDown={
+        isSortable
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onSort(column.sortKey);
+              }
+            }
+          : undefined
+      }
+    >
+      <HStack spacing="1" justify={column.isNumeric ? "flex-end" : "flex-start"}>
+        <Text as="span">{column.label}</Text>
+        {isSortable && <Icon as={icon} boxSize="14px" opacity={isActive ? 1 : 0.4} />}
+      </HStack>
+    </Th>
+  );
 }
 
 export default function RateList() {
@@ -254,61 +320,61 @@ export default function RateList() {
   });
   const filtersRef = useRef(DEFAULT_FILTERS);
 
-  const textColor = useColorModeValue("secondaryGray.900", "white");
-  const borderColor = useColorModeValue("gray.200", "whiteAlpha.100");
-  const inputBg = useColorModeValue("white", "navy.900");
-  const inputText = useColorModeValue("gray.700", "gray.100");
-  const hoverBg = useColorModeValue("blue.50", "gray.700");
-  const expandableFilterBg = useColorModeValue("gray.50", "gray.700");
+  const textColor = useColorModeValue("gray.700", "white");
+  const borderColor = useColorModeValue("gray.200", "gray.700");
   const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
-  const tableRowBg = useColorModeValue("white", "gray.800");
-  const tableRowBgAlt = useColorModeValue("gray.50", "gray.700");
   const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
-  const tableTextColor = useColorModeValue("gray.600", "gray.300");
-  const tableTextColorSecondary = useColorModeValue("gray.500", "gray.400");
+  const headerColor = useColorModeValue("gray.500", "gray.400");
+  const mutedTextColor = useColorModeValue("gray.500", "gray.400");
+  const cardBg = useColorModeValue("white", "gray.800");
+  const inputBg = useColorModeValue("white", "navy.900");
+  const inputText = useColorModeValue("gray.800", "gray.100");
   const placeholderColor = useColorModeValue("gray.400", "gray.500");
-  const scrollbarTrack = useColorModeValue("#f1f1f1", "#2d3748");
-  const scrollbarThumb = useColorModeValue("#c1c1c1", "#4a5568");
-  const scrollbarThumbHover = useColorModeValue("#a8a8a8", "#718096");
+  const hoverBg = useColorModeValue("blue.50", "blue.900");
+  const tableRowBg = useColorModeValue("white", "gray.800");
+  const tableRowBgAlt = useColorModeValue("gray.50", "whiteAlpha.50");
+  const selectedRowBg = useColorModeValue("blue.50", "whiteAlpha.100");
+  const selectionBarBg = useColorModeValue("blue.50", "whiteAlpha.100");
+  const selectionBarBorder = useColorModeValue("blue.100", "whiteAlpha.200");
+  const rateValueColor = useColorModeValue("blue.700", "blue.200");
+  const stickyEdgeShadow = useColorModeValue(
+    "inset -1px 0 0 var(--chakra-colors-gray-200)",
+    "inset -1px 0 0 var(--chakra-colors-whiteAlpha-200)"
+  );
 
-  const cellText = {
-    // overflow: "hidden",
-    // textOverflow: "ellipsis",
-    whiteSpace: "wrap",
-    display: "block",
-  };
-  const thStyle = {
-    border: "1px",
+  const tableHeaderCellProps = {
+    py: 3,
+    px: 4,
+    fontSize: "11px",
+    letterSpacing: "0.06em",
+    color: headerColor,
+    bg: tableHeaderBg,
     borderColor: tableBorderColor,
-    py: "12px",
-    px: "16px",
-    fontSize: "12px",
-    fontWeight: "600",
-    color: tableTextColor,
+    whiteSpace: "nowrap",
     textTransform: "uppercase",
+    fontWeight: "600",
   };
-  const tdStyle = {
-    borderRight: "1px",
+  const tableCellProps = {
+    py: 3,
+    px: 4,
     borderColor: tableBorderColor,
-    py: "12px",
-    px: "16px",
+    fontSize: "sm",
+    color: textColor,
   };
   const filterInputProps = {
-    variant: "outline",
-    fontSize: "sm",
+    size: "sm",
     bg: inputBg,
     color: inputText,
-    borderRadius: "8px",
-    border: "2px",
     borderColor: borderColor,
-    _focus: {
-      borderColor: "blue.400",
-      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-    },
-    _hover: {
-      borderColor: "blue.300",
-    },
-    _placeholder: { color: placeholderColor, fontSize: "14px" },
+    borderRadius: "md",
+    _placeholder: { color: placeholderColor },
+  };
+  const selectProps = {
+    size: "sm",
+    bg: inputBg,
+    color: inputText,
+    borderColor: borderColor,
+    borderRadius: "md",
   };
 
   const [items, setItems] = useState([]);
@@ -321,7 +387,11 @@ export default function RateList() {
   const [filters, setFilters] = useState(() => savedListState?.filters ?? DEFAULT_FILTERS);
   filtersRef.current = filters;
   const [page, setPage] = useState(() => savedListState?.page ?? 1);
-  const [pageSize, setPageSize] = useState(() => savedListState?.pageSize ?? 50);
+  const [sort, setSort] = useState(() => savedListState?.sort ?? { ...RATE_LIST_DEFAULT_SORT });
+  const [sortableFields, setSortableFields] = useState(null);
+  const isDefaultSort =
+    sort.sort_by === RATE_LIST_DEFAULT_SORT.sort_by &&
+    sort.sort_order === RATE_LIST_DEFAULT_SORT.sort_order;
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [hasNext, setHasNext] = useState(false);
@@ -372,10 +442,27 @@ export default function RateList() {
       import_group: filters.import_group.trim() || undefined,
       active: filters.active === "" ? undefined : filters.active === "true",
       incl_in_tariff: filters.incl_in_tariff === "" ? undefined : filters.incl_in_tariff === "true",
-      sort_by: RATE_LIST_DEFAULT_SORT.sort_by,
-      sort_order: RATE_LIST_DEFAULT_SORT.sort_order,
+      sort_by: sort.sort_by,
+      sort_order: sort.sort_order,
     }),
-    [debouncedSearch, filters]
+    [debouncedSearch, filters, sort]
+  );
+
+  // Click cycles a column: ascending → descending → back to the default order.
+  const handleSort = useCallback((sortKey) => {
+    setSort((prev) => {
+      if (prev.sort_by !== sortKey) return { sort_by: sortKey, sort_order: "asc" };
+      if (prev.sort_order === "asc") return { sort_by: sortKey, sort_order: "desc" };
+      return { ...RATE_LIST_DEFAULT_SORT };
+    });
+    setPage(1);
+  }, []);
+
+  const isColumnSortable = useCallback(
+    (column) =>
+      !Array.isArray(sortableFields) ||
+      [column.sortKey, ...(column.aliases || [])].some((key) => sortableFields.includes(key)),
+    [sortableFields]
   );
 
   const getFilterStateSnapshot = useCallback(
@@ -385,11 +472,11 @@ export default function RateList() {
         debouncedSearch,
         filters,
         page,
-        pageSize,
+        sort,
         showFilterFields,
         selectedRates,
       }),
-    [search, debouncedSearch, filters, page, pageSize, showFilterFields, selectedRates]
+    [search, debouncedSearch, filters, page, sort, showFilterFields, selectedRates]
   );
 
   const applyFilterState = useCallback((nextState) => {
@@ -399,7 +486,7 @@ export default function RateList() {
     setDebouncedSearch(snapshot.debouncedSearch);
     setFilters(snapshot.filters);
     setPage(snapshot.page);
-    setPageSize(snapshot.pageSize);
+    setSort(snapshot.sort);
     setShowFilterFields(snapshot.showFilterFields);
     setSelectedRates(snapshot.selectedRates);
     skipSelectionClearRef.current = true;
@@ -427,11 +514,11 @@ export default function RateList() {
       debouncedSearch,
       filters,
       page,
-      pageSize,
+      sort,
       showFilterFields,
       selectedRates,
     });
-  }, [search, debouncedSearch, filters, page, pageSize, showFilterFields, selectedRates]);
+  }, [search, debouncedSearch, filters, page, sort, showFilterFields, selectedRates]);
 
   useEffect(() => {
     if (skipSelectionClearRef.current) {
@@ -465,7 +552,7 @@ export default function RateList() {
       const params = {
         ...buildListParams(),
         page,
-        page_size: Math.min(pageSize, 200),
+        page_size: RATE_LIST_PAGE_SIZE,
       };
 
       const response = await api.get("/api/rate/list", { params });
@@ -476,15 +563,24 @@ export default function RateList() {
       setTotalCount(result.total_count || 0);
       setHasNext(Boolean(result.has_next));
       setHasPrevious(Boolean(result.has_previous));
+      if (Array.isArray(result.sortable_fields)) setSortableFields(result.sortable_fields);
     } catch (error) {
-      setItems([]);
-      setTotalPages(1);
-      setTotalCount(0);
-      setHasNext(false);
-      setHasPrevious(false);
+      const apiMessage = error?.response?.data?.message;
+      const isSortError =
+        error?.response?.status === 400 && /sort/i.test(String(apiMessage || ""));
+      if (isSortError) {
+        // A saved or stale sort the API no longer accepts: fall back to the default order.
+        setSort({ ...RATE_LIST_DEFAULT_SORT });
+      } else {
+        setItems([]);
+        setTotalPages(1);
+        setTotalCount(0);
+        setHasNext(false);
+        setHasPrevious(false);
+      }
       toast({
-        title: "Error",
-        description: "Failed to load rate list.",
+        title: isSortError ? "Sorting not available" : "Error",
+        description: apiMessage || "Failed to load rate list.",
         status: "error",
         duration: 3000,
         isClosable: true,
@@ -492,7 +588,7 @@ export default function RateList() {
     } finally {
       setLoading(false);
     }
-  }, [buildListParams, page, pageSize, toast]);
+  }, [buildListParams, page, toast]);
 
   useEffect(() => {
     loadData();
@@ -960,658 +1056,622 @@ export default function RateList() {
   );
 
   const searchableSelectProps = {
-    size: "md",
+    size: "sm",
     bg: inputBg,
     color: inputText,
     borderColor: borderColor,
   };
 
+  const advancedFilterCount = Object.values(filters).filter(
+    (value) => value != null && String(value).trim() !== ""
+  ).length;
+  const sortableColumns = RATE_LIST_COLUMNS.filter((column) => isColumnSortable(column));
+  const pageStart = totalCount === 0 ? 0 : (page - 1) * RATE_LIST_PAGE_SIZE + 1;
+  const pageEnd = Math.min(page * RATE_LIST_PAGE_SIZE, totalCount);
+
+  const renderFilterField = (label, control) => (
+    <FormControl>
+      <FormLabel fontSize="xs" mb="1" color={textColor}>
+        {label}
+      </FormLabel>
+      {control}
+    </FormControl>
+  );
 
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
-      <VStack spacing={6} align="stretch">
-        <Card direction="column" w="100%" px="0px" overflowX={{ sm: "scroll", lg: "hidden" }}>
-          <Flex px="25px" justify="space-between" mb="20px" align="center">
-            <Text color={textColor} fontSize="22px" fontWeight="700" lineHeight="100%">
-              Rate List
-            </Text>
-            <Button leftIcon={<Icon as={MdAdd} />} colorScheme="blue" size="sm" onClick={openCreate}>
-              New Rate
-            </Button>
-          </Flex>
+      <Flex justify="space-between" align="center" mb="4" flexWrap="wrap" gap="3">
+        <Text fontSize="lg" fontWeight="700" color={textColor}>
+          Rate List
+        </Text>
+        <HStack spacing="3" flexWrap="wrap">
+          <InputGroup size="sm" w={{ base: "100%", md: "340px" }}>
+            <InputLeftElement pointerEvents="none">
+              <Icon as={MdSearch} color={placeholderColor} />
+            </InputLeftElement>
+            <Input
+              {...filterInputProps}
+              placeholder="Search rates (ID, name, location, agent...)"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              pr={search ? "32px" : undefined}
+            />
+            {search && (
+              <InputRightElement>
+                <IconButton
+                  aria-label="Clear search"
+                  size="xs"
+                  variant="ghost"
+                  icon={<Icon as={MdClear} />}
+                  onClick={() => setSearch("")}
+                />
+              </InputRightElement>
+            )}
+          </InputGroup>
+          <Tooltip label="Refresh" hasArrow>
+            <IconButton
+              size="sm"
+              icon={<Icon as={MdRefresh} />}
+              aria-label="Refresh rates"
+              onClick={loadData}
+              isLoading={loading}
+              variant="outline"
+            />
+          </Tooltip>
+          <Button size="sm" leftIcon={<Icon as={MdAdd} />} colorScheme="blue" onClick={openCreate} px={10}>
+            New Rate
+          </Button>
+        </HStack>
+      </Flex>
 
-          <Box
-            px="25px"
-            mb="20px"
-            mx="15px"
-            bg={inputBg}
-            borderRadius="16px"
-            p="24px"
+      <Box mb="4">
+        <Flex
+          align="center"
+          justify="space-between"
+          gap="3"
+          flexWrap="wrap"
+          mb={showFilterFields ? 3 : 0}
+        >
+          <HStack spacing="2" flexWrap="wrap">
+            <Button
+              size="sm"
+              leftIcon={<Icon as={MdFilterList} />}
+              variant={showFilterFields ? "solid" : "outline"}
+              colorScheme="blue"
+              onClick={() => setShowFilterFields((prev) => !prev)}
+            >
+              Advanced Filters
+              {advancedFilterCount > 0 && (
+                <Badge ml="2" colorScheme="blue" fontSize="xs">
+                  {advancedFilterCount}
+                </Badge>
+              )}
+            </Button>
+            {hasAnyFilter && (
+              <Button
+                size="sm"
+                leftIcon={<Icon as={MdClear} />}
+                variant="outline"
+                colorScheme="gray"
+                onClick={clearFilters}
+              >
+                Clear Filters
+              </Button>
+            )}
+          </HStack>
+
+          <HStack spacing="2" flexWrap="wrap">
+            <Text
+              fontSize="xs"
+              fontWeight="600"
+              color={headerColor}
+              textTransform="uppercase"
+              letterSpacing="0.06em"
+            >
+              Sort
+            </Text>
+            <Select
+              {...selectProps}
+              w="200px"
+              aria-label="Sort by"
+              value={isDefaultSort ? "" : sort.sort_by}
+              onChange={(e) => {
+                const sortBy = e.target.value;
+                setSort(
+                  sortBy
+                    ? { sort_by: sortBy, sort_order: isDefaultSort ? "asc" : sort.sort_order }
+                    : { ...RATE_LIST_DEFAULT_SORT }
+                );
+                setPage(1);
+              }}
+            >
+              <option value="">Default (newest first)</option>
+              {sortableColumns.map((column) => (
+                <option key={column.sortKey} value={column.sortKey}>
+                  {column.label}
+                </option>
+              ))}
+            </Select>
+            <Tooltip
+              hasArrow
+              label={sort.sort_order === "asc" ? "Ascending — click for descending" : "Descending — click for ascending"}
+            >
+              <IconButton
+                aria-label="Toggle sort direction"
+                size="sm"
+                variant="outline"
+                isDisabled={isDefaultSort}
+                icon={<Icon as={sort.sort_order === "asc" ? MdArrowUpward : MdArrowDownward} />}
+                onClick={() => {
+                  setSort((prev) => ({
+                    ...prev,
+                    sort_order: prev.sort_order === "asc" ? "desc" : "asc",
+                  }));
+                  setPage(1);
+                }}
+              />
+            </Tooltip>
+          </HStack>
+        </Flex>
+
+        <Collapse in={showFilterFields} animateOpacity>
+          <SimpleGrid
+            columns={{ base: 1, md: 2, lg: 3, xl: 5 }}
+            spacing="4"
+            p="4"
+            bg={tableHeaderBg}
+            borderRadius="md"
             border="1px"
             borderColor={borderColor}
           >
-            <HStack spacing={6} justify="space-between" align="center" flexWrap="wrap" mb={4}>
-              <Box flex="1" minW="240px">
-                <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
-                  Search Rates
-                </Text>
-                <InputGroup>
-                  <InputLeftElement>
-                    <Icon as={MdSearch} color="blue.500" w="16px" h="16px" />
-                  </InputLeftElement>
-                  <Input
-                    {...filterInputProps}
-                    borderRadius="10px"
-                    placeholder="Search rates (ID, name, location, agent, remarks...)"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    pr={search ? "32px" : undefined}
-                  />
-                  {search && (
-                    <InputRightElement width="32px">
-                      <IconButton
-                        aria-label="Clear search"
-                        size="xs"
-                        variant="ghost"
-                        icon={<Icon as={MdClose} />}
-                        onClick={() => setSearch("")}
-                        _hover={{ bg: "gray.200" }}
-                      />
-                    </InputRightElement>
-                  )}
-                </InputGroup>
-              </Box>
-
-              <Box>
-                <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
-                  &nbsp;
-                </Text>
-                {hasAnyFilter && (
-                  <Button
-                    size="md"
-                    variant="outline"
-                    onClick={clearFilters}
-                    colorScheme="red"
-                    _hover={{ bg: "red.50" }}
-                    borderRadius="10px"
-                    border="2px"
-                  >
-                    Clear All
-                  </Button>
-                )}
-              </Box>
-
-              <Box>
-                <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
-                  Advanced Filters
-                </Text>
-                <Button
-                  size="md"
-                  variant={hasAnyAdvanceFilter ? "solid" : "outline"}
-                  colorScheme={hasAnyAdvanceFilter ? "blue" : "gray"}
-                  leftIcon={<Icon as={MdFilterList} />}
-                  onClick={() => setShowFilterFields(!showFilterFields)}
-                  borderRadius="10px"
-                  border="2px"
-                  borderColor={borderColor}
-                >
-                  {showFilterFields ? "Hide Filters" : "Show Filters"}
-                </Button>
-              </Box>
-
-              <Box>
-                <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
-                  Page Size
-                </Text>
-                <Select
-                  value={pageSize}
-                  onChange={(e) => {
-                    setPageSize(Number(e.target.value));
-                    setPage(1);
-                  }}
-                  size="md"
-                  bg={inputBg}
-                  color={inputText}
-                  borderRadius="8px"
-                  border="2px"
-                  borderColor={borderColor}
-                  _focus={{
-                    borderColor: "blue.400",
-                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                  }}
-                  _hover={{
-                    borderColor: "blue.300",
-                  }}
-                >
-                  <option value={20}>20 per page</option>
-                  <option value={50}>50 per page</option>
-                  <option value={100}>100 per page</option>
-                  <option value={200}>200 per page</option>
-                </Select>
-              </Box>
-            </HStack>
-
-            {showFilterFields && (
-              <Box
-                mt={4}
-                pt={4}
-                borderTop="2px"
-                borderColor={borderColor}
-                bg={expandableFilterBg}
-                borderRadius="12px"
-                p="20px"
-              >
-                <Text fontSize="sm" fontWeight="600" color={textColor} mb={4}>
-                  Filter by Specific Fields
-                </Text>
-                <HStack spacing={6} flexWrap="wrap" align="flex-start">
-                  <Box minW="200px" flex="1">
-                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                      Rate Type
-                    </Text>
-                    <SimpleSearchableSelect
-                      value={filters.rate_type}
-                      onChange={(value) => handleFilterChange("rate_type", value || "")}
-                      options={filterOptions.rateTypes}
-                      placeholder="All Types"
-                      displayKey="name"
-                      valueKey="id"
-                      formatOption={(option) => option.name}
-                      isLoading={isLoadingFilterOptions}
-                      onSearchChange={(query) => handleOptionSearchChange("q_rate_type", query)}
-                      prefillOnFocus={false}
-                      {...searchableSelectProps}
-                    />
-                  </Box>
-                  <Box minW="180px" flex="1">
-                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                      Location
-                    </Text>
-                    <Input
-                      {...filterInputProps}
-                      placeholder="Filter by location..."
-                      value={filters.location_text}
-                      onChange={(e) => handleFilterChange("location_text", e.target.value)}
-                    />
-                  </Box>
-                  <Box minW="220px" flex="1">
-                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                      Client
-                    </Text>
-                    <SimpleSearchableSelect
-                      value={filters.client_id}
-                      onChange={(value) => handleFilterChange("client_id", value || "")}
-                      options={filterOptions.clients}
-                      placeholder="All Clients"
-                      displayKey="name"
-                      valueKey="id"
-                      formatOption={formatClientOption}
-                      isLoading={isLoadingFilterOptions}
-                      onSearchChange={(query) => handleOptionSearchChange("q_client", query)}
-                      prefillOnFocus={false}
-                      {...searchableSelectProps}
-                    />
-                  </Box>
-                  <Box minW="220px" flex="1">
-                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                      Agent
-                    </Text>
-                    <SimpleSearchableSelect
-                      value={filters.agent_id}
-                      onChange={(value) => handleFilterChange("agent_id", value || "")}
-                      options={filterOptions.agents}
-                      placeholder="All Agents"
-                      displayKey="name"
-                      valueKey="id"
-                      formatOption={formatAgentOption}
-                      isLoading={isLoadingFilterOptions}
-                      onSearchChange={(query) => handleOptionSearchChange("q_agent", query)}
-                      prefillOnFocus={false}
-                      {...searchableSelectProps}
-                    />
-                  </Box>
-                  <Box minW="200px" flex="1">
-                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                      Group Name
-                    </Text>
-                    <SimpleSearchableSelect
-                      value={filters.import_group}
-                      onChange={(value) => handleFilterChange("import_group", value || "")}
-                      options={filterOptions.groups}
-                      placeholder="All Groups"
-                      displayKey="name"
-                      valueKey="id"
-                      formatOption={(option) => option.name || option.import_group}
-                      isLoading={isLoadingFilterOptions}
-                      onSearchChange={(query) => handleOptionSearchChange("q_group", query)}
-                      prefillOnFocus={false}
-                      {...searchableSelectProps}
-                    />
-                  </Box>
-                  <Box minW="200px" flex="1">
-                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                      Rate Text
-                    </Text>
-                    <SimpleSearchableSelect
-                      value={filters.rate_text}
-                      onChange={(value) => handleFilterChange("rate_text", value || "")}
-                      options={filterOptions.rateTexts}
-                      placeholder="All Rate Texts"
-                      displayKey="name"
-                      valueKey="id"
-                      formatOption={(option) => option.name || option.rate_text}
-                      isLoading={isLoadingFilterOptions}
-                      onSearchChange={(query) => handleOptionSearchChange("q_rate_text", query)}
-                      prefillOnFocus={false}
-                      {...searchableSelectProps}
-                    />
-                  </Box>
-                  <Box minW="200px" flex="1">
-                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                      Currency
-                    </Text>
-                    <SimpleSearchableSelect
-                      value={filters.currency_id}
-                      onChange={(value) => handleFilterChange("currency_id", value || "")}
-                      options={filterOptions.currencies}
-                      placeholder="All Currencies"
-                      displayKey="name"
-                      valueKey="id"
-                      formatOption={formatCurrencyOption}
-                      isLoading={isLoadingFilterOptions}
-                      onSearchChange={(query) => handleOptionSearchChange("q_currency", query)}
-                      prefillOnFocus={false}
-                      {...searchableSelectProps}
-                    />
-                  </Box>
-                  <Box minW="160px" flex="1">
-                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                      Active
-                    </Text>
-                    <SimpleSearchableSelect
-                      value={filters.active}
-                      onChange={(value) => handleFilterChange("active", value || "")}
-                      options={BOOLEAN_FILTER_OPTIONS}
-                      placeholder="All"
-                      displayKey="name"
-                      valueKey="id"
-                      formatOption={(option) => option.name}
-                      {...searchableSelectProps}
-                    />
-                  </Box>
-                  <Box minW="160px" flex="1">
-                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                      In Tariff
-                    </Text>
-                    <SimpleSearchableSelect
-                      value={filters.incl_in_tariff}
-                      onChange={(value) => handleFilterChange("incl_in_tariff", value || "")}
-                      options={BOOLEAN_FILTER_OPTIONS}
-                      placeholder="All"
-                      displayKey="name"
-                      valueKey="id"
-                      formatOption={(option) => option.name}
-                      {...searchableSelectProps}
-                    />
-                  </Box>
-                </HStack>
-              </Box>
+            {renderFilterField(
+              "Rate Type",
+              <SimpleSearchableSelect
+                value={filters.rate_type}
+                onChange={(value) => handleFilterChange("rate_type", value || "")}
+                options={filterOptions.rateTypes}
+                placeholder="All Types"
+                displayKey="name"
+                valueKey="id"
+                formatOption={(option) => option.name}
+                isLoading={isLoadingFilterOptions}
+                onSearchChange={(query) => handleOptionSearchChange("q_rate_type", query)}
+                prefillOnFocus={false}
+                {...searchableSelectProps}
+              />
             )}
-          </Box>
+            {renderFilterField(
+              "Location",
+              <Input
+                {...filterInputProps}
+                placeholder="Filter by location..."
+                value={filters.location_text}
+                onChange={(e) => handleFilterChange("location_text", e.target.value)}
+              />
+            )}
+            {renderFilterField(
+              "Client",
+              <SimpleSearchableSelect
+                value={filters.client_id}
+                onChange={(value) => handleFilterChange("client_id", value || "")}
+                options={filterOptions.clients}
+                placeholder="All Clients"
+                displayKey="name"
+                valueKey="id"
+                formatOption={formatClientOption}
+                isLoading={isLoadingFilterOptions}
+                onSearchChange={(query) => handleOptionSearchChange("q_client", query)}
+                prefillOnFocus={false}
+                {...searchableSelectProps}
+              />
+            )}
+            {renderFilterField(
+              "Agent",
+              <SimpleSearchableSelect
+                value={filters.agent_id}
+                onChange={(value) => handleFilterChange("agent_id", value || "")}
+                options={filterOptions.agents}
+                placeholder="All Agents"
+                displayKey="name"
+                valueKey="id"
+                formatOption={formatAgentOption}
+                isLoading={isLoadingFilterOptions}
+                onSearchChange={(query) => handleOptionSearchChange("q_agent", query)}
+                prefillOnFocus={false}
+                {...searchableSelectProps}
+              />
+            )}
+            {renderFilterField(
+              "Group Name",
+              <SimpleSearchableSelect
+                value={filters.import_group}
+                onChange={(value) => handleFilterChange("import_group", value || "")}
+                options={filterOptions.groups}
+                placeholder="All Groups"
+                displayKey="name"
+                valueKey="id"
+                formatOption={(option) => option.name || option.import_group}
+                isLoading={isLoadingFilterOptions}
+                onSearchChange={(query) => handleOptionSearchChange("q_group", query)}
+                prefillOnFocus={false}
+                {...searchableSelectProps}
+              />
+            )}
+            {renderFilterField(
+              "Rate Text",
+              <SimpleSearchableSelect
+                value={filters.rate_text}
+                onChange={(value) => handleFilterChange("rate_text", value || "")}
+                options={filterOptions.rateTexts}
+                placeholder="All Rate Texts"
+                displayKey="name"
+                valueKey="id"
+                formatOption={(option) => option.name || option.rate_text}
+                isLoading={isLoadingFilterOptions}
+                onSearchChange={(query) => handleOptionSearchChange("q_rate_text", query)}
+                prefillOnFocus={false}
+                {...searchableSelectProps}
+              />
+            )}
+            {renderFilterField(
+              "Currency",
+              <SimpleSearchableSelect
+                value={filters.currency_id}
+                onChange={(value) => handleFilterChange("currency_id", value || "")}
+                options={filterOptions.currencies}
+                placeholder="All Currencies"
+                displayKey="name"
+                valueKey="id"
+                formatOption={formatCurrencyOption}
+                isLoading={isLoadingFilterOptions}
+                onSearchChange={(query) => handleOptionSearchChange("q_currency", query)}
+                prefillOnFocus={false}
+                {...searchableSelectProps}
+              />
+            )}
+            {renderFilterField(
+              "Active",
+              <SimpleSearchableSelect
+                value={filters.active}
+                onChange={(value) => handleFilterChange("active", value || "")}
+                options={BOOLEAN_FILTER_OPTIONS}
+                placeholder="All"
+                displayKey="name"
+                valueKey="id"
+                formatOption={(option) => option.name}
+                {...searchableSelectProps}
+              />
+            )}
+            {renderFilterField(
+              "In Tariff",
+              <SimpleSearchableSelect
+                value={filters.incl_in_tariff}
+                onChange={(value) => handleFilterChange("incl_in_tariff", value || "")}
+                options={BOOLEAN_FILTER_OPTIONS}
+                placeholder="All"
+                displayKey="name"
+                valueKey="id"
+                formatOption={(option) => option.name}
+                {...searchableSelectProps}
+              />
+            )}
+          </SimpleGrid>
+        </Collapse>
+      </Box>
 
-          {(selectedCount > 0 || hasAnyFilter) && (
-            <Flex
-              px="25px"
-              mb="20px"
-              mx="15px"
-              bg={expandableFilterBg}
-              borderRadius="16px"
-              p="16px 24px"
-              border="1px"
-              borderColor={borderColor}
-              align="center"
-              justify="space-between"
-              flexWrap="wrap"
-              gap={3}
+      {(selectedCount > 0 || hasAnyFilter) && (
+        <Flex
+          mb="3"
+          px="4"
+          py="2"
+          align="center"
+          justify="space-between"
+          flexWrap="wrap"
+          gap="3"
+          bg={selectedCount > 0 ? selectionBarBg : tableHeaderBg}
+          border="1px"
+          borderColor={selectedCount > 0 ? selectionBarBorder : borderColor}
+          borderRadius="md"
+        >
+          <Text fontSize="sm" color={selectedCount > 0 ? textColor : mutedTextColor} fontWeight={selectedCount > 0 ? "600" : "normal"}>
+            {selectedCount > 0
+              ? `${selectedCount} rate${selectedCount === 1 ? "" : "s"} selected`
+              : "Tick rates in the table to edit them together or export them to PDF."}
+          </Text>
+          <HStack spacing="2" flexWrap="wrap">
+            {selectedCount > 0 && (
+              <>
+                <Button colorScheme="green" size="sm" leftIcon={<Icon as={MdEdit} />} onClick={handleNavigateToEdit}>
+                  Edit Selected ({selectedCount})
+                </Button>
+                <Button
+                  colorScheme="blue"
+                  size="sm"
+                  leftIcon={<Icon as={MdPictureAsPdf} />}
+                  onClick={handleExportSelectedPdf}
+                  isLoading={isPdfLoading}
+                  loadingText="Generating..."
+                >
+                  Export Selected ({selectedCount})
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setSelectedRates({})}>
+                  Clear Selection
+                </Button>
+              </>
+            )}
+            {hasAnyFilter && (
+              <Button
+                colorScheme="teal"
+                variant="outline"
+                size="sm"
+                leftIcon={<Icon as={MdPictureAsPdf} />}
+                onClick={handleExportFilteredPdf}
+                isLoading={isPdfLoading}
+                loadingText="Loading..."
+              >
+                Export All Filtered ({totalCount})
+              </Button>
+            )}
+          </HStack>
+        </Flex>
+      )}
+
+      <Box bg={cardBg} border="1px" borderColor={borderColor} borderRadius="lg" overflow="hidden">
+        {loading ? (
+          <Flex justify="center" align="center" py={16}>
+            <Spinner />
+          </Flex>
+        ) : items.length === 0 ? (
+          <VStack spacing={3} py={16} px={6} textAlign="center">
+            <Icon as={MdAttachMoney} boxSize={10} color="gray.400" />
+            <Text fontWeight="700" color={textColor}>
+              No rates found
+            </Text>
+            <Text fontSize="sm" color={mutedTextColor} maxW="360px">
+              {hasAnyFilter
+                ? "Try clearing search or filters to see more results."
+                : "Create a rate to see it listed here."}
+            </Text>
+            {!hasAnyFilter && (
+              <Button mt={1} size="sm" colorScheme="blue" leftIcon={<Icon as={MdAdd} />} onClick={openCreate}>
+                New Rate
+              </Button>
+            )}
+          </VStack>
+        ) : (
+          <>
+            <Box
+              overflowX="auto"
+              overflowY="auto"
+              maxH="600px"
+              sx={{
+                "&::-webkit-scrollbar": { width: "8px", height: "8px" },
+                "&::-webkit-scrollbar-track": { background: "gray.100", borderRadius: "4px" },
+                "&::-webkit-scrollbar-thumb": { background: "gray.300", borderRadius: "4px" },
+                "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
+              }}
             >
-              <Text fontSize="sm" color={tableTextColorSecondary}>
-                {selectedCount > 0
-                  ? `${selectedCount} rate${selectedCount === 1 ? "" : "s"} selected`
-                  : "Use the checkboxes in the table to select rates for editing or PDF export"}
-              </Text>
-              <HStack spacing={3} flexWrap="wrap">
-                {selectedCount > 0 && (
-                  <>
-                    <Button
-                      colorScheme="green"
-                      size="sm"
-                      leftIcon={<Icon as={MdEdit} />}
-                      onClick={handleNavigateToEdit}
-                    >
-                      Edit Selected ({selectedCount})
-                    </Button>
-                    <Button
-                      colorScheme="blue"
-                      size="sm"
-                      leftIcon={<Icon as={MdPictureAsPdf} />}
-                      onClick={handleExportSelectedPdf}
-                      isLoading={isPdfLoading}
-                      loadingText="Generating..."
-                    >
-                      Export Selected ({selectedCount})
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setSelectedRates({})}
-                    >
-                      Clear Selection
-                    </Button>
-                  </>
-                )}
-                {hasAnyFilter && (
-                  <Button
-                    colorScheme="teal"
-                    variant="outline"
-                    size="sm"
-                    leftIcon={<Icon as={MdPictureAsPdf} />}
-                    onClick={handleExportFilteredPdf}
-                    isLoading={isPdfLoading}
-                    loadingText="Loading..."
-                  >
-                    Export All Filtered ({totalCount})
-                  </Button>
-                )}
-              </HStack>
-            </Flex>
-          )}
-
-          <Box
-            px="15px"
-            maxH="600px"
-            overflowX="auto"
-            overflowY="auto"
-            css={{
-              "&::-webkit-scrollbar": {
-                width: "8px",
-                height: "8px",
-              },
-              "&::-webkit-scrollbar-track": {
-                background: scrollbarTrack,
-                borderRadius: "4px",
-              },
-              "&::-webkit-scrollbar-thumb": {
-                background: scrollbarThumb,
-                borderRadius: "4px",
-              },
-              "&::-webkit-scrollbar-thumb:hover": {
-                background: scrollbarThumbHover,
-              },
-            }}
-          >
-            <Table variant="unstyled" size="sm" layout="fixed" w="100%" minW="1680px">
-              <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
-                <Tr>
-                  <Th w="36px" {...thStyle} textAlign="center">
-                    <Checkbox
-                      aria-label="Select all rates on this page"
-                      isChecked={allPageSelected}
-                      isIndeterminate={somePageSelected && !allPageSelected}
-                      onChange={toggleSelectAllOnPage}
-                      colorScheme="blue"
-                    />
-                  </Th>
-                  <Th w="30px" {...thStyle} />
-                  <Th w="140px" {...thStyle}>
-                    Rate Type
-                  </Th>
-                  <Th w="100px" {...thStyle}>
-                    Location
-                  </Th>
-                  <Th w="160px" {...thStyle}>
-                    Client
-                  </Th>
-                  <Th w="180px" {...thStyle}>
-                    Agent
-                  </Th>
-                  <Th w="160px" {...thStyle}>
-                    Group Name
-                  </Th>
-                  <Th w="250px" {...thStyle}>
-                    Rate Name
-                  </Th>
-                  <Th w="140px" {...thStyle}>
-                    Charge Category
-                  </Th>
-                  <Th w="300px" {...thStyle}>
-                    Rate Text
-                  </Th>
-                  <Th w="85px" {...thStyle}>
-                    Rate Cost
-                  </Th>
-                  <Th w="90px" {...thStyle}>
-                    Rate Fixed
-                  </Th>
-                  <Th w="30px" {...thStyle} />
-                </Tr>
-              </Thead>
-              <Tbody>
-                {loading ? (
+              <Table size="sm" variant="simple" minW="1820px">
+                <Thead position="sticky" top={0} zIndex={3}>
                   <Tr>
-                    <Td colSpan={13} textAlign="center" py="40px" {...tdStyle}>
-                      <Text color={tableTextColorSecondary} fontSize="sm">
-                        Loading rates...
-                      </Text>
-                    </Td>
-                  </Tr>
-                ) : items.length === 0 ? (
-                  <Tr>
-                    <Td colSpan={13} textAlign="center" py="40px" {...tdStyle}>
-                      <Text color={tableTextColorSecondary} fontSize="sm">
-                        {hasAnyFilter ? "No rates match your search criteria." : "No rates available."}
-                      </Text>
-                    </Td>
-                  </Tr>
-                ) : (
-                  items.map((item, index) => (
-                    <Tr
-                      key={item.id}
-                      bg={index % 2 === 0 ? tableRowBg : tableRowBgAlt}
-                      _hover={{ bg: hoverBg }}
-                      border="1px"
-                      borderColor={tableBorderColor}
+                    <Th
+                      {...tableHeaderCellProps}
+                      position="sticky"
+                      left={0}
+                      zIndex={4}
+                      minW={STICKY_CHECKBOX_WIDTH}
+                      w={STICKY_CHECKBOX_WIDTH}
+                      maxW={STICKY_CHECKBOX_WIDTH}
+                      px={2}
                     >
-                      <Td {...tdStyle} p="2px" textAlign="center">
-                        <Checkbox
-                          aria-label={`Select rate ${item.rate_name || item.id}`}
-                          isChecked={Boolean(selectedRates[item.id])}
-                          onChange={() => toggleSelectRate(item)}
-                          colorScheme="blue"
-                        />
-                      </Td>
-                      <Td {...tdStyle} p="2px" >
-                        <Tooltip label="Edit Rate">
-                          <IconButton
-                            aria-label="Edit rate"
+                      <Checkbox
+                        aria-label="Select all rates on this page"
+                        isChecked={allPageSelected}
+                        isIndeterminate={somePageSelected && !allPageSelected}
+                        onChange={toggleSelectAllOnPage}
+                        size="sm"
+                        colorScheme="blue"
+                        borderColor="gray.500"
+                      />
+                    </Th>
+                    <Th
+                      {...tableHeaderCellProps}
+                      position="sticky"
+                      left={STICKY_CHECKBOX_WIDTH}
+                      zIndex={4}
+                      minW={STICKY_ACTIONS_WIDTH}
+                      w={STICKY_ACTIONS_WIDTH}
+                      maxW={STICKY_ACTIONS_WIDTH}
+                      textAlign="center"
+                      boxShadow={stickyEdgeShadow}
+                    >
+                      Actions
+                    </Th>
+                    {RATE_LIST_COLUMNS.map((column) => (
+                      <SortableHeader
+                        key={column.sortKey}
+                        column={column}
+                        sort={sort}
+                        isSortable={isColumnSortable(column)}
+                        onSort={handleSort}
+                        headerCellProps={tableHeaderCellProps}
+                        hoverBg={hoverBg}
+                      />
+                    ))}
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {items.map((item, index) => {
+                    const isSelected = Boolean(selectedRates[item.id]);
+                    const rowBg = isSelected ? selectedRowBg : index % 2 === 0 ? tableRowBg : tableRowBgAlt;
+                    const rateTypeLabel = formatRateType(item.rate_type);
+                    return (
+                      <Tr key={item.id} bg={rowBg} _hover={{ bg: hoverBg }} sx={{ "& td": { bg: "inherit" } }}>
+                        <Td
+                          {...tableCellProps}
+                          position="sticky"
+                          left={0}
+                          zIndex={1}
+                          minW={STICKY_CHECKBOX_WIDTH}
+                          w={STICKY_CHECKBOX_WIDTH}
+                          maxW={STICKY_CHECKBOX_WIDTH}
+                          px={2}
+                        >
+                          <Checkbox
+                            aria-label={`Select rate ${item.rate_name || item.id}`}
+                            isChecked={isSelected}
+                            onChange={() => toggleSelectRate(item)}
                             size="sm"
                             colorScheme="blue"
-                            variant="ghost"
-                            icon={<MdEdit />}
-                            onClick={() => openEdit(item)}
+                            borderColor="gray.500"
                           />
-                        </Tooltip>
-                      </Td>
-                      <TruncatedCell
-                        value={formatRateType(item.rate_type)}
-                        maxW="140px"
-                        textColor={textColor}
-                        cellText={cellText}
-                        tdStyle={tdStyle}
-                      />
-                      <TruncatedCell
-                        value={item.location_text || item.location}
-                        maxW="100px"
-                        textColor={textColor}
-                        cellText={cellText}
-                        tdStyle={tdStyle}
-                      />
-                      <TruncatedCell
-                        value={item.client_id?.name || item.client_name || item.client}
-                        maxW="160px"
-                        textColor={textColor}
-                        cellText={cellText}
-                        tdStyle={tdStyle}
-                      />
-                      <TruncatedCell
-                        value={item.agent_id?.name || item.agent_text || item.agent}
-                        maxW="180px"
-                        textColor={textColor}
-                        cellText={cellText}
-                        tdStyle={tdStyle}
-                      />
-                      <TruncatedCell
-                        value={item.import_group}
-                        maxW="160px"
-                        textColor={textColor}
-                        cellText={cellText}
-                        tdStyle={tdStyle}
-                      />
-                      <TruncatedCell
-                        value={item.rate_name}
-                        maxW="220px"
-                        textColor={textColor}
-                        cellText={cellText}
-                        tdStyle={tdStyle}
-                      />
-                      <TruncatedCell
-                        value={chargeCategoryLabel(item.charge_category, item.charge_category_label)}
-                        maxW="140px"
-                        textColor={textColor}
-                        cellText={cellText}
-                        tdStyle={tdStyle}
-                      />
-                      <TruncatedCell
-                        value={displayText(item.rate_text)}
-                        maxW="300px"
-                        textColor={textColor}
-                        cellText={cellText}
-                        tdStyle={tdStyle}
-                      />
-                      <TruncatedCell
-                        value={formatRateCost(item)}
-                        maxW="85px"
-                        fontWeight="bold"
-                        textColor={textColor}
-                        cellText={cellText}
-                        tdStyle={tdStyle}
-                      />
-                      <TruncatedCell
-                        value={displayText(item.fixed_sales_rate)}
-                        maxW="90px"
-                        fontWeight="bold"
-                        textColor={textColor}
-                        cellText={cellText}
-                        tdStyle={tdStyle}
-                      />
-                      <Td {...tdStyle} p="2px" >
-                        <Tooltip label="Delete Rate">
-                          <IconButton
-                            aria-label="Delete rate"
-                            size="sm"
-                            colorScheme="red"
-                            variant="ghost"
-                            icon={<MdDelete />}
-                            onClick={() => deleteOne(item.id)}
-                          />
-                        </Tooltip>
-                      </Td>
-                    </Tr>
-                  ))
-                )}
-              </Tbody>
-            </Table>
-          </Box>
+                        </Td>
+                        <Td
+                          {...tableCellProps}
+                          position="sticky"
+                          left={STICKY_CHECKBOX_WIDTH}
+                          zIndex={1}
+                          minW={STICKY_ACTIONS_WIDTH}
+                          w={STICKY_ACTIONS_WIDTH}
+                          maxW={STICKY_ACTIONS_WIDTH}
+                          boxShadow={stickyEdgeShadow}
+                        >
+                          <HStack spacing="2" justify="center">
+                            <Tooltip label="Edit" hasArrow>
+                              <IconButton
+                                size="sm"
+                                aria-label="Edit rate"
+                                icon={<Icon as={MdEdit} />}
+                                variant="outline"
+                                colorScheme="blue"
+                                onClick={() => openEdit(item)}
+                              />
+                            </Tooltip>
+                            <Tooltip label="Delete" hasArrow>
+                              <IconButton
+                                size="sm"
+                                aria-label="Delete rate"
+                                icon={<Icon as={MdDelete} />}
+                                variant="outline"
+                                colorScheme="red"
+                                onClick={() => deleteOne(item.id)}
+                              />
+                            </Tooltip>
+                          </HStack>
+                        </Td>
+                        <Td {...tableCellProps}>
+                          {rateTypeLabel === "-" ? (
+                            <Text color="gray.400">-</Text>
+                          ) : (
+                            <Tag
+                              size="sm"
+                              variant="subtle"
+                              colorScheme={item.rate_type === "client_specific" ? "purple" : "blue"}
+                              whiteSpace="nowrap"
+                            >
+                              {rateTypeLabel}
+                            </Tag>
+                          )}
+                        </Td>
+                        <RateCell value={item.location_text || item.location} cellProps={tableCellProps} />
+                        <RateCell
+                          value={item.client_id?.name || item.client_name || item.client}
+                          cellProps={tableCellProps}
+                        />
+                        <RateCell
+                          value={item.agent_id?.name || item.agent_text || item.agent}
+                          cellProps={tableCellProps}
+                        />
+                        <RateCell value={item.import_group} cellProps={tableCellProps} />
+                        <RateCell value={item.rate_name} cellProps={tableCellProps} fontWeight="600" />
+                        <RateCell
+                          value={chargeCategoryLabel(item.charge_category, item.charge_category_label)}
+                          cellProps={tableCellProps}
+                        />
+                        <RateCell value={displayText(item.rate_text)} cellProps={tableCellProps} noOfLines={3} />
+                        <RateCell
+                          value={formatRateCost(item)}
+                          cellProps={tableCellProps}
+                          fontWeight="700"
+                          color={rateValueColor}
+                          isNumeric
+                        />
+                        <RateCell
+                          value={displayText(item.fixed_sales_rate)}
+                          cellProps={tableCellProps}
+                          fontWeight="700"
+                          color={rateValueColor}
+                          isNumeric
+                        />
+                      </Tr>
+                    );
+                  })}
+                </Tbody>
+              </Table>
+            </Box>
 
-          <Flex px="25px" justify="space-between" align="center" py="20px" flexWrap="wrap" gap={4}>
-            <Text fontSize="sm" color={tableTextColorSecondary}>
-              Showing {totalCount === 0 ? 0 : (page - 1) * pageSize + 1} to{" "}
-              {Math.min(page * pageSize, totalCount)} of {totalCount} results
-            </Text>
-
-            <HStack spacing={4} align="center" flexWrap="wrap">
-              <HStack spacing={1}>
-                <Button
-                  size="sm"
-                  onClick={() => setPage(1)}
-                  isDisabled={!hasPrevious}
-                  variant="outline"
-                  aria-label="First page"
-                >
-                  ««
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  isDisabled={!hasPrevious}
-                  variant="outline"
-                  aria-label="Previous page"
-                >
-                  «
-                </Button>
-                {(() => {
-                  const pageNumbers = [];
-                  const maxVisiblePages = 5;
-                  let startPage = Math.max(1, page - Math.floor(maxVisiblePages / 2));
-                  let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-
-                  if (endPage - startPage < maxVisiblePages - 1) {
-                    startPage = Math.max(1, endPage - maxVisiblePages + 1);
-                  }
-
-                  for (let i = startPage; i <= endPage; i += 1) {
-                    pageNumbers.push(
+            <Flex
+              justify="space-between"
+              align="center"
+              px={4}
+              py={3}
+              borderTop="1px"
+              borderColor={tableBorderColor}
+              wrap="wrap"
+              gap={3}
+            >
+              <Text fontSize="sm" color={mutedTextColor}>
+                Showing {pageStart}–{pageEnd} of {totalCount} rate{totalCount === 1 ? "" : "s"}
+                {totalPages > 1 ? ` · Page ${page} of ${totalPages}` : ""}
+              </Text>
+              {totalPages > 1 && (
+                <HStack spacing={1} wrap="wrap">
+                  <Button size="sm" variant="outline" onClick={() => setPage(1)} isDisabled={!hasPrevious || page === 1}>
+                    First
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setPage((p) => Math.max(1, p - 1))} isDisabled={!hasPrevious}>
+                    Previous
+                  </Button>
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) pageNum = i + 1;
+                    else if (page <= 3) pageNum = i + 1;
+                    else if (page >= totalPages - 2) pageNum = totalPages - 4 + i;
+                    else pageNum = page - 2 + i;
+                    return (
                       <Button
-                        key={i}
+                        key={pageNum}
                         size="sm"
-                        onClick={() => setPage(i)}
-                        variant={i === page ? "solid" : "outline"}
-                        colorScheme={i === page ? "blue" : "gray"}
-                        minW="40px"
-                        aria-label={`Page ${i}`}
+                        variant={page === pageNum ? "solid" : "outline"}
+                        colorScheme={page === pageNum ? "blue" : "gray"}
+                        onClick={() => setPage(pageNum)}
                       >
-                        {i}
+                        {pageNum}
                       </Button>
                     );
-                  }
-
-                  return pageNumbers;
-                })()}
-                <Button
-                  size="sm"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  isDisabled={!hasNext}
-                  variant="outline"
-                  aria-label="Next page"
-                >
-                  »
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => setPage(totalPages)}
-                  isDisabled={!hasNext}
-                  variant="outline"
-                  aria-label="Last page"
-                >
-                  »»
-                </Button>
-              </HStack>
-              <Text fontSize="sm" color={tableTextColorSecondary}>
-                Page {page} of {totalPages}
-              </Text>
-            </HStack>
-          </Flex>
-        </Card>
-      </VStack>
+                  })}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    isDisabled={!hasNext}
+                  >
+                    Next
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setPage(totalPages)}
+                    isDisabled={!hasNext || page === totalPages}
+                  >
+                    Last
+                  </Button>
+                </HStack>
+              )}
+            </Flex>
+          </>
+        )}
+      </Box>
 
       <Modal isOpen={isPdfPreviewOpen} onClose={handleClosePdfPreview} size="full" scrollBehavior="inside">
         <ModalOverlay />

@@ -32,6 +32,16 @@ import {
   Badge,
   Spinner,
   Checkbox,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalCloseButton,
+  ModalBody,
+  ModalFooter,
+  Tag,
+  Wrap,
+  WrapItem,
 } from "@chakra-ui/react";
 import {
   MdAdd,
@@ -41,6 +51,8 @@ import {
   MdDirectionsBoat,
   MdVisibility,
   MdClear,
+  MdWarningAmber,
+  MdOpenInNew,
 } from "react-icons/md";
 import { useHistory } from "react-router-dom";
 import vesselsAPI from "../../../api/vessels";
@@ -97,6 +109,48 @@ function writePersistedVesselsListState(state) {
   } catch {
     // ignore
   }
+}
+
+/**
+ * Split a "cannot be deleted because it is linked to 1 stock item (SL ID: SL224895)"
+ * message into link groups so the references can be listed individually.
+ */
+function parseDeleteBlockReason(message = "") {
+  const text = String(message || "");
+  const linkedPart = text.split(/linked to/i)[1] || "";
+  const groups = [];
+  const groupPattern = /(\d+)\s+([a-z][a-z\s]*?)\s*\(([^)]*)\)/gi;
+  let match = groupPattern.exec(linkedPart);
+  while (match) {
+    const refs = match[3]
+      .replace(/^[^:]*:\s*/, "")
+      .split(/[,;]\s*/)
+      .map((ref) => ref.trim())
+      .filter(Boolean);
+    groups.push({ count: Number(match[1]), label: match[2].trim(), refs });
+    match = groupPattern.exec(linkedPart);
+  }
+  return groups;
+}
+
+function linkGroupKind(label) {
+  const text = String(label || "").toLowerCase();
+  if (/stock/.test(text)) return "stock";
+  if (/shipping|order|\bso\b/.test(text)) return "shipping_order";
+  return "other";
+}
+
+function blockedItemLinkKinds(item) {
+  const groups = parseDeleteBlockReason(item?.message);
+  const kinds = new Set(groups.map((group) => linkGroupKind(group.label)));
+  const message = String(item?.message || "").toLowerCase();
+  if (/stock/.test(message)) kinds.add("stock");
+  if (/shipping/.test(message)) kinds.add("shipping_order");
+  return {
+    groups,
+    hasStock: kinds.has("stock"),
+    hasShipping: kinds.has("shipping_order"),
+  };
 }
 
 export default function Vessels() {
@@ -183,6 +237,29 @@ export default function Vessels() {
   }, [clientFilter, clientFilterLabel, clients]);
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const { isOpen: isBulkDeleteOpen, onOpen: onBulkDeleteOpen, onClose: onBulkDeleteClose } = useDisclosure();
+  const [blockedDeletes, setBlockedDeletes] = useState([]);
+  const closeBlockedDeletes = () => setBlockedDeletes([]);
+
+  // Filter Stock List by this vessel in the vessel dropdown (not the general search box).
+  // active=all: inactive stock items also block deletion, so they must be visible too.
+  const openLinkedStockList = (vesselId) => {
+    if (vesselId == null || vesselId === "") return;
+    const params = new URLSearchParams({
+      vessel_id: String(vesselId),
+      active: "all",
+    });
+    closeBlockedDeletes();
+    history.push(`/admin/stock-list/stocks?${params.toString()}`);
+  };
+
+  const openLinkedShippingOrders = (vesselId) => {
+    if (vesselId == null || vesselId === "") return;
+    const params = new URLSearchParams({
+      vessel_id: String(vesselId),
+    });
+    closeBlockedDeletes();
+    history.push(`/admin/shipping-orders?${params.toString()}`);
+  };
 
   const toast = useToast();
 
@@ -387,15 +464,13 @@ export default function Vessels() {
         });
       }
       if (failed.length) {
-        toast({
-          title: `${failed.length} vessel(s) could not be deleted`,
-          description: failed
-            .map((item) => `${vesselNameById(item.id)}: ${item.message}`)
-            .join("\n"),
-          status: "error",
-          duration: 8000,
-          isClosable: true,
-        });
+        setBlockedDeletes(
+          failed.map((item) => ({
+            id: item.id,
+            name: vesselNameById(item.id),
+            message: item.message,
+          }))
+        );
       }
       onBulkDeleteClose();
       setSelectedVesselIds(failed.map((item) => item.id));
@@ -435,13 +510,11 @@ export default function Vessels() {
         error.message ||
         "Failed to delete vessel";
 
-      toast({
-        title: "Error",
-        description: message,
-        status: "error",
-        duration: 5000,
-        isClosable: true,
-      });
+      onDeleteClose();
+      setBlockedDeletes([
+        { id: deleteVesselId, name: vesselNameById(deleteVesselId), message },
+      ]);
+      setDeleteVesselId(null);
     } finally {
       setIsLoading(false);
     }
@@ -937,6 +1010,149 @@ export default function Vessels() {
           </AlertDialogContent>
         </AlertDialogOverlay>
       </AlertDialog>
+
+      <Modal isOpen={blockedDeletes.length > 0} onClose={closeBlockedDeletes} size="lg" isCentered scrollBehavior="inside">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            <HStack spacing="3" align="flex-start">
+              <Flex
+                align="center"
+                justify="center"
+                boxSize="36px"
+                borderRadius="full"
+                bg="orange.100"
+                color="orange.600"
+                flexShrink={0}
+              >
+                <Icon as={MdWarningAmber} boxSize="20px" />
+              </Flex>
+              <Box>
+                <Text fontSize="md" fontWeight="700" color={textColor}>
+                  {blockedDeletes.length === 1
+                    ? "This vessel can't be deleted yet"
+                    : `${blockedDeletes.length} vessels can't be deleted yet`}
+                </Text>
+                <Text fontSize="sm" fontWeight="normal" color="gray.500" mt="1">
+                  {blockedDeletes.length === 1 ? "It is" : "They are"} still used in other records.
+                  Remove the vessel from those records first, then delete it again.
+                </Text>
+              </Box>
+            </HStack>
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing="3" align="stretch">
+              {blockedDeletes.map((item) => {
+                const { groups, hasStock, hasShipping } = blockedItemLinkKinds(item);
+                return (
+                  <Box key={item.id} border="1px" borderColor="gray.200" borderRadius="md" p="3">
+                    <Flex align="center" justify="space-between" gap="2" mb="2" flexWrap="wrap">
+                      <HStack spacing="2">
+                        <Icon as={MdDirectionsBoat} color="blue.500" />
+                        <Text fontWeight="700" fontSize="sm" color={textColor}>
+                          {item.name}
+                        </Text>
+                      </HStack>
+                      {blockedDeletes.length > 1 && (
+                        <HStack spacing="2" flexWrap="wrap">
+                          {hasShipping && (
+                            <Button
+                              size="xs"
+                              colorScheme="blue"
+                              variant="outline"
+                              rightIcon={<Icon as={MdOpenInNew} />}
+                              onClick={() => openLinkedShippingOrders(item.id)}
+                            >
+                              Shipping orders
+                            </Button>
+                          )}
+                          {hasStock && (
+                            <Button
+                              size="xs"
+                              colorScheme="blue"
+                              variant={hasShipping ? "solid" : "outline"}
+                              rightIcon={<Icon as={MdOpenInNew} />}
+                              onClick={() => openLinkedStockList(item.id)}
+                            >
+                              Stock items
+                            </Button>
+                          )}
+                        </HStack>
+                      )}
+                    </Flex>
+                    {groups.length ? (
+                      <VStack spacing="2" align="stretch">
+                        {groups.map((group) => {
+                          const kind = linkGroupKind(group.label);
+                          const openGroup = () => {
+                            if (kind === "shipping_order") openLinkedShippingOrders(item.id);
+                            else openLinkedStockList(item.id);
+                          };
+                          return (
+                          <Box key={group.label}>
+                            <Text fontSize="sm" color="gray.600" mb="1">
+                              Linked to {group.count} {group.label}
+                            </Text>
+                            <Wrap spacing="2">
+                              {group.refs.map((ref) => (
+                                <WrapItem key={ref}>
+                                  <Tooltip
+                                    label={
+                                      kind === "shipping_order"
+                                        ? `Open shipping orders for this vessel`
+                                        : `Open stock list for this vessel`
+                                    }
+                                    hasArrow
+                                  >
+                                    <Tag
+                                      as="button"
+                                      type="button"
+                                      size="sm"
+                                      colorScheme={kind === "shipping_order" ? "blue" : "orange"}
+                                      variant="subtle"
+                                      fontFamily="mono"
+                                      cursor="pointer"
+                                      _hover={{ textDecoration: "underline" }}
+                                      onClick={openGroup}
+                                    >
+                                      {ref}
+                                    </Tag>
+                                  </Tooltip>
+                                </WrapItem>
+                              ))}
+                            </Wrap>
+                          </Box>
+                          );
+                        })}
+                      </VStack>
+                    ) : (
+                      <Text fontSize="sm" color="gray.600">
+                        {item.message}
+                      </Text>
+                    )}
+                  </Box>
+                );
+              })}
+            </VStack>
+          </ModalBody>
+          <ModalFooter gap="2" flexWrap="wrap">
+            <Button variant="ghost" onClick={closeBlockedDeletes}>
+              Close
+            </Button>
+            {blockedDeletes.length === 1 && blockedItemLinkKinds(blockedDeletes[0]).hasShipping && (
+              <Button colorScheme="blue" variant="outline" onClick={() => openLinkedShippingOrders(blockedDeletes[0].id)}>
+                Open Shipping Orders
+              </Button>
+            )}
+            {blockedDeletes.length === 1 && blockedItemLinkKinds(blockedDeletes[0]).hasStock && (
+              <Button colorScheme="blue" onClick={() => openLinkedStockList(blockedDeletes[0].id)}>
+                Open Stock List
+              </Button>
+            )}
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box >
   );
 };
