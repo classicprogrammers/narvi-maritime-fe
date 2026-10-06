@@ -15,7 +15,7 @@ import {
 import { MdLocationOn, MdSearch } from "react-icons/md";
 import { useHistory } from "react-router-dom";
 import clientHubApi from "api/clientHub";
-import { formatClientsHeading } from "utils/portalClients";
+import { usePortalClient } from "views/client/PortalClientContext";
 
 function ClientHubLocations() {
   const history = useHistory();
@@ -23,9 +23,10 @@ function ClientHubLocations() {
   const borderColor = useColorModeValue("secondaryGray.200", "whiteAlpha.200");
   const headingColor = useColorModeValue("navy.700", "white");
   const muted = useColorModeValue("secondaryGray.700", "secondaryGray.600");
+  const { selectedClient } = usePortalClient();
+  const clientName = selectedClient?.name || "";
   const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState("");
-  const [clientName, setClientName] = useState("");
   const [hubs, setHubs] = useState([]);
   const hubsRequestIdRef = useRef(0);
 
@@ -38,11 +39,9 @@ function ClientHubLocations() {
       });
       if (requestId !== hubsRequestIdRef.current) return;
       setHubs(Array.isArray(res?.hubs) ? res.hubs : []);
-      setClientName(formatClientsHeading(res?.clients));
     } catch (_error) {
       if (requestId !== hubsRequestIdRef.current) return;
       setHubs([]);
-      setClientName("");
     } finally {
       if (requestId === hubsRequestIdRef.current) {
         setIsLoading(false);

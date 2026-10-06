@@ -15,7 +15,8 @@ import {
 import { MdDirectionsBoat, MdSearch } from "react-icons/md";
 import { useHistory } from "react-router-dom";
 import clientVesselApi from "api/clientVessel";
-import { formatClientsHeading, getRowClientName } from "utils/portalClients";
+import { getRowClientName } from "utils/portalClients";
+import { usePortalClient } from "views/client/PortalClientContext";
 
 function ClientVessels() {
   const history = useHistory();
@@ -23,9 +24,10 @@ function ClientVessels() {
   const borderColor = useColorModeValue("secondaryGray.200", "whiteAlpha.200");
   const muted = useColorModeValue("secondaryGray.700", "secondaryGray.600");
   const text = useColorModeValue("navy.700", "white");
+  const { selectedClient } = usePortalClient();
+  const clientName = selectedClient?.name || "";
   const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState("");
-  const [clientName, setClientName] = useState("");
   const [vessels, setVessels] = useState([]);
   const vesselsRequestIdRef = useRef(0);
 
@@ -38,11 +40,9 @@ function ClientVessels() {
       });
       if (requestId !== vesselsRequestIdRef.current) return;
       setVessels(Array.isArray(res?.vessels) ? res.vessels : []);
-      setClientName(formatClientsHeading(res?.clients));
     } catch (_error) {
       if (requestId !== vesselsRequestIdRef.current) return;
       setVessels([]);
-      setClientName("");
     } finally {
       if (requestId === vesselsRequestIdRef.current) {
         setIsLoading(false);

@@ -62,6 +62,22 @@ export function formatClientsHeading(clients) {
   return `${list.length} clients`;
 }
 
+export function formatPortalClientOption(client) {
+  if (!client) return "";
+  const name = client.name || (client.id != null ? `Client ${client.id}` : "");
+  const code = client.client_code ? String(client.client_code).trim() : "";
+  return code ? `${name} (${code})` : name;
+}
+
+export function extractSelectedClient(data) {
+  const source =
+    data?.result && typeof data.result === "object" && !Array.isArray(data.result)
+      ? data.result
+      : data || {};
+  if (!source.selected_client || source.selected_client === false) return null;
+  return parseNamedClients([source.selected_client])[0] || null;
+}
+
 export function getRowClientName(row) {
   if (!row || typeof row !== "object") return "";
   const fromClient = toClientName(row.client);

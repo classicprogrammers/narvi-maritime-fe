@@ -22,7 +22,7 @@ import ReactApexChart from "react-apexcharts";
 import { MdRefresh } from "react-icons/md";
 import LineChart from "components/charts/LineChart";
 import clientDashboardApi from "api/clientDashboard";
-import { formatClientsHeading } from "utils/portalClients";
+import { usePortalClient } from "views/client/PortalClientContext";
 import { formatDashboardCount, formatDashboardLabel } from "views/admin/default/dashboardUtils";
 import {
   getDashboardCardRoute,
@@ -34,6 +34,7 @@ const PIE_COLORS = ["#174693", "#01B574", "#FFB547", "#39B8FF", "#E53E3E", "#805
 function ClientDashboard() {
   const history = useHistory();
   const toast = useToast();
+  const { selectedClient } = usePortalClient();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [dashboard, setDashboard] = useState(null);
@@ -190,9 +191,9 @@ function ClientDashboard() {
           <Heading fontSize="24px" lineHeight="32px" color={headingColor}>
             Dashboard
           </Heading>
-          {formatClientsHeading(dashboard?.clients) ? (
+          {selectedClient?.name ? (
             <Text mt={1} fontSize="sm" color={muted}>
-              {formatClientsHeading(dashboard.clients)}
+              {selectedClient.name}
             </Text>
           ) : null}
         </Box>

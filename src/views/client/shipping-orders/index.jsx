@@ -39,7 +39,8 @@ import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import ShippingOrderStockList from "components/shipping-order/ShippingOrderStockList";
 import { useStockAttachmentsGallery } from "hooks/useStockAttachmentsGallery";
 import { formatShippingOrderDestinationDisplay, normalizeOrder, toDateOnly } from "views/admin/shipping-order/shippingOrderUtils";
-import { formatClientsHeading, getRowClientName } from "utils/portalClients";
+import { getRowClientName } from "utils/portalClients";
+import { usePortalClient } from "views/client/PortalClientContext";
 import { resolveShippingOrderDownloadFilename } from "utils/shippingOrderAttachments";
 import {
   parseSoFilterFromUrl,
@@ -238,9 +239,10 @@ function ClientShippingOrders() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const { selectedClient } = usePortalClient();
+  const clientName = selectedClient?.name || "";
   const [isLoading, setIsLoading] = useState(true);
   const [rows, setRows] = useState([]);
-  const [clientName, setClientName] = useState("");
   const [vesselOptions, setVesselOptions] = useState([]);
   const [loadingFilesOrderId, setLoadingFilesOrderId] = useState(null);
   const [stockModal, setStockModal] = useState({
@@ -311,7 +313,6 @@ function ClientShippingOrders() {
         .map((v) => ({ id: v?.id, name: typeof v === "string" ? v : v?.name }))
         .filter((v) => v.name);
       setVesselOptions(options);
-      if (res?.clients?.length) setClientName(formatClientsHeading(res.clients));
     } catch (_e) {
       setVesselOptions([]);
     }
@@ -357,7 +358,6 @@ function ClientShippingOrders() {
       setRows(mapped);
       setTotalCount(resolvedTotalCount);
       setTotalPages(resolvedTotalPages);
-      if (res?.clients?.length) setClientName(formatClientsHeading(res.clients));
     } catch (err) {
       if (requestId !== ordersRequestIdRef.current) return;
       setRows([]);

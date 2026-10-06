@@ -1,4 +1,10 @@
-import { extractClientsFromPayload, formatClientsHeading, getRowClientName } from "./portalClients";
+import {
+  extractClientsFromPayload,
+  extractSelectedClient,
+  formatClientsHeading,
+  formatPortalClientOption,
+  getRowClientName,
+} from "./portalClients";
 
 describe("portalClients", () => {
   test("formats one name or a joined list", () => {
@@ -31,5 +37,30 @@ describe("portalClients", () => {
     expect(getRowClientName({ client_id: { id: 2, name: "SO Client", client_code: "X" } })).toBe(
       "SO Client"
     );
+  });
+
+  test("formats the company selector and reads selected_client", () => {
+    expect(
+      formatPortalClientOption({
+        id: 310,
+        name: "Spring Valley Shipping Management Pte Ltd",
+        client_code: "SVSM",
+      })
+    ).toBe("Spring Valley Shipping Management Pte Ltd (SVSM)");
+    expect(
+      extractSelectedClient({
+        clients: [{ id: 262, name: "IMELDA SHIPPING PTE. LTD.", client_code: "IMELDA" }],
+        selected_client: {
+          id: 310,
+          name: "Spring Valley Shipping Management Pte Ltd",
+          client_code: "SVSM",
+        },
+      })
+    ).toEqual({
+      id: 310,
+      name: "Spring Valley Shipping Management Pte Ltd",
+      client_code: "SVSM",
+    });
+    expect(extractSelectedClient({ selected_client: false, clients: [] })).toBeNull();
   });
 });

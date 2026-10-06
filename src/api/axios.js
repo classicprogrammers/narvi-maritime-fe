@@ -4,7 +4,14 @@ import {
   getAuthContextFromPath,
   getCurrentStoredToken,
   getLoginPathForContext,
+  AUTH_CONTEXTS,
 } from "../utils/authStorage";
+import {
+  attachPortalClientId,
+  isPortalClientRequest,
+  isPortalClientSelectionError,
+  notifyPortalClientAccessDenied,
+} from "../utils/portalClientSelection";
 
 const api = axios.create({
   baseURL: process.env.REACT_APP_BACKEND_URL || process.env.REACT_APP_API_BASE_URL,
@@ -55,6 +62,10 @@ api.interceptors.request.use(
     } else {
       console.warn("No token found in localStorage for request:", config.url);
     }
+
+    if (getAuthContextFromPath() === AUTH_CONTEXTS.CLIENT) {
+      attachPortalClientId(config);
+    }
     return config;
   },
   (error) => {
@@ -63,11 +74,25 @@ api.interceptors.request.use(
 );
 
 
+async function readPortalErrorMessage(responseData) {
+  if (!responseData) return "";
+  if (typeof Blob !== "undefined" && responseData instanceof Blob) {
+    try {
+      const text = await responseData.slice().text();
+      const json = JSON.parse(text);
+      return json?.message || json?.result?.message || "";
+    } catch {
+      return "";
+    }
+  }
+  return responseData.message || responseData.result?.message || "";
+}
+
 api.interceptors.response.use(
   (response) => {
     return response;
   },
-  (error) => {
+  async (error) => {
     if (error.response) {
       // Server responded with error status
       console.error("API Error:", error.response.data);
@@ -94,6 +119,11 @@ api.interceptors.response.use(
         // Check for 403 status with specific error messages
         (status === 403 && responseData.message && responseData.message.includes("token")) ||
         (status === 403 && responseData.message && responseData.message.includes("auth"));
+
+      const portalMessage = await readPortalErrorMessage(responseData);
+      if (isPortalClientRequest(error.config?.url) && isPortalClientSelectionError(portalMessage)) {
+        notifyPortalClientAccessDenied();
+      }
 
       if (shouldLogout) {
         console.log("Authentication error detected, logging out user");

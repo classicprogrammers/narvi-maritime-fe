@@ -85,7 +85,8 @@ import {
   resolveStockLocationOptionId,
 } from "utils/stockLocationOptions";
 import clientHubApi, { getClientHubFilterId, toClientHubOptionValue } from "api/clientHub";
-import { formatClientsHeading, getRowClientName } from "utils/portalClients";
+import { getRowClientName } from "utils/portalClients";
+import { usePortalClient } from "views/client/PortalClientContext";
 import { clearClientNavigationState } from "views/client/dashboard/clientDashboardNavigation";
 import * as XLSX from "xlsx";
 
@@ -457,9 +458,10 @@ const getInitialClientStockFilters = (nav) => ({
 
 function ClientStockReportView() {
   const location = useLocation();
+  const { selectedClient } = usePortalClient();
+  const clientName = selectedClient?.name || "";
   const [stockRows, setStockRows] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [clientName, setClientName] = useState("");
   const [filters, setFilters] = useState(() =>
     getInitialClientStockFilters(getClientStockNavState(location))
   );
@@ -590,9 +592,7 @@ function ClientStockReportView() {
         )
       );
       if (requestId !== stockRequestIdRef.current) return;
-      const nextClientName = formatClientsHeading(res?.clients);
-      setStockRows(mapClientStockRows(res?.stock_list, nextClientName));
-      setClientName(nextClientName);
+      setStockRows(mapClientStockRows(res?.stock_list, clientName));
       if (!usesLocalSearchSort) {
         setTotalCount(res.total_count ?? res.count ?? 0);
         setTotalPages(Math.max(1, res.total_pages || 1));
@@ -602,7 +602,6 @@ function ClientStockReportView() {
     } catch (_e) {
       if (requestId !== stockRequestIdRef.current) return;
       setStockRows([]);
-      setClientName("");
       setTotalCount(0);
       setTotalPages(1);
       setHasNext(false);
@@ -612,7 +611,7 @@ function ClientStockReportView() {
         setIsLoading(false);
       }
     }
-  }, [buildStockQueryParams, entries, fetchPage, usesLocalSearchSort]);
+  }, [buildStockQueryParams, clientName, entries, fetchPage, usesLocalSearchSort]);
 
   const fetchVesselFilterOptions = useCallback(async () => {
     try {
@@ -1120,7 +1119,7 @@ function ClientStockReportView() {
           buildStockQueryParams({ fetch_all: true })
         );
         exportRows = applyClientStockSearchSort(
-          mapClientStockRows(res?.stock_list, formatClientsHeading(res?.clients) || clientName),
+          mapClientStockRows(res?.stock_list, clientName),
           searchQuery,
           clientSortOption
         );

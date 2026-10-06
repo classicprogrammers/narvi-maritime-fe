@@ -6,6 +6,8 @@ import {
   getStoredAuth,
   setStoredAuth,
 } from "../../utils/authStorage";
+import { isClientUserType } from "../../utils/userType";
+import { clearSelectedPortalClientId } from "../../utils/portalClientSelection";
 
 const initialAuth = getStoredAuth(getAuthContextFromPath());
 
@@ -40,6 +42,9 @@ const userSlice = createSlice({
         token: action.payload.token,
         user: action.payload.user,
       });
+      if (isClientUserType(action.payload.user?.user_type)) {
+        clearSelectedPortalClientId();
+      }
     },
     loginFailure: (state, action) => {
       state.isLoading = false;
@@ -60,6 +65,7 @@ const userSlice = createSlice({
       state.forgotPasswordError = null;
       state.forgotPasswordSuccess = false;
       clearStoredAuth(action.payload?.context || getAuthContextFromPath());
+      clearSelectedPortalClientId();
       sessionStorage.clear();
     },
     updateUser: (state, action) => {
