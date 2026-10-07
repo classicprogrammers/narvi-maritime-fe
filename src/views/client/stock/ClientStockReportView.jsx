@@ -40,6 +40,7 @@ import {
   MdRefresh,
   MdFileDownload,
   MdSearch,
+  MdSort,
   MdPictureAsPdf,
   MdTableChart,
 } from "react-icons/md";
@@ -410,7 +411,7 @@ const CLIENT_STOCK_EXPORT_COLUMNS = [
   { header: "Currency", value: (row) => row.currency || "-" },
   { header: "Value", value: (row) => row.value || "-" },
   { header: "Client", value: (row) => row.client || "-" },
-  { header: "T 1", value: (row) => row.t1 || "-" },
+  { header: "t_1", value: (row) => row.t1 || "-" },
   { header: "DG/UN Number", value: (row) => row.dgUnNumber || "-" },
   { header: "Files", value: (row) => formatClientStockReportNames(row) },
 ];
@@ -1298,12 +1299,18 @@ function ClientStockReportView() {
       </Box>
 
       <Box bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="16px" p={4} mb={3}>
-        <Flex justify="space-between" align={{ base: "start", md: "center" }} direction={{ base: "column", md: "row" }} gap={3}>
-          <Flex align="center" gap={2}>
+        <Flex
+          justify="space-between"
+          align="center"
+          gap={3}
+          wrap={{ base: "wrap", lg: "nowrap" }}
+        >
+          <Flex align="center" gap={2} flexShrink={0}>
             <Text fontSize="sm" color={muted}>Show</Text>
             <Select
-              size="xs"
+              size="sm"
               w="72px"
+              h="40px"
               value={entries}
               onChange={(e) => {
                 setEntries(e.target.value);
@@ -1316,12 +1323,19 @@ function ClientStockReportView() {
             </Select>
             <Text fontSize="sm" color={muted}>entries</Text>
           </Flex>
-          <Flex align="center" gap={2} wrap="wrap">
-            <InputGroup maxW="340px">
-              <InputLeftElement pointerEvents="none">
+          <Flex
+            align="center"
+            gap={2}
+            ml={{ base: 0, lg: "auto" }}
+            w={{ base: "100%", lg: "auto" }}
+            flexWrap="nowrap"
+          >
+            <InputGroup size="sm" flex="1" minW="180px" maxW={{ base: "100%", lg: "280px" }}>
+              <InputLeftElement pointerEvents="none" h="40px">
                 <Icon as={MdSearch} color="gray.400" />
               </InputLeftElement>
               <Input
+                h="40px"
                 placeholder={PAGE_COPY.searchPlaceholder}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -1331,11 +1345,20 @@ function ClientStockReportView() {
                   setSearchQuery(nextQuery);
                   setCurrentPage(1);
                 }}
-                size="sm"
               />
             </InputGroup>
             <Menu>
-              <MenuButton as={Button} size="sm" colorScheme="blue" variant="solid">
+              <MenuButton
+                as={Button}
+                size="sm"
+                h="40px"
+                flexShrink={0}
+                whiteSpace="nowrap"
+                leftIcon={<Icon as={MdSort} />}
+                colorScheme={clientSortOption && clientSortOption !== "none" ? "blue" : "gray"}
+                variant={clientSortOption && clientSortOption !== "none" ? "solid" : "outline"}
+                borderColor={borderColor}
+              >
                 {getClientStockSortButtonLabel(clientSortOption)}
               </MenuButton>
               <MenuList>
@@ -1363,32 +1386,34 @@ function ClientStockReportView() {
                 </MenuItem>
               </MenuList>
             </Menu>
-          </Flex>
-          <Menu>
-            <MenuButton
-              as={Button}
-              size="sm"
-              variant="outline"
-              borderColor={borderColor}
-              leftIcon={<Icon as={MdFileDownload} />}
-            >
-              Download
-            </MenuButton>
-            <MenuList>
-              <MenuItem
-                icon={<Icon as={MdPictureAsPdf} color="red.500" />}
-                onClick={handleDownloadSelectedReports}
-                isDisabled={isBulkReportLoading}
+            <Menu>
+              <MenuButton
+                as={Button}
+                size="sm"
+                h="40px"
+                flexShrink={0}
+                variant="outline"
+                borderColor={borderColor}
+                leftIcon={<Icon as={MdFileDownload} />}
               >
-                Download reports of the selected stock
-              </MenuItem>
-              <MenuItem icon={<Icon as={MdTableChart} color="green.500" />} onClick={handleDownloadExcel}>
-                {selectedRowIds.length
-                  ? "Download selected stock in Excel format"
-                  : "Download stock in Excel format"}
-              </MenuItem>
-            </MenuList>
-          </Menu>
+                Download
+              </MenuButton>
+              <MenuList>
+                <MenuItem
+                  icon={<Icon as={MdPictureAsPdf} color="red.500" />}
+                  onClick={handleDownloadSelectedReports}
+                  isDisabled={isBulkReportLoading}
+                >
+                  Download reports of the selected stock
+                </MenuItem>
+                <MenuItem icon={<Icon as={MdTableChart} color="green.500" />} onClick={handleDownloadExcel}>
+                  {selectedRowIds.length
+                    ? "Download selected stock in Excel format"
+                    : "Download stock in Excel format"}
+                </MenuItem>
+              </MenuList>
+            </Menu>
+          </Flex>
         </Flex>
       </Box>
 
@@ -1486,7 +1511,7 @@ function ClientStockReportView() {
               <Th>CURRENCY</Th>
               <Th>VALUE</Th>
               <Th>CLIENT</Th>
-              <Th>T 1</Th>
+              <Th textTransform="none">t_1</Th>
               <Th>DG/UN NUMBER</Th>
               <Th>FILES</Th>
             </Tr>

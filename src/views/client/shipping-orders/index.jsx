@@ -38,7 +38,7 @@ import clientVesselApi from "api/clientVessel";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import ShippingOrderStockList from "components/shipping-order/ShippingOrderStockList";
 import { useStockAttachmentsGallery } from "hooks/useStockAttachmentsGallery";
-import { formatShippingOrderDestinationDisplay, normalizeOrder, toDateOnly } from "views/admin/shipping-order/shippingOrderUtils";
+import { formatShippingOrderDestinationDisplay, formatServiceBoatPaidByLabel, isDeliveryViaServiceBoat, isCostConfirmedToClient, normalizeOrder, toDateOnly } from "views/admin/shipping-order/shippingOrderUtils";
 import { getRowClientName } from "utils/portalClients";
 import { usePortalClient } from "views/client/PortalClientContext";
 import { resolveShippingOrderDownloadFilename } from "utils/shippingOrderAttachments";
@@ -233,6 +233,7 @@ function ClientShippingOrders() {
     countryId: "",
     destinationId: "",
     soNumber: soNumberFromSearch(location.search),
+    clientCaseInvoiceRef: "",
   });
   const [search, setSearch] = useState("");
   const [entries, setEntries] = useState("50");
@@ -340,6 +341,7 @@ function ClientShippingOrders() {
         country_id: countryId || undefined,
         destination_id: filters.destinationId || undefined,
         so_id: filters.soNumber || undefined,
+        client_case_invoice_ref: filters.clientCaseInvoiceRef.trim() || undefined,
       });
 
       if (requestId !== ordersRequestIdRef.current) return;
@@ -380,6 +382,7 @@ function ClientShippingOrders() {
     filters.destinationId,
     filters.destinationQuery,
     filters.soNumber,
+    filters.clientCaseInvoiceRef,
     filters.status,
     filters.vessel,
     currentPage,
@@ -484,6 +487,7 @@ function ClientShippingOrders() {
       countryId: "",
       destinationId: "",
       soNumber: "",
+      clientCaseInvoiceRef: "",
     });
     setSearch("");
     setEntries("50");
@@ -663,11 +667,10 @@ function ClientShippingOrders() {
       "ETA",
       "ETB",
       "ETD",
-      "SO Delivery Date",
+      "SO Case Closed Date",
       "Client Case / Invoice Ref",
       "Vessel Agent Details",
       "Quotation",
-      "Date Created",
       "Attachments",
       "CIPL Files",
       "Package",
@@ -689,6 +692,7 @@ function ClientShippingOrders() {
         country_id: filters.countryId || undefined,
         destination_id: filters.destinationId || undefined,
         so_id: filters.soNumber || undefined,
+        client_case_invoice_ref: filters.clientCaseInvoiceRef.trim() || undefined,
       });
       exportRows = mapClientShippingOrderListRows(res?.orders);
     } catch (err) {
@@ -715,7 +719,6 @@ function ClientShippingOrders() {
       row.client_case_invoice_ref || "-",
       row.vsls_agent_dtls || "-",
       row.quotation || "-",
-      formatDateTime(row.date_created || row.timestamp),
       row.attachmentCount || 0,
       row.ciplCount || 0,
       row.hasPackage ? "Yes" : "No",
@@ -852,6 +855,20 @@ function ClientShippingOrders() {
               onChange={(e) => setFilters((prev) => ({ ...prev, soNumber: e.target.value }))}
             />
           </GridItem>
+          <GridItem>
+            <Text fontSize="xs" mb={1} color={muted}>
+              Client case / Invoice ref
+            </Text>
+            <Input
+              size="sm"
+              h="40px"
+              placeholder="e.g. PH49-MANG"
+              value={filters.clientCaseInvoiceRef}
+              onChange={(e) =>
+                setFilters((prev) => ({ ...prev, clientCaseInvoiceRef: e.target.value }))
+              }
+            />
+          </GridItem>
         </Grid>
         <Flex mt={4} gap={3}>
           <Button
@@ -943,10 +960,9 @@ function ClientShippingOrders() {
               <Th>ETA</Th>
               <Th>ETB</Th>
               <Th>ETD</Th>
-              <Th>SO Delivery Date</Th>
+              <Th>SO Case Closed Date</Th>
               <Th>Client Case / Invoice Ref</Th>
               <Th>Files</Th>
-              <Th>Date Created</Th>
             </Tr>
           </Thead>
           <Tbody>
@@ -1011,7 +1027,6 @@ function ClientShippingOrders() {
                   </Tooltip>
                 </Td>
                 <Td>{renderFilesCell(row)}</Td>
-                <Td>{formatDateTime(row.date_created || row.timestamp)}</Td>
               </Tr>
             ))}
           </Tbody>
@@ -1097,6 +1112,15 @@ function ClientShippingOrders() {
                   </ReadOnlyDetailField>
                   <ReadOnlyDetailField label="ETD">
                     {formatDate(stockModal.order.etd)}
+                  </ReadOnlyDetailField>
+                  <ReadOnlyDetailField label="Delivery via Service boat / launch">
+                    {isDeliveryViaServiceBoat(stockModal.order.delivery_via_service_boat) ? "Yes" : "No"}
+                  </ReadOnlyDetailField>
+                  <ReadOnlyDetailField label="Service boat / Launch paid by">
+                    {formatServiceBoatPaidByLabel(stockModal.order.service_boat_paid_by) || "—"}
+                  </ReadOnlyDetailField>
+                  <ReadOnlyDetailField label="Cost been confirmed to the client">
+                    {isCostConfirmedToClient(stockModal.order.cost_confirmed_to_client) ? "Yes" : "—"}
                   </ReadOnlyDetailField>
                   <ReadOnlyDetailField label="SO Delivery Date">
                     {formatDate(stockModal.order.so_delivery_date)}

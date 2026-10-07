@@ -36,7 +36,7 @@ export const STOCK_EMPTY_FILTER_PARAM_BY_LABEL = {
   "SHIPPED DATE": "shipped_date",
   "DELIVERED DATE": "delivered_date",
   "DG/UN NUMBER": "dg_un",
-  "T 1": "t_1",
+  t_1: "t_1",
   REMARKS: "remarks",
   BOXES: "item",
   "WEIGHT KGS": "weight_kg",
@@ -210,4 +210,29 @@ export function withStockListFetchMode(params = {}, { page = 1, page_size = 50, 
     return { ...rest, fetch_all: true };
   }
   return { ...rest, page, page_size };
+}
+
+/** Stable key for identical GET /api/stock/list params (in-flight coalescing). */
+export function stockListRequestKey(params = {}) {
+  const normalized = {};
+  Object.keys(params)
+    .sort()
+    .forEach((key) => {
+      const value = params[key];
+      if (value === undefined || value === null || value === "") return;
+      if (Array.isArray(value)) {
+        normalized[key] = [...value].map(String).sort();
+        return;
+      }
+      if (value instanceof Set) {
+        normalized[key] = [...value].map(String).sort();
+        return;
+      }
+      if (typeof value === "boolean" || typeof value === "number") {
+        normalized[key] = value;
+        return;
+      }
+      normalized[key] = String(value);
+    });
+  return JSON.stringify(normalized);
 }

@@ -25,8 +25,19 @@ import {
   Tr,
   useColorModeValue,
   useToast,
+  ButtonGroup,
 } from "@chakra-ui/react";
-import { MdAdd, MdArrowDownward, MdArrowUpward, MdChevronLeft, MdDelete, MdSave, MdUnfoldMore } from "react-icons/md";
+import {
+  MdAdd,
+  MdArrowDownward,
+  MdArrowUpward,
+  MdChevronLeft,
+  MdDelete,
+  MdSave,
+  MdTableChart,
+  MdUnfoldMore,
+  MdViewList,
+} from "react-icons/md";
 import Card from "components/card/Card";
 import { CellWithAssignMenu } from "components/forms/AssignToRowsBelowMenu";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
@@ -54,6 +65,19 @@ const RATE_TYPE_OPTIONS = [
 
 const FIELD_MIN_W = "150px";
 const FIELD_MAX_W = "400px";
+const RATE_FORM_LAYOUT_STORAGE_KEY = "narvi_rate_form_layout";
+
+function readStoredRateFormLayout() {
+  try {
+    return localStorage.getItem(RATE_FORM_LAYOUT_STORAGE_KEY) === "list" ? "list" : "table";
+  } catch {
+    return "table";
+  }
+}
+
+function cssQuotedContent(value) {
+  return `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
 
 const FORM_SORT_COLUMNS = [
   { label: "Rate ID", sortKey: "rate_id", type: "text", editOnly: true },
@@ -279,6 +303,7 @@ export default function RateListForm() {
   const [saving, setSaving] = useState(false);
   const [rateToDelete, setRateToDelete] = useState(null);
   const [isDeletingRate, setIsDeletingRate] = useState(false);
+  const [formLayout, setFormLayout] = useState(readStoredRateFormLayout);
   const cancelDeleteRef = useRef(null);
   const deletedRateIdsRef = useRef(new Set());
   const initializedForKeyRef = useRef(null);
@@ -289,6 +314,7 @@ export default function RateListForm() {
   const cardBg = useColorModeValue("white", "navy.800");
   const tableHeaderBg = useColorModeValue("gray.600", "gray.700");
   const tableHeaderBorderColor = useColorModeValue("gray.500", "gray.600");
+  const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
   const rowHoverBg = useColorModeValue("blue.50", "whiteAlpha.100");
 
   const searchableSelectProps = {
@@ -341,6 +367,106 @@ export default function RateListForm() {
     minW: FIELD_MIN_W,
     maxW: FIELD_MAX_W,
   };
+
+  const handleFormLayoutChange = useCallback((layout) => {
+    setFormLayout(layout);
+    try {
+      localStorage.setItem(RATE_FORM_LAYOUT_STORAGE_KEY, layout);
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  const rateFormListSx = useMemo(() => {
+    const labels = [
+      "",
+      ...FORM_SORT_COLUMNS.filter((column) => !column.editOnly || isEditing).map((column) => column.label),
+      "Actions",
+    ];
+    const labelRules = {};
+    labels.forEach((label, index) => {
+      labelRules[`tbody td:nth-of-type(${index + 1})::before`] = {
+        content: cssQuotedContent(label),
+        textTransform: "uppercase",
+      };
+    });
+    return {
+      display: "block !important",
+      minW: "100% !important",
+      width: "100%",
+      tableLayout: "auto",
+      thead: { display: "none !important" },
+      tbody: {
+        display: "flex !important",
+        flexDirection: "column",
+        gap: "16px",
+        bg: "transparent",
+      },
+      "tbody tr": {
+        display: "grid !important",
+        gridTemplateColumns: {
+          base: "1fr",
+          md: "repeat(2, minmax(0, 1fr))",
+          xl: "repeat(3, minmax(0, 1fr))",
+        },
+        gap: "12px 16px",
+        p: "16px",
+        bg: cardBg,
+        borderWidth: "1px",
+        borderStyle: "solid",
+        borderColor: tableBorderColor,
+        borderRadius: "12px",
+        boxShadow: "sm",
+      },
+      "tbody td": {
+        display: "flex !important",
+        flexDirection: "column",
+        alignItems: "stretch",
+        justifyContent: "flex-start",
+        minW: "0 !important",
+        maxW: "none !important",
+        w: "100%",
+        border: "0 !important",
+        px: "0 !important",
+        py: "4px !important",
+        whiteSpace: "normal",
+        "&::before": {
+          display: "block",
+          mb: "6px",
+          fontSize: "11px",
+          fontWeight: "700",
+          letterSpacing: "0.04em",
+          color: "gray.500",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        },
+        "& input, & textarea, & select, & .chakra-select__wrapper": {
+          width: "100% !important",
+          maxWidth: "100% !important",
+        },
+      },
+      "tbody td:nth-of-type(1)": {
+        gridColumn: "1 / -1 !important",
+        order: -1,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        pb: "10px !important",
+        mb: "4px",
+        borderBottomWidth: "1px !important",
+        borderBottomStyle: "solid",
+        borderBottomColor: tableBorderColor,
+      },
+      "tbody td:nth-of-type(1)::before": {
+        display: "none !important",
+      },
+      "tbody td:nth-last-of-type(1)": {
+        display: "none !important",
+      },
+      ...labelRules,
+    };
+  }, [cardBg, isEditing, tableBorderColor]);
 
   useEffect(() => {
     if (initializedForKeyRef.current === location.key) return;
@@ -784,12 +910,12 @@ export default function RateListForm() {
         bg={cardBg}
         px={{ base: "4", md: "6" }}
         py="3"
-        justify="space-between"
         align="center"
         borderBottom="1px"
         borderColor={borderColor}
-        flexWrap="wrap"
         gap={3}
+        display="grid"
+        gridTemplateColumns={{ base: "1fr", md: "1fr auto 1fr" }}
       >
         <HStack spacing="4">
           {isEditFromList && (
@@ -806,7 +932,28 @@ export default function RateListForm() {
           </Text>
         </HStack>
 
-        <HStack spacing="3">
+        <ButtonGroup size="sm" isAttached variant="outline" justifySelf="center">
+          <Button
+            leftIcon={<Icon as={MdTableChart} />}
+            onClick={() => handleFormLayoutChange("table")}
+            colorScheme={formLayout === "table" ? "blue" : "gray"}
+            variant={formLayout === "table" ? "solid" : "outline"}
+            aria-pressed={formLayout === "table"}
+          >
+            Table view
+          </Button>
+          <Button
+            leftIcon={<Icon as={MdViewList} />}
+            onClick={() => handleFormLayoutChange("list")}
+            colorScheme={formLayout === "list" ? "blue" : "gray"}
+            variant={formLayout === "list" ? "solid" : "outline"}
+            aria-pressed={formLayout === "list"}
+          >
+            Form view
+          </Button>
+        </ButtonGroup>
+
+        <HStack spacing="3" flexWrap="wrap" justify="flex-end">
           <Button
             leftIcon={<Icon as={MdAdd} />}
             bg="blue.500"
@@ -820,23 +967,19 @@ export default function RateListForm() {
           >
             Add Row
           </Button>
-          {!isEditing && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                px="6"
-                py="3"
-                borderRadius="md"
-                borderColor={borderColor}
-                color={textColor}
-                _hover={{ bg: inputBg }}
-                onClick={handleDiscard}
-              >
-                Discard
-              </Button>
-            </>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            px="6"
+            py="3"
+            borderRadius="md"
+            borderColor={borderColor}
+            color={textColor}
+            _hover={{ bg: inputBg }}
+            onClick={handleDiscard}
+          >
+            Discard
+          </Button>
           <Button
             leftIcon={<Icon as={MdSave} />}
             bg="green.500"
@@ -859,10 +1002,32 @@ export default function RateListForm() {
         </HStack>
       </Flex>
 
-      <Box bg={cardBg} p={{ base: "4", md: "6" }} overflowX="auto">
-        <Card w="100%" p="0" overflow="hidden">
-          <Box maxH="60vh" overflowY="auto">
-            <Table variant="striped" size="sm" colorScheme="gray" minW={tableMinWidth} sx={{ tableLayout: "auto" }}>
+      <Box
+        bg={formLayout === "list" ? "transparent" : cardBg}
+        p={{ base: "4", md: "6" }}
+        overflowX={formLayout === "table" ? "auto" : "hidden"}
+      >
+        <Card
+          w="100%"
+          p="0"
+          overflow={formLayout === "table" ? "hidden" : "visible"}
+          bg={formLayout === "list" ? "transparent" : undefined}
+          boxShadow={formLayout === "list" ? "none" : undefined}
+        >
+          <Box
+            maxH="70vh"
+            overflowY="auto"
+            overflowX={formLayout === "table" ? "auto" : "hidden"}
+            px={formLayout === "list" ? { base: "1", md: "2" } : undefined}
+            py={formLayout === "list" ? "1" : undefined}
+          >
+            <Table
+              variant={formLayout === "table" ? "striped" : "simple"}
+              size="sm"
+              colorScheme="gray"
+              minW={formLayout === "table" ? tableMinWidth : "100%"}
+              sx={formLayout === "list" ? rateFormListSx : { tableLayout: "auto" }}
+            >
               <Thead position="sticky" top={0} zIndex={1}>
                 <Tr>
                   {FORM_SORT_COLUMNS.filter((column) => !column.editOnly || isEditing).map((column) => (
@@ -880,6 +1045,36 @@ export default function RateListForm() {
               <Tbody>
                 {formRows.map((row, index) => (
                   <Tr key={row.id ?? row._key ?? `new-${index}`} _hover={{ bg: rowHoverBg }}>
+                    {formLayout === "list" && (
+                      <Td>
+                        <Flex
+                          w="100%"
+                          align="center"
+                          justify="space-between"
+                          gap="3"
+                          flexWrap="wrap"
+                        >
+                          <Text fontSize="sm" fontWeight="700" color={textColor}>
+                            {`Item ${index + 1}${formRows.length > 1 ? ` of ${formRows.length}` : ""}`}
+                            {row.rate_id ? ` · ${row.rate_id}` : row.rate_name ? ` · ${row.rate_name}` : ""}
+                          </Text>
+                          <IconButton
+                            icon={<Icon as={MdDelete} />}
+                            size="sm"
+                            colorScheme="red"
+                            variant="ghost"
+                            aria-label={row.id ? "Delete rate" : "Delete row"}
+                            title={row.id ? "Delete this rate permanently" : "Delete row"}
+                            onClick={() =>
+                              row.id
+                                ? setRateToDelete({ id: row.id, label: row.rate_id || row.rate_name })
+                                : handleRemoveNewRow(index)
+                            }
+                            isDisabled={formRows.length === 1 || saving}
+                          />
+                        </Flex>
+                      </Td>
+                    )}
                     {isEditing && (
                       <Td {...tdProps}>
                         <Input

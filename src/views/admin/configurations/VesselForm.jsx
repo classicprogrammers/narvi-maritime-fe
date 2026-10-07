@@ -27,6 +27,7 @@ import {
   VStack,
   useColorModeValue,
   useToast,
+  ButtonGroup,
 } from "@chakra-ui/react";
 import {
   MdAdd,
@@ -37,6 +38,8 @@ import {
   MdDelete,
   MdPrint,
   MdSave,
+  MdTableChart,
+  MdViewList,
   MdVisibility,
 } from "react-icons/md";
 import { useHistory, useLocation, useParams } from "react-router-dom";
@@ -52,6 +55,36 @@ import {
 
 const VESSELS_LIST_PATH = "/admin/configurations/vessels";
 const CONTROL_HEIGHT = "36px";
+const VESSEL_FORM_LAYOUT_STORAGE_KEY = "narvi_vessel_form_layout";
+
+function readStoredVesselFormLayout() {
+  try {
+    return localStorage.getItem(VESSEL_FORM_LAYOUT_STORAGE_KEY) === "list" ? "list" : "table";
+  } catch {
+    return "table";
+  }
+}
+
+function cssQuotedContent(value) {
+  return `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+function getAutoHtmlSize(value, placeholder = "", opts = {}) {
+  const { min = 12, max = 80, padding = 2 } = opts || {};
+  const valueLen = String(value ?? "").length;
+  const placeholderLen = String(placeholder ?? "").length;
+  const desired = Math.max(valueLen, placeholderLen) + padding;
+  return Math.min(max, Math.max(min, desired));
+}
+
+function getAutoCols(value, placeholder = "", opts = {}) {
+  const { min = 24, max = 90, padding = 2 } = opts || {};
+  const text = String(value ?? "");
+  const maxLineLen = text.split(/\r?\n/).reduce((acc, line) => Math.max(acc, line.length), 0);
+  const placeholderLen = String(placeholder ?? "").length;
+  const desired = Math.max(maxLineLen, placeholderLen) + padding;
+  return Math.min(max, Math.max(min, desired));
+}
 
 const STATUS_OPTIONS = [
   { value: "active", label: "Active" },
@@ -193,6 +226,7 @@ export default function VesselForm() {
   const [vesselTypeSelecOptions, setVesselTypeSelecOptions] = useState(VESSEL_TYPE_SELEC_OPTIONS);
   const [previewFile, setPreviewFile] = useState(null);
   const [expandedFileRows, setExpandedFileRows] = useState({});
+  const [formLayout, setFormLayout] = useState(readStoredVesselFormLayout);
   const requestedClientsRef = useRef(new Set());
 
   const textColor = useColorModeValue("gray.700", "white");
@@ -224,6 +258,120 @@ export default function VesselForm() {
     fontWeight: "600",
     textTransform: "uppercase",
   };
+
+  const handleFormLayoutChange = useCallback((layout) => {
+    setFormLayout(layout);
+    try {
+      localStorage.setItem(VESSEL_FORM_LAYOUT_STORAGE_KEY, layout);
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  const vesselFormListSx = useMemo(() => {
+    const labels = [
+      "",
+      "#",
+      ...(isEditing ? ["ID"] : []),
+      "Vessel Name *",
+      "Client *",
+      "Procurement Person",
+      "Procurement Email",
+      "Vessel Email",
+      "Team",
+      "IMO",
+      "Vessel Type",
+      "Vessel Type (Text)",
+      "Status",
+      "Invoice Address",
+      "Files",
+      "Actions",
+    ];
+    const labelRules = {};
+    labels.forEach((label, index) => {
+      labelRules[`tbody td:nth-of-type(${index + 1})::before`] = {
+        content: cssQuotedContent(label),
+        textTransform: "uppercase",
+      };
+    });
+    return {
+      display: "block !important",
+      minW: "100% !important",
+      width: "100%",
+      thead: { display: "none !important" },
+      tbody: {
+        display: "flex !important",
+        flexDirection: "column",
+        gap: "16px",
+        bg: "transparent",
+      },
+      "tbody tr": {
+        display: "grid !important",
+        gridTemplateColumns: {
+          base: "1fr",
+          md: "repeat(2, minmax(0, 1fr))",
+          xl: "repeat(3, minmax(0, 1fr))",
+        },
+        gap: "12px 16px",
+        p: "16px",
+        bg: cardBg,
+        borderWidth: "1px",
+        borderStyle: "solid",
+        borderColor: tableBorderColor,
+        borderRadius: "12px",
+        boxShadow: "sm",
+      },
+      "tbody td": {
+        display: "flex !important",
+        flexDirection: "column",
+        alignItems: "stretch",
+        justifyContent: "flex-start",
+        minW: "0 !important",
+        maxW: "none !important",
+        w: "100%",
+        border: "0 !important",
+        px: "0 !important",
+        py: "4px !important",
+        "&::before": {
+          display: "block",
+          mb: "6px",
+          fontSize: "11px",
+          fontWeight: "700",
+          letterSpacing: "0.04em",
+          color: "gray.500",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        },
+        "& input, & textarea, & select, & .chakra-select__wrapper": {
+          width: "100% !important",
+          maxWidth: "100% !important",
+        },
+      },
+      "tbody td:nth-of-type(1)": {
+        gridColumn: "1 / -1 !important",
+        order: -1,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        pb: "10px !important",
+        mb: "4px",
+        borderBottomWidth: "1px !important",
+        borderBottomStyle: "solid",
+        borderBottomColor: tableBorderColor,
+      },
+      "tbody td:nth-of-type(1)::before": {
+        display: "none !important",
+      },
+      "tbody td:nth-of-type(2)": {
+        display: "none !important",
+      },
+      "tbody td:nth-last-of-type(1)": {
+        display: "none !important",
+      },
+      ...labelRules,
+    };
+  }, [cardBg, isEditing, tableBorderColor]);
 
   const { clients } = useMasterData();
   const clientOptions = useMemo(() => {
@@ -426,7 +574,10 @@ export default function VesselForm() {
       const copy = {
         ...source,
         key: nextRowKey(),
-        attachments: [...source.attachments],
+        vessel_id: null,
+        attachments: source.attachments
+          .filter((attachment) => !attachment.id)
+          .map((attachment) => ({ ...attachment })),
         attachment_to_delete: [],
       };
       const newRows = [...prev];
@@ -471,7 +622,10 @@ export default function VesselForm() {
   );
 
   const isDirty = useMemo(
-    () => (isEditing ? rows.some((row) => getRowChanges(row)) : rows.some(rowHasCreateContent)),
+    () =>
+      isEditing
+        ? rows.some((row) => (row.vessel_id ? getRowChanges(row) : rowHasCreateContent(row)))
+        : rows.some(rowHasCreateContent),
     [getRowChanges, isEditing, rows]
   );
 
@@ -493,6 +647,10 @@ export default function VesselForm() {
   };
 
   const handleDiscard = () => {
+    if (isEditing) {
+      handleBack();
+      return;
+    }
     if (isDirty && !window.confirm("Clear all rows?")) return;
     setShowErrors(false);
     setFailedRowKey(null);
@@ -539,13 +697,21 @@ export default function VesselForm() {
       let response;
       if (isEditing) {
         const items = [];
+        const createRows = [];
         rows.forEach((row) => {
-          const changes = getRowChanges(row);
-          if (!changes) return;
-          items.push({ vessel_id: row.vessel_id, ...changes });
-          submittedRows.push(row);
+          if (row.vessel_id) {
+            const changes = getRowChanges(row);
+            if (!changes) return;
+            items.push({ vessel_id: row.vessel_id, ...changes });
+            submittedRows.push(row);
+            return;
+          }
+          if (rowHasCreateContent(row) || normalizeCompare(row.name)) {
+            createRows.push(row);
+            submittedRows.push(row);
+          }
         });
-        if (!items.length) {
+        if (!items.length && !createRows.length) {
           toast({
             title: "No changes to save",
             status: "info",
@@ -554,7 +720,17 @@ export default function VesselForm() {
           });
           return;
         }
-        response = await vesselsAPI.bulkUpdateVesselItems(items);
+        if (items.length) {
+          response = await vesselsAPI.bulkUpdateVesselItems(items);
+          const updateData = unwrapVesselResult(response?.result);
+          if (updateData.status === "error") {
+            reportSaveError(updateData, submittedRows);
+            return;
+          }
+        }
+        if (createRows.length) {
+          response = await vesselsAPI.bulkCreateVessels(createRows);
+        }
       } else {
         submittedRows.push(...rows);
         response = await vesselsAPI.bulkCreateVessels(rows);
@@ -677,10 +853,17 @@ export default function VesselForm() {
     size: "sm",
     fontSize: "sm",
     borderRadius: "md",
+    w: "auto",
     sx: { height: CONTROL_HEIGHT, minHeight: CONTROL_HEIGHT },
   };
   const inputProps = { ...controlSize, bg: inputBg, color: inputText, borderColor };
   const readOnlyProps = { ...controlSize, isReadOnly: true, bg: readOnlyBg, color: inputText, borderColor };
+  const autoSelectSx = (label, placeholder = "", opts = { min: 16, max: 50 }) => ({
+    height: CONTROL_HEIGHT,
+    minHeight: CONTROL_HEIGHT,
+    width: "auto",
+    minWidth: `${getAutoHtmlSize(label, placeholder, opts)}ch`,
+  });
 
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }} overflow="hidden" position="relative">
@@ -688,10 +871,12 @@ export default function VesselForm() {
         bg={cardBg}
         px={{ base: "4", md: "6" }}
         py="3"
-        justify="space-between"
         align="center"
+        gap="3"
         borderBottom="1px"
         borderColor={borderColor}
+        display="grid"
+        gridTemplateColumns={{ base: "1fr", md: "1fr auto 1fr" }}
       >
         <HStack spacing="4">
           <IconButton
@@ -706,37 +891,54 @@ export default function VesselForm() {
           </Text>
         </HStack>
 
-        <HStack spacing="3">
-          {!isEditing && (
-            <>
-              <Button
-                leftIcon={<Icon as={MdAdd} />}
-                bg="blue.500"
-                color="white"
-                size="sm"
-                px="6"
-                py="3"
-                borderRadius="md"
-                _hover={{ bg: "blue.600" }}
-                onClick={handleAddRow}
-              >
-                Add Row
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                px="6"
-                py="3"
-                borderRadius="md"
-                borderColor={borderColor}
-                color={textColor}
-                _hover={{ bg: inputBg }}
-                onClick={handleDiscard}
-              >
-                Discard
-              </Button>
-            </>
-          )}
+        <ButtonGroup size="sm" isAttached variant="outline" justifySelf="center">
+          <Button
+            leftIcon={<Icon as={MdTableChart} />}
+            onClick={() => handleFormLayoutChange("table")}
+            colorScheme={formLayout === "table" ? "blue" : "gray"}
+            variant={formLayout === "table" ? "solid" : "outline"}
+            aria-pressed={formLayout === "table"}
+          >
+            Table view
+          </Button>
+          <Button
+            leftIcon={<Icon as={MdViewList} />}
+            onClick={() => handleFormLayoutChange("list")}
+            colorScheme={formLayout === "list" ? "blue" : "gray"}
+            variant={formLayout === "list" ? "solid" : "outline"}
+            aria-pressed={formLayout === "list"}
+          >
+            Form view
+          </Button>
+        </ButtonGroup>
+
+        <HStack spacing="3" flexWrap="wrap" justify="flex-end">
+          <Button
+            leftIcon={<Icon as={MdAdd} />}
+            bg="blue.500"
+            color="white"
+            size="sm"
+            px="6"
+            py="3"
+            borderRadius="md"
+            _hover={{ bg: "blue.600" }}
+            onClick={handleAddRow}
+          >
+            Add Row
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            px="6"
+            py="3"
+            borderRadius="md"
+            borderColor={borderColor}
+            color={textColor}
+            _hover={{ bg: inputBg }}
+            onClick={handleDiscard}
+          >
+            Discard
+          </Button>
           <Button
             leftIcon={<Icon as={MdSave} />}
             bg="green.500"
@@ -755,16 +957,38 @@ export default function VesselForm() {
         </HStack>
       </Flex>
 
-      <Box bg={cardBg} p={{ base: "4", md: "6" }} overflowX="auto">
+      <Box
+        bg={formLayout === "list" ? "transparent" : cardBg}
+        p={{ base: "4", md: "6" }}
+        overflowX={formLayout === "table" ? "auto" : "hidden"}
+      >
         {rows.length > 1 && (
           <Text fontSize="sm" color="gray.500" mb={3}>
             Use the ⋮ button next to a value to copy it to the row below or to all rows below.
             If any row fails, nothing is saved.
           </Text>
         )}
-        <Card w="100%" p="0" overflow="hidden">
-          <Box maxH="65vh" overflowY="auto">
-            <Table variant="striped" size="sm" colorScheme="gray" minW="2600px">
+        <Card
+          w="100%"
+          p="0"
+          overflow={formLayout === "table" ? "hidden" : "visible"}
+          bg={formLayout === "list" ? "transparent" : undefined}
+          boxShadow={formLayout === "list" ? "none" : undefined}
+        >
+          <Box
+            maxH="70vh"
+            overflowY="auto"
+            overflowX={formLayout === "table" ? "auto" : "hidden"}
+            px={formLayout === "list" ? { base: "1", md: "2" } : undefined}
+            py={formLayout === "list" ? "1" : undefined}
+          >
+            <Table
+              variant={formLayout === "table" ? "striped" : "simple"}
+              size="sm"
+              colorScheme="gray"
+              minW={formLayout === "table" ? "2600px" : "100%"}
+              sx={formLayout === "list" ? vesselFormListSx : undefined}
+            >
               <Thead position="sticky" top={0} zIndex={2}>
                 <Tr>
                   <Th {...thProps} minW="50px">#</Th>
@@ -792,12 +1016,54 @@ export default function VesselForm() {
                   const failedCell = isFailed ? { bg: failedRowBg } : {};
                   return (
                     <Tr key={row.key}>
+                      {formLayout === "list" && (
+                        <Td>
+                          <Flex
+                            w="100%"
+                            align="center"
+                            justify="space-between"
+                            gap="3"
+                            flexWrap="wrap"
+                          >
+                            <Text fontSize="sm" fontWeight="700" color={textColor}>
+                              {`Item ${rowIndex + 1}${rows.length > 1 ? ` of ${rows.length}` : ""}`}
+                              {row.name ? ` · ${row.name}` : row.vessel_id ? ` · ${row.vessel_id}` : ""}
+                            </Text>
+                            <HStack spacing="2">
+                              <IconButton
+                                icon={<Icon as={MdContentCopy} />}
+                                size="sm"
+                                colorScheme="green"
+                                variant="ghost"
+                                onClick={() => handleCopyRow(rowIndex)}
+                                aria-label="Copy row"
+                                title="Copy/Repeat row"
+                              />
+                              <IconButton
+                                icon={<Icon as={isEditing ? MdClose : MdDelete} />}
+                                size="sm"
+                                colorScheme="red"
+                                variant="ghost"
+                                onClick={() => handleRemoveRow(rowIndex)}
+                                aria-label={isEditing ? "Remove from this edit" : "Delete row"}
+                                title={isEditing ? "Remove from this edit (the vessel is not deleted)" : "Delete row"}
+                                isDisabled={rows.length === 1}
+                              />
+                            </HStack>
+                          </Flex>
+                        </Td>
+                      )}
                       <Td {...cellProps} {...failedCell}>
                         <Text fontSize="sm" color="gray.500">{rowIndex + 1}</Text>
                       </Td>
                       {isEditing && (
                         <Td {...cellProps} {...failedCell}>
-                          <Input {...readOnlyProps} value={row.vessel_id || ""} />
+                          <Input
+                            {...readOnlyProps}
+                            value={row.vessel_id || ""}
+                            htmlSize={getAutoHtmlSize(row.vessel_id, "", { min: 8, max: 16 })}
+                            title={row.vessel_id ? String(row.vessel_id) : undefined}
+                          />
                         </Td>
                       )}
                       <Td {...cellProps} {...failedCell}>
@@ -807,6 +1073,8 @@ export default function VesselForm() {
                           onChange={(e) => handleInputChange(rowIndex, "name", e.target.value)}
                           placeholder="Vessel name"
                           isInvalid={Boolean(rowErrors.name)}
+                          htmlSize={getAutoHtmlSize(row.name, "Vessel name", { min: 16, max: 50 })}
+                          title={row.name ? String(row.name) : undefined}
                         />
                       </Td>
                       <Td {...cellProps} {...failedCell} overflow="visible" position="relative">
@@ -825,6 +1093,9 @@ export default function VesselForm() {
                               valueKey="id"
                               formatOption={(c) => c.name || c.company_name || `Client ${c.id}`}
                               fallbackDisplay={row.client_name}
+                              autoWidth
+                              autoWidthMin={18}
+                              autoWidthMax={50}
                               {...inputProps}
                             />
                           </Box>
@@ -832,12 +1103,20 @@ export default function VesselForm() {
                       </Td>
                       <Td {...cellProps} {...failedCell}>
                         {assignCell(rowIndex, PROCUREMENT_FIELDS,
+                          (() => {
+                            const personPlaceholder = row.client_id ? "Select person" : "Select client first";
+                            const personLabel =
+                              peopleOptions.find((person) => String(person.id) === String(row.procurement_person_id))?.name
+                              || personPlaceholder;
+                            return (
                           <Select
                             {...inputProps}
                             value={row.procurement_person_id}
                             onChange={(e) => handleInputChange(rowIndex, "procurement_person_id", e.target.value)}
-                            placeholder={row.client_id ? "Select person" : "Select client first"}
+                            placeholder={personPlaceholder}
                             isDisabled={!row.client_id}
+                            sx={autoSelectSx(personLabel, personPlaceholder, { min: 16, max: 50 })}
+                            title={personLabel}
                           >
                             {peopleOptions.map((person) => (
                               <option key={person.id} value={person.id}>
@@ -845,6 +1124,8 @@ export default function VesselForm() {
                               </option>
                             ))}
                           </Select>
+                            );
+                          })()
                         )}
                       </Td>
                       <Td {...cellProps} {...failedCell}>
@@ -852,6 +1133,8 @@ export default function VesselForm() {
                           {...readOnlyProps}
                           value={row.procurement_email}
                           placeholder="Auto-filled"
+                          htmlSize={getAutoHtmlSize(row.procurement_email, "Auto-filled", { min: 18, max: 50 })}
+                          title={row.procurement_email ? String(row.procurement_email) : undefined}
                         />
                       </Td>
                       <Td {...cellProps} {...failedCell}>
@@ -861,6 +1144,8 @@ export default function VesselForm() {
                             value={row.vessel_email}
                             onChange={(e) => handleInputChange(rowIndex, "vessel_email", e.target.value)}
                             placeholder="Vessel email"
+                            htmlSize={getAutoHtmlSize(row.vessel_email, "Vessel email", { min: 18, max: 50 })}
+                            title={row.vessel_email ? String(row.vessel_email) : undefined}
                           />
                         )}
                       </Td>
@@ -871,6 +1156,8 @@ export default function VesselForm() {
                             value={row.team}
                             onChange={(e) => handleInputChange(rowIndex, "team", e.target.value)}
                             placeholder="Team"
+                            htmlSize={getAutoHtmlSize(row.team, "Team", { min: 12, max: 40 })}
+                            title={row.team ? String(row.team) : undefined}
                           />
                         )}
                       </Td>
@@ -880,14 +1167,24 @@ export default function VesselForm() {
                           value={row.imo}
                           onChange={(e) => handleInputChange(rowIndex, "imo", e.target.value)}
                           placeholder="IMO number"
+                          htmlSize={getAutoHtmlSize(row.imo, "IMO number", { min: 12, max: 24 })}
+                          title={row.imo ? String(row.imo) : undefined}
                         />
                       </Td>
                       <Td {...cellProps} {...failedCell}>
                         {assignCell(rowIndex, "vessel_type_selec",
+                          (() => {
+                            const typePlaceholder = "Select vessel type";
+                            const typeLabel =
+                              vesselTypeSelecOptions.find((option) => String(option.value) === String(row.vessel_type_selec))?.label
+                              || typePlaceholder;
+                            return (
                           <Select
                             {...inputProps}
                             value={row.vessel_type_selec}
                             onChange={(e) => handleInputChange(rowIndex, "vessel_type_selec", e.target.value)}
+                            sx={autoSelectSx(typeLabel, typePlaceholder, { min: 16, max: 40 })}
+                            title={typeLabel}
                           >
                             <option value="">Select vessel type</option>
                             {vesselTypeSelecOptions.map((option) => (
@@ -896,6 +1193,8 @@ export default function VesselForm() {
                               </option>
                             ))}
                           </Select>
+                            );
+                          })()
                         )}
                       </Td>
                       <Td {...cellProps} {...failedCell}>
@@ -905,15 +1204,23 @@ export default function VesselForm() {
                             value={row.vessel_type}
                             onChange={(e) => handleInputChange(rowIndex, "vessel_type", e.target.value)}
                             placeholder="Additional type text"
+                            htmlSize={getAutoHtmlSize(row.vessel_type, "Additional type text", { min: 16, max: 50 })}
+                            title={row.vessel_type ? String(row.vessel_type) : undefined}
                           />
                         )}
                       </Td>
                       <Td {...cellProps} {...failedCell}>
                         {assignCell(rowIndex, "status",
+                          (() => {
+                            const statusLabel =
+                              STATUS_OPTIONS.find((option) => option.value === row.status)?.label || row.status || "Status";
+                            return (
                           <Select
                             {...inputProps}
                             value={row.status}
                             onChange={(e) => handleInputChange(rowIndex, "status", e.target.value)}
+                            sx={autoSelectSx(statusLabel, "Status", { min: 12, max: 24 })}
+                            title={statusLabel}
                           >
                             {STATUS_OPTIONS.map((option) => (
                               <option key={option.value} value={option.value}>
@@ -921,18 +1228,28 @@ export default function VesselForm() {
                               </option>
                             ))}
                           </Select>
+                            );
+                          })()
                         )}
                       </Td>
                       <Td {...cellProps} {...failedCell}>
                         {assignCell(rowIndex, "invoice_address",
                           <Textarea
-                            {...inputProps}
+                            size="sm"
+                            fontSize="sm"
+                            borderRadius="md"
+                            bg={inputBg}
+                            color={inputText}
+                            borderColor={borderColor}
                             value={row.invoice_address}
                             onChange={(e) => handleInputChange(rowIndex, "invoice_address", e.target.value)}
                             placeholder="Invoice address"
                             rows={1}
                             py="7px"
                             resize="vertical"
+                            w="auto"
+                            cols={getAutoCols(row.invoice_address, "Invoice address", { min: 24, max: 90 })}
+                            title={row.invoice_address ? String(row.invoice_address) : undefined}
                           />
                         )}
                       </Td>
@@ -1008,17 +1325,15 @@ export default function VesselForm() {
                       </Td>
                       <Td {...cellProps} {...failedCell} borderRight="none">
                         <HStack spacing="2">
-                          {!isEditing && (
-                            <IconButton
-                              icon={<Icon as={MdContentCopy} />}
-                              size="sm"
-                              colorScheme="green"
-                              variant="ghost"
-                              onClick={() => handleCopyRow(rowIndex)}
-                              aria-label="Copy row"
-                              title="Copy/Repeat row"
-                            />
-                          )}
+                          <IconButton
+                            icon={<Icon as={MdContentCopy} />}
+                            size="sm"
+                            colorScheme="green"
+                            variant="ghost"
+                            onClick={() => handleCopyRow(rowIndex)}
+                            aria-label="Copy row"
+                            title="Copy/Repeat row"
+                          />
                           <IconButton
                             icon={<Icon as={isEditing ? MdClose : MdDelete} />}
                             size="sm"

@@ -184,7 +184,7 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
         { key: "boxes", label: "BOXES" },
         { key: "kg", label: "KG" },
         { key: "lwh_text", label: "LWH TEXT", type: "multiline" },
-        { key: "t_1", label: "T 1" },
+        { key: "t_1", label: "t_1" },
         { key: "dg_un", label: "DG/UN" },
     ],
     filter2: [
@@ -203,7 +203,7 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
         { key: "boxes", label: "BOXES" },
         { key: "kg", label: "KG" },
         { key: "lwh_text", label: "LWH TEXT", type: "multiline" },
-        { key: "t_1", label: "T 1" },
+        { key: "t_1", label: "t_1" },
     ],
     filter3: [
         { key: "client", label: "CLIENT" },
@@ -219,7 +219,7 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
         { key: "boxes", label: "BOXES" },
         { key: "kg", label: "KG" },
         { key: "lwh_text", label: "LWH TEXT", type: "multiline" },
-        { key: "t_1", label: "T 1" },
+        { key: "t_1", label: "t_1" },
         { key: "origin", label: "ORIGIN" },
         { key: "narvi_stock_via_hub1", label: "HUB1" },
         { key: "narvi_stock_via_hub2", label: "HUB2" },
@@ -295,7 +295,7 @@ const EXCEL_EXPORT_HEADERS = [
     "BOXES",
     "KG",
     "LWH TEXT",
-    "T 1",
+    "t_1",
     "ORIGIN",
     "HUB1",
     "HUB2",
@@ -478,6 +478,7 @@ function readPersistedStockViewEditState() {
             clientViewSearchClient: typeof p.clientViewSearchClient === "string" ? p.clientViewSearchClient : "",
             clientViewSearchVessel: typeof p.clientViewSearchVessel === "string" ? p.clientViewSearchVessel : "",
             clientViewVesselFilter: p.clientViewVesselFilter != null ? p.clientViewVesselFilter : null,
+            clientViewViaHub1: p.clientViewViaHub1 != null ? p.clientViewViaHub1 : null,
             stockViewClient: p.stockViewClient != null ? p.stockViewClient : null,
             stockViewVessel: p.stockViewVessel != null ? p.stockViewVessel : null,
             stockViewStatus: typeof p.stockViewStatus === "string"
@@ -549,6 +550,7 @@ const defaultStockViewEditState = {
     clientViewSearchClient: "",
     clientViewSearchVessel: "",
     clientViewVesselFilter: null,
+    clientViewViaHub1: null,
     stockViewClient: null,
     stockViewVessel: null,
     stockViewStatus: "",
@@ -637,6 +639,7 @@ export default function Stocks() {
     const [clientViewSearchClient, setClientViewSearchClient] = useState(savedState.clientViewSearchClient);
     const [clientViewSearchVessel, setClientViewSearchVessel] = useState(savedState.clientViewSearchVessel);
     const [clientViewVesselFilter, setClientViewVesselFilter] = useState(savedState.clientViewVesselFilter);
+    const [clientViewViaHub1, setClientViewViaHub1] = useState(savedState.clientViewViaHub1);
 
     // State to control filters section visibility - default to open
     const [showFilters, setShowFilters] = useState(true);
@@ -723,6 +726,7 @@ export default function Stocks() {
             clientViewSearchClient,
             clientViewSearchVessel,
             clientViewVesselFilter,
+            clientViewViaHub1,
             stockViewClient,
             stockViewVessel,
             stockViewStatus,
@@ -747,7 +751,7 @@ export default function Stocks() {
             sortOption,
             clientSortOption,
         });
-    }, [activeTab, stockViewPage, clientViewPage, vesselViewClient, vesselViewVessel, vesselViewStatuses, clientViewClient, clientViewStatuses, clientViewFilterType, clientViewSearchClient, clientViewSearchVessel, clientViewVesselFilter, stockViewClient, stockViewVessel, stockViewStatus, stockViewStockItemId, stockViewDateOnStock, stockViewDaysOnStock, stockViewFilterSO, stockViewFilterSI, stockViewFilterSICombined, stockViewFilterDI, stockViewFilterPO, stockViewFilterReqNo, stockViewFilterWarehouseNew, stockViewSearchFilter, stockViewHasDestination, stockViewViaHub1, stockViewViaHub2, stockViewApDestination, stockViewOrigin, stockViewActiveFilter, stockViewEmptyFilters, sortOption, clientSortOption]);
+    }, [activeTab, stockViewPage, clientViewPage, vesselViewClient, vesselViewVessel, vesselViewStatuses, clientViewClient, clientViewStatuses, clientViewFilterType, clientViewSearchClient, clientViewSearchVessel, clientViewVesselFilter, clientViewViaHub1, stockViewClient, stockViewVessel, stockViewStatus, stockViewStockItemId, stockViewDateOnStock, stockViewDaysOnStock, stockViewFilterSO, stockViewFilterSI, stockViewFilterSICombined, stockViewFilterDI, stockViewFilterPO, stockViewFilterReqNo, stockViewFilterWarehouseNew, stockViewSearchFilter, stockViewHasDestination, stockViewViaHub1, stockViewViaHub2, stockViewApDestination, stockViewOrigin, stockViewActiveFilter, stockViewEmptyFilters, sortOption, clientSortOption]);
 
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
@@ -1018,6 +1022,7 @@ export default function Stocks() {
     const hasClientViewFilters = Boolean(
         clientViewClient ||
         clientViewVesselFilter ||
+        clientViewViaHub1 ||
         clientViewSearchClient ||
         clientViewSearchVessel ||
         createDateFrom ||
@@ -1028,6 +1033,7 @@ export default function Stocks() {
     const clearClientViewFilters = useEventCallback(() => {
         setClientViewClient(null);
         setClientViewVesselFilter(null);
+        setClientViewViaHub1(null);
         setClientViewSearchClient("");
         setClientViewSearchVessel("");
         setCreateDateFrom("");
@@ -1164,6 +1170,7 @@ export default function Stocks() {
             search: [clientViewSearchClient, clientViewSearchVessel].filter(Boolean).join(" ") || undefined,
             date_on_stock_from: createDateFrom?.trim() || undefined,
             date_on_stock_to: createDateTo?.trim() || undefined,
+            narvi_stock_via_hub1: clientViewViaHub1 ?? undefined,
         });
     }, [
         activeTab,
@@ -1192,6 +1199,7 @@ export default function Stocks() {
         vesselViewStatuses,
         clientViewClient,
         clientViewVesselFilter,
+        clientViewViaHub1,
         clientViewSearchClient,
         clientViewSearchVessel,
         clientViewStatuses,
@@ -1245,6 +1253,7 @@ export default function Stocks() {
         clientViewSearchClient,
         clientViewSearchVessel,
         clientViewVesselFilter,
+        clientViewViaHub1,
         clientViewStatuses,
         createDateFrom,
         createDateTo,
@@ -1252,7 +1261,7 @@ export default function Stocks() {
         daysRangeTo,
     };
 
-    const isInitialMount = useRef(true);
+    const lastDebouncedFiltersKeyRef = useRef(null);
     const prevActiveTabRef = useRef(activeTab);
 
     // When tab changes, reset page and trigger fetch immediately
@@ -1265,12 +1274,35 @@ export default function Stocks() {
         }
     }, [activeTab]);
 
-    // When filter fields change, debounce then reset page and trigger fetch (skip on initial mount)
+    const stockViewFilterDebounceKey = JSON.stringify({
+        stockViewClient: resolveStockLocationOptionId(stockViewClient) ?? stockViewClient ?? null,
+        stockViewVessel: resolveStockLocationOptionId(stockViewVessel) ?? stockViewVessel ?? null,
+        stockViewStatus: stockViewStatus || "",
+        stockViewHasDestination: Boolean(stockViewHasDestination),
+        stockViewViaHub1: resolveStockLocationOptionId(stockViewViaHub1),
+        stockViewViaHub2: resolveStockLocationOptionId(stockViewViaHub2),
+        stockViewApDestination: resolveStockLocationOptionId(stockViewApDestination),
+        stockViewOrigin: stockViewOrigin ? normalizeStockOriginHubText(stockViewOrigin) : "",
+        stockViewActiveFilter: stockViewActiveFilter || "",
+        vesselViewClient: resolveStockLocationOptionId(vesselViewClient) ?? vesselViewClient ?? null,
+        vesselViewVessel: resolveStockLocationOptionId(vesselViewVessel) ?? vesselViewVessel ?? null,
+        vesselViewStatuses: [...(vesselViewStatuses || [])].sort(),
+        clientViewClient: resolveStockLocationOptionId(clientViewClient) ?? clientViewClient ?? null,
+        clientViewVesselFilter: resolveStockLocationOptionId(clientViewVesselFilter) ?? clientViewVesselFilter ?? null,
+        clientViewViaHub1: resolveStockLocationOptionId(clientViewViaHub1),
+        clientViewStatuses: [...(clientViewStatuses || [])].sort(),
+        stockViewEmptyFilters,
+    });
+
+    // When filter fields change, debounce then reset page and trigger fetch.
+    // Compare a stable key so React StrictMode remount does not look like a filter change.
     useEffect(() => {
-        if (isInitialMount.current) {
-            isInitialMount.current = false;
+        if (lastDebouncedFiltersKeyRef.current === stockViewFilterDebounceKey) return;
+        if (lastDebouncedFiltersKeyRef.current == null) {
+            lastDebouncedFiltersKeyRef.current = stockViewFilterDebounceKey;
             return;
         }
+        lastDebouncedFiltersKeyRef.current = stockViewFilterDebounceKey;
         if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
         filterDebounceRef.current = setTimeout(() => {
             filterDebounceRef.current = null;
@@ -1281,24 +1313,7 @@ export default function Stocks() {
         return () => {
             if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
         };
-    }, [
-        stockViewClient,
-        stockViewVessel,
-        stockViewStatus,
-        stockViewHasDestination,
-        stockViewViaHub1,
-        stockViewViaHub2,
-        stockViewApDestination,
-        stockViewOrigin,
-        stockViewActiveFilter,
-        vesselViewClient,
-        vesselViewVessel,
-        vesselViewStatuses,
-        clientViewClient,
-        clientViewVesselFilter,
-        clientViewStatuses,
-        stockViewEmptyFilters,
-    ]);
+    }, [stockViewFilterDebounceKey]);
 
     // A column value filter replaces an empty / not-empty filter on that same column.
     useEffect(() => {
@@ -1359,7 +1374,11 @@ export default function Stocks() {
         stockViewStockItemId,
     ]);
 
-    // Fetch stock list with API params from current tab filters
+    const getStockListRef = useRef(getStockList);
+    getStockListRef.current = getStockList;
+
+    // Fetch stock list with API params from current tab filters.
+    // Keep getStockList out of deps so a new callback identity does not refetch.
     useEffect(() => {
         const f = filterRef.current;
         const page = activeTab === 0 ? stockViewPage : clientViewPage;
@@ -1383,7 +1402,7 @@ export default function Stocks() {
             // Map Stock View / Edit sortOption to backend sort_by
             const sort_by = mapStockSortOptionToApiSortBy(sortOption);
 
-            getStockList(
+            getStockListRef.current(
                 withStockListFetchMode(
                     mergeStockEmptyFilters(
                         {
@@ -1424,7 +1443,8 @@ export default function Stocks() {
             const sort_by = mapStockSortOptionToApiSortBy(clientSortOption);
             const searchText = [f.clientViewSearchClient, f.clientViewSearchVessel].filter(Boolean).join(" ") || undefined;
 
-            getStockList(
+            const viaHub1Id = resolveStockLocationOptionId(f.clientViewViaHub1);
+            getStockListRef.current(
                 withStockListFetchMode(
                     {
                         client_id: f.clientViewClient ?? undefined,
@@ -1432,6 +1452,9 @@ export default function Stocks() {
                         stock_status: statusParam,
                         search: searchText,
                         name: searchText,
+                        date_on_stock_from: f.createDateFrom?.trim() || undefined,
+                        date_on_stock_to: f.createDateTo?.trim() || undefined,
+                        narvi_stock_via_hub1: viaHub1Id ?? undefined,
                         sort_by,
                     },
                     { page, page_size: PAGE_SIZE, fetchAll: listUsesFetchAll }
@@ -1439,8 +1462,8 @@ export default function Stocks() {
             );
         }
     }, listUsesFetchAll
-        ? [apiFetchTrigger, getStockList, activeTab, sortOption, clientSortOption, listUsesFetchAll]
-        : [apiFetchTrigger, getStockList, activeTab, sortOption, clientSortOption, listUsesFetchAll, currentApiPage]);
+        ? [apiFetchTrigger, activeTab, sortOption, clientSortOption, listUsesFetchAll]
+        : [apiFetchTrigger, activeTab, sortOption, clientSortOption, listUsesFetchAll, currentApiPage]);
 
     // Restore filter state from location.state when returning from edit mode.
     // When coming back from edit, filters are already loaded from sessionStorage,
@@ -1460,6 +1483,7 @@ export default function Stocks() {
             if (filterState.clientViewSearchClient !== undefined) setClientViewSearchClient(filterState.clientViewSearchClient);
             if (filterState.clientViewSearchVessel !== undefined) setClientViewSearchVessel(filterState.clientViewSearchVessel);
             if (filterState.clientViewVesselFilter !== undefined) setClientViewVesselFilter(filterState.clientViewVesselFilter);
+            if (filterState.clientViewViaHub1 !== undefined) setClientViewViaHub1(filterState.clientViewViaHub1);
             if (filterState.clientViewStatuses !== undefined) setClientViewStatuses(new Set(filterState.clientViewStatuses)); // Convert Set to Array for serialization
             // Restore Stock View / Edit filters
             if (filterState.stockViewClient !== undefined) setStockViewClient(filterState.stockViewClient);
@@ -1565,6 +1589,7 @@ export default function Stocks() {
             clientViewSearchClient,
             clientViewSearchVessel,
             clientViewVesselFilter,
+            clientViewViaHub1,
             clientViewStatuses: Array.from(clientViewStatuses), // Convert Set to Array for serialization
             stockViewClient,
             stockViewVessel,
@@ -1608,6 +1633,8 @@ export default function Stocks() {
                 vesselViewVessel,
                 vesselViewStatuses: Array.from(vesselViewStatuses), // Convert Set to Array for serialization
                 clientViewClient,
+                clientViewVesselFilter,
+                clientViewViaHub1,
                 clientViewStatuses: Array.from(clientViewStatuses), // Convert Set to Array for serialization
                 stockViewClient,
                 stockViewVessel,
@@ -2297,10 +2324,10 @@ export default function Stocks() {
     };
 
     const CLIENT_VIEW_EXCEL_HEADERS = {
-        filter1: ["VESSEL", "Warning ‼️⛔", "HUB 1", "SUPPLIER", "REQ NO", "PO #", "STOCK STATUS", "BOXES", "KG", "LWH TEXT", "T 1", "DG/UN"],
-        filter2: ["VESSEL", "Warning ‼️⛔", "SUPPLIER", "REQ NO", "PO #", "SO NUMBER", "DESTINATION", "WAREHOUSE ID", "BOXES", "KG", "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2", "LWH TEXT", "T 1"],
+        filter1: ["VESSEL", "Warning ‼️⛔", "HUB 1", "SUPPLIER", "REQ NO", "PO #", "STOCK STATUS", "BOXES", "KG", "LWH TEXT", "t_1", "DG/UN"],
+        filter2: ["VESSEL", "Warning ‼️⛔", "SUPPLIER", "REQ NO", "PO #", "SO NUMBER", "DESTINATION", "WAREHOUSE ID", "BOXES", "KG", "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2", "LWH TEXT", "t_1"],
         filter3: [
-            "VESSEL", "Warning ‼️⛔", "SUPPLIER", "REQ NO", "PO #", "STOCK STATUS", "CUR", "VALUE", "DATE ON STOCK", "BOXES", "KG", "LWH TEXT", "T 1",
+            "VESSEL", "Warning ‼️⛔", "SUPPLIER", "REQ NO", "PO #", "STOCK STATUS", "CUR", "VALUE", "DATE ON STOCK", "BOXES", "KG", "LWH TEXT", "t_1",
             "ORIGIN", "HUB1", "HUB2", "AP DESTINATION", "DESTINATION",
             "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2",
             "DG/UN", "SO NUMBER", "WAREHOUSE ID",
@@ -2484,7 +2511,7 @@ export default function Stocks() {
         const keepIdx = headers
             .map((header, index) => {
                 const label = String(header || "").toUpperCase().replace(/\s+/g, " ").trim();
-                const isInternal = label === "CLIENT" || label === "VESSEL" || label === "T 1" || label.startsWith("WARNING");
+                const isInternal = label === "CLIENT" || label === "VESSEL" || label === "T 1" || label === "T_1" || label.startsWith("WARNING");
                 return isInternal ? -1 : index;
             })
             .filter((index) => index >= 0);
@@ -2525,7 +2552,7 @@ export default function Stocks() {
             if (h === "REQ NO") return 200;
             if (h === "PO #" || h === "PO#" || h === "PO NUMBER") return 260;
             if (h === "LWH" || h === "LWH TEXT") return 180;
-            if (h === "T 1" || h === "WARNING ‼️⛔") return 180;
+            if (h === "T 1" || h === "T_1" || h === "WARNING ‼️⛔") return 180;
             return 90;
         };
 
@@ -5158,26 +5185,62 @@ export default function Stocks() {
                                                                         borderColor={borderColor}
                                                                     />
                                                                 </Box>
-                                                                {clientViewVesselFilter && (
-                                                                    <IconButton
-                                                                        size="sm"
-                                                                        icon={<Icon as={MdClose} />}
-                                                                        colorScheme="red"
-                                                                        variant="ghost"
-                                                                        onClick={() => setClientViewVesselFilter(null)}
-                                                                        aria-label="Clear vessel filter"
-                                                                    />
-                                                                )}
-                                                            </HStack>
-                                                        </Box>
-                                                    </Flex>
-                                                    <StatusFilterRow
-                                                        statusEntries={Object.entries(STATUS_CONFIG)}
-                                                        isChecked={(statusKey) => clientViewStatuses.has(statusKey)}
-                                                        onToggle={handleClientViewStatusToggle}
-                                                        borderColor={borderColor}
-                                                        textColor={textColor}
-                                                    />
+                                                            {clientViewVesselFilter && (
+                                                                <IconButton
+                                                                    size="sm"
+                                                                    icon={<Icon as={MdClose} />}
+                                                                    colorScheme="red"
+                                                                    variant="ghost"
+                                                                    onClick={() => setClientViewVesselFilter(null)}
+                                                                    aria-label="Clear vessel filter"
+                                                                />
+                                                            )}
+                                                        </HStack>
+                                                    </Box>
+
+                                                    {/* HUB 1 Filter */}
+                                                    <Box w="220px" minW="200px">
+                                                        <HStack spacing="1">
+                                                            <Box flex="1">
+                                                                <RemoteSearchableSelect
+                                                                    value={clientViewViaHub1 != null ? String(clientViewViaHub1) : null}
+                                                                    onChange={(id) => {
+                                                                        const match = findOptionById("viaHub1", stockViaHub1Options, id);
+                                                                        if (match) pinOption("viaHub1", match);
+                                                                        setClientViewViaHub1(id);
+                                                                    }}
+                                                                    onSearchChange={setQViaHub1}
+                                                                    options={getOptionsForValue("viaHub1", stockViaHub1Options, clientViewViaHub1)}
+                                                                    placeholder="Filter by HUB 1"
+                                                                    displayKey="name"
+                                                                    valueKey="id"
+                                                                    formatOption={(option) => option.name || `Option ${option.id}`}
+                                                                    isLoading={isLoadingDestinationOptions}
+                                                                    bg={inputBg}
+                                                                    color={inputText}
+                                                                    borderColor={borderColor}
+                                                                />
+                                                            </Box>
+                                                            {clientViewViaHub1 && (
+                                                                <IconButton
+                                                                    size="sm"
+                                                                    icon={<Icon as={MdClose} />}
+                                                                    colorScheme="red"
+                                                                    variant="ghost"
+                                                                    onClick={() => setClientViewViaHub1(null)}
+                                                                    aria-label="Clear HUB 1 filter"
+                                                                />
+                                                            )}
+                                                        </HStack>
+                                                    </Box>
+                                                </Flex>
+                                                <StatusFilterRow
+                                                    statusEntries={Object.entries(STATUS_CONFIG)}
+                                                    isChecked={(statusKey) => clientViewStatuses.has(statusKey)}
+                                                    onToggle={handleClientViewStatusToggle}
+                                                    borderColor={borderColor}
+                                                    textColor={textColor}
+                                                />
                                                 </Box>
                                             </VStack>
                                         </Card>
@@ -6351,6 +6414,42 @@ export default function Stocks() {
                                                         </HStack>
                                                     </Box>
 
+                                                    {/* HUB 1 Filter */}
+                                                    <Box w="220px" minW="200px">
+                                                        <HStack spacing="1">
+                                                            <Box flex="1">
+                                                                <RemoteSearchableSelect
+                                                                    value={clientViewViaHub1 != null ? String(clientViewViaHub1) : null}
+                                                                    onChange={(id) => {
+                                                                        const match = findOptionById("viaHub1", stockViaHub1Options, id);
+                                                                        if (match) pinOption("viaHub1", match);
+                                                                        setClientViewViaHub1(id);
+                                                                    }}
+                                                                    onSearchChange={setQViaHub1}
+                                                                    options={getOptionsForValue("viaHub1", stockViaHub1Options, clientViewViaHub1)}
+                                                                    placeholder="Filter by HUB 1"
+                                                                    displayKey="name"
+                                                                    valueKey="id"
+                                                                    formatOption={(option) => option.name || `Option ${option.id}`}
+                                                                    isLoading={isLoadingDestinationOptions}
+                                                                    bg={inputBg}
+                                                                    color={inputText}
+                                                                    borderColor={borderColor}
+                                                                />
+                                                            </Box>
+                                                            {clientViewViaHub1 && (
+                                                                <IconButton
+                                                                    size="sm"
+                                                                    icon={<Icon as={MdClose} />}
+                                                                    colorScheme="red"
+                                                                    variant="ghost"
+                                                                    onClick={() => setClientViewViaHub1(null)}
+                                                                    aria-label="Clear HUB 1 filter"
+                                                                />
+                                                            )}
+                                                        </HStack>
+                                                    </Box>
+
                                                     {/* Date on Stock Filter (opens range modal) */}
                                                     <Box w="220px" minW="200px">
                                                         <HStack spacing="1">
@@ -6379,7 +6478,7 @@ export default function Stocks() {
                                                 <HStack spacing="4" align="center" flexWrap="wrap" mt="3">
                                                     <Text fontSize="sm" color={tableTextColorSecondary}>
                                                         {filteredAndSortedStock.length} of {total_count > 0 ? total_count : stockList.length} stock items
-                                                        {(clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel || createDateFrom || createDateTo || clientViewStatuses.size > 0) && " (filtered)"}
+                                                        {(clientViewClient || clientViewVesselFilter || clientViewViaHub1 || clientViewSearchClient || clientViewSearchVessel || createDateFrom || createDateTo || clientViewStatuses.size > 0) && " (filtered)"}
                                                     </Text>
                                                     <HStack spacing="2" align="center" opacity={canFetchAllStockList ? 1 : 0.5}>
                                                         <Text fontSize="sm" color={textColor} fontWeight="600">
@@ -6744,7 +6843,7 @@ export default function Stocks() {
                                             <Text color={tableTextColorSecondary} fontSize="sm" textAlign="center">
                                                 {(() => {
                                                     const hasStockViewFilters = stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewOrigin || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || stockViewHasDestination || vesselViewVessel || vesselViewClient || vesselViewStatuses.size > 0 || isViewingSelected;
-                                                    const hasClientViewFilters = clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel || clientViewStatuses.size > 0 || isViewingSelected;
+                                                    const hasClientViewFilters = clientViewClient || clientViewVesselFilter || clientViewViaHub1 || clientViewSearchClient || clientViewSearchVessel || clientViewStatuses.size > 0 || isViewingSelected;
                                                     if (activeTab === 0) {
                                                         return hasStockViewFilters
                                                             ? "Try adjusting your filters or status selections to see more results."
@@ -6908,7 +7007,7 @@ export default function Stocks() {
                                             if (activeTab === 0) {
                                                 return (vesselViewVessel || vesselViewClient || vesselViewStatuses.size > 0 || isViewingSelected) ? " (filtered)" : "";
                                             } else {
-                                                return (clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel || clientViewStatuses.size > 0 || isViewingSelected) ? " (filtered)" : "";
+                                                return (clientViewClient || clientViewVesselFilter || clientViewViaHub1 || clientViewSearchClient || clientViewSearchVessel || clientViewStatuses.size > 0 || isViewingSelected) ? " (filtered)" : "";
                                             }
                                         })()}
                                         {filteredAndSortedStock.length !== stockList.length && ` of ${stockList.length} total`}

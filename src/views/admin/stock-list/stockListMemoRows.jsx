@@ -623,7 +623,7 @@ const STOCK_VIEW_HEADER_COLUMNS = [
     { label: "BOXES" },
     { label: "WEIGHT KGS" },
     { label: "LWH TEXT" },
-    { label: "T 1" },
+    { label: "t_1" },
     { label: "DG/UN NUMBER" },
     { label: "TOTAL VOLUME CBM" },
     { label: "TOTAL CW AIR FREIGHT" },
@@ -751,6 +751,7 @@ function StockViewDataTableInner({
                                 {...headerProps}
                                 {...(column.stickyIndex != null ? stickyHeader[column.stickyIndex] : {})}
                                 {...(column.textAlign ? { textAlign: column.textAlign } : {})}
+                                {...(column.label === "t_1" ? { textTransform: "none" } : {})}
                             >
                                 <Flex
                                     align="center"
@@ -874,6 +875,7 @@ function ClientViewDataTableInner({
                                     textOverflow: "unset",
                                 }
                                 : {})}
+                            {...(column.key === "t_1" ? { textTransform: "none" } : {})}
                         >
                             {column.label}
                         </Th>

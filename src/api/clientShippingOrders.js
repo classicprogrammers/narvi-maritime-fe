@@ -26,6 +26,7 @@ const buildListParams = (params = {}) => {
     so_id,
     name,
     id,
+    client_case_invoice_ref,
   } = params;
 
   const fetchAllRequested =
@@ -92,6 +93,10 @@ const buildListParams = (params = {}) => {
     if (digitsMatch && digitsMatch[0] !== "") {
       requestParams.so_id = digitsMatch[0];
     }
+  }
+
+  if (client_case_invoice_ref != null && String(client_case_invoice_ref).trim() !== "") {
+    requestParams.client_case_invoice_ref = String(client_case_invoice_ref).trim();
   }
 
   if (sort_by != null && String(sort_by).trim() !== "") {

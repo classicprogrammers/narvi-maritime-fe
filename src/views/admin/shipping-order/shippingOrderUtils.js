@@ -85,6 +85,9 @@ export function normalizeOrder(order) {
     eta_date: order.eta_date,
     etb: order.etb,
     etd: order.etd,
+    delivery_via_service_boat: isDeliveryViaServiceBoat(order.delivery_via_service_boat),
+    service_boat_paid_by: normalizeServiceBoatPaidBy(order.service_boat_paid_by),
+    cost_confirmed_to_client: isCostConfirmedToClient(order.cost_confirmed_to_client) ? "yes" : "",
     so_delivery_date: order.so_delivery_date ? toDateOnly(String(order.so_delivery_date)) : "",
     next_action: order.next_action ? toDateOnly(String(order.next_action)) : "",
     internal_remark: order.internal_remark,
@@ -162,6 +165,58 @@ export function formatShippingOrderDestinationDisplay(order) {
   if (countryName && countryName !== "-") parts.push(countryName);
   if (parts.length) return parts.join(", ");
   return "-";
+}
+
+export function isDeliveryViaServiceBoat(value) {
+  return value === true || value === "true" || value === "yes";
+}
+
+export function normalizeServiceBoatPaidBy(value) {
+  if (value == null || value === false || value === "") return "";
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "narvi") return "narvi";
+  if (normalized === "others" || normalized === "other") return "others";
+  return "";
+}
+
+export function isCostConfirmedToClient(value) {
+  return value === true || value === "yes" || value === "true";
+}
+
+export function formatServiceBoatPaidByLabel(value) {
+  const paidBy = normalizeServiceBoatPaidBy(value);
+  if (paidBy === "narvi") return "Narvi";
+  if (paidBy === "others") return "Others";
+  return "";
+}
+
+export function getServiceBoatFormPayload(data) {
+  const viaBoat = isDeliveryViaServiceBoat(data?.delivery_via_service_boat);
+  if (!viaBoat) {
+    return {
+      delivery_via_service_boat: false,
+      service_boat_paid_by: false,
+      cost_confirmed_to_client: false,
+    };
+  }
+  const paidBy = normalizeServiceBoatPaidBy(data?.service_boat_paid_by);
+  return {
+    delivery_via_service_boat: true,
+    service_boat_paid_by: paidBy || false,
+    cost_confirmed_to_client: isCostConfirmedToClient(data?.cost_confirmed_to_client) ? "yes" : false,
+  };
+}
+
+/** When delivery via service boat is yes, paid-by and client cost confirmation are required. */
+export function validateShippingOrderServiceBoat(data) {
+  if (!isDeliveryViaServiceBoat(data?.delivery_via_service_boat)) return null;
+  if (!normalizeServiceBoatPaidBy(data?.service_boat_paid_by)) {
+    return "Select whether the service boat / launch is paid by Others or Narvi.";
+  }
+  if (!isCostConfirmedToClient(data?.cost_confirmed_to_client)) {
+    return "Tick that the cost has been confirmed to the client.";
+  }
+  return null;
 }
 
 /**
@@ -301,6 +356,23 @@ export function buildPayloadFromForm(data, isUpdate = false, originalData = {}) 
         compareValue: data.etd && data.etd !== false ? toDateOnly(data.etd) : null,
       },
       {
+        key: "delivery_via_service_boat",
+        value: isDeliveryViaServiceBoat(data.delivery_via_service_boat),
+        originalValue: isDeliveryViaServiceBoat(originalData.delivery_via_service_boat),
+      },
+      {
+        key: "service_boat_paid_by",
+        value: normalizeServiceBoatPaidBy(data.service_boat_paid_by) || false,
+        originalValue: normalizeServiceBoatPaidBy(originalData.service_boat_paid_by) || null,
+        compareValue: normalizeServiceBoatPaidBy(data.service_boat_paid_by) || null,
+      },
+      {
+        key: "cost_confirmed_to_client",
+        value: isCostConfirmedToClient(data.cost_confirmed_to_client) ? "yes" : false,
+        originalValue: isCostConfirmedToClient(originalData.cost_confirmed_to_client) ? "yes" : null,
+        compareValue: isCostConfirmedToClient(data.cost_confirmed_to_client) ? "yes" : null,
+      },
+      {
         key: "so_delivery_date",
         value: data.so_delivery_date && data.so_delivery_date !== false
           ? toDateOnly(data.so_delivery_date)
@@ -404,6 +476,7 @@ export function buildPayloadFromForm(data, isUpdate = false, originalData = {}) 
   if (hasValue(etbDate)) payload.etb = etbDate;
   const etdDate = data.etd && data.etd !== false ? toDateOnly(data.etd) : false;
   if (hasValue(etdDate)) payload.etd = etdDate;
+  Object.assign(payload, getServiceBoatFormPayload(data));
   if (hasValue(data.so_delivery_date)) payload.so_delivery_date = toDateOnly(data.so_delivery_date);
   const dateOrder = toDateTime(data.date_created || data.date_order);
   if (hasValue(dateOrder)) payload.date_order = dateOrder;

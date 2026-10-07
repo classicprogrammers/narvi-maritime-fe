@@ -38,6 +38,7 @@ import {
     ModalBody,
     ModalCloseButton,
     useDisclosure,
+    ButtonGroup,
 } from "@chakra-ui/react";
 import {
     MdSave,
@@ -53,6 +54,8 @@ import {
     MdArrowDownward,
     MdArrowUpward,
     MdUnfoldMore,
+    MdTableChart,
+    MdViewList,
 } from "react-icons/md";
 import { formatStockStatusLabel, normalizeStockStatusKey } from "../../../constants/stockStatus";
 import { useStock } from "../../../redux/hooks/useStock";
@@ -129,7 +132,7 @@ const STOCK_FORM_SORT_COLUMNS = [
     { label: "Weight kgs", sortKey: "weightKgs", type: "number", minW: "100px" },
     { label: "Dimension", sortKey: "dimensions", type: "dimensions", minW: "150px" },
     { label: "LWH Text Details", sortKey: "lwhText", type: "text", minW: "200px" },
-    { label: "T 1", sortKey: "t1", type: "text", minW: "80px" },
+    { label: "t_1", sortKey: "t1", type: "text", minW: "80px" },
     { label: "DG/UN Number", sortKey: "dgUn", type: "text", minW: "150px" },
     { label: "Value", sortKey: "value", type: "number", minW: "100px" },
     { label: "Currency", sortKey: "currency", type: "lookup", lookup: "currencies", minW: "100px" },
@@ -153,6 +156,20 @@ const STOCK_FORM_SORT_COLUMNS = [
     { label: "Files", sortKey: "attachments", type: "files", minW: "120px" },
     { label: "Cancel Reason", sortKey: "cancelText", type: "text", minW: "200px" },
 ];
+
+const STOCK_FORM_LAYOUT_STORAGE_KEY = "narvi_stock_form_layout";
+
+function readStoredStockFormLayout() {
+    try {
+        return localStorage.getItem(STOCK_FORM_LAYOUT_STORAGE_KEY) === "list" ? "list" : "table";
+    } catch {
+        return "table";
+    }
+}
+
+function cssQuotedContent(value) {
+    return `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
 
 function lookupListName(id, list) {
     if (id == null || id === "") return "";
@@ -351,6 +368,122 @@ export default function StockForm() {
         // maxW: "200px",
     };
 
+    const handleFormLayoutChange = useCallback((layout) => {
+        setFormLayout(layout);
+        try {
+            localStorage.setItem(STOCK_FORM_LAYOUT_STORAGE_KEY, layout);
+        } catch {
+            // ignore storage errors
+        }
+    }, []);
+
+    const stockFormListSx = useMemo(() => {
+        const labels = [
+            "",
+            ...STOCK_FORM_SORT_COLUMNS
+                .filter((column) => !column.editOnly || isEditing)
+                .map((column) => column.label),
+            "Actions",
+            "Stock Report",
+        ];
+        const labelRules = {};
+        labels.forEach((label, index) => {
+            labelRules[`tbody td:nth-of-type(${index + 1})::before`] = {
+                content: cssQuotedContent(label),
+                textTransform: label === "t_1" ? "none" : "uppercase",
+            };
+        });
+        return {
+            display: "block !important",
+            minW: "100% !important",
+            width: "100%",
+            thead: { display: "none !important" },
+            tbody: {
+                display: "flex !important",
+                flexDirection: "column",
+                gap: "16px",
+                bg: "transparent",
+            },
+            "tbody tr": {
+                display: "grid !important",
+                gridTemplateColumns: {
+                    base: "1fr",
+                    md: "repeat(2, minmax(0, 1fr))",
+                    xl: "repeat(3, minmax(0, 1fr))",
+                },
+                gap: "12px 16px",
+                p: "16px",
+                bg: cardBg,
+                borderWidth: "1px",
+                borderStyle: "solid",
+                borderColor: tableBorderColor,
+                borderRadius: "12px",
+                boxShadow: "sm",
+            },
+            "tbody td": {
+                display: "flex !important",
+                flexDirection: "column",
+                alignItems: "stretch",
+                justifyContent: "flex-start",
+                minW: "0 !important",
+                maxW: "none !important",
+                w: "100%",
+                border: "0 !important",
+                px: "0 !important",
+                py: "4px !important",
+                "&::before": {
+                    display: "block",
+                    mb: "6px",
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    letterSpacing: "0.04em",
+                    color: "gray.500",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                },
+                "& input, & textarea, & select, & .chakra-numberinput, & .chakra-select__wrapper": {
+                    width: "100% !important",
+                    maxWidth: "100% !important",
+                },
+            },
+            "tbody td:nth-of-type(1)": {
+                gridColumn: "1 / -1 !important",
+                order: -1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                pb: "10px !important",
+                mb: "4px",
+                borderBottomWidth: "1px !important",
+                borderBottomStyle: "solid",
+                borderBottomColor: tableBorderColor,
+            },
+            "tbody td:nth-of-type(1)::before": {
+                display: "none !important",
+            },
+            "tbody td:nth-last-of-type(2)": {
+                display: "none !important",
+            },
+            "tbody td:nth-last-of-type(1)": {
+                gridColumn: "1 / -1 !important",
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "flex-end",
+                pt: "12px !important",
+                mt: "4px",
+                borderTopWidth: "1px !important",
+                borderTopStyle: "solid",
+                borderTopColor: tableBorderColor,
+                "&::before": {
+                    mb: "0 !important",
+                    mr: "8px",
+                },
+            },
+            ...labelRules,
+        };
+    }, [cardBg, isEditing, tableBorderColor]);
+
     // Auto-size helper for text inputs (Chakra `Input` supports `htmlSize`)
     // Keeps widths readable without blowing up the table.
     const getAutoHtmlSize = (value, placeholder = "", opts = {}) => {
@@ -451,6 +584,7 @@ export default function StockForm() {
 
     // Form state - array of rows
     const [formRows, setFormRows] = useState([{ ...getEmptyRow(), _order: 0 }]);
+    const [formLayout, setFormLayout] = useState(readStoredStockFormLayout);
     const [sort, setSort] = useState({ sortKey: null, sortOrder: null });
     const formRowsRef = useRef(formRows);
     const getPayloadRef = useRef(() => ({}));
@@ -2098,10 +2232,12 @@ export default function StockForm() {
                 bg={cardBg}
                 px={{ base: "4", md: "6" }}
                 py="3"
-                justify="space-between"
                 align="center"
+                gap="3"
                 borderBottom="1px"
                 borderColor={borderColor}
+                display="grid"
+                gridTemplateColumns={{ base: "1fr", md: "1fr auto 1fr" }}
             >
                 <HStack spacing="4">
                     {isEditFromList && (
@@ -2124,37 +2260,59 @@ export default function StockForm() {
                     </Text>
                 </HStack>
 
-                <HStack spacing="3">
-                    {!isEditing && (
-                        <>
-                            <Button
-                                leftIcon={<Icon as={MdAdd} />}
-                                bg="blue.500"
-                                color="white"
-                                size="sm"
-                                px="6"
-                                py="3"
-                                borderRadius="md"
-                                _hover={{ bg: "blue.600" }}
-                                onClick={handleAddRow}
-                            >
-                                Add Row
-                            </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                px="6"
-                                py="3"
-                                borderRadius="md"
-                                borderColor={borderColor}
-                                color={textColor}
-                                _hover={{ bg: inputBg }}
-                                onClick={handleDiscard}
-                            >
-                                Discard
-                            </Button>
-                        </>
-                    )}
+                <ButtonGroup
+                    size="sm"
+                    isAttached
+                    variant="outline"
+                    justifySelf="center"
+                >
+                    <Button
+                        leftIcon={<Icon as={MdTableChart} />}
+                        onClick={() => handleFormLayoutChange("table")}
+                        colorScheme={formLayout === "table" ? "blue" : "gray"}
+                        variant={formLayout === "table" ? "solid" : "outline"}
+                        aria-pressed={formLayout === "table"}
+                    >
+                        Table view
+                    </Button>
+                    <Button
+                        leftIcon={<Icon as={MdViewList} />}
+                        onClick={() => handleFormLayoutChange("list")}
+                        colorScheme={formLayout === "list" ? "blue" : "gray"}
+                        variant={formLayout === "list" ? "solid" : "outline"}
+                        aria-pressed={formLayout === "list"}
+                    >
+                            Form view
+                    </Button>
+                </ButtonGroup>
+
+                <HStack spacing="3" flexWrap="wrap" justify="flex-end">
+                    <Button
+                        leftIcon={<Icon as={MdAdd} />}
+                        bg="blue.500"
+                        color="white"
+                        size="sm"
+                        px="6"
+                        py="3"
+                        borderRadius="md"
+                        _hover={{ bg: "blue.600" }}
+                        onClick={handleAddRow}
+                    >
+                        Add Row
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        px="6"
+                        py="3"
+                        borderRadius="md"
+                        borderColor={borderColor}
+                        color={textColor}
+                        _hover={{ bg: inputBg }}
+                        onClick={handleDiscard}
+                    >
+                        Discard
+                    </Button>
                     <Button
                         leftIcon={<Icon as={MdSave} />}
                         bg="green.500"
@@ -2177,12 +2335,34 @@ export default function StockForm() {
                 </HStack>
             </Flex>
 
-            {/* Main Content Area - Horizontal Table Form */}
-            <Box bg={cardBg} p={{ base: "4", md: "6" }} overflowX="auto">
+            {/* Main Content Area - Horizontal Table Form / stacked list form */}
+            <Box
+                bg={formLayout === "list" ? "transparent" : cardBg}
+                p={{ base: "4", md: "6" }}
+                overflowX={formLayout === "table" ? "auto" : "hidden"}
+            >
                 {/* Make table body scrollable with frozen header (Excel-style) */}
-                <Card w="100%" p="0" overflow="hidden">
-                    <Box maxH="60vh" overflowY="auto">
-                        <Table variant="striped" size="sm" colorScheme="gray" minW="5000px">
+                <Card
+                    w="100%"
+                    p="0"
+                    overflow={formLayout === "table" ? "hidden" : "visible"}
+                    bg={formLayout === "list" ? "transparent" : undefined}
+                    boxShadow={formLayout === "list" ? "none" : undefined}
+                >
+                    <Box
+                        maxH="70vh"
+                        overflowY="auto"
+                        overflowX={formLayout === "table" ? "auto" : "hidden"}
+                        px={formLayout === "list" ? { base: "1", md: "2" } : undefined}
+                        py={formLayout === "list" ? "1" : undefined}
+                    >
+                        <Table
+                            variant={formLayout === "table" ? "striped" : "simple"}
+                            size="sm"
+                            colorScheme="gray"
+                            minW={formLayout === "table" ? "5000px" : "100%"}
+                            sx={formLayout === "list" ? stockFormListSx : undefined}
+                        >
                             <Thead position="sticky" top={0} zIndex={444}>
                                 <Tr>
                                     {STOCK_FORM_SORT_COLUMNS.filter((column) => !column.editOnly || isEditing).map((column) => (
@@ -2200,7 +2380,7 @@ export default function StockForm() {
                                                 py: "12px",
                                                 fontSize: "11px",
                                                 fontWeight: "600",
-                                                textTransform: "uppercase",
+                                                textTransform: column.label === "t_1" ? "none" : "uppercase",
                                             }}
                                         />
                                     ))}
@@ -2211,6 +2391,43 @@ export default function StockForm() {
                             <Tbody>
                                 {formRows.map((row, rowIndex) => (
                                     <Tr key={row.id}>
+                                        {formLayout === "list" && (
+                                            <Td>
+                                                <Flex
+                                                    w="100%"
+                                                    align="center"
+                                                    justify="space-between"
+                                                    gap="3"
+                                                    flexWrap="wrap"
+                                                >
+                                                    <Text fontSize="sm" fontWeight="700" color={textColor}>
+                                                        {`Item ${rowIndex + 1}${formRows.length > 1 ? ` of ${formRows.length}` : ""}`}
+                                                        {row.stockItemId ? ` · ${row.stockItemId}` : ""}
+                                                    </Text>
+                                                    <HStack spacing="2">
+                                                        <IconButton
+                                                            icon={<Icon as={MdContentCopy} />}
+                                                            size="sm"
+                                                            colorScheme="green"
+                                                            variant="ghost"
+                                                            onClick={() => handleCopyRow(rowIndex)}
+                                                            aria-label="Copy row"
+                                                            title="Copy/Repeat row"
+                                                        />
+                                                        <IconButton
+                                                            icon={<Icon as={MdDelete} />}
+                                                            size="sm"
+                                                            colorScheme="red"
+                                                            variant="ghost"
+                                                            onClick={() => handleDeleteRow(rowIndex)}
+                                                            aria-label="Delete row"
+                                                            title="Delete row"
+                                                            isDisabled={formRows.length === 1}
+                                                        />
+                                                    </HStack>
+                                                </Flex>
+                                            </Td>
+                                        )}
                                         {isEditing && (
                                             <Td {...cellProps}>
                                                 <Input
@@ -3366,17 +3583,37 @@ export default function StockForm() {
                                 <Box key={dim.id || index} p={4} border="1px" borderColor={borderColor} borderRadius="md">
                                     <Flex justify="space-between" align="center" mb={3}>
                                         <Text fontWeight="600">Dimension {index + 1}</Text>
-                                        <IconButton
-                                            aria-label="Remove dimension"
-                                            icon={<Icon as={MdDelete} />}
-                                            size="sm"
-                                            colorScheme="red"
-                                            variant="ghost"
-                                            onClick={() => {
-                                                const updated = dimensionsList.filter((_, i) => i !== index);
-                                                setDimensionsList(updated);
-                                            }}
-                                        />
+                                        <HStack spacing={1}>
+                                            <IconButton
+                                                aria-label="Duplicate dimension"
+                                                title="Duplicate this dimension"
+                                                icon={<Icon as={MdContentCopy} />}
+                                                size="sm"
+                                                colorScheme="blue"
+                                                variant="ghost"
+                                                onClick={() => {
+                                                    const source = dimensionsList[index] || {};
+                                                    const duplicate = {
+                                                        ...source,
+                                                        id: null,
+                                                    };
+                                                    const updated = [...dimensionsList];
+                                                    updated.splice(index + 1, 0, duplicate);
+                                                    setDimensionsList(updated);
+                                                }}
+                                            />
+                                            <IconButton
+                                                aria-label="Remove dimension"
+                                                icon={<Icon as={MdDelete} />}
+                                                size="sm"
+                                                colorScheme="red"
+                                                variant="ghost"
+                                                onClick={() => {
+                                                    const updated = dimensionsList.filter((_, i) => i !== index);
+                                                    setDimensionsList(updated);
+                                                }}
+                                            />
+                                        </HStack>
                                     </Flex>
                                     {/* Calculation Method Selector */}
                                     <FormControl mb={3}>

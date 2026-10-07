@@ -78,7 +78,7 @@ import {
 } from "../../../api/shippingOrders";
 import { useHistory, Link, useLocation } from "react-router-dom";
 import * as XLSX from "xlsx";
-import { normalizeOrder, buildPayloadFromForm, getOrderAttachmentsForDisplay } from "./shippingOrderUtils";
+import { normalizeOrder, buildPayloadFromForm, getOrderAttachmentsForDisplay, validateShippingOrderServiceBoat } from "./shippingOrderUtils";
 import {
   applyShippingOrderFilesToPayload,
   mapExistingCiplFilesFromOrder,
@@ -564,6 +564,9 @@ const SoNumberTab = () => {
       eta_date: "",
       etb: "",
       etd: "",
+      delivery_via_service_boat: false,
+      service_boat_paid_by: "",
+      cost_confirmed_to_client: "",
       so_delivery_date: "",
       next_action: "",
       internal_remark: "",
@@ -1143,6 +1146,18 @@ const SoNumberTab = () => {
       toast({
         title: "Missing details",
         description: "Client is required.",
+        status: "warning",
+        duration: 4000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    const serviceBoatError = validateShippingOrderServiceBoat(formData);
+    if (serviceBoatError) {
+      toast({
+        title: "Missing details",
+        description: serviceBoatError,
         status: "warning",
         duration: 4000,
         isClosable: true,

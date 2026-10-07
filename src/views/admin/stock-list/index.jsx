@@ -506,15 +506,39 @@ export default function StockList() {
         [stockStatusOptions, activeFilter]
     );
 
-    // Debounce filter changes then reset page and trigger fetch
+    // Debounce filter changes then reset page and trigger fetch.
+    // Compare a stable key so React StrictMode remount does not look like a filter change.
     const filterDebounceRef = useRef(null);
     const [fetchTrigger, setFetchTrigger] = useState(0);
-    const isInitialMount = useRef(true);
+    const lastDebouncedFiltersKeyRef = useRef(null);
+    const stockMainDbFilterKey = JSON.stringify({
+        searchFilter: searchFilter || "",
+        selectedClient: getIdParam(selectedClient) ?? null,
+        selectedVessel: getIdParam(selectedVessel) ?? null,
+        selectedSupplier: getIdParam(selectedSupplier) ?? null,
+        selectedStatus: selectedStatus || "",
+        selectedWarehouse: getIdParam(selectedWarehouse) ?? null,
+        selectedCurrency: getIdParam(selectedCurrency) ?? null,
+        selectedHub: hubParam ?? null,
+        selectedOrigin: selectedOrigin ? normalizeStockOriginHubText(selectedOrigin) : "",
+        filterSO,
+        filterSI,
+        filterSICombined,
+        filterDI,
+        filterPO,
+        filterReqNo,
+        filterRemarks,
+        filterDaysOnStock,
+        filterCreateDateFrom,
+        filterCreateDateTo,
+    });
     useEffect(() => {
-        if (isInitialMount.current) {
-            isInitialMount.current = false;
+        if (lastDebouncedFiltersKeyRef.current === stockMainDbFilterKey) return;
+        if (lastDebouncedFiltersKeyRef.current == null) {
+            lastDebouncedFiltersKeyRef.current = stockMainDbFilterKey;
             return;
         }
+        lastDebouncedFiltersKeyRef.current = stockMainDbFilterKey;
         if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
         filterDebounceRef.current = setTimeout(() => {
             filterDebounceRef.current = null;
@@ -522,25 +546,34 @@ export default function StockList() {
             setFetchTrigger((t) => t + 1);
         }, 400);
         return () => { if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current); };
-    }, [searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, selectedOrigin, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterReqNo, filterRemarks, filterDaysOnStock]);
+    }, [stockMainDbFilterKey]);
 
-    // Fetch stock list on mount and when page or fetchTrigger changes (skip page when fetch_all)
+    const fetchStockListRef = useRef(fetchStockList);
+    fetchStockListRef.current = fetchStockList;
+
+    // Fetch stock list on mount and when page or fetchTrigger changes (skip page when fetch_all).
+    // Keep fetchStockList out of deps so filter object identity changes do not refetch immediately.
     useEffect(() => {
-        fetchStockList().then((result) => {
-            if (result?.success && result?.data) {
-                const total = result.data.total_count ?? 0;
-                const pages = Math.max(0, result.data.total_pages ?? 0);
-                setTotalCount(total);
-                setTotalPages(pages);
-                setHasNext(result.data.has_next || false);
-                setHasPrevious(result.data.has_previous || false);
-                const apiPage = result.data.page;
-                if (!stockListUsesFetchAll && typeof apiPage === "number" && apiPage >= 1 && pages >= 1) {
-                    setPage((prev) => (prev > pages ? pages : prev));
-                }
+        let cancelled = false;
+        fetchStockListRef.current().then((result) => {
+            if (cancelled || !result?.success || !result?.data) return;
+            const total = result.data.total_count ?? 0;
+            const pages = Math.max(0, result.data.total_pages ?? 0);
+            setTotalCount(total);
+            setTotalPages(pages);
+            setHasNext(result.data.has_next || false);
+            setHasPrevious(result.data.has_previous || false);
+            const apiPage = result.data.page;
+            if (!stockListUsesFetchAll && typeof apiPage === "number" && apiPage >= 1 && pages >= 1) {
+                setPage((prev) => (prev > pages ? pages : prev));
             }
         });
-    }, stockListUsesFetchAll ? [fetchStockList, fetchTrigger] : [fetchStockList, fetchTrigger, page]);
+        return () => {
+            cancelled = true;
+        };
+    }, stockListUsesFetchAll
+        ? [fetchTrigger, stockListUsesFetchAll, sortBy, sortOrder, sortOption, activeFilter]
+        : [fetchTrigger, page, stockListUsesFetchAll, sortBy, sortOrder, sortOption, activeFilter]);
 
     // Sync pagination state from Redux (as fallback)
     useEffect(() => {
@@ -550,9 +583,15 @@ export default function StockList() {
         if (reduxHasPrevious !== undefined) setHasPrevious(reduxHasPrevious);
     }, [reduxTotalCount, reduxTotalPages, reduxHasNext, reduxHasPrevious, totalCount, totalPages]);
 
-    // Restore filter state from location.state when returning from edit mode
+    // Restore filter state from location.state when returning from edit mode.
+    // When coming back from edit, filters are already loaded from sessionStorage,
+    // so only clear location.state — re-applying them would fire extra list fetches.
     useEffect(() => {
         if (location.state && location.state.filterState) {
+            if (location.state.fromEdit) {
+                history.replace(location.pathname, {});
+                return;
+            }
             const { filterState } = location.state;
             if (filterState.selectedClient !== undefined) setSelectedClient(filterState.selectedClient);
             if (filterState.selectedVessel !== undefined) setSelectedVessel(filterState.selectedVessel);
@@ -2182,7 +2221,7 @@ export default function StockList() {
                                         WEIGHT KG {sortField === "weight_kg" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
                                     <Th {...headerProps}>LWH TEXT</Th>
-                                    <Th {...headerProps}>T 1</Th>
+                                    <Th {...headerProps} textTransform="none">t_1</Th>
                                     <Th {...headerProps}>DG/UN NUMBER</Th>
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("total_volume_cbm")} _hover={{ bg: thHoverBg }}>
                                         TOTAL VOLUME CBM {sortField === "total_volume_cbm" && (sortDirection === "asc" ? "↑" : "↓")}

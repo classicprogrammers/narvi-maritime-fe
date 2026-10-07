@@ -2,6 +2,7 @@ import React from "react";
 import {
   Box,
   Button,
+  Checkbox,
   Flex,
   FormControl,
   FormLabel,
@@ -16,7 +17,7 @@ import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSe
 import ShippingOrderAttachmentsField from "../../../components/shipping-order/ShippingOrderAttachmentsField";
 import ShippingOrderCiplFilesField from "../../../components/shipping-order/ShippingOrderCiplFilesField";
 import { useClientVesselFilterOptions } from "../../../hooks/useClientVesselFilterOptions";
-import { resolveRelationId } from "./shippingOrderUtils";
+import { isDeliveryViaServiceBoat, resolveRelationId } from "./shippingOrderUtils";
 
 /**
  * Shared form body for shipping order (used in modal and edit page).
@@ -376,6 +377,71 @@ export default function ShippingOrderFormFields({
                 setFormData((prev) => ({ ...prev, etd: e.target.value || false }))
               }
             />
+          </FormControl>
+        </Flex>
+      </Box>
+
+      {/* Delivery via service boat / launch */}
+      <Box>
+        <FormControl>
+          <Checkbox
+            isChecked={isDeliveryViaServiceBoat(formData.delivery_via_service_boat)}
+            onChange={(e) => {
+              setFormData((prev) => ({
+                ...prev,
+                delivery_via_service_boat: e.target.checked,
+              }));
+            }}
+          >
+            Delivery via Service boat / launch
+          </Checkbox>
+        </FormControl>
+        <Flex gap="4" flexWrap="wrap" mt="4" pl="6">
+          <FormControl
+            flex="1"
+            minW="240px"
+            isRequired={isDeliveryViaServiceBoat(formData.delivery_via_service_boat)}
+            isDisabled={!isDeliveryViaServiceBoat(formData.delivery_via_service_boat)}
+          >
+            <FormLabel>Service boat / Launch paid by</FormLabel>
+            <Select
+              size="sm"
+              bg={inputBg}
+              color={inputText}
+              borderColor={borderColor}
+              value={formData.service_boat_paid_by || ""}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  service_boat_paid_by: e.target.value,
+                }))
+              }
+              placeholder="Select"
+            >
+              <option value="others">Others</option>
+              <option value="narvi">Narvi</option>
+            </Select>
+          </FormControl>
+          <FormControl
+            flex="1"
+            minW="240px"
+            isRequired={isDeliveryViaServiceBoat(formData.delivery_via_service_boat)}
+            isDisabled={!isDeliveryViaServiceBoat(formData.delivery_via_service_boat)}
+            alignSelf="flex-end"
+            pb="1"
+          >
+            <Checkbox
+              isChecked={formData.cost_confirmed_to_client === "yes"}
+              isDisabled={!isDeliveryViaServiceBoat(formData.delivery_via_service_boat)}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  cost_confirmed_to_client: e.target.checked ? "yes" : "",
+                }))
+              }
+            >
+              Cost been confirmed to the client
+            </Checkbox>
           </FormControl>
         </Flex>
       </Box>

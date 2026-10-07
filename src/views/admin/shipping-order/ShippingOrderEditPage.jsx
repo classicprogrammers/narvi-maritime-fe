@@ -22,7 +22,7 @@ import { MdArrowBack, MdContentCopy } from "react-icons/md";
 import { getNarviQuotations } from "../../../api/narviQuotation";
 import { getShippingOrderById, getShippingOrderStockApi, updateShippingOrder } from "../../../api/shippingOrders";
 import { useMasterData } from "../../../hooks/useMasterData";
-import { normalizeOrder, buildPayloadFromForm } from "./shippingOrderUtils";
+import { normalizeOrder, buildPayloadFromForm, validateShippingOrderServiceBoat } from "./shippingOrderUtils";
 import {
   applyShippingOrderFilesToPayload,
   notifyShippingOrderSaveResult,
@@ -182,6 +182,17 @@ export default function ShippingOrderEditPage() {
       toast({
         title: "Missing details",
         description: "Client is required.",
+        status: "warning",
+        duration: 4000,
+        isClosable: true,
+      });
+      return;
+    }
+    const serviceBoatError = validateShippingOrderServiceBoat(formData);
+    if (serviceBoatError) {
+      toast({
+        title: "Missing details",
+        description: serviceBoatError,
         status: "warning",
         duration: 4000,
         isClosable: true,

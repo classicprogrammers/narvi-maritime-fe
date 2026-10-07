@@ -133,6 +133,7 @@ export function buildStockUpdateDimensionsOps(currentDims = [], originalDims = [
 
   const ops = [];
   const keptIds = new Set();
+  const lengthsMatch = currentList.length === originalList.length;
 
   currentList.forEach((dim, index) => {
     const id = resolveDimensionId(dim);
@@ -149,33 +150,42 @@ export function buildStockUpdateDimensionsOps(currentDims = [], originalDims = [
       return;
     }
 
-    // Match by index against baseline/original when form dims lack server ids
-    // (common right after create-before-PDF on the add-stock form).
-    const originalAtIndex = originalList[index];
+    // Match by index only when the list length is unchanged (no insert/duplicate).
+    // Index matching after a duplicate would overwrite the next existing dimension.
+    const originalAtIndex = lengthsMatch ? originalList[index] : null;
     if (originalAtIndex) {
       const originalIdAtIndex = resolveDimensionId(originalAtIndex);
-      if (originalIdAtIndex != null) keptIds.add(String(originalIdAtIndex));
+      if (originalIdAtIndex != null && keptIds.has(String(originalIdAtIndex))) {
+        // Already claimed by another row; treat this as a new dimension.
+      } else {
+        if (originalIdAtIndex != null) keptIds.add(String(originalIdAtIndex));
 
-      if (dimensionFieldsEqual(dim, originalAtIndex)) {
+        if (dimensionFieldsEqual(dim, originalAtIndex)) {
+          return;
+        }
+
+        if (originalIdAtIndex != null) {
+          ops.push({
+            op: "update",
+            id: originalIdAtIndex,
+            ...mapDimensionBody(dim),
+          });
+          return;
+        }
+
+        // Already persisted via create but no server id in form — do not re-create.
+        // Dimension value edits in this state need a refetch to get ids.
         return;
       }
-
-      if (originalIdAtIndex != null) {
-        ops.push({
-          op: "update",
-          id: originalIdAtIndex,
-          ...mapDimensionBody(dim),
-        });
-        return;
-      }
-
-      // Already persisted via create but no server id in form — do not re-create.
-      // Dimension value edits in this state need a refetch to get ids.
-      return;
     }
 
-    // Same content already exists in original (any index) — never create again
-    const contentMatch = originalList.find((original) => dimensionFieldsEqual(dim, original));
+    // Same content may already exist — reuse that original only once.
+    // Extra identical rows (duplicates) must still be created.
+    const contentMatch = originalList.find((original) => {
+      const matchedId = resolveDimensionId(original);
+      if (matchedId != null && keptIds.has(String(matchedId))) return false;
+      return dimensionFieldsEqual(dim, original);
+    });
     if (contentMatch) {
       const matchedId = resolveDimensionId(contentMatch);
       if (matchedId != null) keptIds.add(String(matchedId));
