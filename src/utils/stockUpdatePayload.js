@@ -372,6 +372,8 @@ export function captureFormRowUpdateBaseline(row) {
     narviStockApDestination: row.narviStockApDestination,
     clientAccess: row.clientAccess,
     remarks: row.remarks || "",
+    warning: row.warning || "",
+    t1: row.t1 || "",
     internalRemark: row.internalRemark || "",
     cancelText: row.cancelText || "",
     weightKgs: row.weightKgs,

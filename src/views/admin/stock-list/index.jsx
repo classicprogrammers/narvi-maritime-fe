@@ -916,6 +916,50 @@ export default function StockList() {
         return stockList.filter(item => selectedIds.includes(item.id));
     }, [stockList, selectedRows]);
 
+    const hasMainDbFilters = Boolean(
+        selectedClient ||
+        selectedVessel ||
+        selectedSupplier ||
+        selectedStatus ||
+        selectedWarehouse ||
+        selectedCurrency ||
+        selectedHub ||
+        selectedOrigin ||
+        filterSO ||
+        filterSI ||
+        filterSICombined ||
+        filterDI ||
+        filterPO ||
+        filterReqNo ||
+        filterRemarks ||
+        filterDaysOnStock ||
+        filterCreateDateFrom ||
+        filterCreateDateTo ||
+        searchFilter
+    );
+
+    const clearMainDbFilters = () => {
+        setSelectedClient(null);
+        setSelectedVessel(null);
+        setSelectedSupplier(null);
+        setSelectedStatus("");
+        setSelectedWarehouse(null);
+        setSelectedCurrency(null);
+        setSelectedHub(null);
+        setSelectedOrigin(null);
+        setFilterSO("");
+        setFilterSI("");
+        setFilterSICombined("");
+        setFilterDI("");
+        setFilterPO("");
+        setFilterReqNo("");
+        setFilterRemarks("");
+        setFilterDaysOnStock("");
+        setFilterCreateDateFrom("");
+        setFilterCreateDateTo("");
+        setSearchFilter("");
+    };
+
     // Handle column sorting
     const handleSort = (field) => {
         if (sortField === field) {
@@ -1388,33 +1432,13 @@ export default function StockList() {
                                                 </HStack>
                                             </HStack>
                                             <HStack>
-                                                {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || selectedOrigin || filterSO || filterSI || filterSICombined || filterDI || filterPO || filterReqNo || filterRemarks || filterDaysOnStock || filterCreateDateFrom || filterCreateDateTo || searchFilter) && (
+                                                {hasMainDbFilters && (
                                                     <Button
                                                         size="xs"
                                                         leftIcon={<Icon as={MdClose} />}
                                                         colorScheme="red"
                                                         variant="ghost"
-                                                        onClick={() => {
-                                                            setSelectedClient(null);
-                                                            setSelectedVessel(null);
-                                                            setSelectedSupplier(null);
-                                                            setSelectedStatus("");
-                                                            setSelectedWarehouse(null);
-                                                            setSelectedCurrency(null);
-                                                            setSelectedHub(null);
-                                                            setSelectedOrigin(null);
-                                                            setFilterSO("");
-                                                            setFilterSI("");
-                                                            setFilterSICombined("");
-                                                            setFilterDI("");
-                                                            setFilterPO("");
-                                                            setFilterReqNo("");
-                                                            setFilterRemarks("");
-                                                            setFilterDaysOnStock("");
-                                                            setFilterCreateDateFrom("");
-                                                            setFilterCreateDateTo("");
-                                                            setSearchFilter("");
-                                                        }}
+                                                        onClick={clearMainDbFilters}
                                                     >
                                                         Clear All
                                                     </Button>
@@ -2048,9 +2072,24 @@ export default function StockList() {
                         <Center py="80px" px="25px">
                             <VStack spacing="4" maxW="400px" p="6" bg={emptyPanelBg} borderRadius="lg" border="1px" borderColor={emptyPanelBorder}>
                                 <Icon as={MdInventory2} boxSize="14" color={emptyPanelIconColor} />
-                                <Text color={tableTextColor} fontWeight="600">{stockList.length === 0 ? "No stock items available." : "No stock items match your filter criteria."}</Text>
-                                {stockList.length > 0 && (
-                                    <Text color={tableTextColorSecondary} fontSize="sm" textAlign="center">Try adjusting your filters to see more results.</Text>
+                                <Text color={tableTextColor} fontWeight="600">
+                                    {hasMainDbFilters ? "No stock items match your filter criteria." : "No stock items available."}
+                                </Text>
+                                {hasMainDbFilters && (
+                                    <>
+                                        <Text color={tableTextColorSecondary} fontSize="sm" textAlign="center">
+                                            Try adjusting your filters to see more results.
+                                        </Text>
+                                        <Button
+                                            size="sm"
+                                            leftIcon={<Icon as={MdClose} />}
+                                            colorScheme="red"
+                                            variant="outline"
+                                            onClick={clearMainDbFilters}
+                                        >
+                                            Clear All
+                                        </Button>
+                                    </>
                                 )}
                             </VStack>
                         </Center>
@@ -2079,6 +2118,9 @@ export default function StockList() {
                                     </Th>
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("vessel_id")} _hover={{ bg: thHoverBg }}>
                                         VESSEL {sortField === "vessel_id" && (sortDirection === "asc" ? "↑" : "↓")}
+                                    </Th>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("warning")} _hover={{ bg: thHoverBg }}>
+                                        Warning ‼️⛔ {sortField === "warning" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("so_id")} _hover={{ bg: thHoverBg }}>
                                         SO NUMBER {sortField === "so_id" && (sortDirection === "asc" ? "↑" : "↓")}
@@ -2135,12 +2177,13 @@ export default function StockList() {
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("delivered_date")} _hover={{ bg: thHoverBg }}>
                                         DELIVERED DATE {sortField === "delivered_date" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps}>DG/UN NUMBER</Th>
                                     <Th {...headerProps}>BOXES</Th>
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("weight_kg")} _hover={{ bg: thHoverBg }}>
                                         WEIGHT KG {sortField === "weight_kg" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
                                     <Th {...headerProps}>LWH TEXT</Th>
+                                    <Th {...headerProps}>T 1</Th>
+                                    <Th {...headerProps}>DG/UN NUMBER</Th>
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("total_volume_cbm")} _hover={{ bg: thHoverBg }}>
                                         TOTAL VOLUME CBM {sortField === "total_volume_cbm" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
@@ -2186,6 +2229,7 @@ export default function StockList() {
                                             <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.stock_item_id)}</StockCellText></Td>
                                             <Td {...cellProps}><StockCellText {...cellText}>{getDisplayName(item.client_id || item.client)}</StockCellText></Td>
                                             <Td {...cellProps}><StockCellText {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.warning)}</StockCellText></Td>
                                             <Td {...cellProps}>
                                                 <StockSoNumberLink
                                                     item={item}
@@ -2230,10 +2274,11 @@ export default function StockList() {
                                             <Td {...cellProps}><StockCellText {...cellText}>{formatDate(item.exp_ready_in_stock)}</StockCellText></Td>
                                             <Td {...cellProps}><StockCellText {...cellText}>{formatDate(item.shipped_date)}</StockCellText></Td>
                                             <Td {...cellProps}><StockCellText {...cellText}>{formatDate(item.delivered_date)}</StockCellText></Td>
-                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.dg_un)}</StockCellText></Td>
                                             <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</StockCellText></Td>
                                             <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</StockCellText></Td>
                                             <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.lwh_text)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.t_1)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.dg_un)}</StockCellText></Td>
                                             <Td
                                                 {...cellProps}
                                                 cursor="pointer"

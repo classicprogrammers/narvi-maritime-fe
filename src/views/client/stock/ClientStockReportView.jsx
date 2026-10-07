@@ -121,6 +121,7 @@ const mapClientStockRows = (stockList, clientName = "") =>
       dateOnStock: toClientStockDisplay(item.date_on_stock || item.first_entry_date),
       firstEntryDate: toClientStockDisplay(item.first_entry_date || item.date_on_stock),
       vessel: toClientStockDisplay(item.vessel?.name || item.vessel),
+      warning: toClientStockDisplay(item.warning),
       stockNumber: toClientStockDisplay(item.stock_number || item.stock_item_id),
       supplier: toClientStockDisplay(item.supplier?.name || item.supplier),
       poNo:
@@ -131,6 +132,7 @@ const mapClientStockRows = (stockList, clientName = "") =>
         Array.isArray(item.req_no) && item.req_no.length
           ? item.req_no.map((x) => String(x)).join(", ")
           : toClientStockDisplay(item.req_no).replace(/\n+/g, ", "),
+      t1: toClientStockDisplay(item.t_1),
       dgUnNumber: toClientStockDisplay(item.dg_un_number || item.dg_un),
       boxes: toClientStockDisplay(item.boxes ?? item.box ?? item.pieces ?? item.pcs?.count),
       weight: formatStockValueDisplay(item.weight ?? item.weight_kg),
@@ -204,6 +206,8 @@ const CLIENT_STOCK_SEARCH_KEYS = [
   "stockItemId",
   "stockNumber",
   "vessel",
+  "warning",
+  "t1",
   "supplier",
   "poNo",
   "reqNo",
@@ -387,6 +391,7 @@ const formatClientStockReportNames = (row) => {
 
 const CLIENT_STOCK_EXPORT_COLUMNS = [
   { header: "Vessel", value: (row) => row.vessel || "-" },
+  { header: "Warning ‼️⛔", value: (row) => row.warning || "-" },
   { header: "Stock ID", value: (row) => row.stockItemId || "-" },
   { header: "Supplier", value: (row) => row.supplier || "-" },
   { header: "Req No", value: (row) => row.reqNo || "-" },
@@ -405,6 +410,7 @@ const CLIENT_STOCK_EXPORT_COLUMNS = [
   { header: "Currency", value: (row) => row.currency || "-" },
   { header: "Value", value: (row) => row.value || "-" },
   { header: "Client", value: (row) => row.client || "-" },
+  { header: "T 1", value: (row) => row.t1 || "-" },
   { header: "DG/UN Number", value: (row) => row.dgUnNumber || "-" },
   { header: "Files", value: (row) => formatClientStockReportNames(row) },
 ];
@@ -1461,6 +1467,7 @@ function ClientStockReportView() {
                 />
               </Th>
               <Th>Vessel</Th>
+              <Th>Warning ‼️⛔</Th>
               <Th>STOCK ID</Th>
               <Th>SUPPLIER</Th>
               <Th>REQ NO</Th>
@@ -1479,6 +1486,7 @@ function ClientStockReportView() {
               <Th>CURRENCY</Th>
               <Th>VALUE</Th>
               <Th>CLIENT</Th>
+              <Th>T 1</Th>
               <Th>DG/UN NUMBER</Th>
               <Th>FILES</Th>
             </Tr>
@@ -1499,6 +1507,9 @@ function ClientStockReportView() {
                   </Td>
                   <Td>
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.vessel}</StockCellText>
+                  </Td>
+                  <Td>
+                    <StockCellText fontSize="sm" whiteSpace="pre-wrap" maxW="240px">{row.warning}</StockCellText>
                   </Td>
                   <Td>
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{toClientStockDisplay(row.stockItemId)}</StockCellText>
@@ -1571,6 +1582,9 @@ function ClientStockReportView() {
                   </Td>
                   <Td>
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.client}</StockCellText>
+                  </Td>
+                  <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="80px">{row.t1}</StockCellText>
                   </Td>
                   <Td>
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.dgUnNumber}</StockCellText>

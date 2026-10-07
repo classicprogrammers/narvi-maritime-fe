@@ -129,6 +129,7 @@ const STOCK_FORM_SORT_COLUMNS = [
     { label: "Weight kgs", sortKey: "weightKgs", type: "number", minW: "100px" },
     { label: "Dimension", sortKey: "dimensions", type: "dimensions", minW: "150px" },
     { label: "LWH Text Details", sortKey: "lwhText", type: "text", minW: "200px" },
+    { label: "T 1", sortKey: "t1", type: "text", minW: "80px" },
     { label: "DG/UN Number", sortKey: "dgUn", type: "text", minW: "150px" },
     { label: "Value", sortKey: "value", type: "number", minW: "100px" },
     { label: "Currency", sortKey: "currency", type: "lookup", lookup: "currencies", minW: "100px" },
@@ -140,6 +141,7 @@ const STOCK_FORM_SORT_COLUMNS = [
     { label: "Shipping Docs", sortKey: "shippingDoc", type: "text", minW: "200px" },
     { label: "Export Doc 1", sortKey: "exportDoc", type: "text", minW: "200px" },
     { label: "Export Doc 2", sortKey: "exportDoc2", type: "text", minW: "200px" },
+    { label: "Warning ‼️⛔", sortKey: "warning", type: "text", minW: "200px" },
     { label: "Remarks", sortKey: "remarks", type: "text", minW: "200px" },
     { label: "Internal Remark", sortKey: "internalRemark", type: "text", minW: "200px" },
     { label: "SO", sortKey: "soId", type: "so", minW: "120px" },
@@ -405,6 +407,7 @@ export default function StockForm() {
         heightCm: "", // Height cm - numbers
         volumeNoDim: "", // Volume no dim - numbers
         lwhText: "", // LWH Text Details - Free text + textarea
+        t1: "",
         dgUn: "", // DG/UN Number - Free text
         value: "", // Value - numbers
         currency: null, // Currency ID
@@ -421,6 +424,7 @@ export default function StockForm() {
         shippingDoc: "", // Shipping Docs - Free text + textarea
         exportDoc: "", // Export doc 1 - Free text + textarea
         exportDoc2: "", // Export doc 2 - Free text + textarea
+        warning: "",
         remarks: "", // Remarks - Free text + textarea
         internalRemark: "", // Internal Remark - Free text + textarea
         soId: null, // Shipping order M2O (so_id.id)
@@ -1101,6 +1105,7 @@ export default function StockForm() {
             heightCm: getFieldValue(stock.height_cm, ""),
             volumeNoDim: getFieldValue(stock.volume_no_dim ?? stock.volume_dim ?? stock.volume_cbm, ""),
             lwhText: getFieldValue(stock.lwh_text),
+            t1: String(getFieldValue(stock.t_1) || "").trim().toLowerCase() === "x" ? "x" : "",
             dgUn: getFieldValue(stock.dg_un) || "",
             value: normalizeStockValueForForm(getFieldValue(stock.value, "")),
             currency: resolveRelationId(stock.currency_id, stock.currency) || null,
@@ -1123,6 +1128,7 @@ export default function StockForm() {
             shippingDoc: getFieldValue(stock.shipping_doc),
             exportDoc: getFieldValue(stock.export_doc),
             exportDoc2: getFieldValue(stock.export_doc_2),
+            warning: getFieldValue(stock.warning),
             remarks: getFieldValue(stock.remarks),
             internalRemark: getFieldValue(stock.internal_remark),
             soId: normalizeStockFormSoId(resolveStockSoIdForForm(stock, shippingOrders)),
@@ -1639,6 +1645,8 @@ export default function StockForm() {
             narvi_stock_via_hub2: toStockLocationPayloadId(rowData.narviStockViaHub2),
             ...buildNarviApDestinationSaveFields(rowData.narviStockApDestination),
             client_access: Boolean(rowData.clientAccess),
+            warning: rowData.warning || "",
+            t_1: rowData.t1 || "",
             remarks: rowData.remarks || "",
             internal_remark: rowData.internalRemark || "",
             cancel_text: normalizeCancelTextForSave(rowData.cancelText),
@@ -1792,6 +1800,8 @@ export default function StockForm() {
             narvi_stock_via_hub2: toStockLocationPayloadId(baselineRow.narviStockViaHub2),
             ...buildNarviApDestinationSaveFields(baselineRow.narviStockApDestination),
             client_access: Boolean(baselineRow.clientAccess),
+            warning: baselineRow.warning || "",
+            t_1: baselineRow.t1 || "",
             remarks: baselineRow.remarks || "",
             internal_remark: baselineRow.internalRemark || "",
             cancel_text: normalizeCancelTextForSave(baselineRow.cancelText),
@@ -2490,6 +2500,22 @@ export default function StockForm() {
                                             )}
                                         </Td>
                                         <Td {...cellProps} overflow="visible">
+                                            {assignCell(rowIndex, "t1",
+                                                <Select
+                                                    value={row.t1 === "x" ? "x" : ""}
+                                                    onChange={(e) => handleInputChange(rowIndex, "t1", e.target.value)}
+                                                    size="sm"
+                                                    minW="90px"
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                >
+                                                    <option value="">Select</option>
+                                                    <option value="x">X</option>
+                                                </Select>
+                                            )}
+                                        </Td>
+                                        <Td {...cellProps} overflow="visible">
                                             {assignCell(rowIndex, "dgUn",
                                                 <Textarea
                                                     value={row.dgUn || ""}
@@ -2818,6 +2844,26 @@ export default function StockForm() {
                                                     borderColor={borderColor}
                                                     flex="0 0 auto"
                                                     title={row.exportDoc2 ? String(row.exportDoc2) : undefined}
+                                                />
+                                            )}
+                                        </Td>
+                                        <Td {...cellProps} position="relative" overflow="visible">
+                                            {assignCell(rowIndex, "warning",
+                                                <Textarea
+                                                    value={row.warning || ""}
+                                                    onChange={(e) => handleInputChange(rowIndex, "warning", e.target.value)}
+                                                    placeholder="Enter Warning"
+                                                    size="sm"
+                                                    rows={3}
+                                                    w="auto"
+                                                    minW="24ch"
+                                                    maxW="90ch"
+                                                    cols={getAutoCols(row.warning, "Enter Warning", { min: 24, max: 90 })}
+                                                    resize="vertical"
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                    title={row.warning ? String(row.warning) : undefined}
                                                 />
                                             )}
                                         </Td>

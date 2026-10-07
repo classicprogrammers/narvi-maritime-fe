@@ -188,6 +188,7 @@ function getClientViewFieldValues(item, shippingOrders) {
     return {
         client: getDisplayName(item.client_id || item.client) || "-",
         vessel: getDisplayName(item.vessel_id || item.vessel) || "-",
+        warning: item.warning || "-",
         supplier: getDisplayName(item.supplier_id || item.supplier) || "-",
         po: item.po_text || "-",
         req_no: item.req_no || "-",
@@ -195,6 +196,7 @@ function getClientViewFieldValues(item, shippingOrders) {
         boxes: item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
         kg: item.weight_kg ?? item.weight_kgs ?? "-",
         lwh_text: item.lwh_text || "-",
+        t_1: item.t_1 || "-",
         narvi_stock_via_hub1: getStockViaHub1Display(item),
         narvi_stock_via_hub2: getStockViaHub2Display(item),
         destination: formatStockDestinationDisplay(item, "destination"),
@@ -308,6 +310,11 @@ function StockViewTableRowInner({
             </Td>
             <Td {...cellProps} {...sticky[2]}>
                 <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                    {renderText(item.warning)}
+                </StockCellText>
+            </Td>
+            <Td {...cellProps} {...sticky[3]}>
+                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
                     {getDisplayName(item.supplier_id || item.supplier)}
                 </StockCellText>
             </Td>
@@ -395,9 +402,6 @@ function StockViewTableRowInner({
                 <StockCellText {...STOCK_CELL_TEXT_PROPS}>{formatDate(item.delivered_date)}</StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>{renderText(item.dg_un)}</StockCellText>
-            </Td>
-            <Td {...cellProps}>
                 <StockCellText {...STOCK_CELL_TEXT_PROPS}>{renderText(item.remarks)}</StockCellText>
             </Td>
             <Td {...cellProps}>
@@ -412,6 +416,12 @@ function StockViewTableRowInner({
             </Td>
             <Td {...cellProps}>
                 <StockCellText {...STOCK_CELL_TEXT_PROPS}>{renderText(item.lwh_text)}</StockCellText>
+            </Td>
+            <Td {...cellProps}>
+                <StockCellText {...STOCK_CELL_TEXT_PROPS}>{renderText(item.t_1)}</StockCellText>
+            </Td>
+            <Td {...cellProps}>
+                <StockCellText {...STOCK_CELL_TEXT_PROPS}>{renderText(item.dg_un)}</StockCellText>
             </Td>
             <Td {...cellProps} cursor="pointer" onClick={() => onOpenDimensions(item)}>
                 <HStack spacing={2} align="center" justify="flex-start">
@@ -524,7 +534,7 @@ function ClientViewTableRowInner({
             </Td>
             {columns.map((column) => {
                 const extra =
-                    column.key === "lwh_text"
+                    column.key === "lwh_text" || column.key === "t_1" || column.key === "warning"
                         ? {
                               minW: "200px",
                               w: "200px",
@@ -586,7 +596,8 @@ export const ClientViewTableRow = memo(ClientViewTableRowInner, (prev, next) => 
 
 const STOCK_VIEW_HEADER_COLUMNS = [
     { label: "VESSEL", stickyIndex: 1 },
-    { label: "SUPPLIER", stickyIndex: 2 },
+    { label: "Warning ‼️⛔", stickyIndex: 2 },
+    { label: "SUPPLIER", stickyIndex: 3 },
     { label: "REQ NO" },
     { label: "PO NUMBER" },
     { label: "SO NUMBER" },
@@ -608,11 +619,12 @@ const STOCK_VIEW_HEADER_COLUMNS = [
     { label: "DAYS ON STOCK", textAlign: "center" },
     { label: "SHIPPED DATE" },
     { label: "DELIVERED DATE" },
-    { label: "DG/UN NUMBER" },
     { label: "REMARKS" },
     { label: "BOXES" },
     { label: "WEIGHT KGS" },
     { label: "LWH TEXT" },
+    { label: "T 1" },
+    { label: "DG/UN NUMBER" },
     { label: "TOTAL VOLUME CBM" },
     { label: "TOTAL CW AIR FREIGHT" },
     { label: "CURRENCY" },
@@ -852,7 +864,7 @@ function ClientViewDataTableInner({
                         <Th
                             key={column.key}
                             {...headerProps}
-                            {...(column.key === "lwh_text"
+                            {...(column.key === "lwh_text" || column.key === "t_1" || column.key === "warning"
                                 ? {
                                     minW: "200px",
                                     w: "200px",

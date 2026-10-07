@@ -153,7 +153,7 @@ import StockSoNumberLink from "../../../components/stock-list/StockSoNumberLink"
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
 import { useStockAttachmentsGallery } from "../../../hooks/useStockAttachmentsGallery";
 import { getInlineAttachmentDisplayNames } from "../../../utils/stockReportAttachmentsUi";
-import { formatVolumeCbm } from "../../../utils/stockVolume";
+import { formatVolumeCbm, sumDimensionsVolumeCbm } from "../../../utils/stockVolume";
 import DebouncedTextFilterInput from "./DebouncedTextFilterInput";
 import {
     STATUS_CONFIG,
@@ -175,6 +175,7 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
     filter1: [
         { key: "client", label: "CLIENT", uiOnly: true },
         { key: "vessel", label: "VESSEL" },
+        { key: "warning", label: "Warning ‼️⛔", type: "multiline" },
         { key: "narvi_stock_via_hub1", label: "HUB 1" },
         { key: "supplier", label: "SUPPLIER" },
         { key: "req_no", label: "REQ NO", type: "req_no" },
@@ -183,11 +184,13 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
         { key: "boxes", label: "BOXES" },
         { key: "kg", label: "KG" },
         { key: "lwh_text", label: "LWH TEXT", type: "multiline" },
+        { key: "t_1", label: "T 1" },
         { key: "dg_un", label: "DG/UN" },
     ],
     filter2: [
         { key: "client", label: "CLIENT" },
         { key: "vessel", label: "VESSEL" },
+        { key: "warning", label: "Warning ‼️⛔", type: "multiline" },
         { key: "supplier", label: "SUPPLIER" },
         { key: "req_no", label: "REQ NO", type: "req_no" },
         { key: "po", label: "PO #", type: "po" },
@@ -200,10 +203,12 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
         { key: "boxes", label: "BOXES" },
         { key: "kg", label: "KG" },
         { key: "lwh_text", label: "LWH TEXT", type: "multiline" },
+        { key: "t_1", label: "T 1" },
     ],
     filter3: [
         { key: "client", label: "CLIENT" },
         { key: "vessel", label: "VESSEL" },
+        { key: "warning", label: "Warning ‼️⛔", type: "multiline" },
         { key: "supplier", label: "SUPPLIER" },
         { key: "req_no", label: "REQ NO", type: "req_no" },
         { key: "po", label: "PO #", type: "po" },
@@ -214,6 +219,7 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
         { key: "boxes", label: "BOXES" },
         { key: "kg", label: "KG" },
         { key: "lwh_text", label: "LWH TEXT", type: "multiline" },
+        { key: "t_1", label: "T 1" },
         { key: "origin", label: "ORIGIN" },
         { key: "narvi_stock_via_hub1", label: "HUB1" },
         { key: "narvi_stock_via_hub2", label: "HUB2" },
@@ -278,6 +284,7 @@ const PDF_TABLE_BODY_STYLES = {
 /** Stock view/edit — Export Excel column set */
 const EXCEL_EXPORT_HEADERS = [
     "VESSEL",
+    "Warning ‼️⛔",
     "SUPPLIER",
     "REQ NO",
     "PO #",
@@ -288,6 +295,7 @@ const EXCEL_EXPORT_HEADERS = [
     "BOXES",
     "KG",
     "LWH TEXT",
+    "T 1",
     "ORIGIN",
     "HUB1",
     "HUB2",
@@ -300,6 +308,64 @@ const EXCEL_EXPORT_HEADERS = [
     "SO NUMBER",
     "WAREHOUSE ID",
 ];
+
+function toStockNumeric(value) {
+    if (value == null || value === false || value === "") return 0;
+    if (typeof value === "object") {
+        return toStockNumeric(value.quantity ?? value.count ?? value.name ?? value.item);
+    }
+    const num = Number(String(value).replace(/,/g, "").trim());
+    return Number.isFinite(num) ? num : 0;
+}
+
+function getStockBoxCount(item) {
+    return toStockNumeric(item?.item ?? item?.items ?? item?.stock_items_quantity ?? item?.boxes);
+}
+
+function getStockWeightKg(item) {
+    return toStockNumeric(item?.weight_kg ?? item?.weight_kgs ?? item?.weight);
+}
+
+function getStockVolumeCbm(item) {
+    const fromDims = sumDimensionsVolumeCbm(item?.dimensions);
+    if (fromDims > 0) return fromDims;
+    return toStockNumeric(item?.total_volume_cbm ?? item?.volume_cbm ?? item?.cbm_total ?? item?.cbm);
+}
+
+function getSelectedStockTotals(items = []) {
+    return (Array.isArray(items) ? items : []).reduce(
+        (acc, item) => {
+            acc.boxes += getStockBoxCount(item);
+            acc.kilos += getStockWeightKg(item);
+            acc.cbm += getStockVolumeCbm(item);
+            return acc;
+        },
+        { boxes: 0, kilos: 0, cbm: 0 }
+    );
+}
+
+function formatStockTotalBoxes(value) {
+    if (!Number.isFinite(value) || value === 0) return "0";
+    return Number.isInteger(value) ? String(value) : parseFloat(value.toFixed(2)).toString();
+}
+
+function formatStockTotalKilos(value) {
+    if (!Number.isFinite(value) || value === 0) return "0";
+    return parseFloat(value.toFixed(2)).toString();
+}
+
+function buildSelectedTotalsCopyTable(items) {
+    const totals = getSelectedStockTotals(items);
+    return {
+        title: "SELECTED TOTALS",
+        headers: ["BOXES", "KILOS", "TOTAL VOLUME (CBM)"],
+        rows: [[
+            formatStockTotalBoxes(totals.boxes),
+            formatStockTotalKilos(totals.kilos),
+            formatVolumeCbm(totals.cbm),
+        ]],
+    };
+}
 
 function StatusFilterChip({ config, isChecked, onToggle, borderColor }) {
     return (
@@ -579,6 +645,11 @@ export default function Stocks() {
     const [daysRangeFrom, setDaysRangeFrom] = useState("");
     const [daysRangeTo, setDaysRangeTo] = useState("");
     const { isOpen: isCreateDateModalOpen, onOpen: onCreateDateModalOpen, onClose: onCreateDateModalClose } = useDisclosure();
+    const {
+        isOpen: isSelectedTotalsModalOpen,
+        onOpen: onSelectedTotalsModalOpen,
+        onClose: onSelectedTotalsModalClose,
+    } = useDisclosure();
     const { isOpen: isDaysRangeModalOpen, onOpen: onDaysRangeModalOpen, onClose: onDaysRangeModalClose } = useDisclosure();
     const {
         isOpen: isPdfPreviewOpen,
@@ -826,22 +897,22 @@ export default function Stocks() {
     const cellText = STOCK_CELL_TEXT_PROPS;
 
     const stockViewStickyBodyProps = useMemo(() => {
-        const widths = [48, 220, 170];
-        const left = [0, 48, 268];
-        return [0, 1, 2].map((colIndex) => ({
+        const widths = [48, 220, 200, 170];
+        const left = [0, 48, 268, 468];
+        return [0, 1, 2, 3].map((colIndex) => ({
             position: "sticky",
             left: `${left[colIndex]}px`,
             zIndex: 1,
             minW: `${widths[colIndex]}px`,
             w: `${widths[colIndex]}px`,
             maxW: colIndex === 1 ? undefined : `${widths[colIndex]}px`,
-            ...(colIndex === 2 ? { boxShadow: stickyEdgeShadow } : {}),
+            ...(colIndex === 3 ? { boxShadow: stickyEdgeShadow } : {}),
         }));
     }, [stickyEdgeShadow]);
     const stockViewStickyHeaderProps = useMemo(() => {
-        const widths = [48, 220, 170];
-        const left = [0, 48, 268];
-        return [0, 1, 2].map((colIndex) => ({
+        const widths = [48, 220, 200, 170];
+        const left = [0, 48, 268, 468];
+        return [0, 1, 2, 3].map((colIndex) => ({
             position: "sticky",
             left: `${left[colIndex]}px`,
             zIndex: 4,
@@ -850,14 +921,14 @@ export default function Stocks() {
             maxW: colIndex === 1 ? undefined : `${widths[colIndex]}px`,
             top: 0,
             bg: tableHeaderBg,
-            ...(colIndex === 2 ? { boxShadow: stickyEdgeShadow } : {}),
+            ...(colIndex === 3 ? { boxShadow: stickyEdgeShadow } : {}),
         }));
     }, [stickyEdgeShadow, tableHeaderBg]);
 
     const getStockViewStickyProps = (colIndex, isHeader = false) => {
-        if (colIndex < 0 || colIndex > 2) return {};
-        const widths = [48, 220, 170];
-        const left = [0, 48, 268];
+        if (colIndex < 0 || colIndex > 3) return {};
+        const widths = [48, 220, 200, 170];
+        const left = [0, 48, 268, 468];
         return {
             position: "sticky",
             left: `${left[colIndex]}px`,
@@ -866,7 +937,7 @@ export default function Stocks() {
             w: `${widths[colIndex]}px`,
             maxW: colIndex === 1 ? undefined : `${widths[colIndex]}px`,
             ...(isHeader ? { top: 0, bg: tableHeaderBg } : {}),
-            ...(colIndex === 2 ? { boxShadow: stickyEdgeShadow } : {}),
+            ...(colIndex === 3 ? { boxShadow: stickyEdgeShadow } : {}),
         };
     };
     const stockTableLoading = (
@@ -885,6 +956,84 @@ export default function Stocks() {
         setStockViewPage(1);
         setClientViewPage(1);
         setApiFetchTrigger((t) => t + 1);
+    });
+
+    const hasStockViewFilters = Boolean(
+        stockViewStockItemId ||
+        stockViewClient ||
+        stockViewVessel ||
+        stockViewStatus ||
+        stockViewDateOnStock ||
+        stockViewDaysOnStock ||
+        stockViewViaHub1 ||
+        stockViewViaHub2 ||
+        stockViewApDestination ||
+        stockViewOrigin ||
+        stockViewFilterSO ||
+        stockViewFilterSI ||
+        stockViewFilterSICombined ||
+        stockViewFilterDI ||
+        stockViewFilterPO ||
+        stockViewFilterReqNo ||
+        stockViewFilterWarehouseNew ||
+        stockViewSearchFilter ||
+        stockViewHasDestination ||
+        createDateFrom ||
+        createDateTo ||
+        daysRangeFrom ||
+        daysRangeTo ||
+        vesselViewStatuses.size > 0 ||
+        Object.keys(stockViewEmptyFilters).length > 0
+    );
+
+    const clearStockViewFilters = useEventCallback(() => {
+        setStockViewStockItemId("");
+        setStockViewClient(null);
+        setStockViewVessel(null);
+        setStockViewStatus("");
+        setStockViewDateOnStock("");
+        setStockViewDaysOnStock("");
+        setCreateDateFrom("");
+        setCreateDateTo("");
+        setDaysRangeFrom("");
+        setDaysRangeTo("");
+        setStockViewViaHub1(null);
+        setStockViewViaHub2(null);
+        setStockViewApDestination(null);
+        setStockViewOrigin(null);
+        setStockViewFilterSO("");
+        setStockViewFilterSI("");
+        setStockViewFilterSICombined("");
+        setStockViewFilterDI("");
+        setStockViewFilterPO("");
+        setStockViewFilterReqNo("");
+        setStockViewFilterWarehouseNew("");
+        setStockViewSearchFilter("");
+        setStockViewHasDestination(false);
+        setVesselViewStatuses(new Set());
+        setStockViewEmptyFilters({});
+        setStockViewPage(1);
+    });
+
+    const hasClientViewFilters = Boolean(
+        clientViewClient ||
+        clientViewVesselFilter ||
+        clientViewSearchClient ||
+        clientViewSearchVessel ||
+        createDateFrom ||
+        createDateTo ||
+        clientViewStatuses.size > 0
+    );
+
+    const clearClientViewFilters = useEventCallback(() => {
+        setClientViewClient(null);
+        setClientViewVesselFilter(null);
+        setClientViewSearchClient("");
+        setClientViewSearchVessel("");
+        setCreateDateFrom("");
+        setCreateDateTo("");
+        setClientViewStatuses(new Set());
+        setClientViewPage(1);
     });
 
     const handleColumnEmptyFilter = useEventCallback((param, mode) => {
@@ -1922,6 +2071,18 @@ export default function Stocks() {
         [activeTab, getFilteredStockByVessel, getFilteredStockByClient]
     );
 
+    const clientViewSelectedItems = useMemo(() => {
+        if (clientViewSelectedRows.size === 0) return [];
+        return filteredAndSortedStock.filter((item) =>
+            clientViewSelectedRows.has(item.id || item.stock_item_id)
+        );
+    }, [filteredAndSortedStock, clientViewSelectedRows]);
+
+    const clientViewSelectedTotals = useMemo(
+        () => getSelectedStockTotals(clientViewSelectedItems),
+        [clientViewSelectedItems]
+    );
+
     // Handle status checkbox toggle for By Vessel view
     const handleVesselViewStatusToggle = (status) => {
         setVesselViewStatuses(prev => {
@@ -2095,6 +2256,7 @@ export default function Stocks() {
 
             return [
                 getDisplayName(item.vessel_id || item.vessel) || "-",
+                item.warning || "-",
                 getDisplayName(item.supplier_id || item.supplier) || "-",
                 (item.req_no || "-").replace(/\n/g, " "),
                 (item.po_text || "-").replace(/\n/g, " "),
@@ -2105,6 +2267,7 @@ export default function Stocks() {
                 item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
                 item.weight_kg ?? item.weight_kgs ?? "-",
                 item.lwh_text || "-",
+                item.t_1 || "-",
                 item.origin_text || "-",
                 getStockViaHub1Display(item),
                 getStockViaHub2Display(item),
@@ -2131,6 +2294,74 @@ export default function Stocks() {
             "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2",
             "DG/UN", "SO NUMBER", "WAREHOUSE ID",
         ],
+    };
+
+    const CLIENT_VIEW_EXCEL_HEADERS = {
+        filter1: ["VESSEL", "Warning ‼️⛔", "HUB 1", "SUPPLIER", "REQ NO", "PO #", "STOCK STATUS", "BOXES", "KG", "LWH TEXT", "T 1", "DG/UN"],
+        filter2: ["VESSEL", "Warning ‼️⛔", "SUPPLIER", "REQ NO", "PO #", "SO NUMBER", "DESTINATION", "WAREHOUSE ID", "BOXES", "KG", "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2", "LWH TEXT", "T 1"],
+        filter3: [
+            "VESSEL", "Warning ‼️⛔", "SUPPLIER", "REQ NO", "PO #", "STOCK STATUS", "CUR", "VALUE", "DATE ON STOCK", "BOXES", "KG", "LWH TEXT", "T 1",
+            "ORIGIN", "HUB1", "HUB2", "AP DESTINATION", "DESTINATION",
+            "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2",
+            "DG/UN", "SO NUMBER", "WAREHOUSE ID",
+        ],
+    };
+
+    const getClientViewExcelRow = (item, viewType) => {
+        const vessel = getDisplayName(item.vessel_id || item.vessel) || "-";
+        const warning = item.warning || "-";
+        const supplier = getDisplayName(item.supplier_id || item.supplier) || "-";
+        const poNumber = (item.po_text || "-").replace(/\n/g, " ");
+        const reqNo = (item.req_no || "-").replace(/\n/g, " ");
+        const stockStatus = getStatusLabel(item.stock_status) || "-";
+        const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
+        const kg = item.weight_kg ?? item.weight_kgs ?? "-";
+        const lwhText = item.lwh_text || "-";
+        const t1 = item.t_1 || "-";
+        const viaHub1 = getStockViaHub1Display(item);
+        const viaHub2 = getStockViaHub2Display(item);
+        const destination = formatStockDestinationDisplay(item, "destination");
+        const dgUn = item.dg_un || "-";
+        const soNumber = item.so_id
+            ? getSoNumberName(item.so_id)
+            : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number)) || "-";
+        const warehouseId = getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-";
+        const shippingDocs = item.shipping_doc || "-";
+        const exportDoc1 = item.export_doc || "-";
+        const exportDoc2 = item.export_doc_2 || "-";
+        const currency = getDisplayName(item.currency_id || item.currency) || "-";
+        const value = formatStockValueDisplay(item.value);
+        const dateOnStock = formatDate(item.date_on_stock) || item.date_on_stock || item.stock_date || item.create_date || "-";
+        const origin = item.origin_text || "-";
+        const apDestination = formatStockDestinationDisplay(item, "ap");
+
+        if (viewType === "filter1") {
+            return [vessel, warning, viaHub1, supplier, reqNo, poNumber, stockStatus, boxes, kg, lwhText, t1, dgUn];
+        }
+        if (viewType === "filter2") {
+            return [vessel, warning, supplier, reqNo, poNumber, soNumber, destination, warehouseId, boxes, kg, shippingDocs, exportDoc1, exportDoc2, lwhText, t1];
+        }
+        if (viewType === "filter3") {
+            return [
+                vessel, warning, supplier, reqNo, poNumber, stockStatus, currency, value, dateOnStock, boxes, kg, lwhText, t1,
+                origin, viaHub1, viaHub2, apDestination, destination, shippingDocs, exportDoc1, exportDoc2,
+                dgUn, soNumber, warehouseId,
+            ];
+        }
+        return [];
+    };
+
+    const buildClientViewExcelExportData = (items, viewType = clientViewFilterType) => {
+        if (!Array.isArray(items) || items.length === 0) {
+            return { headers: [], rows: [] };
+        }
+        if (viewType === "filter1" || viewType === "filter2" || viewType === "filter3") {
+            return {
+                headers: CLIENT_VIEW_EXCEL_HEADERS[viewType],
+                rows: items.map((item) => getClientViewExcelRow(item, viewType)),
+            };
+        }
+        return buildExcelExportData(items);
     };
 
     const buildExportDataByView = (items, viewType = clientViewFilterType) => {
@@ -2201,38 +2432,85 @@ export default function Stocks() {
         return { headers: [], rows: [] };
     };
 
-    const COST_REQUEST_COPY_HEADERS = [
-        "WAREHOUSE ID",
-        "SUPPLIER",
-        "PO#",
-        "STATUS",
-        "BOX",
-        "KG",
-        "LWH",
-        "DG",
-    ];
+    const getClientViewCopyValues = (item) => {
+        const soNumber = item.so_id
+            ? getSoNumberName(item.so_id)
+            : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number)) || "-";
+        return {
+            client: getDisplayName(item.client_id || item.client) || "-",
+            vessel: getDisplayName(item.vessel_id || item.vessel) || "-",
+            warning: item.warning || "-",
+            supplier: getDisplayName(item.supplier_id || item.supplier) || "-",
+            po: item.po_text || "-",
+            req_no: item.req_no || "-",
+            stock_status: getStatusLabel(item.stock_status) || "-",
+            boxes: item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
+            kg: item.weight_kg ?? item.weight_kgs ?? "-",
+            lwh_text: item.lwh_text || "-",
+            t_1: item.t_1 || "-",
+            narvi_stock_via_hub1: getStockViaHub1Display(item),
+            narvi_stock_via_hub2: getStockViaHub2Display(item),
+            destination: formatStockDestinationDisplay(item, "destination"),
+            dg_un: item.dg_un || "-",
+            so_number: soNumber,
+            warehouse_id: getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-",
+            shipping_docs: item.shipping_doc || "-",
+            export_doc_1: item.export_doc || "-",
+            export_doc_2: item.export_doc_2 || "-",
+            cur: getDisplayName(item.currency_id || item.currency) || "-",
+            value: formatStockValueDisplay(item.value),
+            date_on_stock: formatDate(item.date_on_stock) || item.date_on_stock || item.stock_date || item.create_date || "-",
+            origin: item.origin_text || "-",
+            narvi_stock_ap_destination: formatStockDestinationDisplay(item, "ap"),
+        };
+    };
 
-    const buildCostRequestCopyData = (items) => {
+    const buildClientViewCopyData = (items, viewType = clientViewFilterType) => {
         if (!Array.isArray(items) || items.length === 0) {
             return { headers: [], rows: [] };
         }
-        const rows = items.map((item) => [
-            getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || item.warehouse_id || "-",
-            getDisplayName(item.supplier_id || item.supplier) || "-",
-            (item.po_text || "-").replace(/\n/g, " "),
-            getStatusLabel(item.stock_status) || "-",
-            item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
-            item.weight_kg ?? item.weight_kgs ?? "-",
-            (item.lwh_text || "-").replace(/\n/g, " "),
-            item.dg_un || "-",
-        ]);
-        return { headers: COST_REQUEST_COPY_HEADERS, rows };
+        const columns = (CLIENT_VIEW_TABLE_COLUMNS[viewType] || CLIENT_VIEW_TABLE_COLUMNS.filter1)
+            .filter((column) => !["client", "vessel", "warning", "t_1"].includes(column.key));
+        return {
+            headers: columns.map((column) => column.label),
+            rows: items.map((item) => {
+                const values = getClientViewCopyValues(item);
+                return columns.map((column) => values[column.key] ?? "-");
+            }),
+        };
+    };
+
+    const omitInternalCopyColumns = ({ headers = [], rows = [] } = {}) => {
+        const keepIdx = headers
+            .map((header, index) => {
+                const label = String(header || "").toUpperCase().replace(/\s+/g, " ").trim();
+                const isInternal = label === "CLIENT" || label === "VESSEL" || label === "T 1" || label.startsWith("WARNING");
+                return isInternal ? -1 : index;
+            })
+            .filter((index) => index >= 0);
+        return {
+            headers: keepIdx.map((index) => headers[index]),
+            rows: (rows || []).map((row) => keepIdx.map((index) => row[index])),
+        };
+    };
+
+    const buildCostRequestCopyData = (items, viewType = clientViewFilterType) => {
+        const data = (viewType === "filter1" || viewType === "filter2" || viewType === "filter3")
+            ? buildClientViewCopyData(items, viewType)
+            : omitInternalCopyColumns(buildExcelExportData(items));
+        if (!data.headers.length) {
+            return { headers: [], rows: [] };
+        }
+        return {
+            ...data,
+            extraTables: [buildSelectedTotalsCopyTable(items)],
+        };
     };
 
     const copyItemsToClipboard = async (selectedItems, buildData) => {
         if (!Array.isArray(selectedItems) || selectedItems.length === 0 || !buildData) return;
 
-        const { headers, rows } = buildData(selectedItems);
+        const { headers, rows, extraTables = [] } = buildData(selectedItems);
         if (!headers.length) return;
 
         const normalizeCopyHeader = (header) =>
@@ -2247,6 +2525,7 @@ export default function Stocks() {
             if (h === "REQ NO") return 200;
             if (h === "PO #" || h === "PO#" || h === "PO NUMBER") return 260;
             if (h === "LWH" || h === "LWH TEXT") return 180;
+            if (h === "T 1" || h === "WARNING ‼️⛔") return 180;
             return 90;
         };
 
@@ -2271,148 +2550,209 @@ export default function Stocks() {
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;");
 
-        let htmlTable = '<table style="border-collapse:collapse;font-family:Arial,sans-serif;border:1px solid #333;"><thead><tr>';
-        headers.forEach((header) => {
-            htmlTable += `<th style="${thStyle}${getCopyColumnExtraStyle(header)}">${escapeHtml(header)}</th>`;
-        });
-        htmlTable += '</tr></thead><tbody>';
-
-        rows.forEach((row) => {
-            htmlTable += '<tr>';
-            row.forEach((cell, colIdx) => {
-                const cellHtml = escapeHtml(cell).replace(/\n/g, '<br>');
-                htmlTable += `<td style="${tdStyle}${getCopyColumnExtraStyle(headers[colIdx])}">${cellHtml}</td>`;
+        const renderHtmlTable = (tableHeaders, tableRows) => {
+            let html = '<table style="border-collapse:collapse;font-family:Arial,sans-serif;border:1px solid #333;"><thead><tr>';
+            tableHeaders.forEach((header) => {
+                html += `<th style="${thStyle}${getCopyColumnExtraStyle(header)}">${escapeHtml(header)}</th>`;
             });
-            htmlTable += '</tr>';
+            html += '</tr></thead><tbody>';
+            tableRows.forEach((row) => {
+                html += '<tr>';
+                row.forEach((cell, colIdx) => {
+                    const cellHtml = escapeHtml(cell).replace(/\n/g, '<br>');
+                    html += `<td style="${tdStyle}${getCopyColumnExtraStyle(tableHeaders[colIdx])}">${cellHtml}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            return html;
+        };
+
+        let htmlTable = renderHtmlTable(headers, rows);
+        extraTables.forEach((table) => {
+            if (!table?.headers?.length) return;
+            htmlTable += '<br><br>';
+            if (table.title) {
+                htmlTable += `<div style="font-family:Arial,sans-serif;font-weight:700;margin:0 0 6px;">${escapeHtml(table.title)}</div>`;
+            }
+            htmlTable += renderHtmlTable(table.headers, table.rows || []);
         });
-        htmlTable += '</tbody></table>';
 
         const generatePlainText = () => {
-            let plainText = `${headers.join('\t')}\n`;
-            rows.forEach((row) => {
-                plainText += `${row.map((cell) => String(cell ?? "-").replace(/\n/g, " ")).join('\t')}\n`;
+            const tableToPlain = (tableHeaders, tableRows) => {
+                let text = `${tableHeaders.join('\t')}\n`;
+                tableRows.forEach((row) => {
+                    text += `${row.map((cell) => String(cell ?? "-").replace(/\n/g, " ")).join('\t')}\n`;
+                });
+                return text;
+            };
+            let plainText = tableToPlain(headers, rows);
+            extraTables.forEach((table) => {
+                if (!table?.headers?.length) return;
+                plainText += '\n';
+                if (table.title) plainText += `${table.title}\n`;
+                plainText += tableToPlain(table.headers, table.rows || []);
             });
             return plainText;
         };
 
         const renderTableImageBlob = async () => {
-            const { headers, rows } = buildData(selectedItems);
-            if (!headers.length) return null;
-
-            const normalizedRows = [headers, ...rows].map((row) =>
-                row.map((cell) => String(cell ?? "-").replace(/\s+/g, " ").trim())
-            );
-
             const charWidth = 7;
             const basePadding = 20;
-            const colWidths = headers.map((header, colIdx) => {
-                const maxLen = Math.max(...normalizedRows.map((r) => (r[colIdx] || "").length));
-                const minW = getCopyColumnMinWidthPx(header);
-                const maxW = getCopyColumnMaxWidthPx(header);
-                return Math.max(minW, Math.min(maxW, maxLen * charWidth + basePadding));
-            });
-
             const headerHeight = 30;
             const rowHeight = 26;
-            const tableWidth = colWidths.reduce((sum, w) => sum + w, 0);
-            const tableHeight = headerHeight + (rows.length * rowHeight);
+            const titleHeight = 22;
+            const tableGap = 24;
+
+            const measureCopyTable = (tableHeaders, tableRows) => {
+                const normalizedRows = [tableHeaders, ...(tableRows || [])].map((row) =>
+                    (row || []).map((cell) => String(cell ?? "-").replace(/\s+/g, " ").trim())
+                );
+                const colWidths = tableHeaders.map((header, colIdx) => {
+                    const maxLen = Math.max(...normalizedRows.map((r) => (r[colIdx] || "").length));
+                    const minW = getCopyColumnMinWidthPx(header);
+                    const maxW = getCopyColumnMaxWidthPx(header);
+                    return Math.max(minW, Math.min(maxW, maxLen * charWidth + basePadding));
+                });
+                const tableWidth = colWidths.reduce((sum, w) => sum + w, 0);
+                const tableHeight = headerHeight + ((tableRows || []).length * rowHeight);
+                return { colWidths, tableWidth, tableHeight };
+            };
+
+            const drawCopyTable = (ctx, originY, tableHeaders, tableRows, metrics) => {
+                const { colWidths, tableWidth, tableHeight } = metrics;
+                ctx.fillStyle = "#f0f0f0";
+                ctx.fillRect(0, originY, tableWidth, headerHeight);
+
+                ctx.strokeStyle = "#333333";
+                ctx.lineWidth = 1;
+                const yLines = [0, headerHeight, ...((tableRows || []).map((_, idx) => headerHeight + ((idx + 1) * rowHeight)))];
+                yLines.forEach((offset) => {
+                    ctx.beginPath();
+                    ctx.moveTo(0, originY + offset + 0.5);
+                    ctx.lineTo(tableWidth, originY + offset + 0.5);
+                    ctx.stroke();
+                });
+                let x = 0;
+                colWidths.forEach((w) => {
+                    ctx.beginPath();
+                    ctx.moveTo(x + 0.5, originY);
+                    ctx.lineTo(x + 0.5, originY + tableHeight);
+                    ctx.stroke();
+                    x += w;
+                });
+                ctx.beginPath();
+                ctx.moveTo(tableWidth + 0.5, originY);
+                ctx.lineTo(tableWidth + 0.5, originY + tableHeight);
+                ctx.stroke();
+
+                ctx.fillStyle = "#000000";
+                ctx.font = "12px Arial";
+                ctx.textBaseline = "middle";
+                let xCursor = 0;
+                tableHeaders.forEach((header, idx) => {
+                    ctx.fillText(String(header || "-"), xCursor + 6, originY + headerHeight / 2);
+                    xCursor += colWidths[idx];
+                });
+                (tableRows || []).forEach((row, rowIdx) => {
+                    let colX = 0;
+                    row.forEach((cell, colIdx) => {
+                        ctx.fillText(
+                            String(cell ?? "-"),
+                            colX + 6,
+                            originY + headerHeight + (rowIdx * rowHeight) + (rowHeight / 2)
+                        );
+                        colX += colWidths[colIdx];
+                    });
+                });
+            };
+
+            const copyTables = [
+                { headers, rows },
+                ...extraTables.filter((table) => table?.headers?.length),
+            ];
+            if (!copyTables[0].headers.length) return null;
+
+            const layouts = [];
+            let originY = 0;
+            let maxWidth = 0;
+            copyTables.forEach((table, index) => {
+                const metrics = measureCopyTable(table.headers, table.rows || []);
+                const title = index > 0 ? (table.title || "") : "";
+                const titleSpace = title ? titleHeight : 0;
+                layouts.push({ table, metrics, title, originY: originY + titleSpace, titleY: originY });
+                maxWidth = Math.max(maxWidth, metrics.tableWidth);
+                originY += titleSpace + metrics.tableHeight + (index < copyTables.length - 1 ? tableGap : 0);
+            });
 
             const canvas = document.createElement("canvas");
-            canvas.width = tableWidth + 1;
-            canvas.height = tableHeight + 1;
+            canvas.width = maxWidth + 1;
+            canvas.height = originY + 1;
             const ctx = canvas.getContext("2d");
             if (!ctx) return null;
 
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Header background
-            ctx.fillStyle = "#f0f0f0";
-            ctx.fillRect(0, 0, tableWidth, headerHeight);
-
-            // Grid lines
-            ctx.strokeStyle = "#333333";
-            ctx.lineWidth = 1;
-            for (let y = 0; y <= tableHeight; y += rowHeight) {
-                const lineY = y === 0 ? 0 : (y < headerHeight ? headerHeight : y);
-                ctx.beginPath();
-                ctx.moveTo(0, lineY + 0.5);
-                ctx.lineTo(tableWidth, lineY + 0.5);
-                ctx.stroke();
-            }
-            let x = 0;
-            colWidths.forEach((w) => {
-                ctx.beginPath();
-                ctx.moveTo(x + 0.5, 0);
-                ctx.lineTo(x + 0.5, tableHeight);
-                ctx.stroke();
-                x += w;
-            });
-            ctx.beginPath();
-            ctx.moveTo(tableWidth + 0.5, 0);
-            ctx.lineTo(tableWidth + 0.5, tableHeight);
-            ctx.stroke();
-
-            // Cell text
-            ctx.fillStyle = "#000000";
-            ctx.font = "12px Arial";
-            ctx.textBaseline = "middle";
-            let xCursor = 0;
-            headers.forEach((header, idx) => {
-                ctx.fillText(String(header || "-"), xCursor + 6, headerHeight / 2);
-                xCursor += colWidths[idx];
-            });
-            rows.forEach((row, rowIdx) => {
-                let colX = 0;
-                row.forEach((cell, colIdx) => {
-                    ctx.fillText(String(cell ?? "-"), colX + 6, headerHeight + (rowIdx * rowHeight) + (rowHeight / 2));
-                    colX += colWidths[colIdx];
-                });
+            layouts.forEach(({ table, metrics, title, originY: tableY, titleY }) => {
+                if (title) {
+                    ctx.fillStyle = "#000000";
+                    ctx.font = "bold 12px Arial";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText(title, 6, titleY + titleHeight / 2);
+                }
+                drawCopyTable(ctx, tableY, table.headers, table.rows || [], metrics);
             });
 
             return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), "image/png"));
         };
 
         try {
-            // Try modern Clipboard API with HTML support
-            if (navigator.clipboard && window.ClipboardItem) {
-                const plainText = generatePlainText();
-                const clipboardPayload = {
-                    "text/html": new Blob([htmlTable], { type: "text/html" }),
-                    "text/plain": new Blob([plainText], { type: "text/plain" }),
-                };
-                const imageBlob = await renderTableImageBlob();
-                if (imageBlob) {
-                    clipboardPayload["image/png"] = imageBlob;
-                }
-                await navigator.clipboard.write([
-                    new ClipboardItem(clipboardPayload)
-                ]);
-            } else {
-                // Fallback: Create a temporary element and copy
-                const textarea = document.createElement('textarea');
-                textarea.value = generatePlainText();
-                textarea.style.position = 'fixed';
-                textarea.style.opacity = '0';
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textarea);
+            const imageBlob = await renderTableImageBlob();
+            let copied = false;
 
-                // Also try to copy HTML using execCommand
-                const div = document.createElement('div');
-                div.innerHTML = htmlTable;
-                div.style.position = 'fixed';
-                div.style.left = '-9999px';
-                document.body.appendChild(div);
-                const range = document.createRange();
-                range.selectNodeContents(div);
-                const selection = window.getSelection();
-                selection.removeAllRanges();
-                selection.addRange(range);
-                document.execCommand('copy');
-                selection.removeAllRanges();
-                document.body.removeChild(div);
+            if (navigator.clipboard && window.ClipboardItem) {
+                const htmlBlob = new Blob([htmlTable], { type: "text/html" });
+                const payloads = [];
+                if (imageBlob) {
+                    payloads.push({
+                        "text/html": htmlBlob,
+                        "image/png": imageBlob,
+                    });
+                }
+                payloads.push({ "text/html": htmlBlob });
+                if (imageBlob) {
+                    payloads.push({ "image/png": imageBlob });
+                }
+                for (const payload of payloads) {
+                    try {
+                        await navigator.clipboard.write([new ClipboardItem(payload)]);
+                        copied = true;
+                        break;
+                    } catch {
+                        copied = false;
+                    }
+                }
+            }
+
+            if (!copied) {
+                const onCopy = (event) => {
+                    event.preventDefault();
+                    event.clipboardData.setData("text/html", htmlTable);
+                    if (imageBlob) {
+                        try {
+                            event.clipboardData.items.add(imageBlob);
+                        } catch {
+                            // image optional in this fallback
+                        }
+                    }
+                };
+                document.addEventListener("copy", onCopy, true);
+                copied = document.execCommand("copy");
+                document.removeEventListener("copy", onCopy, true);
+            }
+
+            if (!copied) {
+                throw new Error("Clipboard copy failed");
             }
 
             toast({
@@ -2439,7 +2779,7 @@ export default function Stocks() {
         const selectedItems = filteredAndSortedStock.filter((item) =>
             clientViewSelectedRows.has(item.id || item.stock_item_id)
         );
-        await copyItemsToClipboard(selectedItems, (items) => buildExportDataByView(items, clientViewFilterType));
+        await copyItemsToClipboard(selectedItems, (items) => buildClientViewCopyData(items, clientViewFilterType));
     };
 
     const handleCopyStockViewSelectedRows = async () => {
@@ -2449,10 +2789,23 @@ export default function Stocks() {
             toast({ title: "No matching rows", description: "Please refresh selection and try again.", status: "warning", duration: 2200, isClosable: true });
             return;
         }
-        await copyItemsToClipboard(selectedItems, buildPdfExportData);
+        await copyItemsToClipboard(selectedItems, buildExcelExportData);
     };
 
     const handleCopySelectedRows = handleCopyClientViewSelectedRows;
+
+    const buildSelectedTotalsCopyData = (items) => {
+        const table = buildSelectedTotalsCopyTable(items);
+        return { headers: table.headers, rows: table.rows };
+    };
+
+    const handleCopyClientViewSelectedTotals = async () => {
+        if (clientViewSelectedItems.length === 0) {
+            toast({ title: "No selection", description: "Select one or more rows first.", status: "warning", duration: 2000, isClosable: true });
+            return;
+        }
+        await copyItemsToClipboard(clientViewSelectedItems, buildSelectedTotalsCopyData);
+    };
 
     const handleCopyCostRequestStockView = async () => {
         if (selectedRows.size === 0) return;
@@ -2461,7 +2814,7 @@ export default function Stocks() {
             toast({ title: "No matching rows", description: "Please refresh selection and try again.", status: "warning", duration: 2200, isClosable: true });
             return;
         }
-        await copyItemsToClipboard(selectedItems, buildCostRequestCopyData);
+        await copyItemsToClipboard(selectedItems, (items) => buildCostRequestCopyData(items, "stock"));
     };
 
     const handleCopyCostRequestClientView = async () => {
@@ -2473,7 +2826,7 @@ export default function Stocks() {
             toast({ title: "No matching rows", description: "Please refresh selection and try again.", status: "warning", duration: 2200, isClosable: true });
             return;
         }
-        await copyItemsToClipboard(selectedItems, buildCostRequestCopyData);
+        await copyItemsToClipboard(selectedItems, (items) => buildCostRequestCopyData(items, clientViewFilterType));
     };
 
     const downloadExcelCsv = (items, filePrefix, viewType = clientViewFilterType, buildDataOverride) => {
@@ -2908,7 +3261,9 @@ export default function Stocks() {
         const selectedItems = filteredAndSortedStock.filter(item =>
             clientViewSelectedRows.has(item.id || item.stock_item_id)
         );
-        downloadExcelCsv(selectedItems, "stocklist-client-view", clientViewFilterType);
+        downloadExcelCsv(selectedItems, "stocklist-client-view", clientViewFilterType, (items) =>
+            buildClientViewExcelExportData(items, clientViewFilterType)
+        );
         toast({ title: "Excel export", description: `${selectedItems.length} row(s) exported.`, status: "success", duration: 2200, isClosable: true });
     };
 
@@ -3083,6 +3438,8 @@ export default function Stocks() {
             si_combined: item.si_combined === false ? "" : (item.si_combined || ""),
             details: item.details || item.item_desc || "",
             dg_un: item.dg_un || "",
+            t_1: item.t_1 || "",
+            warning: item.warning || "",
             remarks: item.remarks || "",
             shipping_doc: item.shipping_doc || "",
             export_doc: item.export_doc || "",
@@ -3314,6 +3671,8 @@ export default function Stocks() {
             { backend: "delivered_date", original: ["delivered_date"], edited: ["delivered_date"], transform: (v) => toValue(v, false) },
             { backend: "details", original: ["details", "item_desc"], edited: ["details"], transform: (v) => v || "" },
             { backend: "dg_un", original: ["dg_un"], edited: ["dg_un"], transform: (v) => v || "" },
+            { backend: "t_1", original: ["t_1"], edited: ["t_1"], transform: (v) => v || "" },
+            { backend: "warning", original: ["warning"], edited: ["warning"], transform: (v) => v || "" },
             { backend: "item", original: ["item", "items"], edited: ["item", "items"], transform: (v) => v !== "" && v !== null && v !== undefined ? toNumber(v) || 0 : 0 },
             { backend: "lwh_text", original: ["lwh_text"], edited: ["lwh_text"], transform: (v) => v || "" },
             {
@@ -3524,6 +3883,7 @@ export default function Stocks() {
         return {
             client: getDisplayName(item.client_id || item.client) || "-",
             vessel: getDisplayName(item.vessel_id || item.vessel) || "-",
+            warning: item.warning || "-",
             supplier: getDisplayName(item.supplier_id || item.supplier) || "-",
             po: item.po_text || "-",
             req_no: item.req_no || "-",
@@ -3531,6 +3891,7 @@ export default function Stocks() {
             boxes: item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
             kg: item.weight_kg ?? item.weight_kgs ?? "-",
             lwh_text: item.lwh_text || "-",
+            t_1: item.t_1 || "-",
             narvi_stock_via_hub1: getStockViaHub1Display(item),
             narvi_stock_via_hub2: getStockViaHub2Display(item),
             destination: formatStockDestinationDisplay(item, "destination"),
@@ -4731,19 +5092,13 @@ export default function Stocks() {
                                                             <Text fontSize="md" fontWeight="700" color={textColor}>Basic Filters</Text>
                                                         </HStack>
                                                         <HStack>
-                                                            {(clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel || clientViewStatuses.size > 0) && (
+                                                            {hasClientViewFilters && (
                                                                 <Button
                                                                     size="xs"
                                                                     leftIcon={<Icon as={MdClose} />}
                                                                     colorScheme="red"
                                                                     variant="ghost"
-                                                                    onClick={() => {
-                                                                        setClientViewClient(null);
-                                                                        setClientViewVesselFilter(null);
-                                                                        setClientViewSearchClient("");
-                                                                        setClientViewSearchVessel("");
-                                                                        setClientViewStatuses(new Set());
-                                                                    }}
+                                                                    onClick={clearClientViewFilters}
                                                                 >
                                                                     Clear All
                                                                 </Button>
@@ -5060,6 +5415,21 @@ export default function Stocks() {
                                             >
                                                 Copy for request of cost
                                             </Button>
+                                            <Button
+                                                size="md"
+                                                leftIcon={<Icon as={MdNumbers} />}
+                                                colorScheme="blue"
+                                                variant="solid"
+                                                onClick={onSelectedTotalsModalOpen}
+                                                fontWeight="600"
+                                                _hover={{
+                                                    transform: 'translateY(-2px)',
+                                                    boxShadow: 'md'
+                                                }}
+                                                transition="all 0.2s"
+                                            >
+                                                Selected totals
+                                            </Button>
                                         </>
                                     )}
                                 </HStack>
@@ -5082,39 +5452,13 @@ export default function Stocks() {
                                                             <Text fontSize="md" fontWeight="700" color={textColor}>Basic Filters</Text>
                                                         </HStack>
                                                         <HStack>
-                                                            {(stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewViaHub1 || stockViewViaHub2 || stockViewApDestination || stockViewOrigin || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewFilterWarehouseNew || stockViewSearchFilter || stockViewHasDestination || createDateFrom || createDateTo || daysRangeFrom || daysRangeTo || vesselViewStatuses.size > 0 || Object.keys(stockViewEmptyFilters).length > 0) && (
+                                                            {hasStockViewFilters && (
                                                                 <Button
                                                                     size="xs"
                                                                     leftIcon={<Icon as={MdClose} />}
                                                                     colorScheme="red"
                                                                     variant="ghost"
-                                                                    onClick={() => {
-                                                                        setStockViewStockItemId("");
-                                                                        setStockViewClient(null);
-                                                                        setStockViewVessel(null);
-                                                                        setStockViewStatus("");
-                                                                        setStockViewDateOnStock("");
-                                                                        setStockViewDaysOnStock("");
-                                                                        setCreateDateFrom("");
-                                                                        setCreateDateTo("");
-                                                                        setDaysRangeFrom("");
-                                                                        setDaysRangeTo("");
-                                                                        setStockViewViaHub1(null);
-                                                                        setStockViewViaHub2(null);
-                                                                        setStockViewApDestination(null);
-                                                                        setStockViewOrigin(null);
-                                                                        setStockViewFilterSO("");
-                                                                        setStockViewFilterSI("");
-                                                                        setStockViewFilterSICombined("");
-                                                                        setStockViewFilterDI("");
-                                                                        setStockViewFilterPO("");
-                                                                        setStockViewFilterReqNo("");
-                                                                        setStockViewFilterWarehouseNew("");
-                                                                        setStockViewSearchFilter("");
-                                                                        setStockViewHasDestination(false);
-                                                                        setVesselViewStatuses(new Set());
-                                                                        setStockViewEmptyFilters({});
-                                                                    }}
+                                                                    onClick={clearStockViewFilters}
                                                                 >
                                                                     Clear All
                                                                 </Button>
@@ -5721,9 +6065,24 @@ export default function Stocks() {
                                         <Center py="60px" px="25px">
                                             <VStack spacing="4" maxW="400px" p="6" bg={tableRowBgAlt} borderRadius="lg" border="1px" borderColor={borderColor}>
                                                 <Icon as={MdInventory2} boxSize="14" color={emptyPanelIconColor} />
-                                                <Text color={tableTextColor} fontWeight="600">{stockList.length === 0 ? "No stock items available." : "No stock items match your filter criteria."}</Text>
-                                                {stockList.length > 0 && (
-                                                    <Text color={tableTextColorSecondary} fontSize="sm" textAlign="center">Try adjusting your filters to see more results.</Text>
+                                                <Text color={tableTextColor} fontWeight="600">
+                                                    {hasStockViewFilters ? "No stock items match your filter criteria." : "No stock items available."}
+                                                </Text>
+                                                {hasStockViewFilters && (
+                                                    <>
+                                                        <Text color={tableTextColorSecondary} fontSize="sm" textAlign="center">
+                                                            Try adjusting your filters to see more results.
+                                                        </Text>
+                                                        <Button
+                                                            size="sm"
+                                                            leftIcon={<Icon as={MdClose} />}
+                                                            colorScheme="red"
+                                                            variant="outline"
+                                                            onClick={clearStockViewFilters}
+                                                        >
+                                                            Clear All
+                                                        </Button>
+                                                    </>
                                                 )}
                                             </VStack>
                                         </Center>
@@ -5913,21 +6272,13 @@ export default function Stocks() {
                                                             </MenuList>
                                                         </Menu>
 
-                                                        {(clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel || createDateFrom || createDateTo || clientViewStatuses.size > 0) && (
+                                                        {hasClientViewFilters && (
                                                             <Button
                                                                 size="xs"
                                                                 leftIcon={<Icon as={MdClose} />}
                                                                 colorScheme="red"
                                                                 variant="ghost"
-                                                                onClick={() => {
-                                                                    setClientViewClient(null);
-                                                                    setClientViewVesselFilter(null);
-                                                                    setClientViewSearchClient("");
-                                                                    setClientViewSearchVessel("");
-                                                                    setCreateDateFrom("");
-                                                                    setCreateDateTo("");
-                                                                    setClientViewStatuses(new Set());
-                                                                }}
+                                                                onClick={clearClientViewFilters}
                                                             >
                                                                 Clear All
                                                             </Button>
@@ -6117,6 +6468,15 @@ export default function Stocks() {
                                                     >
                                                         Copy for request of cost
                                                     </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        leftIcon={<Icon as={MdNumbers} />}
+                                                        colorScheme="blue"
+                                                        variant="outline"
+                                                        onClick={onSelectedTotalsModalOpen}
+                                                    >
+                                                        Selected totals
+                                                    </Button>
                                                 </>
                                             )}
                                         </HStack>
@@ -6143,9 +6503,24 @@ export default function Stocks() {
                                         <Center py="60px" px="25px">
                                             <VStack spacing="4" maxW="400px" p="6" bg={tableRowBgAlt} borderRadius="lg" border="1px" borderColor={borderColor}>
                                                 <Icon as={MdInventory2} boxSize="14" color={emptyPanelIconColor} />
-                                                <Text color={tableTextColor} fontWeight="600">{stockList.length === 0 ? "No stock items available." : "No stock items match your filter criteria."}</Text>
-                                                {stockList.length > 0 && (
-                                                    <Text color={tableTextColorSecondary} fontSize="sm" textAlign="center">Try adjusting your filters to see more results.</Text>
+                                                <Text color={tableTextColor} fontWeight="600">
+                                                    {hasClientViewFilters ? "No stock items match your filter criteria." : "No stock items available."}
+                                                </Text>
+                                                {hasClientViewFilters && (
+                                                    <>
+                                                        <Text color={tableTextColorSecondary} fontSize="sm" textAlign="center">
+                                                            Try adjusting your filters to see more results.
+                                                        </Text>
+                                                        <Button
+                                                            size="sm"
+                                                            leftIcon={<Icon as={MdClose} />}
+                                                            colorScheme="red"
+                                                            variant="outline"
+                                                            onClick={clearClientViewFilters}
+                                                        >
+                                                            Clear All
+                                                        </Button>
+                                                    </>
                                                 )}
                                             </VStack>
                                         </Center>
@@ -6609,6 +6984,58 @@ export default function Stocks() {
                     </>
                 )}
             </Card>
+
+            <Modal isOpen={isSelectedTotalsModalOpen} onClose={onSelectedTotalsModalClose} size="lg" isCentered>
+                <ModalOverlay bg="blackAlpha.600" backdropFilter="blur(4px)" />
+                <ModalContent>
+                    <ModalHeader
+                        fontSize="xl"
+                        fontWeight="bold"
+                        pb={3}
+                        borderBottom="1px"
+                        borderColor={borderColor}
+                    >
+                        <HStack spacing={2}>
+                            <Icon as={MdNumbers} color="blue.500" />
+                            <Text>Selected totals</Text>
+                            <Badge colorScheme="blue" fontSize="sm" px={2} py={1} borderRadius="full">
+                                {clientViewSelectedItems.length} {clientViewSelectedItems.length === 1 ? "item" : "items"}
+                            </Badge>
+                        </HStack>
+                    </ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody py={6}>
+                        <Table variant="simple" size="sm">
+                            <Thead>
+                                <Tr>
+                                    <Th borderColor={borderColor}>BOXES</Th>
+                                    <Th borderColor={borderColor}>KILOS</Th>
+                                    <Th borderColor={borderColor}>TOTAL VOLUME (CBM)</Th>
+                                </Tr>
+                            </Thead>
+                            <Tbody>
+                                <Tr>
+                                    <Td borderColor={borderColor} fontWeight="700">{formatStockTotalBoxes(clientViewSelectedTotals.boxes)}</Td>
+                                    <Td borderColor={borderColor} fontWeight="700">{formatStockTotalKilos(clientViewSelectedTotals.kilos)}</Td>
+                                    <Td borderColor={borderColor} fontWeight="700">{formatVolumeCbm(clientViewSelectedTotals.cbm)}</Td>
+                                </Tr>
+                            </Tbody>
+                        </Table>
+                    </ModalBody>
+                    <ModalFooter borderTop="1px" borderColor={borderColor}>
+                        <Button variant="ghost" mr={3} onClick={onSelectedTotalsModalClose}>
+                            Close
+                        </Button>
+                        <Button
+                            leftIcon={<Icon as={MdContentCopy} />}
+                            colorScheme="green"
+                            onClick={handleCopyClientViewSelectedTotals}
+                        >
+                            Copy table
+                        </Button>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
 
             {/* Dimensions View Modal */}
             <Modal isOpen={isDimensionsModalOpen} onClose={onDimensionsModalClose} size="2xl">

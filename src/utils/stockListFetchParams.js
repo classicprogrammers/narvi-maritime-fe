@@ -12,6 +12,7 @@ function isNonEmpty(value) {
  */
 export const STOCK_EMPTY_FILTER_PARAM_BY_LABEL = {
   VESSEL: "vessel_id",
+  "Warning ‼️⛔": "warning",
   SUPPLIER: "supplier_id",
   "REQ NO": "req_no",
   "PO NUMBER": "po_text",
@@ -35,6 +36,7 @@ export const STOCK_EMPTY_FILTER_PARAM_BY_LABEL = {
   "SHIPPED DATE": "shipped_date",
   "DELIVERED DATE": "delivered_date",
   "DG/UN NUMBER": "dg_un",
+  "T 1": "t_1",
   REMARKS: "remarks",
   BOXES: "item",
   "WEIGHT KGS": "weight_kg",

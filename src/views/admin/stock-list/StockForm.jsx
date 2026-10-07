@@ -152,7 +152,9 @@ export default function StockForm() {
         }],
         // Allow multiple LWH entries via multi-line text (one per line)
         lwhText: "",
+        t1: "",
         details: "",
+        warning: "",
         value: "",
         currency: "",
         origin_text: "",
@@ -545,7 +547,9 @@ export default function StockForm() {
                     cw_air_freight: 0.0,
                 }],
             lwhText: getFieldValue(stock.lwh_text),
+            t1: String(getFieldValue(stock.t_1) || "").trim().toLowerCase() === "x" ? "x" : "",
             details: getFieldValue(stock.details) || getFieldValue(stock.item_desc),
+            warning: getFieldValue(stock.warning),
             value: normalizeStockValueForForm(getFieldValue(stock.value, "")),
             currency: normalizeId(stock.currency_id) || normalizeId(stock.currency) || "",
             origin_text: (() => {
@@ -929,6 +933,8 @@ export default function StockForm() {
             attachments: [], // filled below — only new pending files vs baseline
             attachment_to_delete: [], // filled below
             client_access: Boolean(rowData.clientAccess),
+            warning: rowData.warning || "",
+            t_1: rowData.t1 || "",
             remarks: rowData.remarks || "",
             cancel_text: normalizeCancelTextForSave(rowData.cancelText),
             weight_kg: toNumber(rowData.weightKgs) || 0,
@@ -1050,6 +1056,8 @@ export default function StockForm() {
             attachments: [],
             attachment_to_delete: [],
             client_access: Boolean(baselineRow.clientAccess),
+            warning: baselineRow.warning || "",
+            t_1: baselineRow.t1 || "",
             remarks: baselineRow.remarks || "",
             cancel_text: normalizeCancelTextForSave(baselineRow.cancelText),
             weight_kg: toNumber(baselineRow.weightKgs) || 0,
@@ -1472,6 +1480,7 @@ export default function StockForm() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Total Volume CBM</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">CW Air Freight</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">LWH Text</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">T 1</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">DG/UN Number</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Value</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Currency</Th>
@@ -1479,6 +1488,7 @@ export default function StockForm() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">HUB 1</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">HUB 2</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Ready ex Supplier</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Warning ‼️⛔</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Remarks</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase"></Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client Access</Th>
@@ -1876,6 +1886,20 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Select
+                                            value={row.t1 === "x" ? "x" : ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "t1", e.target.value)}
+                                            size="sm"
+                                            minW="90px"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        >
+                                            <option value="">Select</option>
+                                            <option value="x">X</option>
+                                        </Select>
+                                    </Td>
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
                                         <Input
                                             value={row.details}
                                             onChange={(e) => handleInputChange(rowIndex, "details", e.target.value)}
@@ -1971,6 +1995,18 @@ export default function StockForm() {
                                             value={row.expReadyInStock || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "expReadyInStock", e.target.value)}
                                             size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Textarea
+                                            value={row.warning || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "warning", e.target.value)}
+                                            placeholder=""
+                                            size="sm"
+                                            rows={2}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
