@@ -1,10 +1,29 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import narviLetterheadPrint from "../../../assets/letterHead/NarviLetterhead.jpeg";
+import { chargeCategoryLabel } from "../../../utils/rateListForm";
 
 export const RATE_LIST_PDF_TYPES = {
   COST_AND_FIXED: "cost_and_fixed",
   CLIENT_TARIFF: "client_tariff",
+};
+
+const CONTENT_LEFT = 30;
+const CONTENT_TOP = 160;
+const CONTENT_RIGHT = 24;
+const PDF_TABLE_BORDER_COLOR = [51, 51, 51];
+const PDF_TABLE_BORDER_WIDTH = 0.5;
+const PDF_TABLE_HEAD_STYLES = {
+  fillColor: [255, 255, 255],
+  textColor: [0, 0, 0],
+  fontStyle: "bold",
+  lineColor: PDF_TABLE_BORDER_COLOR,
+  lineWidth: PDF_TABLE_BORDER_WIDTH,
+};
+const PDF_TABLE_BODY_STYLES = {
+  fillColor: [255, 255, 255],
+  lineColor: PDF_TABLE_BORDER_COLOR,
+  lineWidth: PDF_TABLE_BORDER_WIDTH,
 };
 
 function displayPdfValue(value) {
@@ -31,8 +50,10 @@ export function mapRateItemForPdf(item = {}) {
     rateType: formatRateTypeValue(item.rate_type),
     location: displayPdfValue(item.location_text || item.location),
     agent: displayPdfValue(item.agent_id?.name || item.agent_text || item.agent),
-    client: displayPdfValue(item.client_id?.name),
+    client: displayPdfValue(item.client_id?.name || item.client_name || item.client),
+    groupName: displayPdfValue(item.import_group),
     rateName: displayPdfValue(item.rate_name),
+    chargeCategory: displayPdfValue(chargeCategoryLabel(item.charge_category, item.charge_category_label)),
     rateText: displayPdfValue(item.rate_text),
     rateCalculation: displayPdfValue(item.rate_calculation),
     rateCost: formatRateCostValue(item),
@@ -61,7 +82,7 @@ export function buildRateListPdfModel({
 
   return {
     reportType,
-    title: isClientTariff ? "Client Tariff — Fixed Sales Rates" : "Rate List — Cost + Fixed Sales Rates",
+    title: isClientTariff ? "Client Tariff — Fixed Sales Rates" : "Rate List Export",
     agentName: agentName || "",
     scopeLabel: scopeLabel || "",
     rows,
@@ -70,15 +91,20 @@ export function buildRateListPdfModel({
   };
 }
 
-async function loadLetterheadOnPdf(doc) {
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-
-  await new Promise((resolve, reject) => {
+async function loadLetterheadDataUrl() {
+  return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      doc.addImage(img, "JPEG", 0, 0, pageWidth, pageHeight);
-      resolve();
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Canvas unavailable"));
+        return;
+      }
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL("image/jpeg"));
     };
     img.onerror = reject;
     img.src = narviLetterheadPrint;
@@ -86,65 +112,81 @@ async function loadLetterheadOnPdf(doc) {
 }
 
 export async function buildRateListPdf(model) {
+  const tableStartY = CONTENT_TOP + 38;
   const doc = new jsPDF({
-    orientation: "landscape",
+    orientation: "portrait",
     unit: "pt",
     format: "a4",
     compress: true,
   });
 
-  const contentLeft = 30;
-  const contentRight = 30;
-  const contentWidth = doc.internal.pageSize.getWidth() - contentLeft - contentRight;
-  let cursorY = 120;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const tableWidth = pageWidth - CONTENT_LEFT - CONTENT_RIGHT;
+  const isClientTariff = model.reportType === RATE_LIST_PDF_TYPES.CLIENT_TARIFF;
+
+  let letterheadDataUrl = null;
+  const drawLetterhead = () => {
+    if (!letterheadDataUrl) return;
+    doc.addImage(letterheadDataUrl, "JPEG", 0, 0, pageWidth, pageHeight);
+  };
 
   try {
-    await loadLetterheadOnPdf(doc);
+    letterheadDataUrl = await loadLetterheadDataUrl();
+    drawLetterhead();
   } catch (error) {
     console.error("Failed to load letterhead for rate list PDF:", error);
   }
 
+  const recordCount = model.rowCount || model.rows.length;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.text(model.title || "Rate List", contentLeft, cursorY);
-  cursorY += 18;
+  doc.setFontSize(12);
+  doc.text(`${model.title || "Rate List Export"} (${recordCount} record${recordCount === 1 ? "" : "s"})`, CONTENT_LEFT, CONTENT_TOP);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   const subtitle = model.scopeLabel || model.agentName;
+  let metaY = CONTENT_TOP + 14;
   if (subtitle) {
-    doc.text(subtitle, contentLeft, cursorY);
-    cursorY += 12;
+    doc.text(subtitle, CONTENT_LEFT, metaY);
+    metaY += 12;
   }
-  doc.text(`Generated: ${model.generatedAt} · ${model.rowCount} rate(s)`, contentLeft, cursorY);
-  cursorY += 14;
+  doc.text(`Generated: ${model.generatedAt}`, CONTENT_LEFT, metaY);
 
-  const isClientTariff = model.reportType === RATE_LIST_PDF_TYPES.CLIENT_TARIFF;
   const head = isClientTariff
-    ? [["Rate Type", "Location", "Agent", "Rate Name", "Rate Text", "Rate Fixed"]]
-    : [["Rate Type", "Location", "Agent", "Rate Name", "Rate Text", "Rate Calculation", "Rate Cost", "Rate Fixed"]];
+    ? [["Rate Type", "Location", "Client", "Agent", "Rate Name", "Rate Text", "Rate Fixed"]]
+    : [["Rate Type", "Location", "Client", "Agent", "Rate Name", "Rate Text", "Rate Cost", "Rate Fixed"]];
 
   const body = model.rows.map((row) =>
     isClientTariff
-      ? [row.rateType, row.location, row.agent, row.rateName, row.rateText, row.rateFixed]
-      : [row.rateType, row.location, row.agent, row.rateName, row.rateText, row.rateCalculation, row.rateCost, row.rateFixed]
+      ? [row.rateType, row.location, row.client, row.agent, row.rateName, row.rateText, row.rateFixed]
+      : [row.rateType, row.location, row.client, row.agent, row.rateName, row.rateText, row.rateCost, row.rateFixed]
   );
 
   autoTable(doc, {
-    startY: cursorY,
+    startY: tableStartY,
     head,
     body,
     theme: "grid",
-    styles: { fontSize: 7.5, cellPadding: 3, overflow: "linebreak", valign: "top" },
-    headStyles: { fillColor: [23, 70, 147], textColor: 255, fontStyle: "bold" },
-    margin: { top: cursorY, left: contentLeft, right: contentRight, bottom: 24 },
-    tableWidth: contentWidth,
+    styles: {
+      fontSize: 7,
+      cellPadding: 2,
+      overflow: "linebreak",
+      valign: "top",
+      lineColor: PDF_TABLE_BORDER_COLOR,
+      lineWidth: PDF_TABLE_BORDER_WIDTH,
+    },
+    headStyles: PDF_TABLE_HEAD_STYLES,
+    bodyStyles: PDF_TABLE_BODY_STYLES,
+    margin: { top: tableStartY, left: CONTENT_LEFT, right: CONTENT_RIGHT, bottom: 24 },
+    tableWidth,
     pageBreak: "auto",
     rowPageBreak: "avoid",
     showHead: "everyPage",
-    didDrawPage: (data) => {
-      if (data.pageNumber > 1) {
-        data.settings.margin.top = 36;
+    didDrawPage: (hookData) => {
+      if (hookData.pageNumber > 1) {
+        drawLetterhead();
+        hookData.settings.margin.top = tableStartY;
       }
     },
   });

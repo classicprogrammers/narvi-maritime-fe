@@ -50,8 +50,11 @@ import {
     MdClose as MdRemove,
     MdVisibility,
     MdPictureAsPdf,
+    MdArrowDownward,
+    MdArrowUpward,
+    MdUnfoldMore,
 } from "react-icons/md";
-import { normalizeStockStatusKey } from "../../../constants/stockStatus";
+import { formatStockStatusLabel, normalizeStockStatusKey } from "../../../constants/stockStatus";
 import { useStock } from "../../../redux/hooks/useStock";
 import { useUser } from "../../../redux/hooks/useUser";
 import { useMasterData } from "../../../hooks/useMasterData";
@@ -94,6 +97,7 @@ import {
   buildShippingOrderSelectOptions,
   normalizeStockFormSoId,
   buildStockSoIdPayloadValue,
+  getShippingOrderDisplayLabel,
 } from "../../../utils/shippingOrderListState";
 import { isStockOriginHubFormField, normalizeStockOriginHubText } from "../../../utils/stockOriginHubText";
 import {
@@ -107,6 +111,152 @@ import {
     toStockLocationPayloadId,
 } from "../../../utils/stockLocationOptions";
 import { normalizeStockValueForForm, normalizeStockValueForSave } from "../../../utils/stockValue";
+
+const STOCK_FORM_SORT_COLUMNS = [
+    { label: "ID", sortKey: "stockItemId", type: "text", editOnly: true, minW: "80px" },
+    { label: "Client", sortKey: "client", type: "lookup", lookup: "clients", minW: "120px" },
+    { label: "Vessel", sortKey: "vessel", type: "lookup", lookup: "vessels", minW: "120px" },
+    { label: "PIC", sortKey: "pic", type: "lookup", lookup: "pics", minW: "100px" },
+    { label: "Supplier", sortKey: "supplier", type: "lookup", lookup: "suppliers", minW: "120px" },
+    { label: "Req No", sortKey: "reqNo", type: "text", minW: "200px" },
+    { label: "PO Number", sortKey: "poNumber", type: "text", minW: "200px" },
+    { label: "Ready ex Supplier", sortKey: "expReadyInStock", type: "date", minW: "140px" },
+    { label: "Warehouse ID", sortKey: "warehouseId", type: "text", minW: "200px" },
+    { label: "Date on Stock", sortKey: "dateOnStock", type: "date", minW: "140px" },
+    { label: "Shipped Date", sortKey: "shippedDate", type: "date", minW: "140px" },
+    { label: "Delivered Date", sortKey: "deliveredDate", type: "date", minW: "140px" },
+    { label: "PCS", sortKey: "item", type: "number", minW: "100px" },
+    { label: "Weight kgs", sortKey: "weightKgs", type: "number", minW: "100px" },
+    { label: "Dimension", sortKey: "dimensions", type: "dimensions", minW: "150px" },
+    { label: "LWH Text Details", sortKey: "lwhText", type: "text", minW: "200px" },
+    { label: "DG/UN Number", sortKey: "dgUn", type: "text", minW: "150px" },
+    { label: "Value", sortKey: "value", type: "number", minW: "100px" },
+    { label: "Currency", sortKey: "currency", type: "lookup", lookup: "currencies", minW: "100px" },
+    { label: "Origin", sortKey: "origin_text", type: "text", minW: "120px" },
+    { label: "Via HUB 1", sortKey: "narviStockViaHub1Name", type: "text", minW: "120px" },
+    { label: "Via HUB 2", sortKey: "narviStockViaHub2Name", type: "text", minW: "120px" },
+    { label: "AP Destination", sortKey: "narviStockApDestinationName", type: "text", minW: "140px" },
+    { label: "Destination", sortKey: "destinationName", type: "text", minW: "140px" },
+    { label: "Shipping Docs", sortKey: "shippingDoc", type: "text", minW: "200px" },
+    { label: "Export Doc 1", sortKey: "exportDoc", type: "text", minW: "200px" },
+    { label: "Export Doc 2", sortKey: "exportDoc2", type: "text", minW: "200px" },
+    { label: "Remarks", sortKey: "remarks", type: "text", minW: "200px" },
+    { label: "Internal Remark", sortKey: "internalRemark", type: "text", minW: "200px" },
+    { label: "SO", sortKey: "soId", type: "so", minW: "120px" },
+    { label: "SI Number", sortKey: "siNumber", type: "text", minW: "120px" },
+    { label: "SI Combined", sortKey: "siCombined", type: "text", minW: "120px" },
+    { label: "DI Number", sortKey: "diNumber", type: "text", minW: "120px" },
+    { label: "Client Access", sortKey: "clientAccess", type: "boolean", minW: "120px" },
+    { label: "Stock Status", sortKey: "stockStatus", type: "status", minW: "120px" },
+    { label: "Files", sortKey: "attachments", type: "files", minW: "120px" },
+    { label: "Cancel Reason", sortKey: "cancelText", type: "text", minW: "200px" },
+];
+
+function lookupListName(id, list) {
+    if (id == null || id === "") return "";
+    const match = (list || []).find((item) => String(item.id) === String(id));
+    return match?.name ? String(match.name) : String(id);
+}
+
+function getStockFormSortValue(row, column, ctx) {
+    const { type, sortKey, lookup } = column;
+    if (type === "lookup") {
+        const id = row[sortKey];
+        if (id == null || id === "") return "";
+        if (lookup === "vessels") {
+            const fromClient = ctx.getVesselOptionsForClient?.(row.client, row.vessel) || [];
+            const match = [...fromClient, ...(ctx.vessels || [])].find((item) => String(item.id) === String(id));
+            return match?.name ? String(match.name) : String(id);
+        }
+        return lookupListName(id, ctx[lookup]);
+    }
+    if (type === "so") {
+        if (row.soId == null || row.soId === "") return "";
+        const order = (ctx.shippingOrders || []).find((item) => String(item.id) === String(row.soId));
+        return getShippingOrderDisplayLabel(order) || String(row.soId);
+    }
+    if (type === "status") {
+        return formatStockStatusLabel(row.stockStatus);
+    }
+    if (type === "boolean") {
+        return row[sortKey] ? 1 : 0;
+    }
+    if (type === "number") {
+        const parsed = Number(String(row[sortKey] ?? "").replace(/,/g, "").trim());
+        return Number.isFinite(parsed) ? parsed : "";
+    }
+    if (type === "date") {
+        const value = row[sortKey];
+        if (value == null || String(value).trim() === "") return "";
+        const timestamp = Date.parse(value);
+        return Number.isNaN(timestamp) ? "" : timestamp;
+    }
+    if (type === "dimensions") {
+        const dims = Array.isArray(row.dimensions) ? row.dimensions : [];
+        return dims.length;
+    }
+    if (type === "files") {
+        const existing = Array.isArray(row.existingAttachments) ? row.existingAttachments.length : 0;
+        const pending = Array.isArray(row.attachments) ? row.attachments.length : 0;
+        return existing + pending;
+    }
+    const text = row[sortKey];
+    return text == null ? "" : String(text).trim();
+}
+
+function compareStockSortValues(left, right, sortOrder) {
+    const leftEmpty = left === "" || left == null;
+    const rightEmpty = right === "" || right == null;
+    if (leftEmpty && rightEmpty) return 0;
+    if (leftEmpty) return 1;
+    if (rightEmpty) return -1;
+    if (typeof left === "number" && typeof right === "number") {
+        return sortOrder === "asc" ? left - right : right - left;
+    }
+    const compared = String(left).localeCompare(String(right), undefined, {
+        numeric: true,
+        sensitivity: "base",
+    });
+    return sortOrder === "asc" ? compared : -compared;
+}
+
+function remapRowIndex(oldIndex, oldIndexesInNewOrder) {
+    if (oldIndex == null) return oldIndex;
+    const next = oldIndexesInNewOrder.indexOf(oldIndex);
+    return next < 0 ? null : next;
+}
+
+function StockFormSortableHeader({ column, sort, onSort, thStyle }) {
+    const isActive = sort.sortKey === column.sortKey;
+    const icon = !isActive ? MdUnfoldMore : sort.sortOrder === "asc" ? MdArrowUpward : MdArrowDownward;
+    const direction = isActive ? (sort.sortOrder === "asc" ? "ascending" : "descending") : "none";
+
+    return (
+        <Th
+            {...thStyle}
+            minW={column.minW}
+            cursor="pointer"
+            userSelect="none"
+            tabIndex={0}
+            aria-sort={direction}
+            title={`Sort by ${column.label}`}
+            color={isActive ? "blue.100" : "white"}
+            _hover={{ bg: "gray.500" }}
+            onClick={() => onSort(column.sortKey)}
+            onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onSort(column.sortKey);
+                }
+            }}
+        >
+            <HStack spacing="1">
+                <Text as="span">{column.label}</Text>
+                <Icon as={icon} boxSize="13px" opacity={isActive ? 1 : 0.55} />
+            </HStack>
+        </Th>
+    );
+}
 
 export default function StockForm() {
     const history = useHistory();
@@ -186,6 +336,8 @@ export default function StockForm() {
     const borderColor = useColorModeValue("gray.200", "gray.700");
     const cardBg = useColorModeValue("white", "navy.800");
     const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
+    const tableHeaderBg = useColorModeValue("gray.600", "gray.700");
+    const tableHeaderBorderColor = useColorModeValue("gray.500", "gray.600");
 
     // Cell props for consistent styling
     const cellProps = {
@@ -294,7 +446,8 @@ export default function StockForm() {
     });
 
     // Form state - array of rows
-    const [formRows, setFormRows] = useState([getEmptyRow()]);
+    const [formRows, setFormRows] = useState([{ ...getEmptyRow(), _order: 0 }]);
+    const [sort, setSort] = useState({ sortKey: null, sortOrder: null });
     const formRowsRef = useRef(formRows);
     const getPayloadRef = useRef(() => ({}));
     const [stockReportPdfLoadingRowIndex, setStockReportPdfLoadingRowIndex] = useState(null);
@@ -426,11 +579,12 @@ export default function StockForm() {
 
                     setSelectedItems(items);
                     // Load all selected items as separate rows for bulk edit
-                    const rows = items.map((item) => {
+                    const rows = items.map((item, index) => {
                         const rowData = loadFormDataFromStock(item, true);
-                        return rowData;
+                        return { ...rowData, _order: index };
                     });
-                    setFormRows(rows.length > 0 ? rows : [getEmptyRow()]);
+                    setSort({ sortKey: null, sortOrder: null });
+                    setFormRows(rows.length > 0 ? rows : [{ ...getEmptyRow(), _order: 0 }]);
                 } else if (isEditing && id) {
                     const match = availableStock.find(
                         (stock) => String(stock.id) === String(id)
@@ -1008,7 +1162,8 @@ export default function StockForm() {
         if (returnData) {
             return rowData;
         }
-        setFormRows([rowData]);
+        setSort({ sortKey: null, sortOrder: null });
+        setFormRows([{ ...rowData, _order: 0 }]);
     };
 
     // Load items passed from stock list (edit via add-stock route)
@@ -1017,9 +1172,13 @@ export default function StockForm() {
         if (hasInitializedFromListRef.current) return;
         hasInitializedFromListRef.current = true;
 
-        const rows = selectedItemsFromState.map((item) => loadFormDataFromStock(item, true));
+        const rows = selectedItemsFromState.map((item, index) => ({
+            ...loadFormDataFromStock(item, true),
+            _order: index,
+        }));
         setSelectedItems(selectedItemsFromState);
-        setFormRows(rows.length > 0 ? rows : [getEmptyRow()]);
+        setSort({ sortKey: null, sortOrder: null });
+        setFormRows(rows.length > 0 ? rows : [{ ...getEmptyRow(), _order: 0 }]);
         setIsLoading(false);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isEditFromList, selectedItemsFromState]);
@@ -1311,21 +1470,72 @@ export default function StockForm() {
         handleInputChange(rowIndex, "stockStatus", nextStatus);
     };
 
+    const handleColumnSort = (sortKey) => {
+        const column = STOCK_FORM_SORT_COLUMNS.find((item) => item.sortKey === sortKey);
+        if (!column) return;
+
+        const nextSort =
+            sort.sortKey !== sortKey
+                ? { sortKey, sortOrder: "asc" }
+                : sort.sortOrder === "asc"
+                    ? { sortKey, sortOrder: "desc" }
+                    : { sortKey: null, sortOrder: null };
+
+        const ctx = {
+            clients,
+            vessels,
+            pics,
+            suppliers,
+            currencies,
+            shippingOrders,
+            getVesselOptionsForClient,
+        };
+
+        const indexed = formRows.map((row, oldIndex) => ({ row, oldIndex }));
+        indexed.sort((left, right) => {
+            if (!nextSort.sortKey) {
+                return (Number(left.row._order) || 0) - (Number(right.row._order) || 0);
+            }
+            const compared = compareStockSortValues(
+                getStockFormSortValue(left.row, column, ctx),
+                getStockFormSortValue(right.row, column, ctx),
+                nextSort.sortOrder
+            );
+            if (compared !== 0) return compared;
+            return (Number(left.row._order) || 0) - (Number(right.row._order) || 0);
+        });
+
+        const oldIndexesInNewOrder = indexed.map((item) => item.oldIndex);
+        setSort(nextSort);
+        setFormRows(indexed.map((item) => item.row));
+        setStockReportPdfLoadingRowIndex((prev) => remapRowIndex(prev, oldIndexesInNewOrder));
+        setStockReportHistoryRowIndex((prev) => remapRowIndex(prev, oldIndexesInNewOrder));
+        setCancelReasonModal((prev) => {
+            if (prev?.rowIndex == null) return prev;
+            return { ...prev, rowIndex: remapRowIndex(prev.rowIndex, oldIndexesInNewOrder) };
+        });
+    };
+
     // Add new row
     const handleAddRow = () => {
-        setFormRows(prev => [...prev, getEmptyRow()]);
+        setFormRows((prev) => {
+            const maxOrder = prev.reduce((max, row) => Math.max(max, Number(row._order) || 0), -1);
+            return [...prev, { ...getEmptyRow(), _order: maxOrder + 1 }];
+        });
     };
 
     // Copy/Repeat row
     const handleCopyRow = (rowIndex) => {
         setFormRows(prev => {
             const rowToCopy = prev[rowIndex];
+            const maxOrder = prev.reduce((max, row) => Math.max(max, Number(row._order) || 0), -1);
             const newRow = {
                 ...rowToCopy,
                 id: Date.now() + Math.random(), // New unique ID
                 stockId: null, // Clear stockId so it's treated as a new record
                 stockItemId: "", // Clear stockItemId for new record
                 updateBaselineRow: null,
+                _order: maxOrder + 1,
                 dimensions: Array.isArray(rowToCopy.dimensions)
                     ? rowToCopy.dimensions.map((dim) => ({ ...(dim || {}), id: null }))
                     : [],
@@ -1353,7 +1563,8 @@ export default function StockForm() {
 
     // Discard: clear all form data and navigate to stocklist view/edit page (add-stock only)
     const handleDiscard = () => {
-        setFormRows([getEmptyRow()]);
+        setSort({ sortKey: null, sortOrder: null });
+        setFormRows([{ ...getEmptyRow(), _order: 0 }]);
         try {
             sessionStorage.removeItem(ADD_STOCK_HAS_DATA_KEY);
             window.dispatchEvent(new CustomEvent(ADD_STOCK_HAS_DATA_EVENT));
@@ -1964,47 +2175,27 @@ export default function StockForm() {
                         <Table variant="striped" size="sm" colorScheme="gray" minW="5000px">
                             <Thead position="sticky" top={0} zIndex={444}>
                                 <Tr>
-                                    {isEditing && (
-                                        <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="80px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">ID</Th>
-                                    )}
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Vessel</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PIC</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Supplier</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Req No</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PO Number</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Ready ex Supplier</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Warehouse ID</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Date on Stock</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Shipped Date</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Delivered Date</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PCS</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Weight kgs</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Dimension</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">LWH Text Details</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">DG/UN Number</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Value</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Currency</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Origin</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Via HUB 1</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Via HUB 2</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">AP Destination</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Destination</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Shipping Docs</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Export Doc 1</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Export Doc 2</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Remarks</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Internal Remark</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SO</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SI Number</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SI Combined</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">DI Number</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client Access</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Stock Status</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Files</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Cancel Reason</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Actions</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase" textAlign="center">Stock Report</Th>
+                                    {STOCK_FORM_SORT_COLUMNS.filter((column) => !column.editOnly || isEditing).map((column) => (
+                                        <StockFormSortableHeader
+                                            key={column.sortKey}
+                                            column={column}
+                                            sort={sort}
+                                            onSort={handleColumnSort}
+                                            thStyle={{
+                                                bg: tableHeaderBg,
+                                                color: "white",
+                                                borderRight: "1px",
+                                                borderColor: tableHeaderBorderColor,
+                                                px: "8px",
+                                                py: "12px",
+                                                fontSize: "11px",
+                                                fontWeight: "600",
+                                                textTransform: "uppercase",
+                                            }}
+                                        />
+                                    ))}
+                                    <Th bg={tableHeaderBg} color="white" borderRight="1px" borderColor={tableHeaderBorderColor} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Actions</Th>
+                                    <Th bg={tableHeaderBg} color="white" minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase" textAlign="center">Stock Report</Th>
                                 </Tr>
                             </Thead>
                             <Tbody>

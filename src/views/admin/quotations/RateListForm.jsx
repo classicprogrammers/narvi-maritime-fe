@@ -26,7 +26,7 @@ import {
   useColorModeValue,
   useToast,
 } from "@chakra-ui/react";
-import { MdAdd, MdChevronLeft, MdDelete, MdSave } from "react-icons/md";
+import { MdAdd, MdArrowDownward, MdArrowUpward, MdChevronLeft, MdDelete, MdSave, MdUnfoldMore } from "react-icons/md";
 import Card from "components/card/Card";
 import { CellWithAssignMenu } from "components/forms/AssignToRowsBelowMenu";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
@@ -36,6 +36,7 @@ import {
   CHARGE_CATEGORY_OPTIONS,
   buildRateCreatePayload,
   buildRateUpdateLine,
+  chargeCategoryLabel,
   DEFAULT_RATE_FORM_ROW,
   mapRateItemToFormRow,
   toDateInputValue,
@@ -53,6 +54,128 @@ const RATE_TYPE_OPTIONS = [
 
 const FIELD_MIN_W = "150px";
 const FIELD_MAX_W = "400px";
+
+const FORM_SORT_COLUMNS = [
+  { label: "Rate ID", sortKey: "rate_id", type: "text", editOnly: true },
+  { label: "Rate Type", sortKey: "rate_type", type: "rate_type" },
+  { label: "Client", sortKey: "client_id", type: "client" },
+  { label: "Currency", sortKey: "currency_id", type: "currency" },
+  { label: "Location Text", sortKey: "location_text", type: "text" },
+  { label: "Agent", sortKey: "agent_id", type: "agent" },
+  { label: "Rate Name", sortKey: "rate_name", type: "text" },
+  { label: "Charge Category", sortKey: "charge_category", type: "charge_category" },
+  { label: "Rate Cost", sortKey: "rate_float", type: "number" },
+  { label: "Rate Fixed", sortKey: "fixed_sales_rate", type: "number" },
+  { label: "Rate Calculation", sortKey: "rate_calculation", type: "text" },
+  { label: "Valid Until", sortKey: "valid_until", type: "date" },
+  { label: "Last Update", sortKey: "last_update", type: "date" },
+  { label: "Sort Order", sortKey: "sort_order", type: "number" },
+  { label: "Group Name", sortKey: "import_group", type: "text" },
+  { label: "In Tariff", sortKey: "incl_in_tariff", type: "boolean" },
+  { label: "Active", sortKey: "active", type: "boolean" },
+  { label: "Rate Text", sortKey: "rate_text", type: "text" },
+  { label: "Remarks", sortKey: "remarks", type: "text" },
+];
+
+function lookupOptionName(id, pin, list, formatOption) {
+  if (id === "" || id == null) return "";
+  if (pin && String(pin.id) === String(id)) {
+    return formatOption(pin) || "";
+  }
+  const match = (list || []).find((item) => String(item.id) === String(id));
+  return match ? formatOption(match) : String(id);
+}
+
+function getRowSortValue(row, oldIndex, column, ctx) {
+  const { type, sortKey } = column;
+  if (type === "client") {
+    return lookupOptionName(row.client_id, ctx.clientPins[oldIndex], ctx.clients, formatClientOption);
+  }
+  if (type === "currency") {
+    return lookupOptionName(row.currency_id, ctx.currencyPins[oldIndex], ctx.currencies, formatCurrencyOption);
+  }
+  if (type === "agent") {
+    return lookupOptionName(row.agent_id, ctx.agentPins[oldIndex], ctx.agents, formatAgentOption);
+  }
+  if (type === "rate_type") {
+    return RATE_TYPE_OPTIONS.find((option) => option.id === row.rate_type)?.name || row.rate_type || "";
+  }
+  if (type === "charge_category") {
+    return chargeCategoryLabel(row.charge_category);
+  }
+  if (type === "boolean") {
+    return row[sortKey] ? 1 : 0;
+  }
+  if (type === "number") {
+    const parsed = Number(String(row[sortKey] ?? "").replace(/,/g, "").trim());
+    return Number.isFinite(parsed) ? parsed : "";
+  }
+  if (type === "date") {
+    const value = row[sortKey];
+    if (value == null || String(value).trim() === "") return "";
+    const timestamp = Date.parse(value);
+    return Number.isNaN(timestamp) ? "" : timestamp;
+  }
+  const text = row[sortKey];
+  return text == null ? "" : String(text).trim();
+}
+
+function compareSortValues(left, right, sortOrder) {
+  const leftEmpty = left === "" || left == null;
+  const rightEmpty = right === "" || right == null;
+  if (leftEmpty && rightEmpty) return 0;
+  if (leftEmpty) return 1;
+  if (rightEmpty) return -1;
+  if (typeof left === "number" && typeof right === "number") {
+    return sortOrder === "asc" ? left - right : right - left;
+  }
+  const compared = String(left).localeCompare(String(right), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+  return sortOrder === "asc" ? compared : -compared;
+}
+
+function remapPins(pins, oldIndexesInNewOrder) {
+  const next = {};
+  oldIndexesInNewOrder.forEach((oldIndex, newIndex) => {
+    if (Object.prototype.hasOwnProperty.call(pins, oldIndex)) {
+      next[newIndex] = pins[oldIndex];
+    }
+  });
+  return next;
+}
+
+function FormSortableHeader({ column, sort, onSort, thStyle }) {
+  const isActive = sort.sortKey === column.sortKey;
+  const icon = !isActive ? MdUnfoldMore : sort.sortOrder === "asc" ? MdArrowUpward : MdArrowDownward;
+  const direction = isActive ? (sort.sortOrder === "asc" ? "ascending" : "descending") : "none";
+
+  return (
+    <Th
+      {...thStyle}
+      cursor="pointer"
+      userSelect="none"
+      tabIndex={0}
+      aria-sort={direction}
+      title={`Sort by ${column.label}`}
+      color={isActive ? "blue.100" : "white"}
+      _hover={{ bg: "gray.500" }}
+      onClick={() => onSort(column.sortKey)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSort(column.sortKey);
+        }
+      }}
+    >
+      <HStack spacing="1">
+        <Text as="span">{column.label}</Text>
+        <Icon as={icon} boxSize="13px" opacity={isActive ? 1 : 0.55} />
+      </HStack>
+    </Th>
+  );
+}
 
 function formatClientOption(client) {
   return client?.name || `Client ${client?.id}`;
@@ -152,6 +275,7 @@ export default function RateListForm() {
   const [agentOptionPins, setAgentOptionPins] = useState({});
   const [clientOptionPins, setClientOptionPins] = useState({});
   const [currencyOptionPins, setCurrencyOptionPins] = useState({});
+  const [sort, setSort] = useState({ sortKey: null, sortOrder: null });
   const [saving, setSaving] = useState(false);
   const [rateToDelete, setRateToDelete] = useState(null);
   const [isDeletingRate, setIsDeletingRate] = useState(false);
@@ -226,7 +350,7 @@ export default function RateListForm() {
     const hasItems = Array.isArray(items) && items.length > 0;
 
     if (hasItems) {
-      const rows = items.map(mapRateItemToFormRow);
+      const rows = items.map((item, index) => ({ ...mapRateItemToFormRow(item), _order: index }));
       const agentPins = {};
       const clientPins = {};
       const currencyPins = {};
@@ -244,10 +368,12 @@ export default function RateListForm() {
       setAgentOptionPins(agentPins);
       setClientOptionPins(clientPins);
       setCurrencyOptionPins(currencyPins);
+      setSort({ sortKey: null, sortOrder: null });
       return;
     }
 
-    setFormRows([createEmptyRow()]);
+    setFormRows([{ ...createEmptyRow(), _order: 0 }]);
+    setSort({ sortKey: null, sortOrder: null });
     setOriginalRows([]);
     setAgentOptionPins({});
     setClientOptionPins({});
@@ -391,8 +517,53 @@ export default function RateListForm() {
     });
   };
 
+  const handleColumnSort = (sortKey) => {
+    const column = FORM_SORT_COLUMNS.find((item) => item.sortKey === sortKey);
+    if (!column) return;
+
+    const nextSort =
+      sort.sortKey !== sortKey
+        ? { sortKey, sortOrder: "asc" }
+        : sort.sortOrder === "asc"
+          ? { sortKey, sortOrder: "desc" }
+          : { sortKey: null, sortOrder: null };
+
+    const ctx = {
+      clientPins: clientOptionPins,
+      currencyPins: currencyOptionPins,
+      agentPins: agentOptionPins,
+      clients,
+      currencies,
+      agents,
+    };
+
+    const indexed = formRows.map((row, oldIndex) => ({ row, oldIndex }));
+    indexed.sort((left, right) => {
+      if (!nextSort.sortKey) {
+        return (Number(left.row._order) || 0) - (Number(right.row._order) || 0);
+      }
+      const compared = compareSortValues(
+        getRowSortValue(left.row, left.oldIndex, column, ctx),
+        getRowSortValue(right.row, right.oldIndex, column, ctx),
+        nextSort.sortOrder
+      );
+      if (compared !== 0) return compared;
+      return (Number(left.row._order) || 0) - (Number(right.row._order) || 0);
+    });
+
+    const oldIndexesInNewOrder = indexed.map((item) => item.oldIndex);
+    setSort(nextSort);
+    setFormRows(indexed.map((item) => item.row));
+    setAgentOptionPins((pins) => remapPins(pins, oldIndexesInNewOrder));
+    setClientOptionPins((pins) => remapPins(pins, oldIndexesInNewOrder));
+    setCurrencyOptionPins((pins) => remapPins(pins, oldIndexesInNewOrder));
+  };
+
   const handleAddRow = () => {
-    setFormRows((prev) => [...prev, createEmptyRow()]);
+    setFormRows((prev) => {
+      const maxOrder = prev.reduce((max, row) => Math.max(max, Number(row._order) || 0), -1);
+      return [...prev, { ...createEmptyRow(), _order: maxOrder + 1 }];
+    });
   };
 
   const confirmDeleteRate = async () => {
@@ -694,25 +865,15 @@ export default function RateListForm() {
             <Table variant="striped" size="sm" colorScheme="gray" minW={tableMinWidth} sx={{ tableLayout: "auto" }}>
               <Thead position="sticky" top={0} zIndex={1}>
                 <Tr>
-                  {isEditing && <Th {...thStyle}>Rate ID</Th>}
-                  <Th {...thStyle}>Rate Type</Th>
-                  <Th {...thStyle}>Client</Th>
-                  <Th {...thStyle}>Currency</Th>
-                  <Th {...thStyle}>Location Text</Th>
-                  <Th {...thStyle}>Agent</Th>
-                  <Th {...thStyle}>Rate Name</Th>
-                  <Th {...thStyle}>Charge Category</Th>
-                  <Th {...thStyle}>Rate Cost</Th>
-                  <Th {...thStyle}>Rate Fixed</Th>
-                  <Th {...thStyle}>Rate Calculation</Th>
-                  <Th {...thStyle}>Valid Until</Th>
-                  <Th {...thStyle}>Last Update</Th>
-                  <Th {...thStyle}>Sort Order</Th>
-                  <Th {...thStyle}>Group Name</Th>
-                  <Th {...thStyle}>In Tariff</Th>
-                  <Th {...thStyle}>Active</Th>
-                  <Th {...thStyle}>Rate Text</Th>
-                  <Th {...thStyle}>Remarks</Th>
+                  {FORM_SORT_COLUMNS.filter((column) => !column.editOnly || isEditing).map((column) => (
+                    <FormSortableHeader
+                      key={column.sortKey}
+                      column={column}
+                      sort={sort}
+                      onSort={handleColumnSort}
+                      thStyle={thStyle}
+                    />
+                  ))}
                   <Th {...thStyle} minW="90px" borderRight="none">Actions</Th>
                 </Tr>
               </Thead>

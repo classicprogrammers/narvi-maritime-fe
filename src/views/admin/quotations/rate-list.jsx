@@ -47,6 +47,7 @@ import {
   MdAttachMoney,
   MdClear,
   MdDelete,
+  MdDownload,
   MdEdit,
   MdFilterList,
   MdPictureAsPdf,
@@ -73,6 +74,7 @@ import {
   getRateListPdfFilename,
   RATE_LIST_PDF_TYPES,
 } from "./rateListPdf";
+import { downloadRateListExcel } from "./rateListExcel";
 import { chargeCategoryLabel } from "../../../utils/rateListForm";
 
 const RATE_TYPE_FILTER_OPTIONS = [
@@ -419,6 +421,7 @@ export default function RateList() {
   const [pdfModel, setPdfModel] = useState(null);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
   const [isPdfLoading, setIsPdfLoading] = useState(false);
+  const [isExcelLoading, setIsExcelLoading] = useState(false);
 
   const selectedCount = Object.keys(selectedRates).length;
   const pageItemIds = useMemo(() => items.map((item) => item.id), [items]);
@@ -1022,6 +1025,53 @@ export default function RateList() {
     }
   }, [buildListParams, openPdfPreview, toast]);
 
+  const exportRatesToExcel = useCallback(
+    (ratesToExport, filePrefix) => {
+      if (!ratesToExport.length) {
+        toast({
+          title: "No rates to export",
+          description: "There are no rate records to include in the Excel file.",
+          status: "info",
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+      downloadRateListExcel(ratesToExport, { filePrefix });
+      toast({
+        title: "Excel export",
+        description: `${ratesToExport.length} rate${ratesToExport.length === 1 ? "" : "s"} exported.`,
+        status: "success",
+        duration: 2200,
+        isClosable: true,
+      });
+    },
+    [toast]
+  );
+
+  const handleExportSelectedExcel = useCallback(() => {
+    exportRatesToExcel(Object.values(selectedRates), "rate-list-selected");
+  }, [exportRatesToExcel, selectedRates]);
+
+  const handleExportFilteredExcel = useCallback(async () => {
+    setIsExcelLoading(true);
+    try {
+      const filteredRates = await fetchAllFilteredRates(api, buildListParams());
+      exportRatesToExcel(filteredRates, hasAnyFilter ? "rate-list-filtered" : "rate-list");
+    } catch (error) {
+      console.error("Failed to load rates for Excel:", error);
+      toast({
+        title: "Export failed",
+        description: "Could not load rates for Excel export.",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsExcelLoading(false);
+    }
+  }, [buildListParams, exportRatesToExcel, hasAnyFilter, toast]);
+
   const handleDownloadPdf = useCallback(async () => {
     if (!pdfModel) return;
     try {
@@ -1118,6 +1168,18 @@ export default function RateList() {
               variant="outline"
             />
           </Tooltip>
+          <Button
+            size="sm"
+            leftIcon={<Icon as={MdDownload} />}
+            colorScheme="green"
+            variant="outline"
+            onClick={handleExportFilteredExcel}
+            isLoading={isExcelLoading}
+            loadingText="Exporting..."
+            isDisabled={totalCount === 0}
+          >
+            Export Excel
+          </Button>
           <Button size="sm" leftIcon={<Icon as={MdAdd} />} colorScheme="blue" onClick={openCreate} px={10}>
             New Rate
           </Button>
@@ -1376,7 +1438,7 @@ export default function RateList() {
           <Text fontSize="sm" color={selectedCount > 0 ? textColor : mutedTextColor} fontWeight={selectedCount > 0 ? "600" : "normal"}>
             {selectedCount > 0
               ? `${selectedCount} rate${selectedCount === 1 ? "" : "s"} selected`
-              : "Tick rates in the table to edit them together or export them to PDF."}
+              : "Tick rates in the table to edit them together or export them to PDF or Excel."}
           </Text>
           <HStack spacing="2" flexWrap="wrap">
             {selectedCount > 0 && (
@@ -1392,7 +1454,16 @@ export default function RateList() {
                   isLoading={isPdfLoading}
                   loadingText="Generating..."
                 >
-                  Export Selected ({selectedCount})
+                  Export PDF ({selectedCount})
+                </Button>
+                <Button
+                  colorScheme="green"
+                  size="sm"
+                  variant="outline"
+                  leftIcon={<Icon as={MdDownload} />}
+                  onClick={handleExportSelectedExcel}
+                >
+                  Export Excel ({selectedCount})
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => setSelectedRates({})}>
                   Clear Selection
@@ -1409,7 +1480,7 @@ export default function RateList() {
                 isLoading={isPdfLoading}
                 loadingText="Loading..."
               >
-                Export All Filtered ({totalCount})
+                Export All Filtered PDF ({totalCount})
               </Button>
             )}
           </HStack>
