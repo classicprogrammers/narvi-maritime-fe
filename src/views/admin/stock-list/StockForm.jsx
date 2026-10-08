@@ -50,6 +50,7 @@ import {
 } from "react-icons/md";
 import { createStockItemApi } from "../../../api/stock";
 import { normalizeStockStatusKey } from "../../../constants/stockStatus";
+import { isStockT1Marked, STOCK_T1_HEADING, STOCK_T1_MARK } from "../../../constants/stockT1";
 import vesselsAPI from "../../../api/vessels";
 import { useStock } from "../../../redux/hooks/useStock";
 import { useUser } from "../../../redux/hooks/useUser";
@@ -108,6 +109,7 @@ export default function StockForm() {
         setQViaHub2,
         setQNarviApDestination,
         setQOriginText,
+        setQDestination,
     } = useStockDestinationOptions();
     const [isLoading, setIsLoading] = useState(isEditing);
     const [vesselOptionsByClientId, setVesselOptionsByClientId] = useState({});
@@ -218,10 +220,11 @@ export default function StockForm() {
                 clients,
                 vessels,
                 suppliers,
+                pics,
                 currencies,
                 shippingOrders: [],
             }),
-        [clients, vessels, suppliers, currencies]
+        [clients, vessels, suppliers, pics, currencies]
     );
 
     const statusChangeActorName = useMemo(
@@ -547,7 +550,7 @@ export default function StockForm() {
                     cw_air_freight: 0.0,
                 }],
             lwhText: getFieldValue(stock.lwh_text),
-            t1: String(getFieldValue(stock.t_1) || "").trim().toLowerCase() === "x" ? "x" : "",
+            t1: isStockT1Marked(getFieldValue(stock.t_1)) ? "x" : "",
             details: getFieldValue(stock.details) || getFieldValue(stock.item_desc),
             warning: getFieldValue(stock.warning),
             value: normalizeStockValueForForm(getFieldValue(stock.value, "")),
@@ -1480,7 +1483,7 @@ export default function StockForm() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Total Volume CBM</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">CW Air Freight</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">LWH Text</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="none">t_1</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="none">{STOCK_T1_HEADING}</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">DG/UN Number</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Value</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Currency</Th>
@@ -1887,7 +1890,7 @@ export default function StockForm() {
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
                                         <Select
-                                            value={row.t1 === "x" ? "x" : ""}
+                                            value={isStockT1Marked(row.t1) ? "x" : ""}
                                             onChange={(e) => handleInputChange(rowIndex, "t1", e.target.value)}
                                             size="sm"
                                             minW="90px"
@@ -1896,7 +1899,7 @@ export default function StockForm() {
                                             borderColor={borderColor}
                                         >
                                             <option value="">Select</option>
-                                            <option value="x">X</option>
+                                            <option value="x">{STOCK_T1_MARK}</option>
                                         </Select>
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
@@ -2292,12 +2295,28 @@ export default function StockForm() {
                 }}
                 clients={clients}
                 vesselOptions={getVesselOptionsForClient(formRows[stockReportPreview?.rowIndex]?.client)}
-                supplierOptions={clients}
+                supplierOptions={suppliers}
+                picOptions={pics}
                 currencies={currencies}
                 originOptions={originTextOptions}
                 hubOptions={viaHub1Options}
+                hub2Options={viaHub2Options}
+                apDestinationOptions={narviApDestinationOptions}
+                destinationOptions={destinationOptions}
                 onOriginSearch={setQOriginText}
                 onHubSearch={setQViaHub1}
+                onHub2Search={setQViaHub2}
+                onApDestinationSearch={setQNarviApDestination}
+                onDestinationSearch={setQDestination}
+                onLocationChange={(patch) => {
+                    if (stockReportPreview == null) return;
+                    const rowIndex = stockReportPreview.rowIndex;
+                    setFormRows((prev) => {
+                        const next = [...prev];
+                        next[rowIndex] = { ...(next[rowIndex] || {}), ...patch };
+                        return next;
+                    });
+                }}
                 isLoadingLocations={isLoadingLocationOptions}
                 pcsField="items"
                 dgField="details"

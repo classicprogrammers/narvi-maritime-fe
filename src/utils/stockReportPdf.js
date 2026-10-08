@@ -34,6 +34,8 @@ import {
     isStockReportAttachment,
 } from "./stockReportAttachmentsUi";
 import { formatStockValueDisplay } from "./stockValue";
+import { formatStockT1Display, STOCK_WARNING_HEADING } from "../constants/stockT1";
+import { withPdfEmojiCells } from "./stockPdfEmoji";
 import { clearUploadedPendingAttachmentsFromRow } from "./stockUpdatePayload";
 
 export function formatStatusForPdf(status) {
@@ -70,6 +72,28 @@ function ensureDocNumberPrefix(val, prefix) {
 
 function clean(value) {
     return value != null && value !== false && String(value).trim() !== "" ? String(value) : "-";
+}
+
+function isFilledPdfValue(value) {
+    if (value == null || value === false) return false;
+    const text = String(value).trim();
+    return Boolean(text) && text !== "-";
+}
+
+function formatMultilinePdf(value) {
+    if (value == null || value === false) return "-";
+    if (Array.isArray(value)) {
+        const parts = value.map((entry) => String(entry ?? "").trim()).filter(Boolean);
+        return parts.length ? parts.join(", ") : "-";
+    }
+    const text = String(value).replace(/\r?\n/g, ", ").trim();
+    return text || "-";
+}
+
+function formatYesNoPdf(value) {
+    if (value === true || value === "true" || String(value).trim().toLowerCase() === "yes") return "Yes";
+    if (value === false || value === "false" || String(value).trim().toLowerCase() === "no") return "No";
+    return "-";
 }
 
 function toFixedOrDash(value, digits = 3) {
@@ -162,20 +186,29 @@ export function mapAdminStockItemToPdfRow(item, helpers) {
         summedCbm > 0 ? summedCbm : backendTotalCbm;
 
     const piecesCount =
-        item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? (pcsLines.length || 0);
+        item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? (pcsLines.length ? pcsLines.length : "");
 
     const warehouseId =
         item.warehouse_new || item.warehouse_id || item.stock_warehouse || item.warehouse || "-";
 
+    const dateOnStock = clean(formatDate(item.date_on_stock));
+    const firstEntryDate = clean(formatDate(item.first_entry_date || item.date_on_stock));
+
     return {
         vessel: clean(getDisplayName(item.vessel_id || item.vessel)),
         stockNumber: clean(formatStockNumberDisplay(item)),
+        pic: clean(getDisplayName(item.pic_new || item.pic)),
         supplier: clean(getDisplayName(item.supplier_id || item.supplier)),
+        reqNo: formatMultilinePdf(item.req_no ?? item.reqNo),
         poNo: clean(poNo),
+        t1: formatStockT1Display(item.t_1 ?? item.t1),
+        warning: clean(item.warning),
         dgUnNumber: clean(item.dg_un ?? item.dg_un_number),
         boxes: clean(piecesCount),
         weight: clean(item.weight_kg ?? item.weight_kgs ?? item.weight),
         totalVolumeCbm: clean(totalVolumeCbmValue),
+        totalCwAirFreight: clean(item.total_cw_air_freight ?? item.cw_air_freight_new),
+        lwhText: formatMultilinePdf(item.lwh_text ?? item.lwhText),
         origin: clean(firstEntryLocation),
         location: clean(firstEntryLocation),
         firstEntryLocation: clean(firstEntryLocation),
@@ -189,13 +222,21 @@ export function mapAdminStockItemToPdfRow(item, helpers) {
         value: formatStockValueDisplay(item.value),
         deliveryIrregularities: clean(item.delivery_irregularities),
         poRemarks: clean(item.po_remarks),
+        extra: clean(item.extra ?? item.extra_2 ?? item.extra2),
         createDate: clean(item.create_date),
         writeDate: clean(item.write_date),
-        dateOnStock: clean(formatDate(item.date_on_stock)),
-        firstEntryDate: clean(formatDate(item.first_entry_date || item.date_on_stock)),
+        dateOnStock,
+        firstEntryDate,
+        expReadyInStock: clean(formatDate(item.exp_ready_in_stock)),
+        shippedDate: clean(formatDate(item.shipped_date)),
+        deliveredDate: clean(formatDate(item.delivered_date)),
+        daysOnStock: clean(item.days_on_stock),
         client: clean(getDisplayName(item.client_id || item.client)),
+        clientAccess: formatYesNoPdf(item.client_access ?? item.clientAccess),
         locationHistory: Array.isArray(item.location_history) ? item.location_history : [],
-        remarks: clean(item.remarks ?? item.internal_remark),
+        remarks: clean(item.remarks),
+        internalRemark: clean(item.internal_remark ?? item.internalRemark),
+        cancelText: clean(item.cancel_text ?? item.cancelText),
         siNumber: clean(ensureDocNumberPrefix(item.si_number, "SI")),
         siCombined: clean(ensureDocNumberPrefix(item.si_combined, "SIC")),
         diNumber: clean(ensureDocNumberPrefix(item.di_no, "DI")),
@@ -206,6 +247,10 @@ export function mapAdminStockItemToPdfRow(item, helpers) {
         pcsCount: piecesCount,
         warehouseId: clean(warehouseId),
         priority: clean(item.priority),
+        vesselDestination: isFilledPdfValue(getDisplayName(item.vessel_destination))
+            ? clean(getDisplayName(item.vessel_destination))
+            : clean(item.vessel_destination_text),
+        vesselEta: clean(formatDate(item.vessel_eta)),
     };
 }
 
@@ -259,7 +304,7 @@ export async function buildStockReportPdfDocument(row) {
     }
 
     const drawSectionHeader = (title, yPos) => {
-        autoTable(doc, {
+        autoTable(doc, withPdfEmojiCells(doc, {
             startY: yPos,
             head: [[title]],
             body: [],
@@ -267,7 +312,7 @@ export async function buildStockReportPdfDocument(row) {
             styles: { fontSize: 10, cellPadding: 5 },
             headStyles: { fillColor: [236, 238, 241], textColor: [33, 33, 33], fontStyle: "bold" },
             margin: { left: contentLeft, right: 24 },
-        });
+        }));
         return (doc.lastAutoTable?.finalY || yPos) + 2;
     };
 
@@ -277,10 +322,11 @@ export async function buildStockReportPdfDocument(row) {
         ["Origin", clean(row.origin_text || row.origin || row.firstEntryLocation), "First Entry Date", clean(row.firstEntryDate)],
         ["Via HUB 1", clean(row.viaHub1), "Shipping docs", clean(row.shippingDoc)],
         ["Currency / Value", `${clean(row.currency)} ${clean(row.value)}`, "DG / UN Number", clean(row.dgUnNumber)],
+        ["T-1", formatStockT1Display(row.t1), "", ""],
     ];
 
     let cursorY = drawSectionHeader("Stock Report details", headerY + 10);
-    autoTable(doc, {
+    autoTable(doc, withPdfEmojiCells(doc, {
         startY: cursorY,
         body: stockDetailsRows,
         theme: "plain",
@@ -291,6 +337,19 @@ export async function buildStockReportPdfDocument(row) {
             1: { cellWidth: 165 },
             2: { fontStyle: "bold", cellWidth: 115 },
             3: { cellWidth: 165 },
+        },
+    }));
+
+    cursorY = (doc.lastAutoTable?.finalY || cursorY) + 10;
+    cursorY = drawSectionHeader(STOCK_WARNING_HEADING, cursorY);
+    autoTable(doc, {
+        startY: cursorY,
+        body: [[clean(row.warning)]],
+        theme: "plain",
+        styles: { fontSize: 9, cellPadding: 5 },
+        margin: { left: contentLeft, right: 24 },
+        columnStyles: {
+            0: { cellWidth: 520 },
         },
     });
 
@@ -403,6 +462,7 @@ export function createStockPdfRowHelpers({
     vessels = [],
     vendors = [],
     suppliers = [],
+    pics = [],
     currencies = [],
     shippingOrders = [],
 } = {}) {
@@ -417,7 +477,7 @@ export function createStockPdfRowHelpers({
             const x = arr.find((e) => String(e.id) === id);
             return x?.name != null ? String(x.name) : null;
         };
-        return pick(clients) || pick(vessels) || pick(supplierList) || pick(currencies) || id;
+        return pick(clients) || pick(vessels) || pick(supplierList) || pick(pics) || pick(currencies) || id;
     };
 
     const ensureSoPrefix = (val) => {
@@ -527,7 +587,7 @@ export function mapFormRowToAdminItemForPdf(row, helpers = {}) {
           )
         : "";
 
-    const remarks = pickFormRowValue(row, "remarks", "internalRemark");
+    const remarks = pickFormRowValue(row, "remarks");
 
     return {
         stock_item_id: pickFormRowValue(row, "stockItemId", "stockNumber"),
@@ -536,8 +596,10 @@ export function mapFormRowToAdminItemForPdf(row, helpers = {}) {
         stock_status: row.stockStatus,
         client_id: row.client,
         vessel_id: row.vessel,
+        pic_new: row.pic,
         supplier_id: row.supplier,
         po_text: row.poNumber,
+        req_no: pickFormRowValue(row, "reqNo", "req_no"),
         origin_text: row.origin_text,
         first_entry_location: row.origin_text,
         narvi_stock_via_hub1: toStockLocationDisplayValue(
@@ -557,25 +619,36 @@ export function mapFormRowToAdminItemForPdf(row, helpers = {}) {
             row.destinationName
         ),
         warehouse_new: row.warehouseId,
-        date_on_stock: pickFormRowValue(row, "dateOnStock", "expReadyInStock"),
-        first_entry_date: pickFormRowValue(row, "dateOnStock", "firstEntryDate", "expReadyInStock", "slCreateDate"),
+        date_on_stock: pickFormRowValue(row, "dateOnStock"),
+        first_entry_date: pickFormRowValue(row, "firstEntryDate", "dateOnStock"),
+        exp_ready_in_stock: pickFormRowValue(row, "expReadyInStock", "exp_ready_in_stock"),
+        shipped_date: pickFormRowValue(row, "shippedDate", "shipped_date"),
+        delivered_date: pickFormRowValue(row, "deliveredDate", "delivered_date"),
+        days_on_stock: pickFormRowValue(row, "daysOnStock", "days_on_stock"),
         create_date: pickFormRowValue(row, "slCreateDate", "slCreateDateTime", "create_date"),
         write_date: row.write_date,
         weight_kg: pickFormRowValue(row, "weightKgs", "weight_kg"),
         volume_cbm: totalCbm,
         total_volume_cbm: totalCbm,
+        total_cw_air_freight: pickFormRowValue(row, "cwAirfreight", "total_cw_air_freight", "cw_air_freight_new"),
+        lwh_text: pickFormRowValue(row, "lwhText", "lwh_text"),
         item: pickFormRowValue(row, "item", "items"),
         items: pickFormRowValue(row, "items", "item"),
         stock_items_quantity: pickFormRowValue(row, "item", "items", "stock_items_quantity"),
         currency_id: row.currency,
         value: formatStockValueDisplay(row.value),
+        t_1: pickFormRowValue(row, "t1", "t_1"),
+        warning: pickFormRowValue(row, "warning"),
         dg_un: pickFormRowValue(row, "dgUn", "dg_un", "details"),
+        extra: pickFormRowValue(row, "extra2", "extra", "extra_2"),
         so_id: soM2O,
         so_number: soDisplay || undefined,
         dimensions: dims,
         remarks,
-        internal_remark: pickFormRowValue(row, "internalRemark", "remarks"),
-        po_remarks: pickFormRowValue(row, "internalRemark", "po_remarks"),
+        internal_remark: pickFormRowValue(row, "internalRemark", "internal_remark"),
+        po_remarks: pickFormRowValue(row, "poRemarks", "po_remarks"),
+        client_access: row.clientAccess,
+        cancel_text: pickFormRowValue(row, "cancelText", "cancel_text"),
         si_number: row.siNumber,
         si_combined: row.siCombined,
         di_no: row.diNumber,
@@ -584,6 +657,9 @@ export function mapFormRowToAdminItemForPdf(row, helpers = {}) {
         export_doc_2: row.exportDoc2,
         delivery_irregularities: row.deliveryIrregularities,
         priority: row.priority,
+        vessel_destination: pickFormRowValue(row, "vesselDestination", "vessel_destination"),
+        vessel_destination_text: pickFormRowValue(row, "vesselDestination", "vessel_destination_text"),
+        vessel_eta: pickFormRowValue(row, "vesselEta", "vessel_eta"),
         location_history: Array.isArray(row.location_history) ? row.location_history : [],
     };
 }

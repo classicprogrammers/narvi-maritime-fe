@@ -26,6 +26,7 @@ import {
   getStockViaHub2Display,
 } from "utils/stockLocationOptions";
 import { formatStockValueDisplay } from "utils/stockValue";
+import { formatStockT1Display, STOCK_T1_HEADING, STOCK_WARNING_HEADING } from "constants/stockT1";
 
 const SUMMARY_COLUMNS = [
   { key: "stockItemId", label: "Stock ID" },
@@ -42,6 +43,7 @@ const FULL_COLUMNS = [
   { key: "stockItemId", label: "Stock ID", isStockLink: true },
   { key: "client", label: "Client" },
   { key: "vessel", label: "Vessel" },
+  { key: "warning", label: STOCK_WARNING_HEADING, isMultiline: true },
   { key: "supplier", label: "Supplier" },
   { key: "poNo", label: "PO#" },
   { key: "reqNo", label: "Req No" },
@@ -57,11 +59,13 @@ const FULL_COLUMNS = [
   { key: "dateOnStock", label: "Date on stock" },
   { key: "currency", label: "Currency" },
   { key: "value", label: "Value" },
+  { key: "t1", label: STOCK_T1_HEADING, keepLabelCase: true },
 ];
 
 const CLIENT_COLUMNS = [
   { key: "stockItemId", label: "Stock ID" },
   { key: "vessel", label: "Vessel" },
+  { key: "warning", label: STOCK_WARNING_HEADING, isMultiline: true },
   { key: "supplier", label: "Supplier" },
   { key: "reqNo", label: "Req No" },
   { key: "poNo", label: "PO#" },
@@ -77,6 +81,7 @@ const CLIENT_COLUMNS = [
   { key: "destination", label: "Destination" },
   { key: "currency", label: "Currency" },
   { key: "value", label: "Value" },
+  { key: "t1", label: STOCK_T1_HEADING, keepLabelCase: true },
   { key: "dgUnNumber", label: "DG/UN Number" },
 ];
 
@@ -128,6 +133,8 @@ export const mapShippingOrderStockRows = (stockList) =>
       currency: toDisplay(item?.currency),
       value: formatStockValueDisplay(item?.value),
       dgUnNumber: toDisplay(item?.dg_un_number || item?.dg_un),
+      t1: formatStockT1Display(item?.t_1 ?? item?.t1),
+      warning: toDisplay(item?.warning),
     };
   });
 
@@ -198,11 +205,17 @@ export default function ShippingOrderStockList({
             {emptyLabel}
           </Text>
         ) : (
-          <Table size="sm" variant="simple" minW={variant === "summary" ? "980px" : "1680px"}>
+          <Table size="sm" variant="simple" minW={variant === "summary" ? "980px" : "1960px"}>
             <Thead bg={headerBg}>
               <Tr>
                 {columns.map((col) => (
-                  <Th key={col.key} whiteSpace="nowrap" fontSize="11px" letterSpacing="0.04em">
+                  <Th
+                    key={col.key}
+                    whiteSpace="nowrap"
+                    fontSize="11px"
+                    letterSpacing="0.04em"
+                    {...(col.keepLabelCase ? { textTransform: "none" } : {})}
+                  >
                     {col.label}
                   </Th>
                 ))}
@@ -216,7 +229,7 @@ export default function ShippingOrderStockList({
                 return (
                   <Tr key={row.id} bg={index % 2 === 0 ? undefined : rowEvenBg}>
                     {columns.map((col) => (
-                      <Td key={col.key} py={2} px={3} whiteSpace="nowrap">
+                      <Td key={col.key} py={2} px={3} whiteSpace={col.isMultiline ? "pre-wrap" : "nowrap"}>
                         {col.isStatus ? (
                           <StockStatusBadge statusStyle={statusStyle}>
                             {formatStockStatusLabel(row.stockStatusRaw || row.stockStatus)}
@@ -234,7 +247,12 @@ export default function ShippingOrderStockList({
                             {row[col.key]}
                           </Button>
                         ) : (
-                          <StockCellText fontSize="sm" isTruncated maxW="240px">
+                          <StockCellText
+                            fontSize="sm"
+                            isTruncated={!col.isMultiline}
+                            whiteSpace={col.isMultiline ? "pre-wrap" : undefined}
+                            maxW={col.isMultiline ? "280px" : "240px"}
+                          >
                             {row[col.key]}
                           </StockCellText>
                         )}

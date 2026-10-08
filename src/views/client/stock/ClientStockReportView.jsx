@@ -77,6 +77,7 @@ import {
   mapStockSortOptionToApiSortBy,
 } from "utils/stockSortOptions";
 import { formatStockValueDisplay } from "utils/stockValue";
+import { formatStockT1Display, STOCK_T1_HEADING, STOCK_WARNING_HEADING } from "constants/stockT1";
 import { formatStockDestinationDisplay, getStockM2OId } from "utils/stockDestinationOptions";
 import {
   getStockEffectiveHubDisplay,
@@ -133,7 +134,7 @@ const mapClientStockRows = (stockList, clientName = "") =>
         Array.isArray(item.req_no) && item.req_no.length
           ? item.req_no.map((x) => String(x)).join(", ")
           : toClientStockDisplay(item.req_no).replace(/\n+/g, ", "),
-      t1: toClientStockDisplay(item.t_1),
+      t1: formatStockT1Display(item.t_1),
       dgUnNumber: toClientStockDisplay(item.dg_un_number || item.dg_un),
       boxes: toClientStockDisplay(item.boxes ?? item.box ?? item.pieces ?? item.pcs?.count),
       weight: formatStockValueDisplay(item.weight ?? item.weight_kg),
@@ -392,7 +393,7 @@ const formatClientStockReportNames = (row) => {
 
 const CLIENT_STOCK_EXPORT_COLUMNS = [
   { header: "Vessel", value: (row) => row.vessel || "-" },
-  { header: "Warning ‼️⛔", value: (row) => row.warning || "-" },
+  { header: STOCK_WARNING_HEADING, value: (row) => row.warning || "-" },
   { header: "Stock ID", value: (row) => row.stockItemId || "-" },
   { header: "Supplier", value: (row) => row.supplier || "-" },
   { header: "Req No", value: (row) => row.reqNo || "-" },
@@ -411,7 +412,7 @@ const CLIENT_STOCK_EXPORT_COLUMNS = [
   { header: "Currency", value: (row) => row.currency || "-" },
   { header: "Value", value: (row) => row.value || "-" },
   { header: "Client", value: (row) => row.client || "-" },
-  { header: "t_1", value: (row) => row.t1 || "-" },
+  { header: STOCK_T1_HEADING, value: (row) => formatStockT1Display(row.t1) },
   { header: "DG/UN Number", value: (row) => row.dgUnNumber || "-" },
   { header: "Files", value: (row) => formatClientStockReportNames(row) },
 ];
@@ -1511,7 +1512,7 @@ function ClientStockReportView() {
               <Th>CURRENCY</Th>
               <Th>VALUE</Th>
               <Th>CLIENT</Th>
-              <Th textTransform="none">t_1</Th>
+              <Th textTransform="none">{STOCK_T1_HEADING}</Th>
               <Th>DG/UN NUMBER</Th>
               <Th>FILES</Th>
             </Tr>
@@ -1609,7 +1610,7 @@ function ClientStockReportView() {
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.client}</StockCellText>
                   </Td>
                   <Td>
-                    <StockCellText fontSize="sm" isTruncated maxW="80px">{row.t1}</StockCellText>
+                    <StockCellText fontSize="sm" isTruncated maxW="80px">{formatStockT1Display(row.t1)}</StockCellText>
                   </Td>
                   <Td>
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.dgUnNumber}</StockCellText>

@@ -82,6 +82,7 @@ import {
     resolveStockListActiveParam,
 } from "../../../constants/stockStatus";
 import { stockListHasSearchFilters, withStockListFetchMode } from "../../../utils/stockListFetchParams";
+import { formatStockT1Display, STOCK_T1_HEADING } from "../../../constants/stockT1";
 
 function mapStockSoFieldToOrder(soField) {
     if (!soField || typeof soField !== "object" || soField.id == null) return null;
@@ -2221,7 +2222,7 @@ export default function StockList() {
                                         WEIGHT KG {sortField === "weight_kg" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
                                     <Th {...headerProps}>LWH TEXT</Th>
-                                    <Th {...headerProps} textTransform="none">t_1</Th>
+                                    <Th {...headerProps} textTransform="none">{STOCK_T1_HEADING}</Th>
                                     <Th {...headerProps}>DG/UN NUMBER</Th>
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("total_volume_cbm")} _hover={{ bg: thHoverBg }}>
                                         TOTAL VOLUME CBM {sortField === "total_volume_cbm" && (sortDirection === "asc" ? "↑" : "↓")}
@@ -2316,7 +2317,7 @@ export default function StockList() {
                                             <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</StockCellText></Td>
                                             <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</StockCellText></Td>
                                             <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.lwh_text)}</StockCellText></Td>
-                                            <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.t_1)}</StockCellText></Td>
+                                            <Td {...cellProps}><StockCellText {...cellText}>{formatStockT1Display(item.t_1)}</StockCellText></Td>
                                             <Td {...cellProps}><StockCellText {...cellText}>{renderText(item.dg_un)}</StockCellText></Td>
                                             <Td
                                                 {...cellProps}

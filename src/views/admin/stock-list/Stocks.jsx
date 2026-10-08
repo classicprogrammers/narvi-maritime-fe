@@ -146,6 +146,8 @@ import {
     normalizeStockStatusKey,
     resolveStockListActiveParam,
 } from "../../../constants/stockStatus";
+import { formatStockT1Display, isStockT1Heading, STOCK_T1_HEADING, STOCK_WARNING_HEADING } from "../../../constants/stockT1";
+import { withPdfEmojiCells } from "../../../utils/stockPdfEmoji";
 import { mergeStockEmptyFilters, readStockEmptyFilters, stockListHasSearchFilters, withStockListFetchMode } from "../../../utils/stockListFetchParams";
 import StockListAttachmentsCell from "../../../components/stock-list/StockListAttachmentsCell";
 import StockCellText from "../../../components/stock-list/StockCellText";
@@ -184,7 +186,7 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
         { key: "boxes", label: "BOXES" },
         { key: "kg", label: "KG" },
         { key: "lwh_text", label: "LWH TEXT", type: "multiline" },
-        { key: "t_1", label: "t_1" },
+        { key: "t_1", label: STOCK_T1_HEADING },
         { key: "dg_un", label: "DG/UN" },
     ],
     filter2: [
@@ -203,7 +205,7 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
         { key: "boxes", label: "BOXES" },
         { key: "kg", label: "KG" },
         { key: "lwh_text", label: "LWH TEXT", type: "multiline" },
-        { key: "t_1", label: "t_1" },
+        { key: "t_1", label: STOCK_T1_HEADING },
     ],
     filter3: [
         { key: "client", label: "CLIENT" },
@@ -219,7 +221,7 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
         { key: "boxes", label: "BOXES" },
         { key: "kg", label: "KG" },
         { key: "lwh_text", label: "LWH TEXT", type: "multiline" },
-        { key: "t_1", label: "t_1" },
+        { key: "t_1", label: STOCK_T1_HEADING },
         { key: "origin", label: "ORIGIN" },
         { key: "narvi_stock_via_hub1", label: "HUB1" },
         { key: "narvi_stock_via_hub2", label: "HUB2" },
@@ -237,6 +239,7 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
 /** Stock view/edit — Export PDF column set */
 const PDF_EXPORT_HEADERS = [
     "VESSEL",
+    STOCK_WARNING_HEADING,
     "SUPPLIER",
     "REQ NO",
     "PO #",
@@ -247,6 +250,7 @@ const PDF_EXPORT_HEADERS = [
     "BOXES",
     "KG",
     "LWH TEXT",
+    STOCK_T1_HEADING,
     "ORIGIN",
     "HUB1",
     "HUB2",
@@ -259,10 +263,10 @@ const PDF_EXPORT_HEADERS = [
 
 /** Column count for the primary (dark blue) PDF row per export type */
 const PDF_EXPORT_SPLIT_AT = {
-    viewEdit: 10,
-    filter1: 10,
-    filter2: 9,
-    filter3: 10,
+    viewEdit: 11,
+    filter1: 11,
+    filter2: 10,
+    filter3: 11,
 };
 
 const PDF_RECORD_LABEL_COLOR = [68, 68, 68];
@@ -284,7 +288,7 @@ const PDF_TABLE_BODY_STYLES = {
 /** Stock view/edit — Export Excel column set */
 const EXCEL_EXPORT_HEADERS = [
     "VESSEL",
-    "Warning ‼️⛔",
+    STOCK_WARNING_HEADING,
     "SUPPLIER",
     "REQ NO",
     "PO #",
@@ -295,7 +299,7 @@ const EXCEL_EXPORT_HEADERS = [
     "BOXES",
     "KG",
     "LWH TEXT",
-    "t_1",
+    STOCK_T1_HEADING,
     "ORIGIN",
     "HUB1",
     "HUB2",
@@ -2193,6 +2197,7 @@ export default function Stocks() {
     // Copy selected rows as HTML table
     const getClientViewExportRow = (item, viewType) => {
         const vessel = getDisplayName(item.vessel_id || item.vessel) || "-";
+        const warning = item.warning || "-";
         const supplier = getDisplayName(item.supplier_id || item.supplier) || "-";
         const poNumber = (item.po_text || "-").replace(/\n/g, " ");
         const reqNo = (item.req_no || "-").replace(/\n/g, " ");
@@ -2200,6 +2205,7 @@ export default function Stocks() {
         const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
         const kg = item.weight_kg ?? item.weight_kgs ?? "-";
         const lwhText = item.lwh_text || "-";
+        const t1 = formatStockT1Display(item.t_1);
         const viaHub1 = getStockViaHub1Display(item);
         const viaHub2 = getStockViaHub2Display(item);
         const destination = formatStockDestinationDisplay(item, "destination");
@@ -2218,14 +2224,14 @@ export default function Stocks() {
         const apDestination = formatStockDestinationDisplay(item, "ap");
 
         if (viewType === "filter1") {
-            return [vessel, viaHub1, supplier, reqNo, poNumber, stockStatus, boxes, kg, lwhText, dgUn];
+            return [vessel, warning, viaHub1, supplier, reqNo, poNumber, stockStatus, boxes, kg, lwhText, t1, dgUn];
         }
         if (viewType === "filter2") {
-            return [vessel, supplier, reqNo, poNumber, soNumber, destination, warehouseId, boxes, kg, shippingDocs, exportDoc1, exportDoc2, lwhText];
+            return [vessel, warning, supplier, reqNo, poNumber, soNumber, destination, warehouseId, boxes, kg, shippingDocs, exportDoc1, exportDoc2, lwhText, t1];
         }
         if (viewType === "filter3") {
             return [
-                vessel, supplier, reqNo, poNumber, stockStatus, currency, value, dateOnStock, boxes, kg, lwhText,
+                vessel, warning, supplier, reqNo, poNumber, stockStatus, currency, value, dateOnStock, boxes, kg, lwhText, t1,
                 origin, viaHub1, viaHub2, apDestination, destination, shippingDocs, exportDoc1, exportDoc2,
                 dgUn, soNumber, warehouseId,
             ];
@@ -2245,6 +2251,7 @@ export default function Stocks() {
 
             return [
                 getDisplayName(item.vessel_id || item.vessel) || "-",
+                item.warning || "-",
                 getDisplayName(item.supplier_id || item.supplier) || "-",
                 (item.req_no || "-").replace(/\n/g, " "),
                 (item.po_text || "-").replace(/\n/g, " "),
@@ -2255,6 +2262,7 @@ export default function Stocks() {
                 item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
                 item.weight_kg ?? item.weight_kgs ?? "-",
                 item.lwh_text || "-",
+                formatStockT1Display(item.t_1),
                 item.origin_text || "-",
                 getStockViaHub1Display(item),
                 getStockViaHub2Display(item),
@@ -2294,7 +2302,7 @@ export default function Stocks() {
                 item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
                 item.weight_kg ?? item.weight_kgs ?? "-",
                 item.lwh_text || "-",
-                item.t_1 || "-",
+                formatStockT1Display(item.t_1),
                 item.origin_text || "-",
                 getStockViaHub1Display(item),
                 getStockViaHub2Display(item),
@@ -2313,10 +2321,10 @@ export default function Stocks() {
     };
 
     const CLIENT_VIEW_EXPORT_HEADERS = {
-        filter1: ["VESSEL", "HUB 1", "SUPPLIER", "REQ NO", "PO #", "STOCK STATUS", "BOXES", "KG", "LWH TEXT", "DG/UN"],
-        filter2: ["VESSEL", "SUPPLIER", "REQ NO", "PO #", "SO NUMBER", "DESTINATION", "WAREHOUSE ID", "BOXES", "KG", "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2", "LWH TEXT"],
+        filter1: ["VESSEL", STOCK_WARNING_HEADING, "HUB 1", "SUPPLIER", "REQ NO", "PO #", "STOCK STATUS", "BOXES", "KG", "LWH TEXT", STOCK_T1_HEADING, "DG/UN"],
+        filter2: ["VESSEL", STOCK_WARNING_HEADING, "SUPPLIER", "REQ NO", "PO #", "SO NUMBER", "DESTINATION", "WAREHOUSE ID", "BOXES", "KG", "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2", "LWH TEXT", STOCK_T1_HEADING],
         filter3: [
-            "VESSEL", "SUPPLIER", "REQ NO", "PO #", "STOCK STATUS", "CUR", "VALUE", "DATE ON STOCK", "BOXES", "KG", "LWH TEXT",
+            "VESSEL", STOCK_WARNING_HEADING, "SUPPLIER", "REQ NO", "PO #", "STOCK STATUS", "CUR", "VALUE", "DATE ON STOCK", "BOXES", "KG", "LWH TEXT", STOCK_T1_HEADING,
             "ORIGIN", "HUB1", "HUB2", "AP DESTINATION", "DESTINATION",
             "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2",
             "DG/UN", "SO NUMBER", "WAREHOUSE ID",
@@ -2324,10 +2332,10 @@ export default function Stocks() {
     };
 
     const CLIENT_VIEW_EXCEL_HEADERS = {
-        filter1: ["VESSEL", "Warning ‼️⛔", "HUB 1", "SUPPLIER", "REQ NO", "PO #", "STOCK STATUS", "BOXES", "KG", "LWH TEXT", "t_1", "DG/UN"],
-        filter2: ["VESSEL", "Warning ‼️⛔", "SUPPLIER", "REQ NO", "PO #", "SO NUMBER", "DESTINATION", "WAREHOUSE ID", "BOXES", "KG", "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2", "LWH TEXT", "t_1"],
+        filter1: ["VESSEL", STOCK_WARNING_HEADING, "HUB 1", "SUPPLIER", "REQ NO", "PO #", "STOCK STATUS", "BOXES", "KG", "LWH TEXT", STOCK_T1_HEADING, "DG/UN"],
+        filter2: ["VESSEL", STOCK_WARNING_HEADING, "SUPPLIER", "REQ NO", "PO #", "SO NUMBER", "DESTINATION", "WAREHOUSE ID", "BOXES", "KG", "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2", "LWH TEXT", STOCK_T1_HEADING],
         filter3: [
-            "VESSEL", "Warning ‼️⛔", "SUPPLIER", "REQ NO", "PO #", "STOCK STATUS", "CUR", "VALUE", "DATE ON STOCK", "BOXES", "KG", "LWH TEXT", "t_1",
+            "VESSEL", STOCK_WARNING_HEADING, "SUPPLIER", "REQ NO", "PO #", "STOCK STATUS", "CUR", "VALUE", "DATE ON STOCK", "BOXES", "KG", "LWH TEXT", STOCK_T1_HEADING,
             "ORIGIN", "HUB1", "HUB2", "AP DESTINATION", "DESTINATION",
             "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2",
             "DG/UN", "SO NUMBER", "WAREHOUSE ID",
@@ -2344,7 +2352,7 @@ export default function Stocks() {
         const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
         const kg = item.weight_kg ?? item.weight_kgs ?? "-";
         const lwhText = item.lwh_text || "-";
-        const t1 = item.t_1 || "-";
+        const t1 = formatStockT1Display(item.t_1);
         const viaHub1 = getStockViaHub1Display(item);
         const viaHub2 = getStockViaHub2Display(item);
         const destination = formatStockDestinationDisplay(item, "destination");
@@ -2406,6 +2414,7 @@ export default function Stocks() {
             const headers = [
                 "CLIENT",
                 "VESSEL",
+                STOCK_WARNING_HEADING,
                 "WAREHOUSE ID",
                 "SUPPLIER",
                 "REQ NO",
@@ -2427,10 +2436,12 @@ export default function Stocks() {
                 "SO NUMBER",
                 "CURRENCY",
                 "VALUE",
+                STOCK_T1_HEADING,
             ];
             const rows = items.map((item) => [
                 getDisplayName(item.client_id || item.client) || "-",
                 getDisplayName(item.vessel_id || item.vessel) || "-",
+                item.warning || "-",
                 item.warehouse_new || item.warehouse_id || item.stock_warehouse || item.warehouse || "-",
                 getDisplayName(item.supplier_id || item.supplier) || "-",
                 (item.req_no || "-").replace(/\n/g, " "),
@@ -2452,6 +2463,7 @@ export default function Stocks() {
                 item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number)),
                 getDisplayName(item.currency_id || item.currency) || "-",
                 formatStockValueDisplay(item.value),
+                formatStockT1Display(item.t_1),
             ]);
             return { headers, rows };
         }
@@ -2474,7 +2486,7 @@ export default function Stocks() {
             boxes: item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
             kg: item.weight_kg ?? item.weight_kgs ?? "-",
             lwh_text: item.lwh_text || "-",
-            t_1: item.t_1 || "-",
+            t_1: formatStockT1Display(item.t_1),
             narvi_stock_via_hub1: getStockViaHub1Display(item),
             narvi_stock_via_hub2: getStockViaHub2Display(item),
             destination: formatStockDestinationDisplay(item, "destination"),
@@ -2497,7 +2509,7 @@ export default function Stocks() {
             return { headers: [], rows: [] };
         }
         const columns = (CLIENT_VIEW_TABLE_COLUMNS[viewType] || CLIENT_VIEW_TABLE_COLUMNS.filter1)
-            .filter((column) => !["client", "vessel", "warning", "t_1"].includes(column.key));
+            .filter((column) => !["client", "vessel"].includes(column.key));
         return {
             headers: columns.map((column) => column.label),
             rows: items.map((item) => {
@@ -2511,7 +2523,7 @@ export default function Stocks() {
         const keepIdx = headers
             .map((header, index) => {
                 const label = String(header || "").toUpperCase().replace(/\s+/g, " ").trim();
-                const isInternal = label === "CLIENT" || label === "VESSEL" || label === "T 1" || label === "T_1" || label.startsWith("WARNING");
+                const isInternal = label === "CLIENT" || label === "VESSEL";
                 return isInternal ? -1 : index;
             })
             .filter((index) => index >= 0);
@@ -2552,7 +2564,7 @@ export default function Stocks() {
             if (h === "REQ NO") return 200;
             if (h === "PO #" || h === "PO#" || h === "PO NUMBER") return 260;
             if (h === "LWH" || h === "LWH TEXT") return 180;
-            if (h === "T 1" || h === "T_1" || h === "WARNING ‼️⛔") return 180;
+            if (isStockT1Heading(header) || h.startsWith("WARNING")) return 180;
             return 90;
         };
 
@@ -2960,14 +2972,14 @@ export default function Stocks() {
         let currentY = tableStartY;
 
         if (singleTable) {
-            autoTable(doc, {
+            autoTable(doc, withPdfEmojiCells(doc, {
                 ...commonTableOptions,
                 head: [headers],
                 body: rows.map((row) => row.map((cell) => String(cell ?? ""))),
                 startY: currentY,
                 headStyles: PDF_TABLE_HEAD_STYLES,
                 bodyStyles: PDF_TABLE_BODY_STYLES,
-            });
+            }));
             return doc;
         }
 
@@ -2989,26 +3001,26 @@ export default function Stocks() {
             doc.text(`# ${recordIndex + 1}`, contentLeft, currentY);
             currentY += numberLabelHeight;
 
-            autoTable(doc, {
+            autoTable(doc, withPdfEmojiCells(doc, {
                 ...commonTableOptions,
                 head: [row1Headers],
                 body: [row1Values.map((cell) => String(cell ?? ""))],
                 startY: currentY,
                 headStyles: PDF_TABLE_HEAD_STYLES,
                 bodyStyles: PDF_TABLE_BODY_STYLES,
-            });
+            }));
 
             currentY = doc.lastAutoTable.finalY + 4;
 
             if (row2Headers.length > 0) {
-                autoTable(doc, {
+                autoTable(doc, withPdfEmojiCells(doc, {
                     ...commonTableOptions,
                     head: [row2Headers],
                     body: [row2Values.map((cell) => String(cell ?? ""))],
                     startY: currentY,
                     headStyles: PDF_TABLE_HEAD_STYLES,
                     bodyStyles: PDF_TABLE_BODY_STYLES,
-                });
+                }));
 
                 currentY = doc.lastAutoTable.finalY;
             }
@@ -3918,7 +3930,7 @@ export default function Stocks() {
             boxes: item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
             kg: item.weight_kg ?? item.weight_kgs ?? "-",
             lwh_text: item.lwh_text || "-",
-            t_1: item.t_1 || "-",
+            t_1: formatStockT1Display(item.t_1),
             narvi_stock_via_hub1: getStockViaHub1Display(item),
             narvi_stock_via_hub2: getStockViaHub2Display(item),
             destination: formatStockDestinationDisplay(item, "destination"),

@@ -47,6 +47,7 @@ import StockValueInput from "../forms/StockValueInput";
 import DmyDateInput, { normalizeToIsoDate } from "../forms/DmyDateInput";
 import { formatStatusForPdf } from "../../utils/stockReportPdf";
 import { calculateVolumeCbmFromLwhCm } from "../../utils/stockVolume";
+import { isStockT1Marked, STOCK_T1_HEADING, STOCK_T1_MARK } from "../../constants/stockT1";
 
 const BRAND = "#1c4a95";
 
@@ -174,6 +175,7 @@ function emptyDimension() {
 
 function hasValue(value) {
     if (value == null || value === false) return false;
+    if (typeof value === "boolean") return value;
     if (typeof value === "number") return value !== 0;
     return String(value).trim() !== "";
 }
@@ -206,17 +208,28 @@ function StockReportPreview({
     onFieldChange,
     onOriginChange,
     onHub1Change,
+    onLocationChange,
     clients = [],
     vesselOptions = [],
     supplierOptions = [],
+    picOptions = [],
     currencies = [],
     originOptions = [],
     hubOptions = [],
+    hub2Options = [],
+    apDestinationOptions = [],
+    destinationOptions = [],
+    soOptions = [],
     onOriginSearch,
     onHubSearch,
+    onHub2Search,
+    onApDestinationSearch,
+    onDestinationSearch,
     onClientSearch,
     onSupplierSearch,
     onVesselSearch,
+    onPicSearch,
+    onSoSearch,
     isLoadingLocations = false,
     pcsField = "items",
     dgField = "details",
@@ -225,6 +238,15 @@ function StockReportPreview({
 }) {
     const [initialRow] = useState(row);
     const shown = (...keys) => keys.some((key) => hasValue(initialRow[key]));
+    const updateLocation = (idKey, nameKey, id, name) => {
+        const patch = { [idKey]: id, [nameKey]: name || "" };
+        if (onLocationChange) {
+            onLocationChange(patch);
+            return;
+        }
+        onFieldChange(idKey, id);
+        onFieldChange(nameKey, name || "");
+    };
 
     const loadingText =
         phase === "generating" ? "Generating report..." : "Saving stock item...";
@@ -246,13 +268,42 @@ function StockReportPreview({
     );
     const totalCbm = row.volumeCbm || dimensions.reduce((sum, dim) => sum + (Number(dim.volume_cbm) || 0), 0);
 
-    const showGeneral = shown("stockStatus", dateField, "poNumber", "shippingDoc");
-    const showParties = shown("client", "vessel", "supplier");
-    const showRouting = shown("originId", "origin_text", "narviStockViaHub1");
-    const showCommercial = shown("currency", "value", dgField);
-    const showRemarks = shown("remarks");
+    const showGeneral = shown(
+        "stockStatus",
+        dateField,
+        "dateOnStock",
+        "expReadyInStock",
+        "shippedDate",
+        "deliveredDate",
+        "reqNo",
+        "poNumber",
+        "warehouseId",
+        "shippingDoc",
+        "exportDoc",
+        "exportDoc2",
+        "soId",
+        "siNumber",
+        "siCombined",
+        "diNumber",
+        "cancelText"
+    );
+    const showParties = shown("client", "vessel", "pic", "supplier");
+    const showRouting = shown(
+        "originId",
+        "origin_text",
+        "narviStockViaHub1",
+        "narviStockViaHub1Name",
+        "narviStockViaHub2",
+        "narviStockViaHub2Name",
+        "narviStockApDestination",
+        "narviStockApDestinationName",
+        "destinationId",
+        "destinationName"
+    );
+    const showCommercial = shown("currency", "value", dgField, "dgUn", "t1", "warning");
+    const showRemarks = shown("remarks", "internalRemark");
     const showPieces =
-        shown(pcsField, "weightKgs", "volumeCbm") || visibleDimensionIndexes.length > 0;
+        shown(pcsField, "item", "items", "weightKgs", "volumeCbm", "lwhText") || visibleDimensionIndexes.length > 0;
     const hasAnySection =
         showGeneral || showParties || showRouting || showCommercial || showRemarks || showPieces;
 
@@ -381,23 +432,76 @@ function StockReportPreview({
                                             </Select>
                                         </Field>
                                     ) : null}
-                                    {shown(dateField) ? (
-                                        <Field label="First entry date">
+                                    {shown("dateOnStock") || (dateField === "dateOnStock" && shown(dateField)) ? (
+                                        <Field label="Date on stock">
                                             <DmyDateInput
                                                 {...fieldInputProps}
-                                                value={row[dateField] || ""}
-                                                onChange={(next) => onFieldChange(dateField, normalizeToIsoDate(next))}
+                                                value={row.dateOnStock || row[dateField] || ""}
+                                                onChange={(next) => onFieldChange("dateOnStock", normalizeToIsoDate(next))}
                                                 iconColor="gray.600"
                                                 _placeholder={{ color: "gray.400" }}
                                             />
                                         </Field>
                                     ) : null}
+                                    {shown("expReadyInStock") || (dateField === "expReadyInStock" && shown(dateField) && !shown("dateOnStock")) ? (
+                                        <Field label="Ready ex supplier">
+                                            <DmyDateInput
+                                                {...fieldInputProps}
+                                                value={row.expReadyInStock || ""}
+                                                onChange={(next) => onFieldChange("expReadyInStock", normalizeToIsoDate(next))}
+                                                iconColor="gray.600"
+                                                _placeholder={{ color: "gray.400" }}
+                                            />
+                                        </Field>
+                                    ) : null}
+                                    {shown("shippedDate") ? (
+                                        <Field label="Shipped date">
+                                            <DmyDateInput
+                                                {...fieldInputProps}
+                                                value={row.shippedDate || ""}
+                                                onChange={(next) => onFieldChange("shippedDate", normalizeToIsoDate(next))}
+                                                iconColor="gray.600"
+                                                _placeholder={{ color: "gray.400" }}
+                                            />
+                                        </Field>
+                                    ) : null}
+                                    {shown("deliveredDate") ? (
+                                        <Field label="Delivered date">
+                                            <DmyDateInput
+                                                {...fieldInputProps}
+                                                value={row.deliveredDate || ""}
+                                                onChange={(next) => onFieldChange("deliveredDate", normalizeToIsoDate(next))}
+                                                iconColor="gray.600"
+                                                _placeholder={{ color: "gray.400" }}
+                                            />
+                                        </Field>
+                                    ) : null}
+                                    {shown("reqNo") ? (
+                                        <Field label="Req no" span={2}>
+                                            <Textarea
+                                                {...fieldInputProps}
+                                                value={row.reqNo || ""}
+                                                onChange={(e) => onFieldChange("reqNo", e.target.value)}
+                                                rows={2}
+                                            />
+                                        </Field>
+                                    ) : null}
                                     {shown("poNumber") ? (
-                                        <Field label="PO number">
-                                            <Input
+                                        <Field label="PO number" span={2}>
+                                            <Textarea
                                                 {...fieldInputProps}
                                                 value={row.poNumber || ""}
                                                 onChange={(e) => onFieldChange("poNumber", e.target.value)}
+                                                rows={2}
+                                            />
+                                        </Field>
+                                    ) : null}
+                                    {shown("warehouseId") ? (
+                                        <Field label="Warehouse ID">
+                                            <Input
+                                                {...fieldInputProps}
+                                                value={row.warehouseId || ""}
+                                                onChange={(e) => onFieldChange("warehouseId", e.target.value)}
                                             />
                                         </Field>
                                     ) : null}
@@ -407,6 +511,82 @@ function StockReportPreview({
                                                 {...fieldInputProps}
                                                 value={row.shippingDoc || ""}
                                                 onChange={(e) => onFieldChange("shippingDoc", e.target.value)}
+                                            />
+                                        </Field>
+                                    ) : null}
+                                    {shown("exportDoc") ? (
+                                        <Field label="Export doc 1">
+                                            <Input
+                                                {...fieldInputProps}
+                                                value={row.exportDoc || ""}
+                                                onChange={(e) => onFieldChange("exportDoc", e.target.value)}
+                                            />
+                                        </Field>
+                                    ) : null}
+                                    {shown("exportDoc2") ? (
+                                        <Field label="Export doc 2">
+                                            <Input
+                                                {...fieldInputProps}
+                                                value={row.exportDoc2 || ""}
+                                                onChange={(e) => onFieldChange("exportDoc2", e.target.value)}
+                                            />
+                                        </Field>
+                                    ) : null}
+                                    {shown("soId") ? (
+                                        <Field label="SO">
+                                            {soOptions.length ? (
+                                                <ReportSelect
+                                                    value={row.soId}
+                                                    onChange={(value) => onFieldChange("soId", value)}
+                                                    options={soOptions}
+                                                    onSearchChange={onSoSearch}
+                                                    fallbackPrefix="SO"
+                                                    nameOnly
+                                                    placeholder="Select SO"
+                                                />
+                                            ) : (
+                                                <Input
+                                                    {...fieldInputProps}
+                                                    value={row.soId || ""}
+                                                    onChange={(e) => onFieldChange("soId", e.target.value)}
+                                                />
+                                            )}
+                                        </Field>
+                                    ) : null}
+                                    {shown("siNumber") ? (
+                                        <Field label="SI number">
+                                            <Input
+                                                {...fieldInputProps}
+                                                value={row.siNumber || ""}
+                                                onChange={(e) => onFieldChange("siNumber", e.target.value)}
+                                            />
+                                        </Field>
+                                    ) : null}
+                                    {shown("siCombined") ? (
+                                        <Field label="SI combined">
+                                            <Input
+                                                {...fieldInputProps}
+                                                value={row.siCombined || ""}
+                                                onChange={(e) => onFieldChange("siCombined", e.target.value)}
+                                            />
+                                        </Field>
+                                    ) : null}
+                                    {shown("diNumber") ? (
+                                        <Field label="DI number">
+                                            <Input
+                                                {...fieldInputProps}
+                                                value={row.diNumber || ""}
+                                                onChange={(e) => onFieldChange("diNumber", e.target.value)}
+                                            />
+                                        </Field>
+                                    ) : null}
+                                    {shown("cancelText") ? (
+                                        <Field label="Cancel reason" span={2}>
+                                            <Textarea
+                                                {...fieldInputProps}
+                                                value={row.cancelText || ""}
+                                                onChange={(e) => onFieldChange("cancelText", e.target.value)}
+                                                rows={2}
                                             />
                                         </Field>
                                     ) : null}
@@ -440,6 +620,19 @@ function StockReportPreview({
                                                 fallbackPrefix="Vessel"
                                                 nameOnly
                                                 placeholder="Select vessel"
+                                            />
+                                        </Field>
+                                    ) : null}
+                                    {shown("pic") ? (
+                                        <Field label="PIC">
+                                            <ReportSelect
+                                                value={row.pic}
+                                                onChange={(value) => onFieldChange("pic", value)}
+                                                options={picOptions}
+                                                onSearchChange={onPicSearch}
+                                                fallbackPrefix="PIC"
+                                                nameOnly
+                                                placeholder="Select PIC"
                                             />
                                         </Field>
                                     ) : null}
@@ -482,7 +675,7 @@ function StockReportPreview({
                                             />
                                         </Field>
                                     ) : null}
-                                    {shown("narviStockViaHub1") ? (
+                                    {shown("narviStockViaHub1", "narviStockViaHub1Name") ? (
                                         <Field label="Via HUB 1">
                                             <StockIdNameSearchableSelect
                                                 value={row.narviStockViaHub1}
@@ -497,8 +690,59 @@ function StockReportPreview({
                                                 {...selectColorProps}
                                                 onChange={(id, name) => {
                                                     if (onHub1Change) onHub1Change(id, name);
-                                                    else onFieldChange("narviStockViaHub1", id);
+                                                    else updateLocation("narviStockViaHub1", "narviStockViaHub1Name", id, name);
                                                 }}
+                                            />
+                                        </Field>
+                                    ) : null}
+                                    {shown("narviStockViaHub2", "narviStockViaHub2Name") ? (
+                                        <Field label="Via HUB 2">
+                                            <StockIdNameSearchableSelect
+                                                value={row.narviStockViaHub2}
+                                                selectedName={row.narviStockViaHub2Name}
+                                                options={hub2Options}
+                                                onSearchChange={onHub2Search}
+                                                isLoading={isLoadingLocations}
+                                                placeholder="Select hub"
+                                                autoWidth={false}
+                                                w="100%"
+                                                minW={0}
+                                                {...selectColorProps}
+                                                onChange={(id, name) => updateLocation("narviStockViaHub2", "narviStockViaHub2Name", id, name)}
+                                            />
+                                        </Field>
+                                    ) : null}
+                                    {shown("narviStockApDestination", "narviStockApDestinationName") ? (
+                                        <Field label="AP destination">
+                                            <StockIdNameSearchableSelect
+                                                value={row.narviStockApDestination}
+                                                selectedName={row.narviStockApDestinationName}
+                                                options={apDestinationOptions}
+                                                onSearchChange={onApDestinationSearch}
+                                                isLoading={isLoadingLocations}
+                                                placeholder="Select AP destination"
+                                                autoWidth={false}
+                                                w="100%"
+                                                minW={0}
+                                                {...selectColorProps}
+                                                onChange={(id, name) => updateLocation("narviStockApDestination", "narviStockApDestinationName", id, name)}
+                                            />
+                                        </Field>
+                                    ) : null}
+                                    {shown("destinationId", "destinationName") ? (
+                                        <Field label="Destination">
+                                            <StockIdNameSearchableSelect
+                                                value={row.destinationId}
+                                                selectedName={row.destinationName}
+                                                options={destinationOptions}
+                                                onSearchChange={onDestinationSearch}
+                                                isLoading={isLoadingLocations}
+                                                placeholder="Select destination"
+                                                autoWidth={false}
+                                                w="100%"
+                                                minW={0}
+                                                {...selectColorProps}
+                                                onChange={(id, name) => updateLocation("destinationId", "destinationName", id, name)}
                                             />
                                         </Field>
                                     ) : null}
@@ -509,34 +753,56 @@ function StockReportPreview({
                         {showCommercial ? (
                             <Section icon={MdAttachMoney} title="Value & compliance">
                                 <SimpleGrid columns={{ base: 1, md: 3 }} spacingX={4} spacingY={3}>
-                                    {shown("currency", "value") ? (
-                                        <>
-                                            <Field label="Currency">
-                                                <ReportSelect
-                                                    value={row.currency}
-                                                    onChange={(value) => onFieldChange("currency", value)}
-                                                    options={currencies}
-                                                    fallbackPrefix="Currency"
-                                                    placeholder="Select currency"
-                                                />
-                                            </Field>
-                                            <Field label="Value">
-                                                <StockValueInput
-                                                    value={row.value}
-                                                    onChange={(value) => onFieldChange("value", value)}
-                                                    size="sm"
-                                                    w="100%"
-                                                    {...selectColorProps}
-                                                />
-                                            </Field>
-                                        </>
+                                    {shown("currency") ? (
+                                        <Field label="Currency">
+                                            <ReportSelect
+                                                value={row.currency}
+                                                onChange={(value) => onFieldChange("currency", value)}
+                                                options={currencies}
+                                                fallbackPrefix="Currency"
+                                                placeholder="Select currency"
+                                            />
+                                        </Field>
                                     ) : null}
-                                    {shown(dgField) ? (
+                                    {shown("value") ? (
+                                        <Field label="Value">
+                                            <StockValueInput
+                                                value={row.value}
+                                                onChange={(value) => onFieldChange("value", value)}
+                                                size="sm"
+                                                w="100%"
+                                                {...selectColorProps}
+                                            />
+                                        </Field>
+                                    ) : null}
+                                    {shown(dgField, "dgUn") ? (
                                         <Field label="DG / UN number">
                                             <Input
                                                 {...fieldInputProps}
-                                                value={row[dgField] || ""}
-                                                onChange={(e) => onFieldChange(dgField, e.target.value)}
+                                                value={row[dgField] || row.dgUn || ""}
+                                                onChange={(e) => onFieldChange(shown(dgField) ? dgField : "dgUn", e.target.value)}
+                                            />
+                                        </Field>
+                                    ) : null}
+                                    {shown("t1") ? (
+                                        <Field label={STOCK_T1_HEADING}>
+                                            <Select
+                                                {...fieldInputProps}
+                                                value={isStockT1Marked(row.t1) ? "x" : ""}
+                                                onChange={(e) => onFieldChange("t1", e.target.value)}
+                                            >
+                                                <option value="">Select</option>
+                                                <option value="x">{STOCK_T1_MARK}</option>
+                                            </Select>
+                                        </Field>
+                                    ) : null}
+                                    {shown("warning") ? (
+                                        <Field label="Warning ‼️⛔" span={2}>
+                                            <Textarea
+                                                {...fieldInputProps}
+                                                value={row.warning || ""}
+                                                onChange={(e) => onFieldChange("warning", e.target.value)}
+                                                rows={2}
                                             />
                                         </Field>
                                     ) : null}
@@ -546,25 +812,41 @@ function StockReportPreview({
 
                         {showRemarks ? (
                             <Section icon={MdNotes} title="Remarks">
-                                <Textarea
-                                    {...fieldInputProps}
-                                    value={row.remarks || ""}
-                                    onChange={(e) => onFieldChange("remarks", e.target.value)}
-                                    rows={3}
-                                    resize="vertical"
-                                />
+                                {shown("remarks") ? (
+                                    <Field label="Remarks" span={2}>
+                                        <Textarea
+                                            {...fieldInputProps}
+                                            value={row.remarks || ""}
+                                            onChange={(e) => onFieldChange("remarks", e.target.value)}
+                                            rows={3}
+                                            resize="vertical"
+                                        />
+                                    </Field>
+                                ) : null}
+                                {shown("internalRemark") ? (
+                                    <Field label="Internal remark" span={2}>
+                                        <Textarea
+                                            {...fieldInputProps}
+                                            mt={shown("remarks") ? 3 : 0}
+                                            value={row.internalRemark || ""}
+                                            onChange={(e) => onFieldChange("internalRemark", e.target.value)}
+                                            rows={3}
+                                            resize="vertical"
+                                        />
+                                    </Field>
+                                ) : null}
                             </Section>
                         ) : null}
 
                         {showPieces ? (
                             <Section icon={MdInventory2} title="Pieces & dimensions">
                                 <SimpleGrid columns={{ base: 1, md: 3 }} spacing={3} mb={visibleDimensionIndexes.length ? 4 : 0}>
-                                    {shown(pcsField) ? (
+                                    {shown(pcsField, "item", "items") ? (
                                         <Field label="Pieces">
                                             <Input
                                                 {...fieldInputProps}
                                                 type="number"
-                                                value={row[pcsField] || ""}
+                                                value={row[pcsField] || row.item || row.items || ""}
                                                 onChange={(e) => onFieldChange(pcsField, e.target.value)}
                                             />
                                         </Field>
@@ -575,6 +857,16 @@ function StockReportPreview({
                                                 {...fieldInputProps}
                                                 value={row.weightKgs || ""}
                                                 onChange={(e) => onFieldChange("weightKgs", e.target.value)}
+                                            />
+                                        </Field>
+                                    ) : null}
+                                    {shown("lwhText") ? (
+                                        <Field label="LWH text details" span={2}>
+                                            <Textarea
+                                                {...fieldInputProps}
+                                                value={row.lwhText || ""}
+                                                onChange={(e) => onFieldChange("lwhText", e.target.value)}
+                                                rows={2}
                                             />
                                         </Field>
                                     ) : null}

@@ -58,6 +58,7 @@ import {
     MdViewList,
 } from "react-icons/md";
 import { formatStockStatusLabel, normalizeStockStatusKey } from "../../../constants/stockStatus";
+import { isStockT1Heading, isStockT1Marked, STOCK_T1_HEADING, STOCK_T1_MARK } from "../../../constants/stockT1";
 import { useStock } from "../../../redux/hooks/useStock";
 import { useUser } from "../../../redux/hooks/useUser";
 import { useMasterData } from "../../../hooks/useMasterData";
@@ -132,7 +133,7 @@ const STOCK_FORM_SORT_COLUMNS = [
     { label: "Weight kgs", sortKey: "weightKgs", type: "number", minW: "100px" },
     { label: "Dimension", sortKey: "dimensions", type: "dimensions", minW: "150px" },
     { label: "LWH Text Details", sortKey: "lwhText", type: "text", minW: "200px" },
-    { label: "t_1", sortKey: "t1", type: "text", minW: "80px" },
+    { label: STOCK_T1_HEADING, sortKey: "t1", type: "text", minW: "80px" },
     { label: "DG/UN Number", sortKey: "dgUn", type: "text", minW: "150px" },
     { label: "Value", sortKey: "value", type: "number", minW: "100px" },
     { label: "Currency", sortKey: "currency", type: "lookup", lookup: "currencies", minW: "100px" },
@@ -390,7 +391,7 @@ export default function StockForm() {
         labels.forEach((label, index) => {
             labelRules[`tbody td:nth-of-type(${index + 1})::before`] = {
                 content: cssQuotedContent(label),
-                textTransform: label === "t_1" ? "none" : "uppercase",
+                textTransform: isStockT1Heading(label) ? "none" : "uppercase",
             };
         });
         return {
@@ -610,10 +611,11 @@ export default function StockForm() {
                 clients,
                 vessels,
                 suppliers,
+                pics,
                 currencies,
                 shippingOrders,
             }),
-        [clients, vessels, suppliers, currencies, shippingOrders]
+        [clients, vessels, suppliers, pics, currencies, shippingOrders]
     );
 
     const statusChangeActorName = useMemo(
@@ -1239,7 +1241,7 @@ export default function StockForm() {
             heightCm: getFieldValue(stock.height_cm, ""),
             volumeNoDim: getFieldValue(stock.volume_no_dim ?? stock.volume_dim ?? stock.volume_cbm, ""),
             lwhText: getFieldValue(stock.lwh_text),
-            t1: String(getFieldValue(stock.t_1) || "").trim().toLowerCase() === "x" ? "x" : "",
+            t1: isStockT1Marked(getFieldValue(stock.t_1)) ? "x" : "",
             dgUn: getFieldValue(stock.dg_un) || "",
             value: normalizeStockValueForForm(getFieldValue(stock.value, "")),
             currency: resolveRelationId(stock.currency_id, stock.currency) || null,
@@ -2380,7 +2382,7 @@ export default function StockForm() {
                                                 py: "12px",
                                                 fontSize: "11px",
                                                 fontWeight: "600",
-                                                textTransform: column.label === "t_1" ? "none" : "uppercase",
+                                                textTransform: isStockT1Heading(column.label) ? "none" : "uppercase",
                                             }}
                                         />
                                     ))}
@@ -2719,7 +2721,7 @@ export default function StockForm() {
                                         <Td {...cellProps} overflow="visible">
                                             {assignCell(rowIndex, "t1",
                                                 <Select
-                                                    value={row.t1 === "x" ? "x" : ""}
+                                                    value={isStockT1Marked(row.t1) ? "x" : ""}
                                                     onChange={(e) => handleInputChange(rowIndex, "t1", e.target.value)}
                                                     size="sm"
                                                     minW="90px"
@@ -2728,7 +2730,7 @@ export default function StockForm() {
                                                     borderColor={borderColor}
                                                 >
                                                     <option value="">Select</option>
-                                                    <option value="x">X</option>
+                                                    <option value="x">{STOCK_T1_MARK}</option>
                                                 </Select>
                                             )}
                                         </Td>
@@ -3539,6 +3541,27 @@ export default function StockForm() {
                         return next;
                     });
                 }}
+                onLocationChange={(patch) => {
+                    if (stockReportPreview == null) return;
+                    const rowIndex = stockReportPreview.rowIndex;
+                    if (patch.narviStockViaHub1 != null && patch.narviStockViaHub1Name) {
+                        pinOption("viaHub1", { id: patch.narviStockViaHub1, name: patch.narviStockViaHub1Name });
+                    }
+                    if (patch.narviStockViaHub2 != null && patch.narviStockViaHub2Name) {
+                        pinOption("viaHub2", { id: patch.narviStockViaHub2, name: patch.narviStockViaHub2Name });
+                    }
+                    if (patch.narviStockApDestination != null && patch.narviStockApDestinationName) {
+                        pinOption("apDestination", { id: patch.narviStockApDestination, name: patch.narviStockApDestinationName });
+                    }
+                    if (patch.destinationId != null && patch.destinationName) {
+                        pinOption("destination", { id: patch.destinationId, name: patch.destinationName });
+                    }
+                    setFormRows((prev) => {
+                        const next = [...prev];
+                        next[rowIndex] = { ...(next[rowIndex] || {}), ...patch };
+                        return next;
+                    });
+                }}
                 clients={stockReportPreview != null ? getClientOptionsForValue(formRows[stockReportPreview.rowIndex]?.client) : clients}
                 vesselOptions={
                     stockReportPreview != null
@@ -3554,12 +3577,21 @@ export default function StockForm() {
                         : suppliers
                 }
                 currencies={currencies}
+                picOptions={pics}
                 originOptions={originTextOptions}
                 hubOptions={viaHub1Options}
+                hub2Options={viaHub2Options}
+                apDestinationOptions={narviApDestinationOptions}
+                destinationOptions={destinationOptions}
+                soOptions={shippingOrderOptions}
                 onOriginSearch={setQOriginText}
                 onHubSearch={setQViaHub1}
+                onHub2Search={setQViaHub2}
+                onApDestinationSearch={setQNarviApDestination}
+                onDestinationSearch={setQDestination}
                 onClientSearch={handleClientSearchChange}
                 onSupplierSearch={handleSupplierSearchChange}
+                onSoSearch={handleShippingOrderSearchChange}
                 onVesselSearch={(q) =>
                     stockReportPreview != null &&
                     handleVesselSearchChange(formRows[stockReportPreview.rowIndex]?.client, q)

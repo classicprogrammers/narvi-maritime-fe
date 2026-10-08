@@ -26,6 +26,7 @@ import {
 } from "@chakra-ui/react";
 import { MdEdit, MdFilterAlt, MdPrint, MdVisibility } from "react-icons/md";
 import { stockEmptyFilterParamForLabel } from "../../../utils/stockListFetchParams";
+import { formatStockT1Display, isStockT1Heading, STOCK_T1_HEADING } from "../../../constants/stockT1";
 import StockCellText from "../../../components/stock-list/StockCellText";
 import StockListAttachmentsCell from "../../../components/stock-list/StockListAttachmentsCell";
 import StockSoNumberLink from "../../../components/stock-list/StockSoNumberLink";
@@ -196,7 +197,7 @@ function getClientViewFieldValues(item, shippingOrders) {
         boxes: item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
         kg: item.weight_kg ?? item.weight_kgs ?? "-",
         lwh_text: item.lwh_text || "-",
-        t_1: item.t_1 || "-",
+        t_1: formatStockT1Display(item.t_1),
         narvi_stock_via_hub1: getStockViaHub1Display(item),
         narvi_stock_via_hub2: getStockViaHub2Display(item),
         destination: formatStockDestinationDisplay(item, "destination"),
@@ -418,7 +419,7 @@ function StockViewTableRowInner({
                 <StockCellText {...STOCK_CELL_TEXT_PROPS}>{renderText(item.lwh_text)}</StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>{renderText(item.t_1)}</StockCellText>
+                <StockCellText {...STOCK_CELL_TEXT_PROPS}>{formatStockT1Display(item.t_1)}</StockCellText>
             </Td>
             <Td {...cellProps}>
                 <StockCellText {...STOCK_CELL_TEXT_PROPS}>{renderText(item.dg_un)}</StockCellText>
@@ -623,7 +624,7 @@ const STOCK_VIEW_HEADER_COLUMNS = [
     { label: "BOXES" },
     { label: "WEIGHT KGS" },
     { label: "LWH TEXT" },
-    { label: "t_1" },
+    { label: STOCK_T1_HEADING },
     { label: "DG/UN NUMBER" },
     { label: "TOTAL VOLUME CBM" },
     { label: "TOTAL CW AIR FREIGHT" },
@@ -751,7 +752,7 @@ function StockViewDataTableInner({
                                 {...headerProps}
                                 {...(column.stickyIndex != null ? stickyHeader[column.stickyIndex] : {})}
                                 {...(column.textAlign ? { textAlign: column.textAlign } : {})}
-                                {...(column.label === "t_1" ? { textTransform: "none" } : {})}
+                                {...(isStockT1Heading(column.label) ? { textTransform: "none" } : {})}
                             >
                                 <Flex
                                     align="center"
@@ -875,7 +876,7 @@ function ClientViewDataTableInner({
                                     textOverflow: "unset",
                                 }
                                 : {})}
-                            {...(column.key === "t_1" ? { textTransform: "none" } : {})}
+                            {...(column.key === "t_1" || isStockT1Heading(column.label) ? { textTransform: "none" } : {})}
                         >
                             {column.label}
                         </Th>
