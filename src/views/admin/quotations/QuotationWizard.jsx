@@ -781,7 +781,7 @@ export default function QuotationWizard() {
                 Next
               </Button>
             ) : (
-              <Button colorScheme="blue" isDisabled={Boolean(stepError)} isLoading={saving} onClick={handleSave}>
+              <Button colorScheme="blue" isDisabled={Boolean(stepError)} isLoading={saving} loadingText="Creating..." onClick={handleSave}>
                 Save quotation
               </Button>
             )}

@@ -5414,94 +5414,58 @@ export default function Stocks() {
                             {activeTab === 1 && (
                                 <HStack spacing="3" ml="4">
                                     <Button
-                                        size="md"
+                                        size="sm"
                                         leftIcon={<Icon as={MdViewModule} />}
                                         colorScheme={clientViewFilterType === 'filter1' ? 'blue' : 'gray'}
                                         variant={clientViewFilterType === 'filter1' ? 'solid' : 'outline'}
                                         onClick={() => setClientViewFilterType('filter1')}
-                                        fontWeight="600"
-                                        _hover={{
-                                            transform: 'translateY(-2px)',
-                                            boxShadow: 'md'
-                                        }}
-                                        transition="all 0.2s"
                                     >
                                         Filter 1
                                     </Button>
                                     <Button
-                                        size="md"
+                                        size="sm"
                                         leftIcon={<Icon as={MdViewList} />}
                                         colorScheme={clientViewFilterType === 'filter2' ? 'blue' : 'gray'}
                                         variant={clientViewFilterType === 'filter2' ? 'solid' : 'outline'}
                                         onClick={() => setClientViewFilterType('filter2')}
-                                        fontWeight="600"
-                                        _hover={{
-                                            transform: 'translateY(-2px)',
-                                            boxShadow: 'md'
-                                        }}
-                                        transition="all 0.2s"
                                     >
                                         Filter 2
                                     </Button>
                                     <Button
-                                        size="md"
+                                        size="sm"
                                         leftIcon={<Icon as={MdViewList} />}
                                         colorScheme={clientViewFilterType === 'filter3' ? 'blue' : 'gray'}
                                         variant={clientViewFilterType === 'filter3' ? 'solid' : 'outline'}
                                         onClick={() => setClientViewFilterType('filter3')}
-                                        fontWeight="600"
-                                        _hover={{
-                                            transform: 'translateY(-2px)',
-                                            boxShadow: 'md'
-                                        }}
-                                        transition="all 0.2s"
                                     >
                                         Filter 3
                                     </Button>
                                     {clientViewSelectedRows.size > 0 && (
                                         <>
                                             <Button
-                                                size="md"
+                                                size="sm"
                                                 leftIcon={<Icon as={MdContentCopy} />}
                                                 colorScheme="green"
-                                                variant="solid"
+                                                variant="outline"
                                                 onClick={handleCopySelectedRows}
-                                                fontWeight="600"
-                                                _hover={{
-                                                    transform: 'translateY(-2px)',
-                                                    boxShadow: 'md'
-                                                }}
-                                                transition="all 0.2s"
                                             >
                                                 Copy Selected ({clientViewSelectedRows.size})
                                             </Button>
                                             <Button
-                                                size="md"
+                                                size="sm"
                                                 leftIcon={<Icon as={MdContentCopy} />}
                                                 colorScheme="purple"
-                                                variant="solid"
+                                                variant="outline"
                                                 onClick={handleCopyCostRequestClientView}
-                                                fontWeight="600"
-                                                _hover={{
-                                                    transform: 'translateY(-2px)',
-                                                    boxShadow: 'md'
-                                                }}
-                                                transition="all 0.2s"
                                             >
                                                 Copy for request of cost
                                             </Button>
                                             <Button
-                                                size="md"
+                                                size="sm"
                                                 leftIcon={<Icon as={MdNumbers} />}
                                                 colorScheme="blue"
-                                                variant="solid"
+                                                variant="outline"
                                                 onClick={onSelectedTotalsModalOpen}
-                                                fontWeight="600"
-                                                _hover={{
-                                                    transform: 'translateY(-2px)',
-                                                    boxShadow: 'md'
-                                                }}
-                                                transition="all 0.2s"
                                             >
                                                 Selected totals
                                             </Button>
@@ -6064,7 +6028,7 @@ export default function Stocks() {
                                             </Button>
                                             <Button
                                                 leftIcon={<Icon as={MdEdit} />}
-                                                colorScheme="blue"
+                                                colorScheme="red"
                                                 size="sm"
                                                 onClick={handleNavigateToEdit}
                                             >
@@ -6809,7 +6773,7 @@ export default function Stocks() {
                                                 </Button>
                                                 <Button
                                                     leftIcon={<Icon as={MdEdit} />}
-                                                    colorScheme="blue"
+                                                    colorScheme="red"
                                                     size="sm"
                                                     onClick={handleBulkEdit}
                                                 >

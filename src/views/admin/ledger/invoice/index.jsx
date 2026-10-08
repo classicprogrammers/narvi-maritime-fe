@@ -395,7 +395,7 @@ export default function LedgerInvoice() {
               Sales invoices linked to shipping orders
             </Text>
           </Box>
-          <Button leftIcon={<Icon as={MdAdd} />} colorScheme="blue" onClick={handleOpenCreate}>
+          <Button leftIcon={<Icon as={MdAdd} />} colorScheme="blue" size="sm" onClick={handleOpenCreate}>
             New Invoice
           </Button>
         </Flex>

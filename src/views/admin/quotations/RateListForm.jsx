@@ -25,7 +25,6 @@ import {
   Tr,
   useColorModeValue,
   useToast,
-  ButtonGroup,
 } from "@chakra-ui/react";
 import {
   MdAdd,
@@ -932,8 +931,9 @@ export default function RateListForm() {
           </Text>
         </HStack>
 
-        <ButtonGroup size="sm" isAttached variant="outline" justifySelf="center">
+        <HStack spacing="2" justifySelf="center">
           <Button
+            size="sm"
             leftIcon={<Icon as={MdTableChart} />}
             onClick={() => handleFormLayoutChange("table")}
             colorScheme={formLayout === "table" ? "blue" : "gray"}
@@ -943,6 +943,7 @@ export default function RateListForm() {
             Table view
           </Button>
           <Button
+            size="sm"
             leftIcon={<Icon as={MdViewList} />}
             onClick={() => handleFormLayoutChange("list")}
             colorScheme={formLayout === "list" ? "blue" : "gray"}
@@ -951,18 +952,13 @@ export default function RateListForm() {
           >
             Form view
           </Button>
-        </ButtonGroup>
+        </HStack>
 
         <HStack spacing="3" flexWrap="wrap" justify="flex-end">
           <Button
             leftIcon={<Icon as={MdAdd} />}
-            bg="blue.500"
-            color="white"
+            colorScheme="blue"
             size="sm"
-            px="6"
-            py="3"
-            borderRadius="md"
-            _hover={{ bg: "blue.600" }}
             onClick={handleAddRow}
           >
             Add Row
@@ -970,28 +966,17 @@ export default function RateListForm() {
           <Button
             variant="outline"
             size="sm"
-            px="6"
-            py="3"
-            borderRadius="md"
-            borderColor={borderColor}
-            color={textColor}
-            _hover={{ bg: inputBg }}
             onClick={handleDiscard}
           >
             Discard
           </Button>
           <Button
             leftIcon={<Icon as={MdSave} />}
-            bg="green.500"
-            color="white"
+            colorScheme={isEditing ? "green" : "blue"}
             size="sm"
-            px="6"
-            py="3"
-            borderRadius="md"
-            _hover={{ bg: "green.600" }}
             onClick={handleSave}
             isLoading={saving}
-            loadingText="Saving..."
+            loadingText={isEditing ? "Updating..." : "Creating..."}
           >
             {isEditing
               ? newRowCount > 0

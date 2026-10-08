@@ -372,7 +372,7 @@ export default function Countries() {
           <HStack spacing={4}>
             <Button
               leftIcon={<Icon as={MdAdd} />}
-              colorScheme="green"
+              colorScheme="blue"
               size="sm"
               onClick={handleNewCountry}
             >
@@ -732,9 +732,10 @@ export default function Countries() {
               Cancel
             </Button>
             <Button
-              colorScheme="green"
+              colorScheme={editingCountry ? "green" : "blue"}
               onClick={handleSubmit}
               isLoading={isLoading}
+              loadingText={editingCountry ? "Updating..." : "Creating..."}
             >
               {editingCountry ? "Update Country" : "Create Country"}
             </Button>

@@ -273,7 +273,7 @@ export default function QuotationDetail() {
                 Back
               </Button>
               {isDraft ? (
-                <Button size="sm" colorScheme="blue" isDisabled={!dirty} isLoading={saving} onClick={() => persist()}>
+                <Button size="sm" colorScheme="green" isDisabled={!dirty} isLoading={saving} loadingText="Updating..." onClick={() => persist()}>
                   Save changes
                 </Button>
               ) : null}

@@ -267,7 +267,7 @@ export default function Currencies() {
           <HStack spacing={4}>
             <Button
               leftIcon={<Icon as={MdAdd} />}
-              colorScheme="yellow"
+              colorScheme="blue"
               size="sm"
               onClick={handleNewCurrency}
             >
@@ -592,9 +592,10 @@ export default function Currencies() {
               Cancel
             </Button>
             <Button
-              colorScheme="yellow"
+              colorScheme={editingCurrency ? "green" : "blue"}
               onClick={handleSubmit}
               isLoading={isLoading}
+              loadingText={editingCurrency ? "Updating..." : "Creating..."}
             >
               {editingCurrency ? "Update Currency" : "Create Currency"}
             </Button>

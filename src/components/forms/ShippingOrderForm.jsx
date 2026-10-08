@@ -629,7 +629,7 @@ const ShippingOrderForm = ({
                             Cancel
                         </Button>
                         <Button
-                            colorScheme="blue"
+                            colorScheme={mode === 'create' ? 'blue' : 'green'}
                             onClick={handleSubmit}
                             isLoading={isLoading}
                             loadingText={mode === 'create' ? 'Creating...' : 'Updating...'}

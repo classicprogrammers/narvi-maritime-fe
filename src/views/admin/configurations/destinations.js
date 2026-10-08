@@ -301,7 +301,7 @@ export default function Destinations() {
           <HStack spacing={4}>
             <Button
               leftIcon={<Icon as={MdAdd} />}
-              colorScheme="green"
+              colorScheme="blue"
               size="sm"
               onClick={handleNewDestination}
             >
@@ -584,9 +584,10 @@ export default function Destinations() {
               Cancel
             </Button>
             <Button
-              colorScheme="green"
+              colorScheme={editingDestination ? "green" : "blue"}
               onClick={handleSubmit}
               isLoading={isLoading}
+              loadingText={editingDestination ? "Updating..." : "Creating..."}
             >
               {editingDestination ? "Update Destination" : "Create Destination"}
             </Button>

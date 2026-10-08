@@ -2143,7 +2143,7 @@ const SoNumberTab = () => {
             <Button variant="outline" mr={3} onClick={handleFormClose}>
               Cancel
             </Button>
-            <Button colorScheme="blue" onClick={handleFormSubmit} isLoading={isSaving}>
+            <Button colorScheme="blue" onClick={handleFormSubmit} isLoading={isSaving} loadingText="Creating...">
               Create SO
             </Button>
           </ModalFooter>

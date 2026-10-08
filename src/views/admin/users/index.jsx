@@ -653,7 +653,7 @@ export default function Users() {
                   </Text>
                 </HStack>
                 {isAdmin && (
-                  <Button leftIcon={<MdAdd />} colorScheme="blue" onClick={handleCreateClick}>
+                  <Button leftIcon={<MdAdd />} colorScheme="blue" size="sm" onClick={handleCreateClick}>
                     New User
                   </Button>
                 )}
@@ -735,7 +735,7 @@ export default function Users() {
                   Client Access
                 </Text>
                 {isAdmin && (
-                  <Button leftIcon={<MdAdd />} colorScheme="blue" onClick={openCreateClientLogin}>
+                  <Button leftIcon={<MdAdd />} colorScheme="blue" size="sm" onClick={openCreateClientLogin}>
                     New Client Access
                   </Button>
                 )}
@@ -936,7 +936,11 @@ export default function Users() {
             <Button variant="ghost" mr={3} onClick={() => { closeModal(); resetForm(); }}>
               Cancel
             </Button>
-            <Button colorScheme="blue" onClick={handleSubmit}>
+            <Button
+              colorScheme={editingUser ? "green" : "blue"}
+              onClick={handleSubmit}
+              loadingText={editingUser ? "Updating..." : "Creating..."}
+            >
               {editingUser ? "Update" : "Create"}
             </Button>
           </ModalFooter>
@@ -1050,7 +1054,12 @@ export default function Users() {
             <Button variant="ghost" mr={3} onClick={() => { closeClientModal(); resetClientForm(); }}>
               Cancel
             </Button>
-            <Button colorScheme="blue" onClick={submitClientLogin} isLoading={isClientSubmitting}>
+            <Button
+              colorScheme={editingClientLogin ? "green" : "blue"}
+              onClick={submitClientLogin}
+              isLoading={isClientSubmitting}
+              loadingText={editingClientLogin ? "Updating..." : "Creating..."}
+            >
               {editingClientLogin ? "Update" : "Create"}
             </Button>
           </ModalFooter>

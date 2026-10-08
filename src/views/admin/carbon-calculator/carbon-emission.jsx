@@ -571,7 +571,7 @@ export default function CarbonEmission() {
           </ModalBody>
           <ModalFooter gap="2">
             <Button variant="ghost" onClick={() => setEditOpen(false)}>Cancel</Button>
-            <Button bg="#1d4ed8" color="white" _hover={{ bg: "#1e40af" }} onClick={saveFactors} isLoading={saving}>
+            <Button colorScheme="green" onClick={saveFactors} isLoading={saving} loadingText="Updating...">
               Save changes
             </Button>
           </ModalFooter>

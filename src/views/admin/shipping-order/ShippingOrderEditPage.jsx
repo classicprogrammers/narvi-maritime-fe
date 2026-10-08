@@ -290,7 +290,7 @@ export default function ShippingOrderEditPage() {
             <Button variant="outline" onClick={handleCancel}>
               Cancel
             </Button>
-            <Button colorScheme="blue" onClick={handleSave} isLoading={isSaving}>
+            <Button colorScheme="green" onClick={handleSave} isLoading={isSaving} loadingText="Updating...">
               Save Changes
             </Button>
           </Flex>

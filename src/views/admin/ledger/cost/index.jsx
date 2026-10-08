@@ -422,7 +422,7 @@ export default function LedgerCost() {
               Agent invoice costs linked to shipping orders
             </Text>
           </Box>
-          <Button leftIcon={<Icon as={MdAdd} />} colorScheme="blue" onClick={handleOpenCreate}>
+          <Button leftIcon={<Icon as={MdAdd} />} colorScheme="blue" size="sm" onClick={handleOpenCreate}>
             New Cost
           </Button>
         </Flex>

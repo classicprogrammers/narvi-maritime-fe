@@ -1443,7 +1443,7 @@ export default function RateList() {
           <HStack spacing="2" flexWrap="wrap">
             {selectedCount > 0 && (
               <>
-                <Button colorScheme="green" size="sm" leftIcon={<Icon as={MdEdit} />} onClick={handleNavigateToEdit}>
+                <Button colorScheme="red" size="sm" leftIcon={<Icon as={MdEdit} />} onClick={handleNavigateToEdit}>
                   Edit Selected ({selectedCount})
                 </Button>
                 <Button

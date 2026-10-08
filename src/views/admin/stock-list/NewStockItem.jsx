@@ -38,7 +38,6 @@ import {
     ModalBody,
     ModalCloseButton,
     useDisclosure,
-    ButtonGroup,
 } from "@chakra-ui/react";
 import {
     MdSave,
@@ -2262,13 +2261,9 @@ export default function StockForm() {
                     </Text>
                 </HStack>
 
-                <ButtonGroup
-                    size="sm"
-                    isAttached
-                    variant="outline"
-                    justifySelf="center"
-                >
+                <HStack spacing="2" justifySelf="center">
                     <Button
+                        size="sm"
                         leftIcon={<Icon as={MdTableChart} />}
                         onClick={() => handleFormLayoutChange("table")}
                         colorScheme={formLayout === "table" ? "blue" : "gray"}
@@ -2278,26 +2273,22 @@ export default function StockForm() {
                         Table view
                     </Button>
                     <Button
+                        size="sm"
                         leftIcon={<Icon as={MdViewList} />}
                         onClick={() => handleFormLayoutChange("list")}
                         colorScheme={formLayout === "list" ? "blue" : "gray"}
                         variant={formLayout === "list" ? "solid" : "outline"}
                         aria-pressed={formLayout === "list"}
                     >
-                            Form view
+                        Form view
                     </Button>
-                </ButtonGroup>
+                </HStack>
 
                 <HStack spacing="3" flexWrap="wrap" justify="flex-end">
                     <Button
                         leftIcon={<Icon as={MdAdd} />}
-                        bg="blue.500"
-                        color="white"
+                        colorScheme="blue"
                         size="sm"
-                        px="6"
-                        py="3"
-                        borderRadius="md"
-                        _hover={{ bg: "blue.600" }}
                         onClick={handleAddRow}
                     >
                         Add Row
@@ -2305,28 +2296,17 @@ export default function StockForm() {
                     <Button
                         variant="outline"
                         size="sm"
-                        px="6"
-                        py="3"
-                        borderRadius="md"
-                        borderColor={borderColor}
-                        color={textColor}
-                        _hover={{ bg: inputBg }}
                         onClick={handleDiscard}
                     >
                         Discard
                     </Button>
                     <Button
                         leftIcon={<Icon as={MdSave} />}
-                        bg="green.500"
-                        color="white"
+                        colorScheme={isEditing || isBulkEdit || isEditFromList ? "green" : "blue"}
                         size="sm"
-                        px="6"
-                        py="3"
-                        borderRadius="md"
-                        _hover={{ bg: "green.600" }}
                         onClick={handleSaveStockItem}
                         isLoading={updateLoading}
-                        loadingText="Saving..."
+                        loadingText={isEditing || isBulkEdit || isEditFromList ? "Updating..." : "Creating..."}
                     >
                         {isBulkEdit || isEditFromList
                             ? `Update All (${formRows.length} items)`
@@ -3469,16 +3449,9 @@ export default function StockForm() {
                                             <Button
                                                 size="sm"
                                                 variant="outline"
-                                                color="#1c4a95"
-                                                borderColor="#1c4a95"
-                                                bg="white"
-                                                borderRadius="md"
-                                                fontWeight="600"
-                                                fontSize="12px"
+                                                colorScheme="blue"
                                                 whiteSpace="nowrap"
                                                 leftIcon={<Icon as={MdPictureAsPdf} boxSize={4} />}
-                                                _hover={{ bg: "#1c4a95", color: "white" }}
-                                                _active={{ bg: "#163a76", color: "white" }}
                                                 onClick={() => openStockReportPreview(rowIndex)}
                                                 isLoading={stockReportPdfLoadingRowIndex === rowIndex}
                                                 loadingText="Generating..."

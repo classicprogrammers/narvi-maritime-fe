@@ -677,7 +677,7 @@ export default function UOM() {
                   <Flex justify="space-between" align="center">
                     <Button
                       leftIcon={<Icon as={MdAdd} />}
-                      colorScheme="purple"
+                      colorScheme="blue"
                       size="sm"
                       onClick={handleNewUOM}
                     >
@@ -903,7 +903,7 @@ export default function UOM() {
                   <Flex justify="space-between" align="center">
                     <Button
                       leftIcon={<Icon as={MdAdd} />}
-                      colorScheme="purple"
+                      colorScheme="blue"
                       size="sm"
                       onClick={handleNewCategory}
                     >
@@ -1166,9 +1166,10 @@ export default function UOM() {
               Cancel
             </Button>
             <Button
-              colorScheme="purple"
+              colorScheme={editingUOM ? "green" : "blue"}
               onClick={handleSubmit}
               isLoading={isLoading}
+              loadingText={editingUOM ? "Updating..." : "Creating..."}
             >
               {editingUOM ? "Update UOM" : "Create UOM"}
             </Button>
@@ -1229,9 +1230,10 @@ export default function UOM() {
               Cancel
             </Button>
             <Button
-              colorScheme="purple"
+              colorScheme={editingCategory ? "green" : "blue"}
               onClick={handleCategorySubmit}
               isLoading={isLoading}
+              loadingText={editingCategory ? "Updating..." : "Creating..."}
             >
               {editingCategory ? "Update Category" : "Create Category"}
             </Button>

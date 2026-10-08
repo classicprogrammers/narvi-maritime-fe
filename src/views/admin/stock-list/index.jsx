@@ -2060,7 +2060,7 @@ export default function StockList() {
                         </Button>
                         <Button
                             leftIcon={<Icon as={MdEdit} />}
-                            colorScheme="blue"
+                            colorScheme="red"
                             size="sm"
                             onClick={handleNavigateToEdit}
                         >

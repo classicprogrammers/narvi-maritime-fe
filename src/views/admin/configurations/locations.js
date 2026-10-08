@@ -317,7 +317,7 @@ export default function Locations() {
           <HStack spacing={4}>
             <Button
               leftIcon={<Icon as={MdAdd} />}
-              colorScheme="green"
+              colorScheme="blue"
               size="sm"
               onClick={handleNewLocation}
             >
@@ -572,9 +572,10 @@ export default function Locations() {
               Cancel
             </Button>
             <Button
-              colorScheme="green"
+              colorScheme={editingLocation ? "green" : "blue"}
               onClick={handleSubmit}
               isLoading={isLoading}
+              loadingText={editingLocation ? "Updating..." : "Creating..."}
             >
               {editingLocation ? "Update Location" : "Create Location"}
             </Button>

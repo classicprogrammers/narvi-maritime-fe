@@ -524,9 +524,10 @@ export default function PIC() {
               Cancel
             </Button>
             <Button
-              colorScheme="blue"
+              colorScheme={editingPIC ? "green" : "blue"}
               onClick={handleSubmit}
               isLoading={isLoading}
+              loadingText={editingPIC ? "Updating..." : "Creating..."}
             >
               {editingPIC ? "Update PIC" : "Create PIC"}
             </Button>

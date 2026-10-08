@@ -514,9 +514,10 @@ export default function Groups() {
               Cancel
             </Button>
             <Button
-              colorScheme="blue"
+              colorScheme={editingGroup ? "green" : "blue"}
               onClick={handleSubmit}
               isLoading={isLoading}
+              loadingText={editingGroup ? "Updating..." : "Creating..."}
             >
               {editingGroup ? "Update Group" : "Create Group"}
             </Button>

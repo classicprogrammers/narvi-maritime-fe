@@ -1350,13 +1350,8 @@ export default function StockForm() {
                 <HStack spacing="4">
                     <Button
                         leftIcon={<Icon as={MdChevronLeft} />}
-                        bg="purple.500"
-                        color="white"
+                        variant="outline"
                         size="sm"
-                        px="6"
-                        py="3"
-                        borderRadius="md"
-                        _hover={{ bg: "purple.600" }}
                         onClick={handleBackToStockList}
                     >
                         Back
@@ -1374,13 +1369,8 @@ export default function StockForm() {
                     {!isEditing && (
                         <Button
                             leftIcon={<Icon as={MdAdd} />}
-                            bg="blue.500"
-                            color="white"
+                            colorScheme="blue"
                             size="sm"
-                            px="6"
-                            py="3"
-                            borderRadius="md"
-                            _hover={{ bg: "blue.600" }}
                             onClick={handleAddRow}
                         >
                             Add Row
@@ -1388,16 +1378,11 @@ export default function StockForm() {
                     )}
                     <Button
                         leftIcon={<Icon as={MdSave} />}
-                        bg="green.500"
-                        color="white"
+                        colorScheme={isEditing || isBulkEdit ? "green" : "blue"}
                         size="sm"
-                        px="6"
-                        py="3"
-                        borderRadius="md"
-                        _hover={{ bg: "green.600" }}
                         onClick={handleSaveStockItem}
                         isLoading={updateLoading}
-                        loadingText="Saving..."
+                        loadingText={isEditing || isBulkEdit ? "Updating..." : "Creating..."}
                     >
                         {isBulkEdit
                             ? `Update All (${selectedItems.length} items)`
@@ -2255,16 +2240,9 @@ export default function StockForm() {
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            color="#1c4a95"
-                                            borderColor="#1c4a95"
-                                            bg="white"
-                                            borderRadius="md"
-                                            fontWeight="600"
-                                            fontSize="12px"
+                                            colorScheme="blue"
                                             whiteSpace="nowrap"
                                             leftIcon={<Icon as={MdPictureAsPdf} boxSize={4} />}
-                                            _hover={{ bg: "#1c4a95", color: "white" }}
-                                            _active={{ bg: "#163a76", color: "white" }}
                                             onClick={() => openStockReportPreview(rowIndex)}
                                             isLoading={stockReportPdfLoadingRowIndex === rowIndex}
                                             loadingText="Generating..."
