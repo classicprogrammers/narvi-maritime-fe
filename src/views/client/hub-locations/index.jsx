@@ -63,14 +63,14 @@ function ClientHubLocations() {
 
   return (
     <Box>
-      <Heading fontSize="24px" lineHeight="32px" color={headingColor}>
+      <Heading fontSize={{ base: "20px", md: "24px" }} lineHeight={{ base: "28px", md: "32px" }} color={headingColor}>
         {pageTitle}
       </Heading>
       <Text mt={1} mb={5} fontSize="sm" color={muted}>
         Hub values from your client stock records.
       </Text>
 
-      <InputGroup maxW="340px" mb={6}>
+      <InputGroup w="100%" maxW={{ base: "100%", md: "340px" }} mb={6}>
         <InputLeftElement pointerEvents="none">
           <Icon as={MdSearch} color="gray.400" />
         </InputLeftElement>

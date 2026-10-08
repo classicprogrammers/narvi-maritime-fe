@@ -64,7 +64,7 @@ function ClientVessels() {
 
   return (
     <Box>
-      <Heading color={text} mb={4} fontSize="24px" lineHeight="32px">
+      <Heading color={text} mb={4} fontSize={{ base: "20px", md: "24px" }} lineHeight={{ base: "28px", md: "32px" }}>
         {headingText}
       </Heading>
 

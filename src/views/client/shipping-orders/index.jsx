@@ -776,11 +776,11 @@ function ClientShippingOrders() {
 
   return (
     <Box>
-      <Heading fontSize="24px" lineHeight="32px" color={headingColor} mb={4}>
+      <Heading fontSize={{ base: "20px", md: "24px" }} lineHeight={{ base: "28px", md: "32px" }} color={headingColor} mb={4}>
         Shipping Orders{clientName ? ` - ${clientName}` : ""}
       </Heading>
 
-      <Box bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="16px" p={5} mb={5}>
+      <Box bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="16px" p={{ base: 4, md: 5 }} mb={5}>
         <Text fontSize="sm" fontWeight="700" color={headingColor} mb={4}>
           Filters
         </Text>
@@ -911,18 +911,24 @@ function ClientShippingOrders() {
               entries
             </Text>
           </Flex>
-          <Flex align="center" gap={3}>
+          <Flex
+            align={{ base: "stretch", sm: "center" }}
+            direction={{ base: "column", sm: "row" }}
+            gap={3}
+            w={{ base: "100%", md: "auto" }}
+            minW={0}
+          >
             <Button
               size="sm"
-              style={{ padding: "8px 25px" }}
               variant="outline"
               borderColor={borderColor}
               leftIcon={<Icon as={MdFileDownload} color="green.500" />}
               onClick={handleDownloadExcel}
+              flexShrink={0}
             >
               Download Excel
             </Button>
-            <InputGroup size="sm" maxW="220px">
+            <InputGroup size="sm" w={{ base: "100%", sm: "220px" }} maxW="100%">
               <InputLeftElement>
                 <Icon as={MdSearch} color={muted} />
               </InputLeftElement>
@@ -1040,10 +1046,10 @@ function ClientShippingOrders() {
         scrollBehavior="inside"
       >
         <ModalOverlay bg="blackAlpha.500" />
-        <ModalContent maxW="96vw" borderRadius="16px" overflow="hidden">
+        <ModalContent maxW={{ base: "calc(100vw - 16px)", md: "96vw" }} mx={{ base: 2, md: "auto" }} borderRadius="16px" overflow="hidden">
           <ModalHeader
             py={4}
-            px={6}
+            px={{ base: 4, md: 6 }}
             borderBottom="1px solid"
             borderColor={borderColor}
           >
@@ -1070,7 +1076,7 @@ function ClientShippingOrders() {
             </Flex>
           </ModalHeader>
           <ModalCloseButton />
-          <ModalBody px={6} py={5}>
+          <ModalBody px={{ base: 4, md: 6 }} py={5}>
             {stockModal.order ? (
               <Box
                 border="1px solid"

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   AlertDescription,
@@ -10,6 +10,7 @@ import {
   Flex,
   HStack,
   Icon,
+  IconButton,
   Menu,
   MenuButton,
   MenuItem,
@@ -25,6 +26,8 @@ import { Redirect, Route, Switch, useHistory, useLocation } from "react-router-d
 import {
   MdBusiness,
   MdCheck,
+  MdChevronLeft,
+  MdChevronRight,
   MdDashboard,
   MdDirectionsBoat,
   MdExpandMore,
@@ -74,7 +77,8 @@ function ClientCompanySelect() {
         bg={cardBg}
         border="1px solid"
         borderColor={borderColor}
-        minW={{ base: "100%", md: "280px" }}
+        w="100%"
+        minW={0}
       >
         <Spinner size="sm" color="#174693" />
         <Text fontSize="sm" color={muted}>
@@ -96,8 +100,9 @@ function ClientCompanySelect() {
       gap={3}
       px={3}
       py="7px"
-      minW={{ base: "100%", md: "280px" }}
-      maxW={{ base: "100%", md: "420px" }}
+      w="100%"
+      minW={0}
+      maxW="100%"
       borderRadius="14px"
       bg={cardBg}
       border="1px solid"
@@ -156,7 +161,7 @@ function ClientCompanySelect() {
         h="auto"
         p={0}
         minW={0}
-        w={{ base: "100%", md: "auto" }}
+        w="100%"
         boxShadow="none"
         _hover={{ bg: "transparent" }}
         _active={{ bg: "transparent" }}
@@ -165,8 +170,8 @@ function ClientCompanySelect() {
         {trigger}
       </MenuButton>
       <MenuList
-        minW={{ base: "100%", md: "360px" }}
-        maxW="460px"
+        minW={{ base: "min(100vw - 2rem, 280px)", md: "360px" }}
+        maxW={{ base: "calc(100vw - 2rem)", md: "460px" }}
         maxH="320px"
         overflowY="auto"
         p={2}
@@ -214,6 +219,172 @@ function ClientCompanySelect() {
   );
 }
 
+function ClientMenuSlider({
+  activeTabIndex,
+  isTabActive,
+  onSelect,
+  tabRailBg,
+  borderColor,
+  muted,
+  activeTabBg,
+  activeTabText,
+  tabIconBg,
+}) {
+  const scrollerRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollState = () => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(maxScroll > 4 && el.scrollLeft < maxScroll - 4);
+  };
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return undefined;
+    let frame = 0;
+
+    const revealActiveTab = () => {
+      const active = el.querySelector('[aria-selected="true"]');
+      if (!active) return;
+      const maxScroll = el.scrollWidth - el.clientWidth;
+      if (maxScroll <= 4) return;
+      const delta =
+        active.getBoundingClientRect().left -
+        el.getBoundingClientRect().left -
+        (el.clientWidth - active.getBoundingClientRect().width) / 2;
+      if (Math.abs(delta) < 8) return;
+      el.scrollTo({ left: Math.max(0, Math.min(maxScroll, el.scrollLeft + delta)) });
+    };
+
+    const sync = () => {
+      updateScrollState();
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(revealActiveTab);
+    };
+
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(el);
+    el.addEventListener("scroll", updateScrollState, { passive: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      el.removeEventListener("scroll", updateScrollState);
+    };
+  }, [activeTabIndex]);
+
+  const scrollMenu = (direction) => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollBy({
+      left: direction * Math.max(180, Math.round(el.clientWidth * 0.7)),
+      behavior: "smooth",
+    });
+  };
+
+  const showSlider = canScrollLeft || canScrollRight;
+
+  return (
+    <Flex align="center" gap={1} minW={0}>
+      <IconButton
+        aria-label="Scroll menu left"
+        icon={<Icon as={MdChevronLeft} boxSize="20px" />}
+        size="sm"
+        variant="ghost"
+        borderRadius="10px"
+        flexShrink={0}
+        display={showSlider ? "inline-flex" : "none"}
+        isDisabled={!canScrollLeft}
+        onClick={() => scrollMenu(-1)}
+      />
+      <Box
+        ref={scrollerRef}
+        flex="1"
+        minW={0}
+        overflowX="auto"
+        overflowY="hidden"
+        bg={tabRailBg}
+        borderRadius="14px"
+        p="6px"
+        border="1px solid"
+        borderColor={borderColor}
+        sx={{
+          WebkitOverflowScrolling: "touch",
+          scrollBehavior: "smooth",
+          scrollbarWidth: "thin",
+          scrollbarColor: "rgba(112, 144, 176, 0.55) transparent",
+          "&::-webkit-scrollbar": { height: "6px" },
+          "&::-webkit-scrollbar-thumb": {
+            background: "rgba(112, 144, 176, 0.55)",
+            borderRadius: "999px",
+          },
+          "&::-webkit-scrollbar-track": { background: "transparent" },
+        }}
+      >
+        <TabList display="flex" flexWrap="nowrap" w="max-content" minW="100%" gap={2} border="none">
+          {clientTabs.map((tab) => {
+            const isActive = isTabActive(tab.path);
+            return (
+              <Tab
+                key={tab.label}
+                flexShrink={0}
+                px={4}
+                py={2.5}
+                borderRadius="12px"
+                fontWeight="600"
+                fontSize="sm"
+                color={isActive ? activeTabText : muted}
+                bg={isActive ? activeTabBg : "transparent"}
+                border="1px solid"
+                borderColor={isActive ? "brandScheme.500" : "transparent"}
+                boxShadow={isActive ? "0 10px 24px rgba(23, 70, 147, 0.24)" : "none"}
+                _hover={{
+                  bg: isActive ? activeTabBg : "white",
+                  color: isActive ? activeTabText : "navy.700",
+                }}
+                onClick={() => onSelect(tab.path)}
+              >
+                <HStack spacing={2}>
+                  <Flex
+                    w="22px"
+                    h="22px"
+                    borderRadius="8px"
+                    align="center"
+                    justify="center"
+                    flexShrink={0}
+                    bg={isActive ? tabIconBg : "transparent"}
+                    color={isActive ? "brand.500" : "inherit"}
+                  >
+                    <Icon as={tab.icon} fontSize="14px" />
+                  </Flex>
+                  <Text fontSize="sm" fontWeight="700" whiteSpace="nowrap">
+                    {tab.label}
+                  </Text>
+                </HStack>
+              </Tab>
+            );
+          })}
+        </TabList>
+      </Box>
+      <IconButton
+        aria-label="Scroll menu right"
+        icon={<Icon as={MdChevronRight} boxSize="20px" />}
+        size="sm"
+        variant="ghost"
+        borderRadius="10px"
+        flexShrink={0}
+        display={showSlider ? "inline-flex" : "none"}
+        isDisabled={!canScrollRight}
+        onClick={() => scrollMenu(1)}
+      />
+    </Flex>
+  );
+}
+
 function ClientLayoutShell() {
   const history = useHistory();
   const location = useLocation();
@@ -249,107 +420,79 @@ function ClientLayoutShell() {
         bg={navBg}
         borderBottom="1px solid"
         borderColor={borderColor}
-        px={{ base: 4, md: 6 }}
+        px={{ base: 3, sm: 4, md: 6 }}
         py={3}
         position="sticky"
         top={isStagingEnvironment ? STAGING_BANNER_HEIGHT : 0}
         zIndex={30}
       >
         <Flex align="center" justify="space-between" mb={3} gap={3} wrap="wrap">
-          <HStack spacing={3}>
-            <Avatar name={displayName} size="sm" bg="#174693" color="white" />
-            <Box>
+          <HStack spacing={3} minW={0} flex={{ base: "1", lg: "0 1 auto" }} order={1}>
+            <Avatar name={displayName} size="sm" bg="#174693" color="white" flexShrink={0} />
+            <Box minW={0}>
               <Text fontSize="xs" color={muted}>
                 Logged in as
               </Text>
-              <Text fontSize="sm" fontWeight="700" color="navy.700">
+              <Text fontSize="sm" fontWeight="700" color="navy.700" noOfLines={1} title={displayName}>
                 {displayName}
               </Text>
             </Box>
           </HStack>
 
-          <Flex
-            align="center"
-            justify="flex-end"
-            gap={3}
-            flex={{ base: "1 1 100%", md: "0 1 auto" }}
-            w={{ base: "100%", md: "auto" }}
+          <Box
+            order={{ base: 3, lg: 2 }}
+            flex={{ base: "1 1 100%", lg: "0 1 420px" }}
+            w={{ base: "100%", lg: "auto" }}
+            minW={{ base: 0, lg: "260px" }}
+            maxW={{ lg: "420px" }}
+            ml={{ lg: "auto" }}
           >
             <ClientCompanySelect />
-            <Button
-              variant="ghost"
-              borderRadius="14px"
-              h="48px"
-              px={4}
-              leftIcon={<Icon as={MdLogout} />}
-              onClick={handleLogout}
-              fontSize="sm"
-              fontWeight="600"
-              flexShrink={0}
-            >
-              Logout
-            </Button>
-          </Flex>
+          </Box>
+
+          <Button
+            order={{ base: 2, lg: 3 }}
+            variant="ghost"
+            borderRadius="14px"
+            h={{ base: "40px", sm: "48px" }}
+            px={{ base: 3, sm: 4 }}
+            leftIcon={<Icon as={MdLogout} />}
+            onClick={handleLogout}
+            fontSize="sm"
+            fontWeight="600"
+            flexShrink={0}
+            display={{ base: "none", sm: "inline-flex" }}
+          >
+            Logout
+          </Button>
+          <IconButton
+            order={{ base: 2, lg: 3 }}
+            aria-label="Logout"
+            variant="ghost"
+            borderRadius="14px"
+            icon={<Icon as={MdLogout} />}
+            onClick={handleLogout}
+            display={{ base: "inline-flex", sm: "none" }}
+            flexShrink={0}
+          />
         </Flex>
 
         <Tabs index={activeTabIndex} variant="unstyled">
-          <TabList
-            position="relative"
-            overflowY="visible"
-            whiteSpace="nowrap"
-            pb={1}
-            bg={tabRailBg}
-            borderRadius="14px"
-            p="6px"
-            border="1px solid"
+          <ClientMenuSlider
+            activeTabIndex={activeTabIndex}
+            isTabActive={isTabActive}
+            onSelect={(path) => history.push(path)}
+            tabRailBg={tabRailBg}
             borderColor={borderColor}
-          >
-            {clientTabs.map((tab) => {
-              const isActive = isTabActive(tab.path);
-              return (
-                <Tab
-                  key={tab.label}
-                  mr={2}
-                  px={4}
-                  py={2.5}
-                  borderRadius="12px"
-                  fontWeight="600"
-                  fontSize="sm"
-                  color={isActive ? activeTabText : muted}
-                  bg={isActive ? activeTabBg : "transparent"}
-                  border="1px solid"
-                  borderColor={isActive ? "brandScheme.500" : "transparent"}
-                  boxShadow={isActive ? "0 10px 24px rgba(23, 70, 147, 0.24)" : "none"}
-                  _hover={{
-                    bg: isActive ? activeTabBg : "white",
-                    color: isActive ? activeTabText : "navy.700",
-                  }}
-                  onClick={() => history.push(tab.path)}
-                >
-                  <HStack spacing={2.5}>
-                    <Flex
-                      w="22px"
-                      h="22px"
-                      borderRadius="8px"
-                      align="center"
-                      justify="center"
-                      bg={isActive ? tabIconBg : "transparent"}
-                      color={isActive ? "brand.500" : "inherit"}
-                    >
-                      <Icon as={tab.icon} fontSize="14px" />
-                    </Flex>
-                    <Text fontSize="sm" fontWeight="700">
-                      {tab.label}
-                    </Text>
-                  </HStack>
-                </Tab>
-              );
-            })}
-          </TabList>
+            muted={muted}
+            activeTabBg={activeTabBg}
+            activeTabText={activeTabText}
+            tabIconBg={tabIconBg}
+          />
         </Tabs>
       </Box>
 
-      <Box px={{ base: 4, md: 6 }} py={6}>
+      <Box px={{ base: 3, sm: 4, md: 6 }} py={{ base: 4, md: 6 }} minW={0} maxW="100%">
         {loading || selectedClientId == null ? (
           error ? (
             <Alert status="error" borderRadius="12px">

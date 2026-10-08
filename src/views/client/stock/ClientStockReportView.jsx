@@ -1173,9 +1173,9 @@ function ClientStockReportView() {
 
   return (
     <Box>
-      <Flex align="center" justify="space-between" mb={4}>
-        <Box>
-          <Heading fontSize="24px" lineHeight="32px" color={headingColor}>
+      <Flex align="center" justify="space-between" mb={4} minW={0}>
+        <Box minW={0}>
+          <Heading fontSize={{ base: "20px", md: "24px" }} lineHeight={{ base: "28px", md: "32px" }} color={headingColor}>
             {PAGE_COPY.title}
           </Heading>
           <Text mt={1} fontSize="sm" color={muted}>
@@ -1188,7 +1188,7 @@ function ClientStockReportView() {
         </Box>
       </Flex>
 
-      <Box bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="16px" p={5} mb={5}>
+      <Box bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="16px" p={{ base: 4, md: 5 }} mb={5}>
         <Flex justify="space-between" align={{ base: "start", md: "center" }} mb={4} gap={3} wrap="wrap">
           <Text fontSize="sm" fontWeight="700" color={headingColor}>
             Filters
@@ -1213,9 +1213,9 @@ function ClientStockReportView() {
         <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }} gap={3}>
           <GridItem colSpan={{ base: 1, md: 2, xl: 2 }}>
             <Text fontSize="xs" mb={1} color={muted}>Date Range</Text>
-            <Flex gap={2}>
-              <Input size="sm" type="date" p="20px 12px" value={filters.fromDate} onChange={(e) => handleFilterChange("fromDate", e.target.value)} />
-              <Input size="sm" type="date" p="20px 12px" value={filters.toDate} onChange={(e) => handleFilterChange("toDate", e.target.value)} />
+            <Flex gap={2} direction={{ base: "column", sm: "row" }}>
+              <Input size="sm" type="date" p="20px 12px" minW={0} value={filters.fromDate} onChange={(e) => handleFilterChange("fromDate", e.target.value)} />
+              <Input size="sm" type="date" p="20px 12px" minW={0} value={filters.toDate} onChange={(e) => handleFilterChange("toDate", e.target.value)} />
             </Flex>
           </GridItem>
           <GridItem>
@@ -1302,9 +1302,9 @@ function ClientStockReportView() {
       <Box bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="16px" p={4} mb={3}>
         <Flex
           justify="space-between"
-          align="center"
+          align={{ base: "stretch", lg: "center" }}
+          direction={{ base: "column", lg: "row" }}
           gap={3}
-          wrap={{ base: "wrap", lg: "nowrap" }}
         >
           <Flex align="center" gap={2} flexShrink={0}>
             <Text fontSize="sm" color={muted}>Show</Text>
@@ -1326,12 +1326,13 @@ function ClientStockReportView() {
           </Flex>
           <Flex
             align="center"
+            flexWrap="wrap"
             gap={2}
             ml={{ base: 0, lg: "auto" }}
             w={{ base: "100%", lg: "auto" }}
-            flexWrap="nowrap"
+            minW={0}
           >
-            <InputGroup size="sm" flex="1" minW="180px" maxW={{ base: "100%", lg: "280px" }}>
+            <InputGroup size="sm" flex={{ base: "1 1 100%", lg: "1 1 180px" }} w={{ base: "100%", lg: "auto" }} minW={{ base: "100%", lg: "180px" }} maxW={{ base: "100%", lg: "280px" }}>
               <InputLeftElement pointerEvents="none" h="40px">
                 <Icon as={MdSearch} color="gray.400" />
               </InputLeftElement>
@@ -1353,7 +1354,7 @@ function ClientStockReportView() {
                 as={Button}
                 size="sm"
                 h="40px"
-                flexShrink={0}
+                maxW="100%"
                 whiteSpace="nowrap"
                 leftIcon={<Icon as={MdSort} />}
                 colorScheme={clientSortOption && clientSortOption !== "none" ? "blue" : "gray"}
@@ -1392,7 +1393,7 @@ function ClientStockReportView() {
                 as={Button}
                 size="sm"
                 h="40px"
-                flexShrink={0}
+                maxW="100%"
                 variant="outline"
                 borderColor={borderColor}
                 leftIcon={<Icon as={MdFileDownload} />}
@@ -1674,7 +1675,7 @@ function ClientStockReportView() {
               ? "Loading..."
               : `Showing ${pageStart}-${pageEnd} of ${visibleTotalCount} entries`}
           </Text>
-          <Flex gap={1} align="center" wrap="wrap" justify="center">
+          <Flex gap={1} align="center" wrap="wrap" justify="center" w={{ base: "100%", md: "auto" }} maxW="100%">
             <Button
               size="xs"
               variant="outline"
@@ -1730,9 +1731,9 @@ function ClientStockReportView() {
         </Flex>
       </Box>
 
-      <Modal isOpen={isDimensionsModalOpen} onClose={() => setIsDimensionsModalOpen(false)} size="3xl">
+      <Modal isOpen={isDimensionsModalOpen} onClose={() => setIsDimensionsModalOpen(false)} size="3xl" scrollBehavior="inside">
         <ModalOverlay />
-        <ModalContent>
+        <ModalContent mx={{ base: 3, md: 0 }} maxW={{ base: "calc(100vw - 24px)", md: "3xl" }}>
           <ModalHeader>Dimensions Details</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
@@ -1810,9 +1811,9 @@ function ClientStockReportView() {
         }
       />
 
-      <Modal isOpen={isReportPreviewOpen} onClose={handleCloseReportPreview} size="5xl">
+      <Modal isOpen={isReportPreviewOpen} onClose={handleCloseReportPreview} size="5xl" scrollBehavior="inside">
         <ModalOverlay />
-        <ModalContent>
+        <ModalContent mx={{ base: 3, md: 4 }} maxW={{ base: "calc(100vw - 24px)", md: "5xl" }}>
           <ModalHeader>
             Stock report
             {reportPreviewItems.length > 1
@@ -1827,11 +1828,11 @@ function ClientStockReportView() {
             {isPreparingPreview ? (
               <Text fontSize="sm" color={muted}>Loading report...</Text>
             ) : reportPreviewItems.length ? (
-              <Box border="1px solid" borderColor={borderColor} borderRadius="10px" overflow="hidden">
+              <Box border="1px solid" borderColor={borderColor} borderRadius="10px" overflow="hidden" h={{ base: "50vh", md: "70vh" }}>
                 <iframe
                   title="Stock report preview"
                   src={reportPreviewItems[activePreviewIndex]?.blobUrl}
-                  style={{ width: "100%", height: "70vh", border: "none" }}
+                  style={{ width: "100%", height: "100%", border: "none" }}
                 />
               </Box>
             ) : (
@@ -1839,8 +1840,8 @@ function ClientStockReportView() {
             )}
           </ModalBody>
           <ModalFooter>
-            <Flex w="100%" justify="space-between" align="center" gap={2} direction={{ base: "column", md: "row" }}>
-              <Flex gap={2}>
+            <Flex w="100%" justify="space-between" align={{ base: "stretch", md: "center" }} gap={2} direction={{ base: "column", md: "row" }} wrap="wrap">
+              <Flex gap={2} wrap="wrap">
                 <Button
                   size="sm"
                   variant="outline"
@@ -1862,7 +1863,7 @@ function ClientStockReportView() {
                   Next
                 </Button>
               </Flex>
-              <Flex gap={2}>
+              <Flex gap={2} wrap="wrap">
                 <Button size="sm" variant="outline" onClick={handleCloseReportPreview}>
                   Close
                 </Button>

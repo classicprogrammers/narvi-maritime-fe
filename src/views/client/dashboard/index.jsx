@@ -102,6 +102,14 @@ function ClientDashboard() {
       stroke: { curve: "smooth", width: 3 },
       dataLabels: { enabled: false },
       legend: { position: "top", horizontalAlign: "right" },
+      responsive: [
+        {
+          breakpoint: 768,
+          options: {
+            legend: { position: "bottom", horizontalAlign: "center" },
+          },
+        },
+      ],
       xaxis: {
         categories: Array.isArray(primaryChart?.labels) ? primaryChart.labels : [],
         labels: { style: { colors: chartLabel, fontSize: "12px" } },
@@ -188,7 +196,7 @@ function ClientDashboard() {
     <Box>
       <Flex align={{ base: "stretch", md: "center" }} justify="space-between" gap={3} wrap="wrap" mb={5}>
         <Box>
-          <Heading fontSize="24px" lineHeight="32px" color={headingColor}>
+          <Heading fontSize={{ base: "20px", md: "24px" }} lineHeight={{ base: "28px", md: "32px" }} color={headingColor}>
             Dashboard
           </Heading>
           {selectedClient?.name ? (
@@ -277,13 +285,15 @@ function ClientDashboard() {
           <SimpleGrid columns={{ base: 1, xl: 3 }} spacing={4} mt={5}>
             <Box
               gridColumn={{ base: "auto", xl: "span 2" }}
+              minW={0}
+              overflow="hidden"
               bg={cardBg}
               border="1px solid"
               borderColor={borderColor}
               borderRadius="16px"
               p={4}
               boxShadow="0 10px 24px rgba(112, 144, 176, 0.08)"
-              h="360px"
+              h={{ base: "auto", md: "360px" }}
             >
               <Text fontWeight="700" color={headingColor} mb={2}>
                 {primaryChart?.title ?? "Stock Value & Items Trend"}
@@ -291,7 +301,7 @@ function ClientDashboard() {
               <Text fontSize="sm" color={muted} mb={3}>
                 {primaryChart?.subtitle ?? "Monthly value and stock item movement."}
               </Text>
-              <Box h="260px">
+              <Box h={{ base: "240px", md: "260px" }} minW={0}>
                 <LineChart
                   key={primaryChartKey}
                   chartData={primaryTrendData}
@@ -301,13 +311,15 @@ function ClientDashboard() {
             </Box>
 
             <Box
+              minW={0}
+              overflow="hidden"
               bg={cardBg}
               border="1px solid"
               borderColor={borderColor}
               borderRadius="16px"
               p={4}
               boxShadow="0 10px 24px rgba(112, 144, 176, 0.08)"
-              h="420px"
+              h={{ base: "auto", md: "420px" }}
             >
               <Text fontWeight="700" color={headingColor} mb={2}>
                 {jobsByStatusChart?.title ?? "Jobs by Status"}
@@ -315,7 +327,7 @@ function ClientDashboard() {
               <Text fontSize="sm" color={muted} mb={3}>
                 {jobsByStatusChart?.subtitle ?? "Distribution of current stock/job statuses."}
               </Text>
-              <Box h="320px" cursor="pointer">
+              <Box h={{ base: "280px", md: "320px" }} minW={0} cursor="pointer">
                 <ReactApexChart
                   key={jobsByStatusKey}
                   type="pie"

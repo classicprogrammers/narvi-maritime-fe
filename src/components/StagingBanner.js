@@ -24,7 +24,7 @@ export default function StagingBanner() {
       justifyContent="center"
       px={4}
     >
-      <Text fontSize="sm" fontWeight="700" letterSpacing="0.04em">
+      <Text fontSize={{ base: "xs", sm: "sm" }} fontWeight="700" letterSpacing="0.04em" noOfLines={1}>
         This is the staging environment.
       </Text>
     </Box>

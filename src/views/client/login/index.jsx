@@ -132,7 +132,7 @@ function ClientLogin() {
             <Text fontSize="sm" color={muted} fontWeight="600">
               Client Access Portal
             </Text>
-            <Heading mt={1} color={headingColor} fontSize="32px" lineHeight="40px">
+            <Heading mt={1} color={headingColor} fontSize={{ base: "26px", md: "32px" }} lineHeight={{ base: "34px", md: "40px" }}>
               Welcome back
             </Heading>
           </Box>

@@ -136,7 +136,7 @@ export default function ClientPortalTableShell({
         <Text fontSize="xs" color={muted}>
           {isLoading ? "Loading..." : `Showing ${pageStart}-${pageEnd} of ${totalCount} entries`}
         </Text>
-        <Flex gap={1} align="center" wrap="wrap" justify="center">
+        <Flex gap={1} align="center" wrap="wrap" justify="center" w={{ base: "100%", md: "auto" }} maxW="100%">
           <Button
             size="xs"
             variant="outline"
