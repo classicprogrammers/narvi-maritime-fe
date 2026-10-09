@@ -285,6 +285,14 @@ const SoNumberTab = () => {
   const [searchClientFilter, setSearchClientFilter] = useState(savedState.searchClientFilter);
   const [searchVesselFilter, setSearchVesselFilter] = useState(savedState.searchVesselFilter);
   const [searchCountryFilter, setSearchCountryFilter] = useState(savedState.searchCountryFilter);
+  const [searchDestinationFilter, setSearchDestinationFilter] = useState(
+    typeof savedState.searchDestinationFilter === "string" ? savedState.searchDestinationFilter : ""
+  );
+  const [searchDestinationQuery, setSearchDestinationQuery] = useState(() =>
+    typeof savedState.searchDestinationFilter === "string"
+      ? savedState.searchDestinationFilter.trim()
+      : ""
+  );
   const [searchPicFilter, setSearchPicFilter] = useState(savedState.searchPicFilter);
   const [searchStatusFilter, setSearchStatusFilter] = useState(
     savedState.searchStatusFilter || ""
@@ -308,7 +316,11 @@ const SoNumberTab = () => {
   const vslsAgentDtlsDisclosure = useDisclosure();
   const packageLinkDisclosure = useDisclosure();
   const advancedFiltersDisclosure = useDisclosure({
-    defaultIsOpen: Boolean(savedState.searchVesselFilter),
+    defaultIsOpen: Boolean(
+      savedState.searchVesselFilter ||
+        (typeof savedState.searchDestinationFilter === "string" &&
+          savedState.searchDestinationFilter.trim())
+    ),
   });
 
   const [mergingOrderId, setMergingOrderId] = useState(null);
@@ -504,6 +516,7 @@ const SoNumberTab = () => {
       searchClientFilter,
       searchVesselFilter,
       searchCountryFilter,
+      searchDestinationFilter,
       searchPicFilter,
       searchStatusFilter,
       page,
@@ -524,6 +537,7 @@ const SoNumberTab = () => {
     searchStatusFilter,
     searchVesselFilter,
     searchCountryFilter,
+    searchDestinationFilter,
     page,
     activeFilters,
     activeATHPics,
@@ -614,6 +628,7 @@ const SoNumberTab = () => {
     const countryId = searchCountryFilter != null && typeof searchCountryFilter === "object"
       ? (searchCountryFilter.id ?? searchCountryFilter.value)
       : searchCountryFilter;
+    const destinationText = String(searchDestinationQuery || "").trim();
 
     const soId = searchQuery && searchQuery.trim() !== "" ? searchQuery.trim() : undefined;
 
@@ -624,6 +639,7 @@ const SoNumberTab = () => {
       ...buildShippingOrderListSortParams(nextActionSortOption),
       ...(vesselId != null && vesselId !== "" && { vessel_id: vesselId }),
       ...(countryId != null && countryId !== "" && { country_id: countryId }),
+      ...(destinationText && { destination: destinationText }),
     };
   }, [
     page,
@@ -641,6 +657,7 @@ const SoNumberTab = () => {
     searchStatusFilter,
     searchVesselFilter,
     searchCountryFilter,
+    searchDestinationQuery,
     nextActionSortOption,
   ]);
 
@@ -768,6 +785,7 @@ const SoNumberTab = () => {
     searchStatusFilter,
     searchVesselFilter,
     searchCountryFilter,
+    searchDestinationQuery,
   ]);
 
   // Search on input change (debounced) – sync searchValue to searchQuery so API is called automatically
@@ -783,6 +801,18 @@ const SoNumberTab = () => {
     }, 400);
     return () => clearTimeout(timer);
   }, [searchValue]);
+
+  const isFirstDestinationSearchRun = useRef(true);
+  useEffect(() => {
+    if (isFirstDestinationSearchRun.current) {
+      isFirstDestinationSearchRun.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      setSearchDestinationQuery(String(searchDestinationFilter || "").trim());
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchDestinationFilter]);
 
   // Normalize SO Number search input to numeric so_id (e.g. "SO-123" -> "123")
   const normalizeSoSearch = (value) => {
@@ -1535,9 +1565,9 @@ const SoNumberTab = () => {
           mb={advancedFiltersDisclosure.isOpen ? 3 : 0}
         >
           Advanced Filters
-          {(searchClientFilter || searchVesselFilter || searchCountryFilter || searchPicFilter || searchStatusFilter) && (
+          {(searchClientFilter || searchVesselFilter || searchCountryFilter || searchDestinationFilter || searchPicFilter || searchStatusFilter) && (
             <Badge ml="2" colorScheme="blue" fontSize="xs">
-              {(searchClientFilter ? 1 : 0) + (searchVesselFilter ? 1 : 0) + (searchCountryFilter ? 1 : 0) + (searchPicFilter ? 1 : 0) + (searchStatusFilter ? 1 : 0)}
+              {(searchClientFilter ? 1 : 0) + (searchVesselFilter ? 1 : 0) + (searchCountryFilter ? 1 : 0) + (searchDestinationFilter ? 1 : 0) + (searchPicFilter ? 1 : 0) + (searchStatusFilter ? 1 : 0)}
             </Badge>
           )}
         </Button>
@@ -1605,6 +1635,20 @@ const SoNumberTab = () => {
             </Box>
             <Box flex="1" minW="200px">
               <FormControl>
+                <FormLabel fontSize="xs" mb="1">Search by Destination</FormLabel>
+                <Input
+                  size="sm"
+                  value={searchDestinationFilter}
+                  onChange={(e) => setSearchDestinationFilter(e.target.value)}
+                  placeholder="Type to search"
+                  bg={inputBg}
+                  color={inputText}
+                  borderColor={borderColor}
+                />
+              </FormControl>
+            </Box>
+            <Box flex="1" minW="200px">
+              <FormControl>
                 <FormLabel fontSize="xs" mb="1">Search by PIC</FormLabel>
                 <SimpleSearchableSelect
                   value={searchPicFilter}
@@ -1646,7 +1690,7 @@ const SoNumberTab = () => {
                 </Select>
               </FormControl>
             </Box>
-            {(searchClientFilter || searchVesselFilter || searchCountryFilter || searchPicFilter || searchStatusFilter) && (
+            {(searchClientFilter || searchVesselFilter || searchCountryFilter || searchDestinationFilter || searchPicFilter || searchStatusFilter) && (
               <Button
                 size="sm"
                 leftIcon={<Icon as={MdClear} />}
@@ -1657,6 +1701,8 @@ const SoNumberTab = () => {
                   setSearchClientFilter(null);
                   setSearchVesselFilter(null);
                   setSearchCountryFilter(null);
+                  setSearchDestinationFilter("");
+                  setSearchDestinationQuery("");
                   setSearchPicFilter(null);
                   setSearchStatusFilter("");
                   setPage(1);
@@ -1950,7 +1996,7 @@ const SoNumberTab = () => {
               No shipping orders found
             </Text>
             <Text fontSize="sm" color="gray.500" maxW="360px">
-              {searchQuery || searchClientFilter || searchVesselFilter || searchCountryFilter || searchPicFilter || searchStatusFilter
+              {searchQuery || searchClientFilter || searchVesselFilter || searchCountryFilter || searchDestinationFilter || searchPicFilter || searchStatusFilter
                 ? "Try clearing search or filters to see more results."
                 : "Create a shipping order to see it listed here."}
             </Text>

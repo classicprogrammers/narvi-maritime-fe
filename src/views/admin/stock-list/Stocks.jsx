@@ -697,6 +697,7 @@ export default function Stocks() {
     const [stockViewEmptyFilters, setStockViewEmptyFilters] = useState(
         () => readStockEmptyFilters(savedState.stockViewEmptyFilters)
     );
+    const [textFilterResetKey, setTextFilterResetKey] = useState(0);
     const stockViewStatusFilterOptions = useMemo(
         () => getStatusOptionsForActiveFilter(stockStatusOptions, stockViewActiveFilter),
         [stockStatusOptions, stockViewActiveFilter]
@@ -967,6 +968,12 @@ export default function Stocks() {
         setApiFetchTrigger((t) => t + 1);
     });
 
+    const requestStockListRefresh = useEventCallback(() => {
+        setStockViewPage(1);
+        setClientViewPage(1);
+        setApiFetchTrigger((t) => t + 1);
+    });
+
     const hasStockViewFilters = Boolean(
         stockViewStockItemId ||
         stockViewClient ||
@@ -1021,7 +1028,8 @@ export default function Stocks() {
         setStockViewHasDestination(false);
         setVesselViewStatuses(new Set());
         setStockViewEmptyFilters({});
-        setStockViewPage(1);
+        setTextFilterResetKey((key) => key + 1);
+        requestStockListRefresh();
     });
 
     const hasClientViewFilters = Boolean(
@@ -1044,7 +1052,7 @@ export default function Stocks() {
         setCreateDateFrom("");
         setCreateDateTo("");
         setClientViewStatuses(new Set());
-        setClientViewPage(1);
+        requestStockListRefresh();
     });
 
     const handleColumnEmptyFilter = useEventCallback((param, mode) => {
@@ -1296,6 +1304,8 @@ export default function Stocks() {
         clientViewVesselFilter: resolveStockLocationOptionId(clientViewVesselFilter) ?? clientViewVesselFilter ?? null,
         clientViewViaHub1: resolveStockLocationOptionId(clientViewViaHub1),
         clientViewStatuses: [...(clientViewStatuses || [])].sort(),
+        clientViewSearchClient: clientViewSearchClient || "",
+        clientViewSearchVessel: clientViewSearchVessel || "",
         stockViewEmptyFilters,
     });
 
@@ -4925,6 +4935,7 @@ export default function Stocks() {
                         {activeTab === 0 && (
                             <>
                                 <DebouncedTextFilterInput
+                                    key={textFilterResetKey}
                                     value={stockViewSearchFilter}
                                     onChange={(next) => commitTextFilter(setStockViewSearchFilter, next)}
                                     placeholder="Search all fields..."
@@ -5515,6 +5526,7 @@ export default function Stocks() {
                                                         {/* Stock Item ID Filter */}
                                                         <Box w="220px" minW="200px">
                                                             <DebouncedTextFilterInput
+                                                                key={textFilterResetKey}
                                                                 value={stockViewStockItemId}
                                                                 onChange={(next) => commitTextFilter(setStockViewStockItemId, next)}
                                                                 placeholder="Filter by Stock Item ID"
@@ -5661,6 +5673,7 @@ export default function Stocks() {
                                                         {/* Warehouse ID Filter */}
                                                         <Box w="220px" minW="200px">
                                                             <DebouncedTextFilterInput
+                                                                key={textFilterResetKey}
                                                                 value={stockViewFilterWarehouseNew}
                                                                 onChange={(next) => commitTextFilter(setStockViewFilterWarehouseNew, next)}
                                                                 placeholder="Filter by Warehouse ID"
@@ -5676,6 +5689,7 @@ export default function Stocks() {
                                                         {/* SO Number Filter */}
                                                         <Box w="220px" minW="200px">
                                                             <DebouncedTextFilterInput
+                                                                key={textFilterResetKey}
                                                                 value={stockViewFilterSO}
                                                                 onChange={(next) => commitTextFilter(setStockViewFilterSO, next)}
                                                                 placeholder="Filter by SO Number"
@@ -5691,6 +5705,7 @@ export default function Stocks() {
                                                         {/* SI Number Filter */}
                                                         <Box w="220px" minW="200px">
                                                             <DebouncedTextFilterInput
+                                                                key={textFilterResetKey}
                                                                 value={stockViewFilterSI}
                                                                 onChange={(next) => commitTextFilter(setStockViewFilterSI, next)}
                                                                 placeholder="Filter by SI Number"
@@ -5706,6 +5721,7 @@ export default function Stocks() {
                                                         {/* SI Combined Filter */}
                                                         <Box w="220px" minW="200px">
                                                             <DebouncedTextFilterInput
+                                                                key={textFilterResetKey}
                                                                 value={stockViewFilterSICombined}
                                                                 onChange={(next) => commitTextFilter(setStockViewFilterSICombined, next)}
                                                                 placeholder="Filter by SI Combined"
@@ -5721,6 +5737,7 @@ export default function Stocks() {
                                                         {/* DI Number Filter */}
                                                         <Box w="220px" minW="200px">
                                                             <DebouncedTextFilterInput
+                                                                key={textFilterResetKey}
                                                                 value={stockViewFilterDI}
                                                                 onChange={(next) => commitTextFilter(setStockViewFilterDI, next)}
                                                                 placeholder="Filter by DI Number"
@@ -5887,6 +5904,7 @@ export default function Stocks() {
                                                         {/* Req No Filter */}
                                                         <Box w="220px" minW="200px">
                                                             <DebouncedTextFilterInput
+                                                                key={textFilterResetKey}
                                                                 value={stockViewFilterReqNo}
                                                                 onChange={(next) => commitTextFilter(setStockViewFilterReqNo, next)}
                                                                 placeholder="Filter by Req No..."
@@ -5901,6 +5919,7 @@ export default function Stocks() {
                                                         {/* PO Number Filter */}
                                                         <Box w="220px" minW="200px">
                                                             <DebouncedTextFilterInput
+                                                                key={textFilterResetKey}
                                                                 value={stockViewFilterPO}
                                                                 onChange={(next) => commitTextFilter(setStockViewFilterPO, next)}
                                                                 placeholder="Filter by PO number..."
@@ -7359,6 +7378,8 @@ export default function Stocks() {
                                     onClick={() => {
                                         setCreateDateFrom("");
                                         setCreateDateTo("");
+                                        requestStockListRefresh();
+                                        onCreateDateModalClose();
                                     }}
                                 >
                                     Clear
@@ -7430,6 +7451,8 @@ export default function Stocks() {
                                     onClick={() => {
                                         setDaysRangeFrom("");
                                         setDaysRangeTo("");
+                                        requestStockListRefresh();
+                                        onDaysRangeModalClose();
                                     }}
                                 >
                                     Clear

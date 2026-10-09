@@ -10,9 +10,7 @@ import {
     Menu,
     MenuButton,
     MenuItem,
-    MenuItemOption,
     MenuList,
-    MenuOptionGroup,
     Portal,
     Table,
     Tbody,
@@ -673,16 +671,29 @@ function StockColumnEmptyFilter({ label, value, onChange }) {
                     fontSize="sm"
                     color="gray.800"
                 >
-                    <MenuOptionGroup
-                        type="radio"
-                        value={isActive ? value : ""}
-                        onChange={(next) => onChange(next)}
+                    <MenuItem
+                        fontSize="sm"
+                        fontWeight={value === "empty" ? "700" : "400"}
+                        onClick={() => onChange(value === "empty" ? "" : "empty")}
                     >
-                        <MenuItemOption value="empty" fontSize="sm">Empty</MenuItemOption>
-                        <MenuItemOption value="not_empty" fontSize="sm">Filled</MenuItemOption>
-                    </MenuOptionGroup>
+                        Empty
+                    </MenuItem>
+                    <MenuItem
+                        fontSize="sm"
+                        fontWeight={value === "not_empty" ? "700" : "400"}
+                        onClick={() => onChange(value === "not_empty" ? "" : "not_empty")}
+                    >
+                        Filled
+                    </MenuItem>
                     {isActive && (
-                        <MenuItem fontSize="sm" color="red.600" onClick={() => onChange("")}>
+                        <MenuItem
+                            fontSize="sm"
+                            color="red.600"
+                            onMouseDown={(event) => {
+                                event.preventDefault();
+                            }}
+                            onClick={() => onChange("")}
+                        >
                             Clear
                         </MenuItem>
                     )}

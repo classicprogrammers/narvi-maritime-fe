@@ -136,6 +136,7 @@ export const defaultShippingOrderListState = {
   searchClientFilter: null,
   searchVesselFilter: null,
   searchCountryFilter: null,
+  searchDestinationFilter: "",
   searchPicFilter: null,
   searchStatusFilter: "",
   page: 1,
@@ -173,6 +174,8 @@ export function readPersistedShippingOrderListState() {
       searchClientFilter: normalizeStoredClientFilter(p.searchClientFilter),
       searchVesselFilter: p.searchVesselFilter != null ? p.searchVesselFilter : null,
       searchCountryFilter: p.searchCountryFilter != null ? p.searchCountryFilter : null,
+      searchDestinationFilter:
+        typeof p.searchDestinationFilter === "string" ? p.searchDestinationFilter : "",
       searchPicFilter: p.searchPicFilter != null ? p.searchPicFilter : null,
       searchStatusFilter:
         typeof p.searchStatusFilter === "string" ? p.searchStatusFilter : "",
