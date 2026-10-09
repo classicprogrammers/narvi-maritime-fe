@@ -906,7 +906,7 @@ export function createManualStockReportGenerator({
     shippingOrders = [],
     saveRowBeforePdf,
 }) {
-    return async function generateStockReportManually(rowIndex) {
+    return async function generateStockReportManually(rowIndex, options = {}) {
         setStockReportPdfLoadingRowIndex(rowIndex);
         let reportApplied = false;
         let rowBeforeReport = null;
@@ -995,26 +995,30 @@ export function createManualStockReportGenerator({
             latestRow = clearUploadedPendingAttachmentsFromRow(formRowsRef?.current?.[rowIndex] || latestRow);
             commitStockFormRow(formRowsRef, setFormRows, rowIndex, latestRow);
 
-            toast({
-                title: "Stock report generated",
-                description: "The stock item was saved and the report was attached.",
-                status: "success",
-                duration: 4000,
-                isClosable: true,
-            });
+            if (!options.skipToast) {
+                toast({
+                    title: "Stock report generated",
+                    description: "The stock item was saved and the report was attached.",
+                    status: "success",
+                    duration: 4000,
+                    isClosable: true,
+                });
+            }
             return true;
         } catch (err) {
             if (reportApplied && rowBeforeReport) {
                 commitStockFormRow(formRowsRef, setFormRows, rowIndex, rowBeforeReport);
             }
             console.error("Stock report PDF:", err);
-            toast({
-                title: "Could not generate stock report",
-                description: err?.message || "Please try again.",
-                status: "error",
-                duration: 5000,
-                isClosable: true,
-            });
+            if (!options.skipToast) {
+                toast({
+                    title: "Could not generate stock report",
+                    description: err?.message || "Please try again.",
+                    status: "error",
+                    duration: 5000,
+                    isClosable: true,
+                });
+            }
             return false;
         } finally {
             setStockReportPdfLoadingRowIndex(null);

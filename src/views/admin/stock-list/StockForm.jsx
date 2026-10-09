@@ -29,6 +29,7 @@ import {
     Td,
     Card,
     IconButton,
+    Tooltip,
     Modal,
     ModalOverlay,
     ModalContent,
@@ -80,6 +81,10 @@ import {
     createSaveRowBeforeStockReportPdf,
     createStockPdfRowHelpers,
 } from "../../../utils/stockReportPdf";
+
+function withUnlockedStockReport(row, patch = {}) {
+    return { ...(row || {}), ...patch, stockReportLocked: false };
+}
 import StockReportGenerateModal from "../../../components/stock-list/StockReportGenerateModal";
 import { partitionAttachmentsRow } from "../../../utils/stockReportAttachmentsUi";
 import { calculateVolumeCbmFromLwhCm, formatRowTotalVolumeCbm } from "../../../utils/stockVolume";
@@ -623,10 +628,9 @@ export default function StockForm() {
         Promise.all(filePromises).then(newAttachments => {
             setFormRows(prevRows => prevRows.map((row, idx) => {
                 if (idx === rowIndex) {
-                    return {
-                        ...row,
-                        attachments: [...(row.attachments || []), ...newAttachments]
-                    };
+                    return withUnlockedStockReport(row, {
+                        attachments: [...(row.attachments || []), ...newAttachments],
+                    });
                 }
                 return row;
             }));
@@ -639,7 +643,7 @@ export default function StockForm() {
             if (idx === rowIndex) {
                 const newAttachments = [...(row.attachments || [])];
                 newAttachments.splice(attachmentIndex, 1);
-                return { ...row, attachments: newAttachments };
+                return withUnlockedStockReport(row, { attachments: newAttachments });
             }
             return row;
         }));
@@ -652,11 +656,10 @@ export default function StockForm() {
                 const existingAttachments = [...(row.existingAttachments || [])];
                 const updatedAttachments = existingAttachments.filter(att => att.id !== attachmentId);
                 const attachmentsToDelete = [...(row.attachmentsToDelete || []), attachmentId];
-                return {
-                    ...row,
+                return withUnlockedStockReport(row, {
                     existingAttachments: updatedAttachments,
-                    attachmentsToDelete: attachmentsToDelete
-                };
+                    attachmentsToDelete: attachmentsToDelete,
+                });
             }
             return row;
         }));
@@ -676,7 +679,8 @@ export default function StockForm() {
             }
             const updatedRow = {
                 ...newRows[rowIndex],
-                [field]: processedValue
+                [field]: processedValue,
+                stockReportLocked: false,
             };
 
             if (field === "client") {
@@ -820,6 +824,7 @@ export default function StockForm() {
             const newRow = {
                 ...rowToCopy,
                 id: Date.now() + Math.random(), // New unique ID
+                stockReportLocked: false,
             };
             const newRows = [...prev];
             newRows.splice(rowIndex + 1, 0, newRow); // Insert after current row
@@ -1132,7 +1137,7 @@ export default function StockForm() {
 
     const openStockReportPreview = (rowIndex) => {
         const row = formRowsRef.current?.[rowIndex] ?? formRows[rowIndex];
-        if (!row) return;
+        if (!row || row.stockReportLocked) return;
         stockReportSnapshotRef.current = cloneStockFormRow(row);
         setStockReportPreview({ rowIndex });
     };
@@ -1155,11 +1160,22 @@ export default function StockForm() {
     const confirmStockReportPreview = async () => {
         if (!stockReportPreview) return;
         formRowsRef.current = formRows;
-        const ok = await generateStockReportManually(stockReportPreview.rowIndex);
+        const rowIndex = stockReportPreview.rowIndex;
+        const stayOnPage = (formRowsRef.current?.length || formRows.length) > 1;
+        const ok = await generateStockReportManually(rowIndex);
         if (ok) {
             stockReportSnapshotRef.current = null;
             setStockReportPreview(null);
-            history.push("/admin/stock-list/stocks");
+            setFormRows((prev) => {
+                const next = prev.map((row, index) =>
+                    index === rowIndex ? { ...row, stockReportLocked: true } : row
+                );
+                formRowsRef.current = next;
+                return next;
+            });
+            if (!stayOnPage) {
+                history.push("/admin/stock-list/stocks");
+            }
         }
     };
 
@@ -2237,18 +2253,27 @@ export default function StockForm() {
                                         </HStack>
                                     </Td>
                                     <Td px="12px" py="8px" textAlign="center">
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            colorScheme="blue"
-                                            whiteSpace="nowrap"
-                                            leftIcon={<Icon as={MdPictureAsPdf} boxSize={4} />}
-                                            onClick={() => openStockReportPreview(rowIndex)}
-                                            isLoading={stockReportPdfLoadingRowIndex === rowIndex}
-                                            loadingText="Generating..."
+                                        <Tooltip
+                                            label="Change this item to generate a new stock report"
+                                            isDisabled={!row.stockReportLocked}
+                                            hasArrow
                                         >
-                                            Generate Stock Report
-                                        </Button>
+                                            <Box display="inline-block">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    colorScheme="blue"
+                                                    whiteSpace="nowrap"
+                                                    leftIcon={<Icon as={MdPictureAsPdf} boxSize={4} />}
+                                                    onClick={() => openStockReportPreview(rowIndex)}
+                                                    isLoading={stockReportPdfLoadingRowIndex === rowIndex}
+                                                    isDisabled={Boolean(row.stockReportLocked)}
+                                                    loadingText="Generating..."
+                                                >
+                                                    Generate Stock Report
+                                                </Button>
+                                            </Box>
+                                        </Tooltip>
                                     </Td>
                                 </Tr>
                             ))}
@@ -2291,7 +2316,7 @@ export default function StockForm() {
                     const rowIndex = stockReportPreview.rowIndex;
                     setFormRows((prev) => {
                         const next = [...prev];
-                        next[rowIndex] = { ...(next[rowIndex] || {}), ...patch };
+                        next[rowIndex] = withUnlockedStockReport(next[rowIndex], patch);
                         return next;
                     });
                 }}

@@ -495,6 +495,11 @@ function readPersistedStockViewEditState() {
             stockViewStockItemId: typeof p.stockViewStockItemId === "string" ? p.stockViewStockItemId : "",
             stockViewDateOnStock: typeof p.stockViewDateOnStock === "string" ? p.stockViewDateOnStock : "",
             stockViewDaysOnStock: typeof p.stockViewDaysOnStock === "string" ? p.stockViewDaysOnStock : "",
+            createDateFrom: typeof p.createDateFrom === "string" ? p.createDateFrom : "",
+            createDateTo: typeof p.createDateTo === "string" ? p.createDateTo : "",
+            daysRangeFrom: typeof p.daysRangeFrom === "string" ? p.daysRangeFrom : "",
+            daysRangeTo: typeof p.daysRangeTo === "string" ? p.daysRangeTo : "",
+            fetchAllStockList: p.fetchAllStockList === true,
             stockViewFilterSO: typeof p.stockViewFilterSO === "string" ? p.stockViewFilterSO : "",
             stockViewFilterSI: typeof p.stockViewFilterSI === "string" ? p.stockViewFilterSI : "",
             stockViewFilterSICombined: typeof p.stockViewFilterSICombined === "string" ? p.stockViewFilterSICombined : "",
@@ -562,6 +567,11 @@ const defaultStockViewEditState = {
     stockViewStockItemId: "",
     stockViewDateOnStock: "",
     stockViewDaysOnStock: "",
+    createDateFrom: "",
+    createDateTo: "",
+    daysRangeFrom: "",
+    daysRangeTo: "",
+    fetchAllStockList: false,
     stockViewFilterSO: "",
     stockViewFilterSI: "",
     stockViewFilterSICombined: "",
@@ -601,7 +611,7 @@ export default function Stocks() {
     const PAGE_SIZE = 40;
 
     // When true, API gets fetch_all=true; otherwise page-by-page (PAGE_SIZE)
-    const [fetchAllStockList, setFetchAllStockList] = useState(false);
+    const [fetchAllStockList, setFetchAllStockList] = useState(Boolean(savedState.fetchAllStockList));
 
     // Pagination state for Stock View / Edit tab (activeTab === 0)
     const [stockViewPage, setStockViewPage] = useState(savedState.stockViewPage);
@@ -648,10 +658,10 @@ export default function Stocks() {
 
     // State to control filters section visibility - default to open
     const [showFilters, setShowFilters] = useState(true);
-    const [createDateFrom, setCreateDateFrom] = useState("");
-    const [createDateTo, setCreateDateTo] = useState("");
-    const [daysRangeFrom, setDaysRangeFrom] = useState("");
-    const [daysRangeTo, setDaysRangeTo] = useState("");
+    const [createDateFrom, setCreateDateFrom] = useState(savedState.createDateFrom || "");
+    const [createDateTo, setCreateDateTo] = useState(savedState.createDateTo || "");
+    const [daysRangeFrom, setDaysRangeFrom] = useState(savedState.daysRangeFrom || "");
+    const [daysRangeTo, setDaysRangeTo] = useState(savedState.daysRangeTo || "");
     const { isOpen: isCreateDateModalOpen, onOpen: onCreateDateModalOpen, onClose: onCreateDateModalClose } = useDisclosure();
     const {
         isOpen: isSelectedTotalsModalOpen,
@@ -739,6 +749,11 @@ export default function Stocks() {
             stockViewStockItemId,
             stockViewDateOnStock,
             stockViewDaysOnStock,
+            createDateFrom,
+            createDateTo,
+            daysRangeFrom,
+            daysRangeTo,
+            fetchAllStockList,
             stockViewFilterSO,
             stockViewFilterSI,
             stockViewFilterSICombined,
@@ -757,7 +772,7 @@ export default function Stocks() {
             sortOption,
             clientSortOption,
         });
-    }, [activeTab, stockViewPage, clientViewPage, vesselViewClient, vesselViewVessel, vesselViewStatuses, clientViewClient, clientViewStatuses, clientViewFilterType, clientViewSearchClient, clientViewSearchVessel, clientViewVesselFilter, clientViewViaHub1, stockViewClient, stockViewVessel, stockViewStatus, stockViewStockItemId, stockViewDateOnStock, stockViewDaysOnStock, stockViewFilterSO, stockViewFilterSI, stockViewFilterSICombined, stockViewFilterDI, stockViewFilterPO, stockViewFilterReqNo, stockViewFilterWarehouseNew, stockViewSearchFilter, stockViewHasDestination, stockViewViaHub1, stockViewViaHub2, stockViewApDestination, stockViewOrigin, stockViewActiveFilter, stockViewEmptyFilters, sortOption, clientSortOption]);
+    }, [activeTab, stockViewPage, clientViewPage, vesselViewClient, vesselViewVessel, vesselViewStatuses, clientViewClient, clientViewStatuses, clientViewFilterType, clientViewSearchClient, clientViewSearchVessel, clientViewVesselFilter, clientViewViaHub1, stockViewClient, stockViewVessel, stockViewStatus, stockViewStockItemId, stockViewDateOnStock, stockViewDaysOnStock, createDateFrom, createDateTo, daysRangeFrom, daysRangeTo, fetchAllStockList, stockViewFilterSO, stockViewFilterSI, stockViewFilterSICombined, stockViewFilterDI, stockViewFilterPO, stockViewFilterReqNo, stockViewFilterWarehouseNew, stockViewSearchFilter, stockViewHasDestination, stockViewViaHub1, stockViewViaHub2, stockViewApDestination, stockViewOrigin, stockViewActiveFilter, stockViewEmptyFilters, sortOption, clientSortOption]);
 
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
@@ -1306,6 +1321,10 @@ export default function Stocks() {
         clientViewStatuses: [...(clientViewStatuses || [])].sort(),
         clientViewSearchClient: clientViewSearchClient || "",
         clientViewSearchVessel: clientViewSearchVessel || "",
+        createDateFrom: createDateFrom || "",
+        createDateTo: createDateTo || "",
+        daysRangeFrom: daysRangeFrom || "",
+        daysRangeTo: daysRangeTo || "",
         stockViewEmptyFilters,
     });
 
@@ -1486,6 +1505,12 @@ export default function Stocks() {
     useEffect(() => {
         if (location.state && location.state.filterState) {
             if (location.state.fromEdit) {
+                const { filterState } = location.state;
+                if (filterState.createDateFrom !== undefined) setCreateDateFrom(filterState.createDateFrom || "");
+                if (filterState.createDateTo !== undefined) setCreateDateTo(filterState.createDateTo || "");
+                if (filterState.daysRangeFrom !== undefined) setDaysRangeFrom(filterState.daysRangeFrom || "");
+                if (filterState.daysRangeTo !== undefined) setDaysRangeTo(filterState.daysRangeTo || "");
+                if (filterState.fetchAllStockList !== undefined) setFetchAllStockList(Boolean(filterState.fetchAllStockList));
                 history.replace(location.pathname, {});
                 return;
             }
@@ -1507,6 +1532,11 @@ export default function Stocks() {
             if (filterState.stockViewStockItemId !== undefined) setStockViewStockItemId(filterState.stockViewStockItemId);
             if (filterState.stockViewDateOnStock !== undefined) setStockViewDateOnStock(filterState.stockViewDateOnStock);
             if (filterState.stockViewDaysOnStock !== undefined) setStockViewDaysOnStock(filterState.stockViewDaysOnStock);
+            if (filterState.createDateFrom !== undefined) setCreateDateFrom(filterState.createDateFrom);
+            if (filterState.createDateTo !== undefined) setCreateDateTo(filterState.createDateTo);
+            if (filterState.daysRangeFrom !== undefined) setDaysRangeFrom(filterState.daysRangeFrom);
+            if (filterState.daysRangeTo !== undefined) setDaysRangeTo(filterState.daysRangeTo);
+            if (filterState.fetchAllStockList !== undefined) setFetchAllStockList(Boolean(filterState.fetchAllStockList));
             if (filterState.stockViewFilterSO !== undefined) setStockViewFilterSO(filterState.stockViewFilterSO);
             if (filterState.stockViewFilterSI !== undefined) setStockViewFilterSI(filterState.stockViewFilterSI);
             if (filterState.stockViewFilterSICombined !== undefined) setStockViewFilterSICombined(filterState.stockViewFilterSICombined);
@@ -1612,6 +1642,11 @@ export default function Stocks() {
             stockViewStockItemId,
             stockViewDateOnStock,
             stockViewDaysOnStock,
+            createDateFrom,
+            createDateTo,
+            daysRangeFrom,
+            daysRangeTo,
+            fetchAllStockList,
             stockViewFilterSO,
             stockViewFilterSI,
             stockViewFilterSICombined,
@@ -1657,6 +1692,11 @@ export default function Stocks() {
                 stockViewStockItemId,
                 stockViewDateOnStock,
                 stockViewDaysOnStock,
+                createDateFrom,
+                createDateTo,
+                daysRangeFrom,
+                daysRangeTo,
+                fetchAllStockList,
                 stockViewHasDestination,
                 stockViewActiveFilter,
             };

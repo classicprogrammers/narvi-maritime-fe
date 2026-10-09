@@ -30,6 +30,7 @@ import {
     Card,
     IconButton,
     Badge,
+    Tooltip,
     Modal,
     ModalOverlay,
     ModalContent,
@@ -89,6 +90,10 @@ import {
     createSaveRowBeforeStockReportPdf,
     createStockPdfRowHelpers,
 } from "../../../utils/stockReportPdf";
+
+function withUnlockedStockReport(row, patch = {}) {
+    return { ...(row || {}), ...patch, stockReportLocked: false };
+}
 import StockReportGenerateModal from "../../../components/stock-list/StockReportGenerateModal";
 import { partitionAttachmentsRow, collectRowAttachmentsForPreview } from "../../../utils/stockReportAttachmentsUi";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
@@ -1351,10 +1356,7 @@ export default function StockForm() {
             });
 
             const applyCopy = (targetIndex) => {
-                newRows[targetIndex] = {
-                    ...newRows[targetIndex],
-                    ...sourceValues,
-                };
+                newRows[targetIndex] = withUnlockedStockReport(newRows[targetIndex], sourceValues);
             };
 
             if (copyToAll) {
@@ -1402,10 +1404,9 @@ export default function StockForm() {
         Promise.all(filePromises).then(newAttachments => {
             setFormRows(prevRows => prevRows.map((row, idx) => {
                 if (idx === rowIndex) {
-                    return {
-                        ...row,
-                        attachments: [...(row.attachments || []), ...newAttachments]
-                    };
+                    return withUnlockedStockReport(row, {
+                        attachments: [...(row.attachments || []), ...newAttachments],
+                    });
                 }
                 return row;
             }));
@@ -1418,7 +1419,7 @@ export default function StockForm() {
             if (idx === rowIndex) {
                 const newAttachments = [...(row.attachments || [])];
                 newAttachments.splice(attachmentIndex, 1);
-                return { ...row, attachments: newAttachments };
+                return withUnlockedStockReport(row, { attachments: newAttachments });
             }
             return row;
         }));
@@ -1431,11 +1432,10 @@ export default function StockForm() {
                 const existingAttachments = [...(row.existingAttachments || [])];
                 const updatedAttachments = existingAttachments.filter(att => att.id !== attachmentId);
                 const attachmentsToDelete = [...(row.attachmentsToDelete || []), attachmentId];
-                return {
-                    ...row,
+                return withUnlockedStockReport(row, {
                     existingAttachments: updatedAttachments,
-                    attachmentsToDelete: attachmentsToDelete
-                };
+                    attachmentsToDelete: attachmentsToDelete,
+                });
             }
             return row;
         }));
@@ -1492,7 +1492,8 @@ export default function StockForm() {
 
             const updatedRow = {
                 ...newRows[rowIndex],
-                [field]: processedValue
+                [field]: processedValue,
+                stockReportLocked: false,
             };
 
             if (field === "client") {
@@ -1599,7 +1600,7 @@ export default function StockForm() {
                 updatedRow.stockStatusChangedBy = statusChangeActorName;
                 updatedRow.stockStatusPreviousForPayload = oldStatus;
             }
-            newRows[rowIndex] = updatedRow;
+            newRows[rowIndex] = withUnlockedStockReport(updatedRow);
             return newRows;
         });
         handleCancelReasonModalDismiss();
@@ -1679,6 +1680,7 @@ export default function StockForm() {
                 stockId: null, // Clear stockId so it's treated as a new record
                 stockItemId: "", // Clear stockItemId for new record
                 updateBaselineRow: null,
+                stockReportLocked: false,
                 _order: maxOrder + 1,
                 dimensions: Array.isArray(rowToCopy.dimensions)
                     ? rowToCopy.dimensions.map((dim) => ({ ...(dim || {}), id: null }))
@@ -2038,7 +2040,7 @@ export default function StockForm() {
 
     const openStockReportPreview = (rowIndex) => {
         const row = formRowsRef.current?.[rowIndex] ?? formRows[rowIndex];
-        if (!row) return;
+        if (!row || row.stockReportLocked) return;
         stockReportSnapshotRef.current = cloneStockFormRow(row);
         setStockReportPreview({ rowIndex });
     };
@@ -2061,12 +2063,23 @@ export default function StockForm() {
     const confirmStockReportPreview = async () => {
         if (!stockReportPreview) return;
         formRowsRef.current = formRows;
-        const ok = await generateStockReportManually(stockReportPreview.rowIndex);
+        const rowIndex = stockReportPreview.rowIndex;
+        const stayOnPage = (formRowsRef.current?.length || formRows.length) > 1;
+        const ok = await generateStockReportManually(rowIndex);
         if (ok) {
             stockReportSnapshotRef.current = null;
             setStockReportPreview(null);
-            setAddStockHasDataFlag(false);
-            history.push("/admin/stock-list/stocks");
+            setFormRows((prev) => {
+                const next = prev.map((row, index) =>
+                    index === rowIndex ? { ...row, stockReportLocked: true } : row
+                );
+                formRowsRef.current = next;
+                return next;
+            });
+            if (!stayOnPage) {
+                setAddStockHasDataFlag(false);
+                history.push("/admin/stock-list/stocks");
+            }
         }
     };
 
@@ -2799,11 +2812,10 @@ export default function StockForm() {
                                                         setFormRows((prev) => {
                                                             const next = [...prev];
                                                             const current = next[rowIndex] || {};
-                                                            next[rowIndex] = {
-                                                                ...current,
+                                                            next[rowIndex] = withUnlockedStockReport(current, {
                                                                 origin_text: text,
                                                                 originId: nextId,
-                                                            };
+                                                            });
                                                             return next;
                                                         });
                                                     }}
@@ -2839,11 +2851,10 @@ export default function StockForm() {
                                                         }
                                                         setFormRows((prev) => {
                                                             const next = [...prev];
-                                                            next[rowIndex] = {
-                                                                ...(next[rowIndex] || {}),
+                                                            next[rowIndex] = withUnlockedStockReport(next[rowIndex], {
                                                                 narviStockViaHub1: id,
                                                                 narviStockViaHub1Name: name || "",
-                                                            };
+                                                            });
                                                             return next;
                                                         });
                                                     }}
@@ -2879,11 +2890,10 @@ export default function StockForm() {
                                                         }
                                                         setFormRows((prev) => {
                                                             const next = [...prev];
-                                                            next[rowIndex] = {
-                                                                ...(next[rowIndex] || {}),
+                                                            next[rowIndex] = withUnlockedStockReport(next[rowIndex], {
                                                                 narviStockViaHub2: id,
                                                                 narviStockViaHub2Name: name || "",
-                                                            };
+                                                            });
                                                             return next;
                                                         });
                                                     }}
@@ -2919,11 +2929,10 @@ export default function StockForm() {
                                                         }
                                                         setFormRows((prev) => {
                                                             const next = [...prev];
-                                                            next[rowIndex] = {
-                                                                ...(next[rowIndex] || {}),
+                                                            next[rowIndex] = withUnlockedStockReport(next[rowIndex], {
                                                                 narviStockApDestination: id,
                                                                 narviStockApDestinationName: name || "",
-                                                            };
+                                                            });
                                                             return next;
                                                         });
                                                     }}
@@ -2959,11 +2968,10 @@ export default function StockForm() {
                                                         }
                                                         setFormRows((prev) => {
                                                             const next = [...prev];
-                                                            next[rowIndex] = {
-                                                                ...(next[rowIndex] || {}),
+                                                            next[rowIndex] = withUnlockedStockReport(next[rowIndex], {
                                                                 destinationId: id,
                                                                 destinationName: name || "",
-                                                            };
+                                                            });
                                                             return next;
                                                         });
                                                     }}
@@ -3450,18 +3458,27 @@ export default function StockForm() {
                                             </HStack>
                                         </Td>
                                         <Td px="12px" py="8px" textAlign="center">
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                colorScheme="blue"
-                                                whiteSpace="nowrap"
-                                                leftIcon={<Icon as={MdPictureAsPdf} boxSize={4} />}
-                                                onClick={() => openStockReportPreview(rowIndex)}
-                                                isLoading={stockReportPdfLoadingRowIndex === rowIndex}
-                                                loadingText="Generating..."
+                                            <Tooltip
+                                                label="Change this item to generate a new stock report"
+                                                isDisabled={!row.stockReportLocked}
+                                                hasArrow
                                             >
-                                                Generate Stock Report
-                                            </Button>
+                                                <Box display="inline-block">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        colorScheme="blue"
+                                                        whiteSpace="nowrap"
+                                                        leftIcon={<Icon as={MdPictureAsPdf} boxSize={4} />}
+                                                        onClick={() => openStockReportPreview(rowIndex)}
+                                                        isLoading={stockReportPdfLoadingRowIndex === rowIndex}
+                                                        isDisabled={Boolean(row.stockReportLocked)}
+                                                        loadingText="Generating..."
+                                                    >
+                                                        Generate Stock Report
+                                                    </Button>
+                                                </Box>
+                                            </Tooltip>
                                         </Td>
                                     </Tr>
                                 ))}
@@ -3496,11 +3513,10 @@ export default function StockForm() {
                     if (nextId != null) pinOption("origin", match);
                     setFormRows((prev) => {
                         const next = [...prev];
-                        next[rowIndex] = {
-                            ...(next[rowIndex] || {}),
+                        next[rowIndex] = withUnlockedStockReport(next[rowIndex], {
                             origin_text: text,
                             originId: nextId,
-                        };
+                        });
                         return next;
                     });
                 }}
@@ -3510,11 +3526,10 @@ export default function StockForm() {
                     if (id != null && name) pinOption("viaHub1", { id, name });
                     setFormRows((prev) => {
                         const next = [...prev];
-                        next[rowIndex] = {
-                            ...(next[rowIndex] || {}),
+                        next[rowIndex] = withUnlockedStockReport(next[rowIndex], {
                             narviStockViaHub1: id,
                             narviStockViaHub1Name: name || "",
-                        };
+                        });
                         return next;
                     });
                 }}
@@ -3535,7 +3550,7 @@ export default function StockForm() {
                     }
                     setFormRows((prev) => {
                         const next = [...prev];
-                        next[rowIndex] = { ...(next[rowIndex] || {}), ...patch };
+                        next[rowIndex] = withUnlockedStockReport(next[rowIndex], patch);
                         return next;
                     });
                 }}
