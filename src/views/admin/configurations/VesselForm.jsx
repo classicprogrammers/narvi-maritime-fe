@@ -938,7 +938,7 @@ export default function VesselForm() {
           </Button>
           <Button
             leftIcon={<Icon as={MdSave} />}
-            colorScheme={isEdit || isBulk ? "green" : "blue"}
+            colorScheme="blue"
             size="sm"
             onClick={handleSave}
             isLoading={isSaving}

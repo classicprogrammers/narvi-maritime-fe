@@ -293,7 +293,7 @@ const VesselDetail = () => {
             <Button leftIcon={<Icon as={MdPrint} />} onClick={handlePrint}>
               Print
             </Button>
-            <Button leftIcon={<Icon as={MdEdit} />} onClick={handleEdit} colorScheme="blue">
+            <Button leftIcon={<Icon as={MdEdit} />} onClick={handleEdit} colorScheme="red">
               Edit
             </Button>
             <Button onClick={() => history.push("/admin/configurations/vessels")}>

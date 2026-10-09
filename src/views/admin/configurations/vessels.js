@@ -643,10 +643,10 @@ export default function Vessels() {
                 <Button size="sm" variant="ghost" onClick={() => setSelectedVesselIds([])}>
                   Clear selection
                 </Button>
-                <Button size="sm" colorScheme="blue" leftIcon={<Icon as={MdEdit} />} onClick={openBulkEdit}>
+                <Button size="sm" colorScheme="red" leftIcon={<Icon as={MdEdit} />} onClick={openBulkEdit}>
                   Edit selected
                 </Button>
-                <Button size="sm" colorScheme="red" leftIcon={<Icon as={MdDelete} />} onClick={onBulkDeleteOpen}>
+                <Button size="sm" colorScheme="orange" leftIcon={<Icon as={MdDelete} />} onClick={onBulkDeleteOpen}>
                   Delete selected
                 </Button>
               </HStack>
@@ -835,7 +835,7 @@ export default function Vessels() {
                             <IconButton
                               icon={<Icon as={MdEdit} />}
                               size="sm"
-                              colorScheme="blue"
+                              colorScheme="red"
                               variant="ghost"
                               aria-label="Edit vessel"
                               onClick={(e) => {
@@ -848,7 +848,7 @@ export default function Vessels() {
                             <IconButton
                               icon={<Icon as={MdDelete} />}
                               size="sm"
-                              colorScheme="red"
+                              colorScheme="orange"
                               variant="ghost"
                               aria-label="Delete vessel"
                               onClick={(e) => {
