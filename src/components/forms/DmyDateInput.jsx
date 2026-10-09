@@ -2,6 +2,15 @@ import React from "react";
 import { Box, Input, IconButton, Icon } from "@chakra-ui/react";
 import { MdCalendarToday } from "react-icons/md";
 
+/** Local calendar date as YYYY-MM-DD (not UTC). */
+export const getLocalTodayIso = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 export const normalizeToIsoDate = (value) => {
   if (value == null || value === false) return "";
   const text = String(value).trim();
@@ -13,6 +22,15 @@ export const normalizeToIsoDate = (value) => {
     return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
   }
   return text;
+};
+
+/** If value is a complete date after today, return today; otherwise leave it as-is. */
+export const clampIsoDateToToday = (value) => {
+  if (value == null || value === false || value === "") return value;
+  const iso = normalizeToIsoDate(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return value;
+  const today = getLocalTodayIso();
+  return iso > today ? today : iso;
 };
 
 /** Convert UI date (dd/mm/yyyy) to API format (yyyy-mm-dd). */
@@ -45,11 +63,20 @@ export default function DmyDateInput({
   onChange,
   placeholder = "dd/mm/yyyy",
   iconColor = "whiteAlpha.900",
+  max,
   ...inputProps
 }) {
   const pickerRef = React.useRef(null);
   const displayValue = formatIsoToDisplayDate(value);
   const pickerValue = normalizeToIsoDate(value);
+  const emitChange = (next) => {
+    const iso = normalizeToIsoDate(next);
+    if (max && /^\d{4}-\d{2}-\d{2}$/.test(iso) && iso > max) {
+      onChange(max);
+      return;
+    }
+    onChange(next);
+  };
 
   const openPicker = () => {
     const pickerEl = pickerRef.current;
@@ -68,7 +95,7 @@ export default function DmyDateInput({
         id={id}
         type="text"
         value={displayValue}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => emitChange(e.target.value)}
         placeholder={placeholder}
         pr="28px"
         _placeholder={{ color: "whiteAlpha.800" }}
@@ -78,7 +105,8 @@ export default function DmyDateInput({
         ref={pickerRef}
         type="date"
         value={pickerValue}
-        onChange={(e) => onChange(formatIsoToDisplayDate(e.target.value))}
+        max={max}
+        onChange={(e) => emitChange(formatIsoToDisplayDate(e.target.value))}
         position="absolute"
         opacity={0}
         pointerEvents="none"

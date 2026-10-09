@@ -106,6 +106,7 @@ function collectShippingOrdersFromStockItems(items = []) {
 }
 import { useMasterData } from "../../../hooks/useMasterData";
 import RemoteSearchableSelect from "../../../components/forms/RemoteSearchableSelect";
+import { clampIsoDateToToday, getLocalTodayIso } from "../../../components/forms/DmyDateInput";
 import StockOriginCountrySelect from "../../../components/forms/StockOriginCountrySelect";
 import { CellWithAssignMenu } from "../../../components/forms/AssignToRowsBelowMenu";
 import StockValueInput from "../../../components/forms/StockValueInput";
@@ -4304,19 +4305,25 @@ export default function Stocks() {
                         ))}
                     </Select>
                 );
-            case "date":
+            case "date": {
+                const isDateOnStock = field === "date_on_stock";
+                const todayIso = getLocalTodayIso();
                 return wrapAssign(
                     <Input
                         type="date"
                         size="sm"
                         value={currentValue ? new Date(currentValue).toISOString().split('T')[0] : ""}
-                        onChange={(e) => handleChange(e.target.value)}
+                        max={isDateOnStock ? todayIso : undefined}
+                        onChange={(e) =>
+                            handleChange(isDateOnStock ? clampIsoDateToToday(e.target.value) : e.target.value)
+                        }
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
                         title={currentValue ? String(currentValue) : undefined}
                     />
                 );
+            }
             case "number":
                 if (field === "value") {
                     return wrapAssign(

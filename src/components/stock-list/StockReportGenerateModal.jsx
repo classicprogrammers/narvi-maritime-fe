@@ -44,7 +44,7 @@ import RemoteSearchableSelect from "../forms/RemoteSearchableSelect";
 import StockIdNameSearchableSelect from "../forms/StockIdNameSearchableSelect";
 import StockOriginCountrySelect from "../forms/StockOriginCountrySelect";
 import StockValueInput from "../forms/StockValueInput";
-import DmyDateInput, { normalizeToIsoDate } from "../forms/DmyDateInput";
+import DmyDateInput, { getLocalTodayIso, normalizeToIsoDate } from "../forms/DmyDateInput";
 import { formatStatusForPdf } from "../../utils/stockReportPdf";
 import { calculateVolumeCbmFromLwhCm } from "../../utils/stockVolume";
 import { isStockT1Marked, STOCK_T1_HEADING, STOCK_T1_MARK } from "../../constants/stockT1";
@@ -437,6 +437,7 @@ function StockReportPreview({
                                             <DmyDateInput
                                                 {...fieldInputProps}
                                                 value={row.dateOnStock || row[dateField] || ""}
+                                                max={getLocalTodayIso()}
                                                 onChange={(next) => onFieldChange("dateOnStock", normalizeToIsoDate(next))}
                                                 iconColor="gray.600"
                                                 _placeholder={{ color: "gray.400" }}

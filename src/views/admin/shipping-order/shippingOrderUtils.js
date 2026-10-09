@@ -25,8 +25,11 @@ function parseSoIdFromDisplay(val) {
  */
 export function normalizeOrder(order) {
   if (!order) return null;
-  const rawCreated = order.date_created || order.date_order || order.create_date;
-  const createdDateOnly = rawCreated ? String(rawCreated).split(" ")[0] : "";
+  const rawDateOrder =
+    order.date_order != null && order.date_order !== false && order.date_order !== ""
+      ? String(order.date_order)
+      : "";
+  const createdDateOnly = rawDateOrder ? rawDateOrder.split(" ")[0].split("T")[0] : "";
 
   const picVal = order.pic_new || order.pic_id || order.pic;
   const clientVal = order.client_id || order.partner_id;
@@ -48,6 +51,7 @@ export function normalizeOrder(order) {
     so_id: soIdVal,
     so_number: soDisplay,
     date_created: createdDateOnly,
+    date_order: rawDateOrder,
     done:
       typeof order.done === "string"
         ? order.done
@@ -386,11 +390,11 @@ export function buildPayloadFromForm(data, isUpdate = false, originalData = {}) 
         key: "date_order",
         value:
           data.date_created || data.date_order
-            ? toDateTime(data.date_created || data.date_order)
+            ? toDateTime(String(data.date_created || data.date_order).split(" ")[0].split("T")[0])
             : false,
-        originalValue: normalizeOriginalDateTime(originalData.date_order || originalData.date_created),
+        originalValue: normalizeOriginalDateTime(originalData.date_order),
         compareValue: data.date_created || data.date_order
-          ? String(data.date_created || data.date_order).split(" ")[0]
+          ? String(data.date_created || data.date_order).split(" ")[0].split("T")[0]
           : null,
       },
       {
@@ -478,7 +482,10 @@ export function buildPayloadFromForm(data, isUpdate = false, originalData = {}) 
   if (hasValue(etdDate)) payload.etd = etdDate;
   Object.assign(payload, getServiceBoatFormPayload(data));
   if (hasValue(data.so_delivery_date)) payload.so_delivery_date = toDateOnly(data.so_delivery_date);
-  const dateOrder = toDateTime(data.date_created || data.date_order);
+  const dateOrderSource = data.date_created || data.date_order;
+  const dateOrder = dateOrderSource
+    ? toDateTime(String(dateOrderSource).split(" ")[0].split("T")[0])
+    : null;
   if (hasValue(dateOrder)) payload.date_order = dateOrder;
   if (hasValue(data.next_action)) payload.next_action = toDateOnly(data.next_action);
   if (hasValue(data.internal_remark)) payload.internal_remark = data.internal_remark;

@@ -174,6 +174,9 @@ export const getVesselTypes = async () => {
   }
 };
 
+const toVesselName = (value) =>
+  value == null || value === false ? "" : String(value).trim().toUpperCase();
+
 /**
  * Create a new vessel
  * @param {Object} vesselData - The vessel data
@@ -187,7 +190,7 @@ export const createVessel = async (vesselData) => {
   try {
     const payload = {
       current_user: getCurrentUserId(),
-      name: vesselData.name,
+      name: toVesselName(vesselData.name),
       client_id: vesselData.client_id,
       is_client: true,
       imo: vesselData.imo || "",
@@ -433,6 +436,7 @@ export const bulkCreateVessels = async (vesselRows = []) => {
     is_client: true,
     vessels: vesselRows.map((row) => {
       const fields = normalizeVesselFields(row);
+      if (fields.name) fields.name = toVesselName(fields.name);
       if (fields.procurement_person_id === false) delete fields.procurement_person_id;
       return fields;
     }),

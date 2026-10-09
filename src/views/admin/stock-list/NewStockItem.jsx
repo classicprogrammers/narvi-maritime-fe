@@ -73,6 +73,7 @@ import useStockDestinationOptions from "../../../hooks/useStockDestinationOption
 import useStockFormRemoteSelects from "../../../hooks/useStockFormRemoteSelects";
 import useStockListOptionPins from "../../../hooks/useStockListOptionPins";
 import { mergeSelectedIntoOptions } from "../../../utils/stockFormSelectUtils";
+import { clampIsoDateToToday, getLocalTodayIso } from "../../../components/forms/DmyDateInput";
 import { buildStockCreateLinePayload, normalizeCancelTextForForm, normalizeCancelTextForSave } from "../../../utils/stockCreatePayload";
 import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps, resolveDimensionsBaseline, filterNewPendingAttachments, filterNewAttachmentDeletes } from "../../../utils/stockUpdatePayload";
 import {
@@ -1450,7 +1451,9 @@ export default function StockForm() {
             const previousClient = prev[rowIndex]?.client == null ? "" : String(prev[rowIndex].client);
             let processedValue = value;
 
-            if (field === "soId") {
+            if (field === "dateOnStock") {
+                processedValue = clampIsoDateToToday(value);
+            } else if (field === "soId") {
                 processedValue = normalizeStockFormSoId(value);
             } else if (field === "siNumber") {
                 if (value && value !== "") {
@@ -2589,6 +2592,7 @@ export default function StockForm() {
                                                 <Input
                                                     type="date"
                                                     value={row.dateOnStock || ""}
+                                                    max={getLocalTodayIso()}
                                                     onChange={(e) => handleInputChange(rowIndex, "dateOnStock", e.target.value)}
                                                     size="sm"
                                                     w="auto"

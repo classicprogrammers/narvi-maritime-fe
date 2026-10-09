@@ -158,6 +158,9 @@ const toPeopleOptions = (people) =>
 const normalizeCompare = (value) =>
   value === null || value === undefined || value === false ? "" : String(value).trim();
 
+const toVesselName = (value) =>
+  value === null || value === undefined || value === false ? "" : String(value).toUpperCase();
+
 const mapVesselToRow = (vesselInfo) => {
   const client = vesselInfo.client_id && typeof vesselInfo.client_id === "object" ? vesselInfo.client_id : null;
   const person =
@@ -528,7 +531,10 @@ export default function VesselForm() {
       });
       return;
     }
-    updateRow(rowIndex, { [field]: value });
+    const isNewVessel = !rows[rowIndex]?.vessel_id;
+    updateRow(rowIndex, {
+      [field]: field === "name" && isNewVessel ? toVesselName(value) : value,
+    });
   };
 
   const copyValueToRowsBelow = (rowIndex, fields, copyToAll = false) => {
@@ -574,6 +580,7 @@ export default function VesselForm() {
         ...source,
         key: nextRowKey(),
         vessel_id: null,
+        name: toVesselName(source.name),
         attachments: source.attachments
           .filter((attachment) => !attachment.id)
           .map((attachment) => ({ ...attachment })),
@@ -1056,7 +1063,8 @@ export default function VesselForm() {
                           {...inputProps}
                           value={row.name}
                           onChange={(e) => handleInputChange(rowIndex, "name", e.target.value)}
-                          placeholder="Vessel name"
+                          placeholder={row.vessel_id ? "Vessel name" : "VESSEL NAME"}
+                          textTransform={row.vessel_id ? undefined : "uppercase"}
                           isInvalid={Boolean(rowErrors.name)}
                           htmlSize={getAutoHtmlSize(row.name, "Vessel name", { min: 16, max: 50 })}
                           title={row.name ? String(row.name) : undefined}

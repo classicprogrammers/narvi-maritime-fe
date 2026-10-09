@@ -347,9 +347,9 @@ function VendorRegistration() {
     const gridInputWidth = { base: "60%", md: "60%" };
     const idInputBg = useColorModeValue("gray.100", "gray.700");
     // Edit mode colors - very distinct background
-    const editModeBg = useColorModeValue("blue.50", "blue.900");
-    const editModeBorderColor = useColorModeValue("blue.300", "blue.500");
-    const editModeAlertBg = useColorModeValue("blue.100", "blue.800");
+    const editModeBg = useColorModeValue("red.50", "red.900");
+    const editModeBorderColor = useColorModeValue("red.300", "red.500");
+    const editModeAlertBg = useColorModeValue("red.100", "red.800");
 
     // Auto-size helpers (Remarks + People inputs)
     const getAutoHtmlSize = (value, placeholder = "", opts = {}) => {
@@ -1334,12 +1334,12 @@ function VendorRegistration() {
                 bg={isEditMode ? editModeBg : undefined}
                 border={isEditMode ? `3px solid ${editModeBorderColor}` : undefined}
                 borderRadius={isEditMode ? "lg" : undefined}
-                boxShadow={isEditMode ? "0 0 0 1px rgba(66, 153, 225, 0.2), 0 4px 6px rgba(0, 0, 0, 0.1)" : undefined}
+                boxShadow={isEditMode ? "0 0 0 1px rgba(229, 62, 62, 0.2), 0 4px 6px rgba(0, 0, 0, 0.1)" : undefined}
             >
                 {/* Prominent EDIT MODE Banner */}
                 {isEditMode && (
                     <Alert
-                        status="info"
+                        status="error"
                         bg={editModeAlertBg}
                         borderBottom="2px solid"
                         borderColor={editModeBorderColor}
@@ -1351,7 +1351,7 @@ function VendorRegistration() {
                         <AlertIcon boxSize="24px" color={editModeBorderColor} />
                         <Flex align="center" gap={3} flex={1}>
                             <Badge
-                                colorScheme="blue"
+                                colorScheme="red"
                                 fontSize="md"
                                 px={3}
                                 py={1}
@@ -1379,7 +1379,7 @@ function VendorRegistration() {
                         </Text>
                         {isEditMode && (
                             <Badge
-                                colorScheme="blue"
+                                colorScheme="red"
                                 fontSize="sm"
                                 px={2}
                                 py={1}

@@ -107,14 +107,22 @@ const prettyTableDate = (value) => {
   return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 };
 
-const prettyTableDateTime = (value) => {
-  if (!value || value === false) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return `${prettyTableDate(value)} ${date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  })}`;
+/** Date Created: API `date_order` date only, e.g. "2026-10-01 00:00:00" → "01 Oct 2026". */
+const getDateOrderDisplay = (order) => {
+  const raw = order?._raw || order;
+  const value = raw?.date_order ?? order?.date_order;
+  if (value == null || value === false || value === "") return "";
+  const str = String(value).trim();
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return str.split(" ")[0];
+  const [, year, month, day] = match;
+  const localDate = new Date(Number(year), Number(month) - 1, Number(day));
+  if (Number.isNaN(localDate.getTime())) return `${day} ${month} ${year}`;
+  return localDate.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 };
 
 const TruncatedText = ({ value, maxW = "160px", fontWeight, fontSize = "sm", onClick, cursor }) => {
@@ -154,16 +162,6 @@ const formatDate = (value) => {
   return date.toLocaleDateString();
 };
 
-const formatDateTime = (value) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  })}`;
-};
-
 const formatCurrency = (value) => {
   if (value === null || value === undefined || value === "") return "-";
   const numberValue = Number(value);
@@ -191,7 +189,7 @@ const SHIPPING_ORDER_TABLE_COLUMNS = [
   { label: "Stock items", field: "stock_item_count", sortable: false },
   { label: "Status", field: "done", sortable: false },
   { label: "Next Action date", field: "next_action", sortable: true },
-  { label: "SO Delivery date", field: "so_delivery_date", sortable: false },
+  { label: "SO Case Closed Date", field: "so_delivery_date", sortable: false },
   { label: "Vessel Name", field: "vessel_name", sortable: false },
   { label: "Destination", field: "destination", sortable: false },
   { label: "Internal remarks", field: "internal_remark", sortable: false },
@@ -205,7 +203,7 @@ const SHIPPING_ORDER_TABLE_COLUMNS = [
   { label: "Files", field: "attachments", sortable: false },
   { label: "Package Link", field: null, sortable: false },
   { label: "Quotation", field: "quotation", sortable: false },
-  { label: "Date Created", field: "date_created", sortable: false },
+  { label: "Date Created", field: "date_order", sortable: false },
   { label: "Cancel Reason", field: "cancel_text", sortable: false },
 ];
 
@@ -1011,7 +1009,7 @@ const SoNumberTab = () => {
         "Stock items",
         "Status",
         "Next Action date",
-        "SO Delivery date",
+        "SO Case Closed Date",
         "Vessel Name",
         "Destination",
         "Internal remarks",
@@ -1055,7 +1053,7 @@ const SoNumberTab = () => {
           order.client_case_invoice_ref || "-",
           fileSummary,
           order.quotation || "-",
-          formatDateTime(order.create_date || order.date_created || order.date_order),
+          getDateOrderDisplay(order) || "-",
           order.cancel_text ? String(order.cancel_text) : "-",
         ];
       });
@@ -1209,7 +1207,7 @@ const SoNumberTab = () => {
       const eta = getEtaDisplay(order);
       const etb = order.etb && order.etb !== false ? prettyTableDate(order.etb) : "";
       const etd = order.etd && order.etd !== false ? prettyTableDate(order.etd) : "";
-      const created = prettyTableDateTime(order.create_date || order.date_created || order.date_order);
+      const created = getDateOrderDisplay(order);
       const destination = getDestinationDisplay(order);
       const clientValue =
         order.client_code != null && order.client_code !== false && order.client_code !== ""

@@ -506,7 +506,7 @@ export default function ShippingOrderFormFields({
         />
       </Box>
 
-      {/* Quotation & SO Delivery Date */}
+      {/* Quotation & SO Case Closed Date */}
       <Box>
         <Flex gap="4" flexWrap="wrap">
           <FormControl flex="1" minW="260px" isDisabled>
@@ -536,7 +536,7 @@ export default function ShippingOrderFormFields({
             />
           </FormControl>
           <FormControl flex="1" minW="260px">
-            <FormLabel>SO Delivery Date</FormLabel>
+            <FormLabel>SO Case Closed Date</FormLabel>
             <Input
               type="date"
               value={soDeliveryDateVal}
