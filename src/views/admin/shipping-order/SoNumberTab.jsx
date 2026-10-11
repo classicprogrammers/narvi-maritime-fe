@@ -208,10 +208,10 @@ const SHIPPING_ORDER_TABLE_COLUMNS = [
 ];
 
 const STICKY_CHECKBOX_WIDTH = "48px";
-const STICKY_ACTIONS_WIDTH = "88px";
+const STICKY_ACTIONS_WIDTH = "136px";
 const STICKY_SO_WIDTH = "140px";
 const STICKY_ACTIONS_LEFT = STICKY_CHECKBOX_WIDTH;
-const STICKY_SO_LEFT = "136px";
+const STICKY_SO_LEFT = "184px";
 const COLUMN_MIN_WIDTHS = {
   "Stock items": "120px",
   "Vessel Name": "280px",
@@ -947,6 +947,11 @@ const SoNumberTab = () => {
     formDisclosure.onOpen();
   };
 
+  const handleView = (order) => {
+    if (order?.id == null) return;
+    history.push(`/admin/shipping-orders/${order.id}`);
+  };
+
   const handleEdit = (order) => {
     if (order?.id == null) return;
     history.push(`/admin/shipping-orders/edit/${order.id}`);
@@ -1288,6 +1293,16 @@ const SoNumberTab = () => {
             maxW={STICKY_ACTIONS_WIDTH}
           >
             <HStack spacing="2" justify="center">
+              <Tooltip label="View" hasArrow>
+                <IconButton
+                  size="sm"
+                  aria-label="View SO"
+                  icon={<Icon as={MdVisibility} />}
+                  variant="outline"
+                  colorScheme="teal"
+                  onClick={() => handleView(order)}
+                />
+              </Tooltip>
               <Tooltip label="Edit" hasArrow>
                 <IconButton
                   size="sm"
@@ -1315,7 +1330,7 @@ const SoNumberTab = () => {
               fontWeight="800"
               fontSize="sm"
               whiteSpace="nowrap"
-              onClick={() => handleEdit(order)}
+              onClick={() => handleView(order)}
             >
               {getSoNumber(order)}
             </Button>
@@ -1326,7 +1341,7 @@ const SoNumberTab = () => {
                 size="xs"
                 variant="link"
                 colorScheme="blue"
-                onClick={() => handleEdit(order)}
+                onClick={() => handleView(order)}
               >
                 {stockItemCount} item{stockItemCount === 1 ? "" : "s"}
               </Button>

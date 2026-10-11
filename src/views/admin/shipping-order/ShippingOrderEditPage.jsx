@@ -215,7 +215,7 @@ export default function ShippingOrderEditPage() {
           isClosable: true,
         });
       }
-      history.push("/admin/shipping-orders");
+      history.push(`/admin/shipping-orders/${id}`);
     } catch (error) {
       console.error("Failed to update shipping order", error);
       toast({
@@ -231,6 +231,10 @@ export default function ShippingOrderEditPage() {
   };
 
   const handleCancel = () => {
+    if (id != null && id !== "") {
+      history.push(`/admin/shipping-orders/${id}`);
+      return;
+    }
     history.push("/admin/shipping-orders");
   };
 

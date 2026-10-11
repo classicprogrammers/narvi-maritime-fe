@@ -56,6 +56,7 @@ import ClientTariffs from "views/admin/quotations/client-tariffs";
 import Invoice from "views/admin/quotations/Invoice";
 import ShippingOrder from "views/admin/shipping-order";
 import ShippingOrderEditPage from "views/admin/shipping-order/ShippingOrderEditPage";
+import ShippingOrderDetailPage from "views/admin/shipping-order/ShippingOrderDetailPage";
 
 // Stock List Imports
 import StockList from "views/admin/stock-list";
@@ -570,7 +571,15 @@ const hiddenRoutes = [
     name: "Shipping Order Edit",
     layout: "/admin",
     path: "/shipping-orders/edit/:id",
+    exact: true,
     component: ShippingOrderEditPage,
+  },
+  {
+    name: "Shipping Order Detail",
+    layout: "/admin",
+    path: "/shipping-orders/:id",
+    exact: true,
+    component: ShippingOrderDetailPage,
   },
   {
     name: "Cost Form",

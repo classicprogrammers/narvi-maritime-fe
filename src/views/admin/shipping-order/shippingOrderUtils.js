@@ -194,6 +194,57 @@ export function formatServiceBoatPaidByLabel(value) {
   return "";
 }
 
+export function formatShippingOrderStatusLabel(done) {
+  if (done === "pending_pod") return "Pending POD";
+  if (done === "ready_for_invoice") return "Ready for Invoice";
+  if (done === "done") return "Done";
+  if (done === "cancelled") return "Cancelled";
+  if (done === "archive") return "Archive";
+  return "Active";
+}
+
+export function formatShippingOrderStatusColor(done) {
+  if (done === "active") return "green";
+  if (done === "done") return "blue";
+  if (done === "cancelled") return "red";
+  if (done === "archive") return "gray";
+  if (done === "ready_for_invoice") return "purple";
+  if (done === "pending_pod") return "orange";
+  return "orange";
+}
+
+export function formatShippingOrderDestinationTypeLabel(value) {
+  if (value === "port_country") return "Port Name + Country";
+  if (value === "city_country") return "City + Country";
+  if (value === "airport_country") return "Airport + Country";
+  if (value === "country") return "Country";
+  return "";
+}
+
+export function formatShippingOrderDisplayDate(value) {
+  if (value == null || value === false || value === "") return "";
+  const str = String(value).trim();
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const [, year, month, day] = match;
+    const localDate = new Date(Number(year), Number(month) - 1, Number(day));
+    if (!Number.isNaN(localDate.getTime())) {
+      return localDate.toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+    }
+  }
+  const date = new Date(str);
+  if (Number.isNaN(date.getTime())) return str.split(" ")[0] || str;
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export function getServiceBoatFormPayload(data) {
   const viaBoat = isDeliveryViaServiceBoat(data?.delivery_via_service_boat);
   if (!viaBoat) {
