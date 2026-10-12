@@ -85,6 +85,8 @@ const DIMENSION_KEYS = new Set([
   "width_cm",
   "height_cm",
   "volume_dim",
+  "weight_kg",
+  "cw_air_freight",
 ]);
 
 const ATTACHMENT_KEYS = new Set(["filename", "mimetype", "datas"]);
@@ -145,18 +147,23 @@ const mapCreateDimensions = (dimensions) => {
           width_cm: toNumber(dim.width_cm),
           height_cm: toNumber(dim.height_cm),
           volume_dim: volumeDim,
+          weight_kg: toNumber(dim.weight_kg),
+          cw_air_freight: toNumber(dim.cw_air_freight),
         };
       }
       const length = toNumber(dim.length_cm);
       const width = toNumber(dim.width_cm);
       const height = toNumber(dim.height_cm);
-      if (length <= 0 && width <= 0 && height <= 0) return null;
+      const weightKg = toNumber(dim.weight_kg);
+      if (length <= 0 && width <= 0 && height <= 0 && weightKg <= 0) return null;
       return {
         calculation_method: "lwh",
         length_cm: length,
         width_cm: width,
         height_cm: height,
         volume_dim: toNumber(dim.volume_dim) || toNumber(dim.volume_cbm) || 0,
+        weight_kg: weightKg,
+        cw_air_freight: toNumber(dim.cw_air_freight),
       };
     })
     .filter(Boolean);
