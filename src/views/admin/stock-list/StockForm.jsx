@@ -90,6 +90,7 @@ import { partitionAttachmentsRow } from "../../../utils/stockReportAttachmentsUi
 import { calculateVolumeCbmFromLwhCm, formatRowTotalVolumeCbm } from "../../../utils/stockVolume";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
 import { isStockOriginHubFormField, normalizeStockOriginHubText } from "../../../utils/stockOriginHubText";
+import { describeMissingClientVessel, isBlankStockRelation } from "../../../utils/stockClientVessel";
 
 export default function StockForm() {
     const history = useHistory();
@@ -117,6 +118,7 @@ export default function StockForm() {
         setQDestination,
     } = useStockDestinationOptions();
     const [isLoading, setIsLoading] = useState(isEditing);
+    const [showClientVesselErrors, setShowClientVesselErrors] = useState(false);
     const [vesselOptionsByClientId, setVesselOptionsByClientId] = useState({});
     const [isLoadingVesselByClient, setIsLoadingVesselByClient] = useState({});
     const [selectedItems, setSelectedItems] = useState([]);
@@ -125,6 +127,7 @@ export default function StockForm() {
 
     const textColor = useColorModeValue("gray.700", "white");
     const inputBg = useColorModeValue("gray.100", "gray.800");
+    const disabledFieldBg = useColorModeValue("gray.200", "gray.700");
     const inputText = useColorModeValue("gray.700", "gray.100");
     const borderColor = useColorModeValue("gray.200", "gray.700");
     const cardBg = useColorModeValue("white", "navy.800");
@@ -666,6 +669,9 @@ export default function StockForm() {
     };
 
     const handleInputChange = (rowIndex, field, value) => {
+        if (field === "vessel" && isBlankStockRelation(formRows[rowIndex]?.client)) {
+            return;
+        }
         if (field === "client" && value) {
             fetchVesselsForClient(value);
         }
@@ -1161,6 +1167,19 @@ export default function StockForm() {
         if (!stockReportPreview) return;
         formRowsRef.current = formRows;
         const rowIndex = stockReportPreview.rowIndex;
+        const reportRow = formRowsRef.current?.[rowIndex];
+        const missingClientVessel = describeMissingClientVessel(reportRow ? [reportRow] : []);
+        if (missingClientVessel.length > 0) {
+            setShowClientVesselErrors(true);
+            toast({
+                title: "Client and Vessel are required",
+                description: "Select a client first, then a vessel for that client.",
+                status: "warning",
+                duration: 5000,
+                isClosable: true,
+            });
+            return;
+        }
         const stayOnPage = (formRowsRef.current?.length || formRows.length) > 1;
         const ok = await generateStockReportManually(rowIndex);
         if (ok) {
@@ -1181,6 +1200,19 @@ export default function StockForm() {
 
     const handleSaveStockItem = async () => {
         try {
+            const missingClientVessel = describeMissingClientVessel(formRows);
+            if (missingClientVessel.length > 0) {
+                setShowClientVesselErrors(true);
+                toast({
+                    title: "Client and Vessel are required",
+                    description: missingClientVessel.join(". "),
+                    status: "warning",
+                    duration: 6000,
+                    isClosable: true,
+                });
+                return;
+            }
+
             if (isBulkEdit && selectedItems.length > 0) {
                 // Bulk update - update each row separately with its own data
                 let successCount = 0;
@@ -1466,8 +1498,8 @@ export default function StockForm() {
                                 {isEditing && (
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="80px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">ID</Th>
                                 )}
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Vessel</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client <Text as="span" color="red.300">*</Text></Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Vessel <Text as="span" color="red.300">*</Text></Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PIC</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Supplier</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Req No</Th>
@@ -1522,30 +1554,42 @@ export default function StockForm() {
                                             value={row.client}
                                             onChange={(value) => handleInputChange(rowIndex, "client", value)}
                                             options={clients}
-                                            placeholder="Select Client"
+                                            placeholder="Select Client *"
                                             displayKey="name"
                                             valueKey="id"
                                             formatOption={(option) => option.name || `Client ${option.id}`}
                                             isLoading={false}
                                             bg={inputBg}
                                             color={inputText}
-                                            borderColor={borderColor}
+                                            borderColor={showClientVesselErrors && isBlankStockRelation(row.client) ? "red.400" : borderColor}
+                                            title="Required"
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
-                                        <RemoteSearchableSelect
-                                            value={row.vessel}
-                                            onChange={(value) => handleInputChange(rowIndex, "vessel", value)}
-                                            options={getVesselOptionsForClient(row.client)}
-                                            placeholder="Select Vessel"
-                                            displayKey="name"
-                                            valueKey="id"
-                                            formatOption={(option) => option.name || String(option.id ?? "")}
-                                            isLoading={Boolean(row.client && isLoadingVesselByClient[String(row.client)])}
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
+                                        <Tooltip
+                                            label="Select a client first. Vessel depends on the client."
+                                            isDisabled={!isBlankStockRelation(row.client)}
+                                            hasArrow
+                                            placement="top"
+                                        >
+                                            <Box w="100%">
+                                                <RemoteSearchableSelect
+                                                    value={row.vessel}
+                                                    onChange={(value) => handleInputChange(rowIndex, "vessel", value)}
+                                                    options={isBlankStockRelation(row.client) ? [] : getVesselOptionsForClient(row.client)}
+                                                    placeholder={isBlankStockRelation(row.client) ? "Select client first" : "Select Vessel *"}
+                                                    displayKey="name"
+                                                    valueKey="id"
+                                                    formatOption={(option) => option.name || String(option.id ?? "")}
+                                                    isDisabled={isBlankStockRelation(row.client)}
+                                                    isLoading={Boolean(row.client && isLoadingVesselByClient[String(row.client)])}
+                                                    bg={isBlankStockRelation(row.client) ? disabledFieldBg : inputBg}
+                                                    color={inputText}
+                                                    borderColor={showClientVesselErrors && isBlankStockRelation(row.vessel) ? "red.400" : borderColor}
+                                                    title={isBlankStockRelation(row.client) ? "Select a client first" : "Required. Vessels are listed for the selected client."}
+                                                />
+                                            </Box>
+                                        </Tooltip>
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
                                         <RemoteSearchableSelect

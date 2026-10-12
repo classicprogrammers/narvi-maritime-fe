@@ -120,11 +120,12 @@ import {
     toStockLocationPayloadId,
 } from "../../../utils/stockLocationOptions";
 import { normalizeStockValueForForm, normalizeStockValueForSave } from "../../../utils/stockValue";
+import { describeMissingClientVessel, isBlankStockRelation } from "../../../utils/stockClientVessel";
 
 const STOCK_FORM_SORT_COLUMNS = [
     { label: "ID", sortKey: "stockItemId", type: "text", editOnly: true, minW: "80px" },
-    { label: "Client", sortKey: "client", type: "lookup", lookup: "clients", minW: "120px" },
-    { label: "Vessel", sortKey: "vessel", type: "lookup", lookup: "vessels", minW: "120px" },
+    { label: "Client", sortKey: "client", type: "lookup", lookup: "clients", minW: "120px", required: true },
+    { label: "Vessel", sortKey: "vessel", type: "lookup", lookup: "vessels", minW: "120px", required: true },
     { label: "PIC", sortKey: "pic", type: "lookup", lookup: "pics", minW: "100px" },
     { label: "Supplier", sortKey: "supplier", type: "lookup", lookup: "suppliers", minW: "120px" },
     { label: "Req No", sortKey: "reqNo", type: "text", minW: "200px" },
@@ -175,6 +176,25 @@ function readStoredStockFormLayout() {
 
 function cssQuotedContent(value) {
     return `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+function sumDimensionWeightKg(dimensions = []) {
+    const total = (Array.isArray(dimensions) ? dimensions : []).reduce((sum, dim) => {
+        const value = Number.parseFloat(dim?.weight_kg);
+        return sum + (Number.isFinite(value) ? value : 0);
+    }, 0);
+    return total.toFixed(2);
+}
+
+function resolveStockWeightKgs(stock) {
+    const fromBackend = stock?.weight_kg ?? stock?.weight_kgs;
+    if (fromBackend !== null && fromBackend !== undefined && fromBackend !== false && fromBackend !== "") {
+        return fromBackend;
+    }
+    if (Array.isArray(stock?.dimensions) && stock.dimensions.length > 0) {
+        return sumDimensionWeightKg(stock.dimensions);
+    }
+    return "";
 }
 
 function lookupListName(id, list) {
@@ -276,7 +296,12 @@ function StockFormSortableHeader({ column, sort, onSort, thStyle }) {
             }}
         >
             <HStack spacing="1">
-                <Text as="span">{column.label}</Text>
+                <Text as="span">
+                    {column.label}
+                    {column.required ? (
+                        <Text as="span" color="red.300" ml="1" title="Required">*</Text>
+                    ) : null}
+                </Text>
                 <Icon as={icon} boxSize="13px" opacity={isActive ? 1 : 0.55} />
             </HStack>
         </Th>
@@ -354,9 +379,11 @@ export default function StockForm() {
     });
     const [currentRowIndexForDimensions, setCurrentRowIndexForDimensions] = useState(0);
     const [dimensionsList, setDimensionsList] = useState([]);
+    const [showClientVesselErrors, setShowClientVesselErrors] = useState(false);
 
     const textColor = useColorModeValue("gray.700", "white");
     const inputBg = useColorModeValue("gray.100", "gray.800");
+    const readOnlyWeightBg = useColorModeValue("gray.200", "gray.700");
     const inputText = useColorModeValue("gray.700", "gray.100");
     const borderColor = useColorModeValue("gray.200", "gray.700");
     const cardBg = useColorModeValue("white", "navy.800");
@@ -1240,7 +1267,7 @@ export default function StockForm() {
             shippedDate: getFieldValue(stock.shipped_date) || "",
             deliveredDate: getFieldValue(stock.delivered_date) || "",
             item: stock.item || stock.items || stock.item_id || stock.stock_items_quantity || "",
-            weightKgs: getFieldValue(stock.weight_kg ?? stock.weight_kgs, ""),
+            weightKgs: resolveStockWeightKgs(stock),
             lengthCm: getFieldValue(stock.length_cm, ""),
             widthCm: getFieldValue(stock.width_cm, ""),
             heightCm: getFieldValue(stock.height_cm, ""),
@@ -1442,6 +1469,9 @@ export default function StockForm() {
     };
 
     const handleInputChange = (rowIndex, field, value) => {
+        if (field === "vessel" && isBlankStockRelation(formRows[rowIndex]?.client)) {
+            return;
+        }
         if (field === "client" && value) {
             ensureVesselsLoadedForClient(value);
         }
@@ -2064,6 +2094,19 @@ export default function StockForm() {
         if (!stockReportPreview) return;
         formRowsRef.current = formRows;
         const rowIndex = stockReportPreview.rowIndex;
+        const reportRow = formRowsRef.current?.[rowIndex];
+        const missingClientVessel = describeMissingClientVessel(reportRow ? [reportRow] : []);
+        if (missingClientVessel.length > 0) {
+            setShowClientVesselErrors(true);
+            toast({
+                title: "Client and Vessel are required",
+                description: "Select a client first, then a vessel for that client.",
+                status: "warning",
+                duration: 5000,
+                isClosable: true,
+            });
+            return;
+        }
         const stayOnPage = (formRowsRef.current?.length || formRows.length) > 1;
         const ok = await generateStockReportManually(rowIndex);
         if (ok) {
@@ -2092,6 +2135,19 @@ export default function StockForm() {
 
             if (rowsForSave.length === 0) {
                 throw new Error("No data to save");
+            }
+
+            const missingClientVessel = describeMissingClientVessel(rowsForSave);
+            if (missingClientVessel.length > 0) {
+                setShowClientVesselErrors(true);
+                toast({
+                    title: "Client and Vessel are required",
+                    description: missingClientVessel.join(". "),
+                    status: "warning",
+                    duration: 6000,
+                    isClosable: true,
+                });
+                return;
             }
 
             const hasExistingStockId = (row) =>
@@ -2446,7 +2502,7 @@ export default function StockForm() {
                                                     value={row.client}
                                                     onChange={(value) => handleInputChange(rowIndex, "client", value)}
                                                     options={getClientOptionsForValue(row.client)}
-                                                    placeholder="Select Client"
+                                                    placeholder="Select Client *"
                                                     displayKey="name"
                                                     valueKey="id"
                                                     formatOption={(option) => option.name || `Client ${option.id}`}
@@ -2454,32 +2510,46 @@ export default function StockForm() {
                                                     onSearchChange={handleClientSearchChange}
                                                     bg={inputBg}
                                                     color={inputText}
-                                                    borderColor={borderColor}
+                                                    borderColor={showClientVesselErrors && isBlankStockRelation(row.client) ? "red.400" : borderColor}
                                                     autoWidth
                                                     autoWidthMin={18}
                                                     autoWidthMax={50}
+                                                    title="Required"
                                                 />
                                             )}
                                         </Td>
                                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                                             {assignCell(rowIndex, "vessel",
-                                                <RemoteSearchableSelect
-                                                    value={row.vessel}
-                                                    onChange={(value) => handleInputChange(rowIndex, "vessel", value)}
-                                                    options={getVesselOptionsForClient(row.client, row.vessel)}
-                                                    placeholder="Select Vessel"
-                                                    displayKey="name"
-                                                    valueKey="id"
-                                                    formatOption={(option) => option.name || String(option.id ?? "")}
-                                                    isLoading={Boolean(isLoadingVesselByClient[getVesselLoadingKey(row.client)])}
-                                                    onSearchChange={(q) => handleVesselSearchChange(row.client, q)}
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                    borderColor={borderColor}
-                                                    autoWidth
-                                                    autoWidthMin={18}
-                                                    autoWidthMax={50}
-                                                />
+                                                <Tooltip
+                                                    label="Select a client first. Vessel depends on the client."
+                                                    isDisabled={!isBlankStockRelation(row.client)}
+                                                    hasArrow
+                                                    placement="top"
+                                                    openDelay={200}
+                                                    zIndex={1300000}
+                                                >
+                                                    <Box w="100%">
+                                                        <RemoteSearchableSelect
+                                                            value={row.vessel}
+                                                            onChange={(value) => handleInputChange(rowIndex, "vessel", value)}
+                                                            options={isBlankStockRelation(row.client) ? [] : getVesselOptionsForClient(row.client, row.vessel)}
+                                                            placeholder={isBlankStockRelation(row.client) ? "Select client first" : "Select Vessel *"}
+                                                            displayKey="name"
+                                                            valueKey="id"
+                                                            formatOption={(option) => option.name || String(option.id ?? "")}
+                                                            isDisabled={isBlankStockRelation(row.client)}
+                                                            isLoading={Boolean(isLoadingVesselByClient[getVesselLoadingKey(row.client)])}
+                                                            onSearchChange={(q) => handleVesselSearchChange(row.client, q)}
+                                                            bg={isBlankStockRelation(row.client) ? readOnlyWeightBg : inputBg}
+                                                            color={inputText}
+                                                            borderColor={showClientVesselErrors && isBlankStockRelation(row.vessel) ? "red.400" : borderColor}
+                                                            autoWidth
+                                                            autoWidthMin={18}
+                                                            autoWidthMax={50}
+                                                            title={isBlankStockRelation(row.client) ? "Select a client first" : "Required. Vessels are listed for the selected client."}
+                                                        />
+                                                    </Box>
+                                                </Tooltip>
                                             )}
                                         </Td>
                                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
@@ -2666,17 +2736,35 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} overflow="visible">
                                             {assignCell(rowIndex, "weightKgs",
-                                                <NumberInput
-                                                    value={row.weightKgs}
-                                                    onChange={(value) => handleInputChange(rowIndex, "weightKgs", value)}
-                                                    min={0}
-                                                    precision={2}
-                                                    size="sm"
-                                                    minW="200px"
-                                                    w="100%"
+                                                <Tooltip
+                                                    label="Read only. This is the total weight of what you enter in Dimensions."
+                                                    hasArrow
+                                                    placement="top"
+                                                    openDelay={200}
+                                                    zIndex={1300000}
                                                 >
-                                                    <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                                </NumberInput>
+                                                    <Box w="100%" minW="240px">
+                                                        <NumberInput
+                                                            value={row.weightKgs}
+                                                            isReadOnly
+                                                            precision={2}
+                                                            size="sm"
+                                                            w="100%"
+                                                        >
+                                                            <NumberInputField
+                                                                bg={readOnlyWeightBg}
+                                                                color={inputText}
+                                                                borderColor={borderColor}
+                                                                cursor="default"
+                                                                placeholder="Total weight from Dimensions"
+                                                                _placeholder={{ color: "gray.500" }}
+                                                                _hover={{ bg: readOnlyWeightBg }}
+                                                                _focus={{ bg: readOnlyWeightBg, boxShadow: "none" }}
+                                                                _readOnly={{ bg: readOnlyWeightBg, opacity: 1 }}
+                                                            />
+                                                        </NumberInput>
+                                                    </Box>
+                                                </Tooltip>
                                             )}
                                         </Td>
                                         <Td {...cellProps}>
@@ -3848,6 +3936,7 @@ export default function StockForm() {
                                 updatedRows[currentRowIndexForDimensions] = {
                                     ...updatedRows[currentRowIndexForDimensions],
                                     dimensions: dimensionsList,
+                                    weightKgs: sumDimensionWeightKg(dimensionsList),
                                 };
                                 // Recalculate volume_cbm if needed
                                 if (dimensionsList.length > 0 && dimensionsList[0]) {

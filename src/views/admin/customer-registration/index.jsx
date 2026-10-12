@@ -536,13 +536,6 @@ function CustomerRegistration() {
         };
     };
 
-    const handleClientInvoicingKeyDown = createNumberedListHandler((newValue) => {
-        setFormData(prev => ({
-            ...prev,
-            client_invoicing: newValue
-        }));
-    });
-
     // Handle file upload for customer attachments
     const handleCustomerFileUpload = (files) => {
         const fileArray = Array.from(files || []);
@@ -1623,16 +1616,14 @@ function CustomerRegistration() {
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }}></Box>
                                                     <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
                                                         <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary} mt={1}>Client Invoicing</Text>
-                                                        <Textarea
-                                                            name="client_invoicing"
+                                                        <LongTextModalField
                                                             value={formData.client_invoicing}
-                                                            onChange={handleInputChange}
-                                                            onKeyDown={handleClientInvoicingKeyDown}
-                                                            placeholder="Type and press Enter to create numbered list..."
-                                                            size="sm"
-                                                            w={gridInputWidth}
-                                                            rows={3}
-                                                            resize="vertical"
+                                                            onChange={(newValue) => setFormData((prev) => ({ ...prev, client_invoicing: newValue }))}
+                                                            numberedListHandler={createNumberedListHandler}
+                                                            placeholder="Click to enter client invoicing..."
+                                                            modalTitle="Client Invoicing"
+                                                            textareaPlaceholder="Type and press Enter to create numbered list..."
+                                                            boxWidth={gridInputWidth}
                                                         />
                                                     </Box>
 

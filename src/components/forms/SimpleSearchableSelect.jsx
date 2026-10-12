@@ -27,6 +27,7 @@ const SimpleSearchableSelect = ({
   valueKey = "id",
   formatOption = (option) => option[displayKey] || option.name || `Option ${option[valueKey]}`,
   isLoading = false,
+  isDisabled = false,
   isClearable = true,
   canDeleteOption,
   onDeleteOption,
@@ -199,6 +200,7 @@ const SimpleSearchableSelect = ({
   const prefillLabel = displayValue || fallbackLabel;
 
   const handleInputChange = (e) => {
+    if (isDisabled) return;
     const newValue = e.target.value;
     setSearchValue(newValue);
     setIsOpen(true);
@@ -209,6 +211,7 @@ const SimpleSearchableSelect = ({
   };
 
   const handleFocus = (e) => {
+    if (isDisabled) return;
     onFocusProp?.(e);
     if (isStaleNoResultsState) {
       closeAndClearSearch();
@@ -217,6 +220,7 @@ const SimpleSearchableSelect = ({
   };
 
   const handleClick = () => {
+    if (isDisabled) return;
     if (isStaleNoResultsState) {
       closeAndClearSearch();
       requestAnimationFrame(() => openDropdown(prefillOnFocus && prefillLabel ? prefillLabel : ""));
@@ -426,6 +430,7 @@ const SimpleSearchableSelect = ({
               boxShadow: "0 0 0 1px #1c4a95",
             }}
             {...inputProps}
+            isDisabled={isDisabled}
             name={nameProp || fieldName}
             autoComplete="off"
             autoCorrect="off"
@@ -435,7 +440,7 @@ const SimpleSearchableSelect = ({
             aria-autocomplete="list"
             aria-expanded={isOpen}
           />
-          {isClearable && hasClearableContent ? (
+          {isClearable && hasClearableContent && !isDisabled ? (
             <InputRightElement width="2rem" h="100%">
               <IconButton
                 aria-label="Clear selection"
