@@ -179,25 +179,6 @@ function cssQuotedContent(value) {
     return `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
-function sumDimensionWeightKg(dimensions = []) {
-    const total = (Array.isArray(dimensions) ? dimensions : []).reduce((sum, dim) => {
-        const value = Number.parseFloat(dim?.weight_kg);
-        return sum + (Number.isFinite(value) ? value : 0);
-    }, 0);
-    return total.toFixed(2);
-}
-
-function resolveStockWeightKgs(stock) {
-    const fromBackend = stock?.weight_kg ?? stock?.weight_kgs;
-    if (fromBackend !== null && fromBackend !== undefined && fromBackend !== false && fromBackend !== "") {
-        return fromBackend;
-    }
-    if (Array.isArray(stock?.dimensions) && stock.dimensions.length > 0) {
-        return sumDimensionWeightKg(stock.dimensions);
-    }
-    return "";
-}
-
 function lookupListName(id, list) {
     if (id == null || id === "") return "";
     const match = (list || []).find((item) => String(item.id) === String(id));
@@ -1269,7 +1250,7 @@ export default function StockForm() {
             shippedDate: getFieldValue(stock.shipped_date) || "",
             deliveredDate: getFieldValue(stock.delivered_date) || "",
             item: stock.item || stock.items || stock.item_id || stock.stock_items_quantity || "",
-            weightKgs: resolveStockWeightKgs(stock),
+            weightKgs: getFieldValue(stock.weight_kg ?? stock.weight_kgs, ""),
             lengthCm: getFieldValue(stock.length_cm, ""),
             widthCm: getFieldValue(stock.width_cm, ""),
             heightCm: getFieldValue(stock.height_cm, ""),
@@ -2752,35 +2733,17 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} overflow="visible">
                                             {assignCell(rowIndex, "weightKgs",
-                                                <Tooltip
-                                                    label="Read only. This is the total weight of what you enter in Dimensions."
-                                                    hasArrow
-                                                    placement="top"
-                                                    openDelay={200}
-                                                    zIndex={1300000}
+                                                <NumberInput
+                                                    value={row.weightKgs}
+                                                    onChange={(value) => handleInputChange(rowIndex, "weightKgs", value)}
+                                                    min={0}
+                                                    precision={2}
+                                                    size="sm"
+                                                    minW="200px"
+                                                    w="100%"
                                                 >
-                                                    <Box w="100%" minW="240px">
-                                                        <NumberInput
-                                                            value={row.weightKgs}
-                                                            isReadOnly
-                                                            precision={2}
-                                                            size="sm"
-                                                            w="100%"
-                                                        >
-                                                            <NumberInputField
-                                                                bg={readOnlyWeightBg}
-                                                                color={inputText}
-                                                                borderColor={borderColor}
-                                                                cursor="default"
-                                                                placeholder="Total weight from Dimensions"
-                                                                _placeholder={{ color: "gray.500" }}
-                                                                _hover={{ bg: readOnlyWeightBg }}
-                                                                _focus={{ bg: readOnlyWeightBg, boxShadow: "none" }}
-                                                                _readOnly={{ bg: readOnlyWeightBg, opacity: 1 }}
-                                                            />
-                                                        </NumberInput>
-                                                    </Box>
-                                                </Tooltip>
+                                                    <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                                </NumberInput>
                                             )}
                                         </Td>
                                         <Td {...cellProps}>
@@ -3952,7 +3915,6 @@ export default function StockForm() {
                                 updatedRows[currentRowIndexForDimensions] = {
                                     ...updatedRows[currentRowIndexForDimensions],
                                     dimensions: dimensionsList,
-                                    weightKgs: sumDimensionWeightKg(dimensionsList),
                                 };
                                 // Recalculate volume_cbm if needed
                                 if (dimensionsList.length > 0 && dimensionsList[0]) {
