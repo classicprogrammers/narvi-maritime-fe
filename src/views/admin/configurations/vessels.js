@@ -487,34 +487,35 @@ export default function Vessels() {
   };
 
   const confirmDelete = async () => {
+    if (!deleteVesselId) return;
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      const response = await vesselsAPI.deleteVessel(deleteVesselId);
-      const message = response?.result?.message || "Vessel deleted successfully";
-      toast({
-        title: "Success",
-        description: message,
-        status: "success",
-        duration: 3000,
-        isClosable: true,
-      });
-
+      const { deleted, failed } = await vesselsAPI.deleteVessels([deleteVesselId]);
+      if (deleted.length) {
+        toast({
+          title: "Vessels deleted",
+          description: `${deleted.length} vessel(s) deleted.`,
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+      if (failed.length) {
+        setBlockedDeletes(
+          failed.map((item) => ({
+            id: item.id,
+            name: vesselNameById(item.id),
+            message: item.message,
+          }))
+        );
+      }
       onDeleteClose();
       setDeleteVesselId(null);
+      setSelectedVesselIds((prev) =>
+        prev.filter((id) => !deleted.some((deletedId) => String(deletedId) === String(id)))
+      );
       fetchVessels();
       refreshMasterData(MASTER_KEYS.VESSELS).catch(() => { });
-    } catch (error) {
-      const message =
-        error?.response?.data?.message ||
-        error?.response?.data?.result?.message ||
-        error.message ||
-        "Failed to delete vessel";
-
-      onDeleteClose();
-      setBlockedDeletes([
-        { id: deleteVesselId, name: vesselNameById(deleteVesselId), message },
-      ]);
-      setDeleteVesselId(null);
     } finally {
       setIsLoading(false);
     }
