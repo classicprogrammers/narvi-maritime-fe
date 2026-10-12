@@ -28,6 +28,7 @@ import {
   useColorModeValue,
   useToast,
 } from "@chakra-ui/react";
+import EditModeNotice, { useEditModeColors } from "../../../components/forms/EditModeNotice";
 import {
   MdAdd,
   MdAttachFile,
@@ -236,6 +237,7 @@ export default function VesselForm() {
   const inputText = useColorModeValue("gray.700", "gray.100");
   const borderColor = useColorModeValue("gray.200", "gray.700");
   const cardBg = useColorModeValue("white", "navy.800");
+  const { editModeBg, editModeBorderColor } = useEditModeColors();
   const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
   const headerBg = useColorModeValue("gray.600", "gray.700");
   const headerBorder = useColorModeValue("gray.500", "gray.600");
@@ -871,10 +873,23 @@ export default function VesselForm() {
     minWidth: `${getAutoHtmlSize(label, placeholder, opts)}ch`,
   });
 
+  const vesselEditName = !isEditing
+    ? ""
+    : rows.length > 1
+      ? `${rows.length} vessels`
+      : (rows[0]?.name || "Vessel");
+
   return (
-    <Box pt={{ base: "130px", md: "80px", xl: "80px" }} overflow="hidden" position="relative">
+    <Box
+      pt={{ base: "130px", md: "80px", xl: "80px" }}
+      overflow="hidden"
+      position="relative"
+      bg={isEditing ? editModeBg : undefined}
+      border={isEditing ? `3px solid ${editModeBorderColor}` : undefined}
+    >
+      {isEditing && <EditModeNotice entity="vessel" name={vesselEditName} />}
       <Flex
-        bg={cardBg}
+        bg={isEditing ? editModeBg : cardBg}
         px={{ base: "4", md: "6" }}
         py="3"
         align="center"
@@ -950,7 +965,7 @@ export default function VesselForm() {
       </Flex>
 
       <Box
-        bg={formLayout === "list" ? "transparent" : cardBg}
+        bg={formLayout === "list" ? "transparent" : (isEditing ? editModeBg : cardBg)}
         p={{ base: "4", md: "6" }}
         overflowX={formLayout === "table" ? "auto" : "hidden"}
       >

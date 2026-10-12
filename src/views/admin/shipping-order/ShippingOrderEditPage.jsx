@@ -13,7 +13,6 @@ import {
   Spinner,
   Text,
   Textarea,
-  useColorModeValue,
   useDisclosure,
   useToast,
 } from "@chakra-ui/react";
@@ -29,6 +28,7 @@ import {
 } from "../../../utils/shippingOrderAttachments";
 import ShippingOrderFormFields from "./ShippingOrderFormFields";
 import ShippingOrderStockList from "../../../components/shipping-order/ShippingOrderStockList";
+import EditModeNotice, { useEditModeColors } from "../../../components/forms/EditModeNotice";
 
 const toEditFormData = (normalized) => ({
   ...normalized,
@@ -78,8 +78,7 @@ export default function ShippingOrderEditPage() {
   const [vslsAgentDtlsModalTitle, setVslsAgentDtlsModalTitle] = useState("VSLS Agent Details");
   const [vslsAgentDtlsModalTargetField, setVslsAgentDtlsModalTargetField] = useState(null);
 
-  const editModeBg = useColorModeValue("blue.50", "blue.900");
-  const editModeBorderColor = useColorModeValue("blue.300", "blue.500");
+  const { editModeBg, editModeBorderColor } = useEditModeColors();
 
   const openVslsAgentDtlsModal = useCallback((value, mode = "view", title = "Details", targetField = null) => {
     setVslsAgentDtlsModalMode(mode);
@@ -274,8 +273,14 @@ export default function ShippingOrderEditPage() {
         bg={editModeBg}
         border={`3px solid ${editModeBorderColor}`}
         borderRadius="lg"
-        boxShadow="0 0 0 1px rgba(66, 153, 225, 0.2), 0 4px 6px rgba(0, 0, 0, 0.1)"
+        boxShadow="0 0 0 1px rgba(229, 62, 62, 0.2), 0 4px 6px rgba(0, 0, 0, 0.1)"
       >
+        <Box mx={-6} mt={-6} mb={6}>
+          <EditModeNotice
+            entity="shipping order"
+            name={formData.so_number || `SO-${id}`}
+          />
+        </Box>
         <Flex align="center" justify="space-between" mb={6} flexWrap="wrap" gap={3}>
           <Flex align="center" gap={3}>
             <Button

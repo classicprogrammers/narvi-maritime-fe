@@ -56,6 +56,7 @@ import {
   removeRatesFromPersistedSelection,
   removeRatesFromSelection,
 } from "../../../utils/rateListState";
+import EditModeNotice, { useEditModeColors } from "../../../components/forms/EditModeNotice";
 
 const RATE_TYPE_OPTIONS = [
   { id: "general", name: "General" },
@@ -311,6 +312,7 @@ export default function RateListForm() {
   const borderColor = useColorModeValue("gray.200", "whiteAlpha.100");
   const inputBg = useColorModeValue("white", "navy.900");
   const cardBg = useColorModeValue("white", "navy.800");
+  const { editModeBg, editModeBorderColor } = useEditModeColors();
   const tableHeaderBg = useColorModeValue("gray.600", "gray.700");
   const tableHeaderBorderColor = useColorModeValue("gray.500", "gray.600");
   const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
@@ -898,15 +900,24 @@ export default function RateListForm() {
       ? `Edit Rate${existingRowCount > 1 ? `s (${existingRowCount})` : ""}${newRowCount ? ` + ${newRowCount} new` : ""}`
       : "Create New Rate";
 
+  const rateEditName = !isEditing
+    ? ""
+    : existingRowCount > 1
+      ? `${existingRowCount} rates`
+      : (formRows.find((row) => row.id)?.rate_name || formRows.find((row) => row.id)?.rate_id || "Rate");
+
   return (
     <Box
       pt={{ base: "130px", md: "80px", xl: "80px" }}
       overflow="hidden"
       position="relative"
       zIndex="122222"
+      bg={isEditing ? editModeBg : undefined}
+      border={isEditing ? `3px solid ${editModeBorderColor}` : undefined}
     >
+      {isEditing && <EditModeNotice entity="rate" name={rateEditName} />}
       <Flex
-        bg={cardBg}
+        bg={isEditing ? editModeBg : cardBg}
         px={{ base: "4", md: "6" }}
         py="3"
         align="center"
@@ -988,7 +999,7 @@ export default function RateListForm() {
       </Flex>
 
       <Box
-        bg={formLayout === "list" ? "transparent" : cardBg}
+        bg={formLayout === "list" ? "transparent" : (isEditing ? editModeBg : cardBg)}
         p={{ base: "4", md: "6" }}
         overflowX={formLayout === "table" ? "auto" : "hidden"}
       >

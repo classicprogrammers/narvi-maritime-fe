@@ -121,6 +121,7 @@ import {
 } from "../../../utils/stockLocationOptions";
 import { normalizeStockValueForForm, normalizeStockValueForSave } from "../../../utils/stockValue";
 import { describeMissingClientVessel, isBlankStockRelation } from "../../../utils/stockClientVessel";
+import EditModeNotice, { useEditModeColors } from "../../../components/forms/EditModeNotice";
 
 const STOCK_FORM_SORT_COLUMNS = [
     { label: "ID", sortKey: "stockItemId", type: "text", editOnly: true, minW: "80px" },
@@ -387,6 +388,7 @@ export default function StockForm() {
     const inputText = useColorModeValue("gray.700", "gray.100");
     const borderColor = useColorModeValue("gray.200", "gray.700");
     const cardBg = useColorModeValue("white", "navy.800");
+    const { editModeBg, editModeBorderColor } = useEditModeColors();
     const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
     const tableHeaderBg = useColorModeValue("gray.600", "gray.700");
     const tableHeaderBorderColor = useColorModeValue("gray.500", "gray.600");
@@ -2298,11 +2300,25 @@ export default function StockForm() {
         );
     }
 
+    const stockEditName = !isEditing
+        ? ""
+        : isBulkEdit || formRows.length > 1
+            ? `${formRows.length} stock items`
+            : (formRows[0]?.stockItemId || "Stock item");
+
     return (
-        <Box pt={{ base: "130px", md: "80px", xl: "80px" }} overflow="hidden" position="relative" zIndex="122222">
+        <Box
+            pt={{ base: "130px", md: "80px", xl: "80px" }}
+            overflow="hidden"
+            position="relative"
+            zIndex="122222"
+            bg={isEditing ? editModeBg : undefined}
+            border={isEditing ? `3px solid ${editModeBorderColor}` : undefined}
+        >
+            {isEditing && <EditModeNotice entity="stock item" name={stockEditName} />}
             {/* Header */}
             <Flex
-                bg={cardBg}
+                bg={isEditing ? editModeBg : cardBg}
                 px={{ base: "4", md: "6" }}
                 py="3"
                 align="center"
@@ -2391,7 +2407,7 @@ export default function StockForm() {
 
             {/* Main Content Area - Horizontal Table Form / stacked list form */}
             <Box
-                bg={formLayout === "list" ? "transparent" : cardBg}
+                bg={formLayout === "list" ? "transparent" : (isEditing ? editModeBg : cardBg)}
                 p={{ base: "4", md: "6" }}
                 overflowX={formLayout === "table" ? "auto" : "hidden"}
             >

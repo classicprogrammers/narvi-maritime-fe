@@ -1154,6 +1154,7 @@ function CustomerRegistration() {
                                                                 placeholder="Select Category"
                                                                 displayKey="name"
                                                                 valueKey="id"
+                                                                bg={editingClient ? editModeBg : undefined}
                                                             />
                                                         </Box>
                                                     </Box>
@@ -1563,6 +1564,7 @@ function CustomerRegistration() {
                                                                 placeholder="Select Country"
                                                                 displayKey="name"
                                                                 valueKey="id"
+                                                                bg={editingClient ? editModeBg : undefined}
                                                             />
                                                         </Box>
                                                     </Box>
@@ -1576,6 +1578,7 @@ function CustomerRegistration() {
                                                             modalTitle="Remarks"
                                                             textareaPlaceholder="Type and press Enter to create numbered list..."
                                                             boxWidth={gridInputWidth}
+                                                            bg={editingClient ? editModeBg : undefined}
                                                         />
                                                     </Box>
 
@@ -1624,6 +1627,7 @@ function CustomerRegistration() {
                                                             modalTitle="Client Invoicing"
                                                             textareaPlaceholder="Type and press Enter to create numbered list..."
                                                             boxWidth={gridInputWidth}
+                                                            bg={editingClient ? editModeBg : undefined}
                                                         />
                                                     </Box>
 

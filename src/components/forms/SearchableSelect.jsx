@@ -193,7 +193,10 @@ const SearchableSelect = ({
           bg={bg || defaultBg}
           color={color || defaultColor}
           borderColor={error ? "red.300" : (borderColor || defaultBorderColor)}
-          _hover={{ borderColor: error ? "red.400" : (borderColor || defaultBorderColor) }}
+          _hover={{
+            borderColor: error ? "red.400" : (borderColor || defaultBorderColor),
+            bg: bg || defaultBg,
+          }}
           _focus={{ borderColor: "#1c4a95", boxShadow: "0 0 0 1px #1c4a95" }}
           onClick={() => setIsOpen(!isOpen)}
           onKeyDown={handleTriggerKeyDown}

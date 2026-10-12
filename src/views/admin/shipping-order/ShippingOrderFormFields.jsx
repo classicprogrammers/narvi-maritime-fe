@@ -37,9 +37,10 @@ export default function ShippingOrderFormFields({
   showVesselDbLink = true,
 }) {
   const inputBg = useColorModeValue("white", "navy.900");
+  const editModeBg = useColorModeValue("red.50", "red.900");
+  const editFieldBg = isEditMode ? editModeBg : inputBg;
   const inputText = useColorModeValue("gray.800", "gray.100");
   const borderColor = useColorModeValue("gray.200", "gray.700");
-  const readOnlyBg = useColorModeValue("gray.50", "gray.700");
 
   // Show all vessels when no client; filter to that client's vessels when client is set.
   const { vesselOptions, isLoadingVessels } = useClientVesselFilterOptions(
@@ -81,7 +82,7 @@ export default function ShippingOrderFormFields({
               <Input
                 value={formData.so_number || "-"}
                 isReadOnly
-                bg={readOnlyBg}
+                bg={editFieldBg}
                 cursor="not-allowed"
               />
             </FormControl>
@@ -92,6 +93,9 @@ export default function ShippingOrderFormFields({
               type="date"
               value={formData.date_created || ""}
               isReadOnly={!!isEditMode}
+              bg={editFieldBg}
+              color={inputText}
+              borderColor={borderColor}
               onChange={(e) =>
                 setFormData((prev) => ({ ...prev, date_created: e.target.value }))
               }
@@ -101,7 +105,7 @@ export default function ShippingOrderFormFields({
             <FormLabel>Status</FormLabel>
             <Select
               size="sm"
-              bg={inputBg}
+              bg={editFieldBg}
               color={inputText}
               borderColor={borderColor}
               value={formData.done || "active"}
@@ -133,7 +137,7 @@ export default function ShippingOrderFormFields({
               }
               placeholder="Reason for cancellation..."
               rows={3}
-              bg={inputBg}
+              bg={editFieldBg}
               color={inputText}
               borderColor={borderColor}
             />
@@ -156,7 +160,7 @@ export default function ShippingOrderFormFields({
               displayKey="name"
               valueKey="id"
               isLoading={false}
-              bg={inputBg}
+              bg={editFieldBg}
               color={inputText}
               borderColor={borderColor}
               size="sm"
@@ -183,7 +187,7 @@ export default function ShippingOrderFormFields({
               displayKey="name"
               valueKey="id"
               isLoading={false}
-              bg={inputBg}
+              bg={editFieldBg}
               color={inputText}
               borderColor={borderColor}
               size="sm"
@@ -229,7 +233,7 @@ export default function ShippingOrderFormFields({
               displayKey="name"
               valueKey="id"
               isLoading={isLoadingVessels}
-              bg={inputBg}
+              bg={editFieldBg}
               color={inputText}
               borderColor={borderColor}
               size="sm"
@@ -241,7 +245,7 @@ export default function ShippingOrderFormFields({
             <FormLabel>Destination Type</FormLabel>
             <Select
               size="sm"
-              bg={inputBg}
+              bg={editFieldBg}
               color={inputText}
               borderColor={borderColor}
               value={formData.destination_type || ""}
@@ -274,7 +278,7 @@ export default function ShippingOrderFormFields({
               </FormLabel>
               <Input
                 size="sm"
-                bg={inputBg}
+                bg={editFieldBg}
                 color={inputText}
                 borderColor={borderColor}
                 value={formData.destination || ""}
@@ -313,7 +317,7 @@ export default function ShippingOrderFormFields({
                 displayKey="name"
                 valueKey="id"
                 isLoading={false}
-                bg={inputBg}
+                bg={editFieldBg}
                 color={inputText}
                 borderColor={borderColor}
                 size="sm"
@@ -331,6 +335,9 @@ export default function ShippingOrderFormFields({
             <Input
               type="date"
               value={nextActionVal}
+              bg={editFieldBg}
+              color={inputText}
+              borderColor={borderColor}
               onChange={(e) =>
                 setFormData((prev) => ({
                   ...prev,
@@ -350,6 +357,9 @@ export default function ShippingOrderFormFields({
             <Input
               type="date"
               value={etaDateVal}
+              bg={editFieldBg}
+              color={inputText}
+              borderColor={borderColor}
               onChange={(e) =>
                 setFormData((prev) => ({
                   ...prev,
@@ -363,6 +373,9 @@ export default function ShippingOrderFormFields({
             <Input
               type="date"
               value={etbVal}
+              bg={editFieldBg}
+              color={inputText}
+              borderColor={borderColor}
               onChange={(e) =>
                 setFormData((prev) => ({ ...prev, etb: e.target.value || false }))
               }
@@ -373,6 +386,9 @@ export default function ShippingOrderFormFields({
             <Input
               type="date"
               value={etdVal}
+              bg={editFieldBg}
+              color={inputText}
+              borderColor={borderColor}
               onChange={(e) =>
                 setFormData((prev) => ({ ...prev, etd: e.target.value || false }))
               }
@@ -406,7 +422,7 @@ export default function ShippingOrderFormFields({
             <FormLabel>Service boat / Launch paid by</FormLabel>
             <Select
               size="sm"
-              bg={inputBg}
+              bg={editFieldBg}
               color={inputText}
               borderColor={borderColor}
               value={formData.service_boat_paid_by || ""}
@@ -452,6 +468,9 @@ export default function ShippingOrderFormFields({
           <FormLabel>Internal Remark</FormLabel>
           <Textarea
             value={formData.internal_remark}
+            bg={editFieldBg}
+            color={inputText}
+            borderColor={borderColor}
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, internal_remark: e.target.value }))
             }
@@ -464,6 +483,9 @@ export default function ShippingOrderFormFields({
               value={formData.vsls_agent_dtls || ""}
               isReadOnly
               rows={2}
+              bg={editFieldBg}
+              color={inputText}
+              borderColor={borderColor}
               cursor="pointer"
               onClick={() =>
                 onOpenVslsAgentDtlsModal?.(
@@ -481,6 +503,9 @@ export default function ShippingOrderFormFields({
           <FormLabel>Client Case Invoice Ref</FormLabel>
           <Textarea
             value={formData.client_case_invoice_ref}
+            bg={editFieldBg}
+            color={inputText}
+            borderColor={borderColor}
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, client_case_invoice_ref: e.target.value }))
             }
@@ -529,7 +554,7 @@ export default function ShippingOrderFormFields({
               valueKey="id"
               isLoading={isLoadingQuotations}
               isDisabled
-              bg={inputBg}
+              bg={editFieldBg}
               color={inputText}
               borderColor={borderColor}
               size="sm"
@@ -540,6 +565,9 @@ export default function ShippingOrderFormFields({
             <Input
               type="date"
               value={soDeliveryDateVal}
+              bg={editFieldBg}
+              color={inputText}
+              borderColor={borderColor}
               onChange={(e) =>
                 setFormData((prev) => ({
                   ...prev,

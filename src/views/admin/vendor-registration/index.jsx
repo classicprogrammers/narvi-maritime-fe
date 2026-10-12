@@ -1706,6 +1706,7 @@ function VendorRegistration() {
                                             modalTitle="Remarks"
                                             textareaPlaceholder="Type and press Enter to create numbered list..."
                                             boxWidth={gridInputWidth}
+                                            bg={isEditMode ? editModeBg : undefined}
                                         />
                                     </Box>
 
@@ -1721,6 +1722,7 @@ function VendorRegistration() {
                                                 displayKey="name"
                                                 valueKey="id"
                                                 isLoading={countriesLoading}
+                                                bg={isEditMode ? editModeBg : undefined}
                                             />
                                         </Box>
                                     </Box>
@@ -1758,6 +1760,7 @@ function VendorRegistration() {
                                             modalTitle="Warnings"
                                             textareaPlaceholder="Enter any warnings or notes"
                                             boxWidth={gridInputWidth}
+                                            bg={isEditMode ? editModeBg : undefined}
                                         />
                                     </Box>
 
@@ -1777,11 +1780,12 @@ function VendorRegistration() {
                                                 w="100%"
                                                 isReadOnly
                                                 isDisabled
-                                                bg={idInputBg}
+                                                bg={isEditMode ? editModeBg : idInputBg}
                                                 cursor="not-allowed"
                                                 _disabled={{
                                                     opacity: 1,
                                                     cursor: "not-allowed",
+                                                    bg: isEditMode ? editModeBg : idInputBg,
                                                 }}
                                             />
                                         </VStack>
@@ -1969,9 +1973,9 @@ function VendorRegistration() {
                                                             borderRadius="md"
                                                             border="1px solid"
                                                             borderColor={borderColor}
-                                                            bg={inputBg}
+                                                            bg={isEditMode ? editModeBg : inputBg}
                                                             cursor="pointer"
-                                                            _hover={{ borderColor: "blue.400", bg: "whiteAlpha.50" }}
+                                                            _hover={{ borderColor: "blue.400", bg: isEditMode ? editModeBg : "whiteAlpha.50" }}
                                                             _focusWithin={{ borderColor: "blue.500", boxShadow: "0 0 0 1px var(--chakra-colors-blue-500)" }}
                                                             onClick={() => openCneeTextModal(rowIndex)}
                                                         >
@@ -2008,6 +2012,7 @@ function VendorRegistration() {
                                                         value={row.warnings || ""}
                                                         onChange={(newValue) => updateCneeRow(rowIndex, "warnings", newValue)}
                                                         placeholder="Click to enter warnings..."
+                                                        bg={isEditMode ? editModeBg : undefined}
                                                         modalTitle={`Warnings (CNEE ${rowIndex + 1})`}
                                                         textareaPlaceholder="Enter warnings for this CNEE type"
                                                         boxWidth={gridInputWidth}

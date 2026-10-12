@@ -91,6 +91,7 @@ import { calculateVolumeCbmFromLwhCm, formatRowTotalVolumeCbm } from "../../../u
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
 import { isStockOriginHubFormField, normalizeStockOriginHubText } from "../../../utils/stockOriginHubText";
 import { describeMissingClientVessel, isBlankStockRelation } from "../../../utils/stockClientVessel";
+import EditModeNotice, { useEditModeColors } from "../../../components/forms/EditModeNotice";
 
 export default function StockForm() {
     const history = useHistory();
@@ -131,6 +132,7 @@ export default function StockForm() {
     const inputText = useColorModeValue("gray.700", "gray.100");
     const borderColor = useColorModeValue("gray.200", "gray.700");
     const cardBg = useColorModeValue("white", "navy.800");
+    const { editModeBg, editModeBorderColor } = useEditModeColors();
 
     // Default empty row template – only keep fields that exist in the UI
     const getEmptyRow = () => ({
@@ -1383,11 +1385,25 @@ export default function StockForm() {
         );
     }
 
+    const stockEditName = !isEditing
+        ? ""
+        : isBulkEdit
+            ? `${selectedItems.length || formRows.length} stock items`
+            : (formRows[0]?.stockItemId || "Stock item");
+
     return (
-        <Box pt={{ base: "130px", md: "80px", xl: "80px" }} overflow="hidden" position="relative" zIndex="122222">
+        <Box
+            pt={{ base: "130px", md: "80px", xl: "80px" }}
+            overflow="hidden"
+            position="relative"
+            zIndex="122222"
+            bg={isEditing ? editModeBg : undefined}
+            border={isEditing ? `3px solid ${editModeBorderColor}` : undefined}
+        >
+            {isEditing && <EditModeNotice entity="stock item" name={stockEditName} />}
             {/* Header */}
             <Flex
-                bg={cardBg}
+                bg={isEditing ? editModeBg : cardBg}
                 px={{ base: "4", md: "6" }}
                 py="3"
                 justify="space-between"
@@ -1444,7 +1460,7 @@ export default function StockForm() {
             {/* Bulk Edit Navigation */}
             {isBulkEdit && selectedItems.length > 1 && (
                 <Flex
-                    bg={cardBg}
+                    bg={editModeBg}
                     px={{ base: "4", md: "6" }}
                     py="2"
                     justify="space-between"
@@ -1490,7 +1506,7 @@ export default function StockForm() {
             )}
 
             {/* Main Content Area - Horizontal Table Form */}
-            <Box bg={cardBg} p={{ base: "4", md: "6" }} overflowX="auto" overflowY="visible">
+            <Box bg={isEditing ? editModeBg : cardBg} p={{ base: "4", md: "6" }} overflowX="auto" overflowY="visible">
                 <Card w="100%" p="0" overflow="visible">
                     <Table variant="striped" size="sm" colorScheme="gray" minW="5000px">
                         <Thead>

@@ -24,6 +24,7 @@ export default function LongTextModalField({
     placeholder = "Click to enter text...",
     modalTitle = "Edit Text",
     boxWidth = "100%",
+    bg,
     minH = "80px",
     textareaRows = 12,
     textareaPlaceholder,
@@ -76,9 +77,9 @@ export default function LongTextModalField({
                     borderRadius="md"
                     border="1px solid"
                     borderColor={borderColor}
-                    bg={inputBg}
+                    bg={bg || inputBg}
                     cursor="pointer"
-                    _hover={{ borderColor: "blue.400", bg: "whiteAlpha.50" }}
+                    _hover={{ borderColor: "blue.400", bg: bg || "whiteAlpha.50" }}
                     _focusWithin={{ borderColor: "blue.500", boxShadow: "0 0 0 1px var(--chakra-colors-blue-500)" }}
                     onClick={onOpen}
                 >
