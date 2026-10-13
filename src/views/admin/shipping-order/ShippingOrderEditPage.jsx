@@ -19,7 +19,7 @@ import {
 import { useHistory, useParams } from "react-router-dom";
 import { MdArrowBack, MdContentCopy } from "react-icons/md";
 import { getNarviQuotations } from "../../../api/narviQuotation";
-import { getShippingOrderById, getShippingOrderStockApi, updateShippingOrder } from "../../../api/shippingOrders";
+import { createShippingOrder, getShippingOrderById, getShippingOrderStockApi, updateShippingOrder } from "../../../api/shippingOrders";
 import { useMasterData } from "../../../hooks/useMasterData";
 import { normalizeOrder, buildPayloadFromForm, validateShippingOrderServiceBoat } from "./shippingOrderUtils";
 import {
@@ -57,8 +57,49 @@ const unwrapOrderPayload = (payload) => {
   return null;
 };
 
+const getEmptyFormData = () => {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return {
+    id: null,
+    so_number: "",
+    date_created: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
+    done: "active",
+    cancel_text: "",
+    pic_new: null,
+    client: "",
+    client_id: null,
+    vessel_name: "",
+    vessel_id: null,
+    destination_type: "",
+    destination: "",
+    country_id: null,
+    destination_id: null,
+    eta_date: "",
+    etb: "",
+    etd: "",
+    delivery_via_service_boat: false,
+    service_boat_paid_by: "",
+    cost_confirmed_to_client: "",
+    so_delivery_date: "",
+    next_action: "",
+    internal_remark: "",
+    client_case_invoice_ref: "",
+    vsls_agent_dtls: "",
+    quotation: "",
+    quotation_id: null,
+    attachments: [],
+    existingAttachments: [],
+    attachment_to_delete: [],
+    cipl_files: [],
+    existingCiplFiles: [],
+    cipl_files_to_delete: [],
+  };
+};
+
 export default function ShippingOrderEditPage() {
   const { id } = useParams();
+  const isCreate = id == null || id === "";
   const history = useHistory();
   const toast = useToast();
 
@@ -92,8 +133,9 @@ export default function ShippingOrderEditPage() {
     let cancelled = false;
 
     const loadOrder = async () => {
-      if (id == null || id === "") {
-        setLoadError("Missing shipping order id.");
+      if (isCreate) {
+        setFormData(getEmptyFormData());
+        setOriginalOrder(null);
         setIsLoadingOrder(false);
         return;
       }
@@ -153,7 +195,7 @@ export default function ShippingOrderEditPage() {
     return () => {
       cancelled = true;
     };
-  }, [id, toast]);
+  }, [id, isCreate, toast]);
 
   useEffect(() => {
     const fetchQuotations = async () => {
@@ -200,7 +242,25 @@ export default function ShippingOrderEditPage() {
     }
     try {
       setIsSaving(true);
-      const payload = applyShippingOrderFilesToPayload(
+      if (isCreate) {
+        const createPayload = applyShippingOrderFilesToPayload(
+          buildPayloadFromForm(formData, false),
+          formData
+        );
+        const createResponse = await createShippingOrder(createPayload);
+        const createNotify = notifyShippingOrderSaveResult(createResponse, toast, { created: true });
+        if (createNotify.ok && !createNotify.partial) {
+          toast({
+            title: "SO created",
+            status: "success",
+            duration: 3000,
+            isClosable: true,
+          });
+        }
+        history.push("/admin/shipping-orders");
+        return;
+      }
+      const payload =applyShippingOrderFilesToPayload(
         buildPayloadFromForm(formData, true, originalOrder || {}),
         formData
       );
@@ -230,10 +290,6 @@ export default function ShippingOrderEditPage() {
   };
 
   const handleCancel = () => {
-    if (id != null && id !== "") {
-      history.push(`/admin/shipping-orders/${id}`);
-      return;
-    }
     history.push("/admin/shipping-orders");
   };
 
@@ -270,17 +326,29 @@ export default function ShippingOrderEditPage() {
       <Box
         mx="auto"
         p={6}
-        bg={editModeBg}
-        border={`3px solid ${editModeBorderColor}`}
-        borderRadius="lg"
-        boxShadow="0 0 0 1px rgba(229, 62, 62, 0.2), 0 4px 6px rgba(0, 0, 0, 0.1)"
+        {...(isCreate
+          ? {
+              bg: "white",
+              border: "1px solid",
+              borderColor: "gray.200",
+              borderRadius: "lg",
+              boxShadow: "sm",
+            }
+          : {
+              bg: editModeBg,
+              border: `3px solid ${editModeBorderColor}`,
+              borderRadius: "lg",
+              boxShadow: "0 0 0 1px rgba(229, 62, 62, 0.2), 0 4px 6px rgba(0, 0, 0, 0.1)",
+            })}
       >
-        <Box mx={-6} mt={-6} mb={6}>
-          <EditModeNotice
-            entity="shipping order"
-            name={formData.so_number || `SO-${id}`}
-          />
-        </Box>
+        {!isCreate && (
+          <Box mx={-6} mt={-6} mb={6}>
+            <EditModeNotice
+              entity="shipping order"
+              name={formData.so_number || `SO-${id}`}
+            />
+          </Box>
+        )}
         <Flex align="center" justify="space-between" mb={6} flexWrap="wrap" gap={3}>
           <Flex align="center" gap={3}>
             <Button
@@ -292,15 +360,15 @@ export default function ShippingOrderEditPage() {
               Back
             </Button>
             <Text fontSize="xl" fontWeight="bold">
-              Edit SO — {formData.so_number || `SO-${id}`}
+              {isCreate ? "Create SO" : `Edit SO — ${formData.so_number || `SO-${id}`}`}
             </Text>
           </Flex>
           <Flex gap={2}>
             <Button variant="outline" onClick={handleCancel}>
               Cancel
             </Button>
-            <Button colorScheme="green" onClick={handleSave} isLoading={isSaving} loadingText="Updating...">
-              Save Changes
+            <Button colorScheme="green" onClick={handleSave} isLoading={isSaving} loadingText={isCreate ? "Creating..." : "Updating..."}>
+              {isCreate ? "Create SO" : "Save Changes"}
             </Button>
           </Flex>
         </Flex>
@@ -308,7 +376,7 @@ export default function ShippingOrderEditPage() {
         <ShippingOrderFormFields
           formData={formData}
           setFormData={setFormData}
-          isEditMode
+          isEditMode={!isCreate}
           clients={clients}
           vessels={vessels}
           countries={countries}
@@ -316,18 +384,20 @@ export default function ShippingOrderEditPage() {
           quotations={quotations}
           isLoadingQuotations={isLoadingQuotations}
           onOpenVslsAgentDtlsModal={openVslsAgentDtlsModal}
-          showVesselDbLink={false}
+          showVesselDbLink={isCreate}
         />
 
-        <Box mt={8}>
-          <ShippingOrderStockList
-            title="Stock items"
-            variant="full"
-            allowOpenInStockList
-            stockList={formData.stock_list}
-            stockItemCount={formData.stock_item_count}
-          />
-        </Box>
+        {!isCreate && (
+          <Box mt={8}>
+            <ShippingOrderStockList
+              title="Stock items"
+              variant="full"
+              allowOpenInStockList
+              stockList={formData.stock_list}
+              stockItemCount={formData.stock_item_count}
+            />
+          </Box>
+        )}
       </Box>
 
       {/* VSLS Agent Details modal */}

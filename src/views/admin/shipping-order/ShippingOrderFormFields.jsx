@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { getShippingOrderOptionsApi } from "../../../api/shippingOrders";
 import {
   Box,
   Button,
@@ -48,6 +49,25 @@ export default function ShippingOrderFormFields({
     formData?.vessel_id,
     vessels
   );
+
+  const [destinationOptions, setDestinationOptions] = useState([]);
+  const [locationOptions, setLocationOptions] = useState([]);
+  const [isLoadingDestOptions, setIsLoadingDestOptions] = useState(false);
+
+  const loadDestinationOptions = (q_destination = "", q_location = "") => {
+    setIsLoadingDestOptions(true);
+    getShippingOrderOptionsApi({ q_destination, q_location })
+      .then(({ destinations, locations }) => {
+        setDestinationOptions(destinations);
+        setLocationOptions(locations);
+      })
+      .catch(() => { })
+      .finally(() => setIsLoadingDestOptions(false));
+  };
+
+  useEffect(() => {
+    loadDestinationOptions();
+  }, []);
 
   if (!formData) return null;
 
@@ -276,25 +296,55 @@ export default function ShippingOrderFormFields({
                       ? "Airport"
                       : "Destination"}
               </FormLabel>
-              <Input
-                size="sm"
-                bg={editFieldBg}
-                color={inputText}
-                borderColor={borderColor}
-                value={formData.destination || ""}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, destination: e.target.value }))
-                }
-                placeholder={
-                  formData.destination_type === "port_country"
-                    ? "Enter port name"
-                    : formData.destination_type === "city_country"
+              {formData.destination_type === "port_country" ||
+              formData.destination_type === "airport_country" ? (
+                <SimpleSearchableSelect
+                  value={formData.destination}
+                  onChange={(value) =>
+                    setFormData((prev) => ({ ...prev, destination: value }))
+                  }
+                  options={
+                    formData.destination_type === "port_country"
+                      ? destinationOptions
+                      : locationOptions
+                  }
+                  onSearchChange={(q) =>
+                    formData.destination_type === "port_country"
+                      ? loadDestinationOptions(q, "")
+                      : loadDestinationOptions("", q)
+                  }
+                  serverSideSearch
+                  placeholder={
+                    formData.destination_type === "port_country"
+                      ? "Select port name"
+                      : "Select airport"
+                  }
+                  displayKey="name"
+                  valueKey="name"
+                  fallbackDisplay={formData.destination || ""}
+                  isLoading={isLoadingDestOptions}
+                  bg={editFieldBg}
+                  color={inputText}
+                  borderColor={borderColor}
+                  size="sm"
+                />
+              ) : (
+                <Input
+                  size="sm"
+                  bg={editFieldBg}
+                  color={inputText}
+                  borderColor={borderColor}
+                  value={formData.destination || ""}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, destination: e.target.value }))
+                  }
+                  placeholder={
+                    formData.destination_type === "city_country"
                       ? "Enter city name"
-                      : formData.destination_type === "airport_country"
-                        ? "Enter airport name"
-                        : "Enter destination"
-                }
-              />
+                      : "Enter destination"
+                  }
+                />
+              )}
             </FormControl>
           )}
           {formData.destination_type && (

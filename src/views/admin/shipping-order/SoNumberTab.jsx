@@ -943,8 +943,7 @@ const SoNumberTab = () => {
   };
 
   const handleCreate = () => {
-    resetForm();
-    formDisclosure.onOpen();
+    history.push("/admin/shipping-orders/create");
   };
 
   const handleView = (order) => {

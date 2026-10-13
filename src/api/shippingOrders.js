@@ -531,6 +531,28 @@ export const deleteShippingOrder = async (id) => {
   }
 };
 
+// Destination (port) and location (airport) options for the shipping order form
+export const getShippingOrderOptionsApi = async ({ q_destination = "", q_location = "" } = {}) => {
+  const payload = { page: 1, page_size: 200 };
+  if (String(q_destination).trim()) payload.q_destination = String(q_destination).trim();
+  if (String(q_location).trim()) payload.q_location = String(q_location).trim();
+
+  const response = await api.post("/api/shipping/order/options", payload);
+  const data = response.data || response;
+  const source = data.result || data;
+  if (source.status === "error") {
+    throw new Error(source.message || "Failed to fetch shipping order options");
+  }
+  const pick = (...keys) => {
+    for (const k of keys) if (Array.isArray(source[k])) return source[k];
+    return [];
+  };
+  return {
+    destinations: pick("destinations", "destination_options"),
+    locations: pick("locations", "location_options"),
+  };
+};
+
 //eslint-disable-next-line
 export default {
   getShippingOrders,

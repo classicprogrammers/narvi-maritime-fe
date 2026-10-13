@@ -568,6 +568,13 @@ const hiddenRoutes = [
     component: VesselDetail,
   },
   {
+    name: "Shipping Order Create",
+    layout: "/admin",
+    path: "/shipping-orders/create",
+    exact: true,
+    component: ShippingOrderEditPage,
+  },
+  {
     name: "Shipping Order Edit",
     layout: "/admin",
     path: "/shipping-orders/edit/:id",
