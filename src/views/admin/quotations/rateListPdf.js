@@ -111,6 +111,20 @@ async function loadLetterheadDataUrl() {
   });
 }
 
+/** Model for a plain head/body table (used by the Client Tariffs screen). */
+export function buildTableReportPdfModel({ title, scopeLabel = "", head, body, filenameSuffix = "report" }) {
+  return {
+    reportType: "table",
+    filenameSuffix,
+    title,
+    scopeLabel,
+    table: { head, body },
+    rows: body,
+    generatedAt: new Date().toLocaleString(),
+    rowCount: body.length,
+  };
+}
+
 export async function buildRateListPdf(model) {
   const tableStartY = CONTENT_TOP + 38;
   const doc = new jsPDF({
@@ -153,11 +167,15 @@ export async function buildRateListPdf(model) {
   }
   doc.text(`Generated: ${model.generatedAt}`, CONTENT_LEFT, metaY);
 
-  const head = isClientTariff
-    ? [["Rate Type", "Location", "Client", "Agent", "Rate Name", "Rate Text", "Rate Fixed"]]
-    : [["Rate Type", "Location", "Client", "Agent", "Rate Name", "Rate Text", "Rate Cost", "Rate Fixed"]];
+  const head = model.table
+    ? [model.table.head]
+    : isClientTariff
+    ? [["Rate Type", "Location", "Client", "Agent", "Rate Name", "Rate Text", "Sales"]]
+    : [["Rate Type", "Location", "Client", "Agent", "Rate Name", "Rate Text", "Rate Cost", "Sales"]];
 
-  const body = model.rows.map((row) =>
+  const body = model.table
+    ? model.table.body
+    : model.rows.map((row) =>
     isClientTariff
       ? [row.rateType, row.location, row.client, row.agent, row.rateName, row.rateText, row.rateFixed]
       : [row.rateType, row.location, row.client, row.agent, row.rateName, row.rateText, row.rateCost, row.rateFixed]
@@ -183,10 +201,11 @@ export async function buildRateListPdf(model) {
     pageBreak: "auto",
     rowPageBreak: "avoid",
     showHead: "everyPage",
-    didDrawPage: (hookData) => {
+    // Must run BEFORE the page's rows are drawn: the letterhead is a full-page image and
+    // would otherwise paint over the table, leaving blank pages after the first.
+    willDrawPage: (hookData) => {
       if (hookData.pageNumber > 1) {
         drawLetterhead();
-        hookData.settings.margin.top = tableStartY;
       }
     },
   });
@@ -197,7 +216,8 @@ export async function buildRateListPdf(model) {
 export function getRateListPdfFilename(model) {
   const dateTag = new Date().toISOString().slice(0, 10);
   const suffix =
-    model.reportType === RATE_LIST_PDF_TYPES.CLIENT_TARIFF ? "client-tariffs" : "cost-and-fixed";
+    model.filenameSuffix ||
+    (model.reportType === RATE_LIST_PDF_TYPES.CLIENT_TARIFF ? "client-tariffs" : "cost-and-fixed");
   const scopePart = (model.scopeLabel || model.agentName)
     ? `-${String(model.scopeLabel || model.agentName).replace(/[^\w.-]+/g, "-").replace(/-+/g, "-")}`
     : "";

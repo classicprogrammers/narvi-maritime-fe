@@ -39,3 +39,49 @@ export const deleteRateListApi = async (id) => {
   const response = await api.post("/api/rate/list/delete", { id });
   return unwrapRateApiData(response);
 };
+
+// ---- Agent tariffs (GET /api/agent/rate/tariff) ----
+
+export const getAgentRateTariffsApi = async (params = {}) => {
+  const response = await api.get("/api/agent/rate/tariff", { params });
+  return response?.data || {};
+};
+
+export const getAgentRateTariffOptionsApi = async (payload = {}) => {
+  const response = await api.post("/api/agent/rate/tariff/options", {
+    page: 1,
+    page_size: 200,
+    ...payload,
+  });
+  return unwrapRateApiData(response);
+};
+
+// ---- Client rate tariffs (GET /api/client/rate/tariff). Not the legacy /api/client/tariff. ----
+
+export const getClientRateTariffsApi = async (params = {}) => {
+  const response = await api.get("/api/client/rate/tariff", { params });
+  return response?.data || {};
+};
+
+export const getClientRateTariffOptionsApi = async (payload = {}) => {
+  const response = await api.post("/api/client/rate/tariff/options", {
+    page: 1,
+    page_size: 200,
+    ...payload,
+  });
+  return unwrapRateApiData(response);
+};
+
+/** Fetch every page of a tariff list (used for full PDF/Excel exports). */
+export const fetchAllTariffRows = async (fetchPage, params = {}) => {
+  const all = [];
+  let page = 1;
+  for (;;) {
+    const result = await fetchPage({ ...params, page, page_size: 200 });
+    const batch = Array.isArray(result.data) ? result.data : [];
+    all.push(...batch);
+    if (!result.has_next || batch.length === 0 || page >= 200) break;
+    page += 1;
+  }
+  return all;
+};

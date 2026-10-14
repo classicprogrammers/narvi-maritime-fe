@@ -1,8 +1,9 @@
 export const RATE_LIST_STORAGE_KEY = "narvi_rate_list_state";
 
+/** Default order is the backend "sort order" ascending: no sort params are sent. */
 export const RATE_LIST_DEFAULT_SORT = {
-  sort_by: "id",
-  sort_order: "desc",
+  sort_by: "",
+  sort_order: "asc",
 };
 
 export const defaultRateListState = {
@@ -28,7 +29,10 @@ export const defaultRateListState = {
 function normalizeRateListSort(sort) {
   const sortBy = typeof sort?.sort_by === "string" ? sort.sort_by.trim() : "";
   const sortOrder = sort?.sort_order === "asc" || sort?.sort_order === "desc" ? sort.sort_order : "";
-  if (!sortBy || !sortOrder) return { ...RATE_LIST_DEFAULT_SORT };
+  // A persisted "id desc" is the legacy default (newest first); treat it as the new default.
+  if (!sortBy || !sortOrder || (sortBy === "id" && sortOrder === "desc")) {
+    return { ...RATE_LIST_DEFAULT_SORT };
+  }
   return { sort_by: sortBy, sort_order: sortOrder };
 }
 

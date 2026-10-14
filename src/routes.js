@@ -53,6 +53,8 @@ import QuotationDetail from "views/admin/quotations/QuotationDetail";
 import RateList from "views/admin/quotations/rate-list";
 import RateListForm from "views/admin/quotations/RateListForm";
 import ClientTariffs from "views/admin/quotations/client-tariffs";
+import AgentTariffs from "views/admin/quotations/agent-tariffs";
+import ClientRateTariffs from "views/admin/quotations/client-rate-tariffs";
 import Invoice from "views/admin/quotations/Invoice";
 import ShippingOrder from "views/admin/shipping-order";
 import ShippingOrderEditPage from "views/admin/shipping-order/ShippingOrderEditPage";
@@ -168,6 +170,22 @@ const routes = [
           <Icon as={MdRateReview} width="20px" height="20px" color="inherit" />
         ),
         component: RateList,
+      },
+      {
+        name: "Agent Tariffs",
+        path: "/quotations/agent-tariffs",
+        icon: (
+          <Icon as={MdAttachMoney} width="20px" height="20px" color="inherit" />
+        ),
+        component: AgentTariffs,
+      },
+      {
+        name: "Client Rate Tariffs",
+        path: "/quotations/client-rate-tariffs",
+        icon: (
+          <Icon as={MdAttachMoney} width="20px" height="20px" color="inherit" />
+        ),
+        component: ClientRateTariffs,
       },
       {
         name: "Client Tariffs",

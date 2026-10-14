@@ -242,16 +242,12 @@ const STICKY_ACTIONS_WIDTH = "104px";
 
 /** Sort keys sent as sort_by to GET /api/rate/list for each sortable table column. */
 const RATE_LIST_COLUMNS = [
-  { label: "Rate Type", sortKey: "rate_type", minW: "130px" },
-  { label: "Location", sortKey: "location_text", aliases: ["location"], minW: "130px" },
-  { label: "Client", sortKey: "client_id", minW: "170px" },
-  { label: "Agent", sortKey: "agent", aliases: ["agent_text"], minW: "190px" },
   { label: "Group Name", sortKey: "import_group", minW: "150px" },
   { label: "Rate Name", sortKey: "rate_name", minW: "240px" },
   { label: "Charge Category", sortKey: "charge_category", aliases: ["charge_category_label"], minW: "160px" },
   { label: "Rate Text", sortKey: "rate_text", minW: "280px" },
   { label: "Rate Cost", sortKey: "rate_float", minW: "110px", isNumeric: true },
-  { label: "Rate Fixed", sortKey: "fixed_sales_rate", minW: "110px", isNumeric: true },
+  { label: "Sales", sortKey: "fixed_sales_rate", minW: "110px", isNumeric: true },
 ];
 
 function SortableHeader({ column, sort, isSortable, onSort, headerCellProps, hoverBg }) {
@@ -445,8 +441,8 @@ export default function RateList() {
       import_group: filters.import_group.trim() || undefined,
       active: filters.active === "" ? undefined : filters.active === "true",
       incl_in_tariff: filters.incl_in_tariff === "" ? undefined : filters.incl_in_tariff === "true",
-      sort_by: sort.sort_by,
-      sort_order: sort.sort_order,
+      sort_by: sort.sort_by || undefined,
+      sort_order: sort.sort_by ? sort.sort_order : undefined,
     }),
     [debouncedSearch, filters, sort]
   );
@@ -1247,7 +1243,7 @@ export default function RateList() {
                 setPage(1);
               }}
             >
-              <option value="">Default (newest first)</option>
+              <option value="">Default (Sort Order)</option>
               {sortableColumns.map((column) => (
                 <option key={column.sortKey} value={column.sortKey}>
                   {column.label}
@@ -1522,7 +1518,7 @@ export default function RateList() {
                 "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
               }}
             >
-              <Table size="sm" variant="simple" minW="1820px">
+              <Table size="sm" variant="simple" minW="1100px">
                 <Thead position="sticky" top={0} zIndex={3}>
                   <Tr>
                     <Th
@@ -1575,7 +1571,6 @@ export default function RateList() {
                   {items.map((item, index) => {
                     const isSelected = Boolean(selectedRates[item.id]);
                     const rowBg = isSelected ? selectedRowBg : index % 2 === 0 ? tableRowBg : tableRowBgAlt;
-                    const rateTypeLabel = formatRateType(item.rate_type);
                     return (
                       <Tr key={item.id} bg={rowBg} _hover={{ bg: hoverBg }} sx={{ "& td": { bg: "inherit" } }}>
                         <Td
@@ -1630,29 +1625,6 @@ export default function RateList() {
                             </Tooltip>
                           </HStack>
                         </Td>
-                        <Td {...tableCellProps}>
-                          {rateTypeLabel === "-" ? (
-                            <Text color="gray.400">-</Text>
-                          ) : (
-                            <Tag
-                              size="sm"
-                              variant="subtle"
-                              colorScheme={item.rate_type === "client_specific" ? "purple" : "blue"}
-                              whiteSpace="nowrap"
-                            >
-                              {rateTypeLabel}
-                            </Tag>
-                          )}
-                        </Td>
-                        <RateCell value={item.location_text || item.location} cellProps={tableCellProps} />
-                        <RateCell
-                          value={item.client_id?.name || item.client_name || item.client}
-                          cellProps={tableCellProps}
-                        />
-                        <RateCell
-                          value={item.agent_id?.name || item.agent_text || item.agent}
-                          cellProps={tableCellProps}
-                        />
                         <RateCell value={item.import_group} cellProps={tableCellProps} />
                         <RateCell value={item.rate_name} cellProps={tableCellProps} fontWeight="600" />
                         <RateCell

@@ -1,0 +1,285 @@
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Box,
+  Button,
+  Flex,
+  FormControl,
+  FormLabel,
+  HStack,
+  Icon,
+  IconButton,
+  Input,
+  InputGroup,
+  InputLeftElement,
+  SimpleGrid,
+  Text,
+  Tooltip,
+  useColorModeValue,
+  useToast,
+} from "@chakra-ui/react";
+import { MdClear, MdRefresh, MdSearch } from "react-icons/md";
+import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import { getAgentRateTariffOptionsApi, getAgentRateTariffsApi } from "../../../api/rate";
+import TariffTable from "./TariffTable";
+import useTariffOptions from "./useTariffOptions";
+import {
+  formatAgentOption,
+  intParam,
+  normalizeIdOptions,
+  normalizeNameOptions,
+  TARIFF_PAGE_SIZE,
+  tariffErrorMessage,
+  withSelectedOption,
+} from "./tariffScreenUtils";
+
+const DEFAULT_FILTERS = { agent_id: "", location: "", import_group: "", active: "" };
+
+// Archived rows are hidden unless active=false is sent, so "Active" is the default (no param).
+const ACTIVE_OPTIONS = [
+  { id: "true", name: "Active" },
+  { id: "false", name: "Archived" },
+];
+
+const EMPTY_OPTIONS = { agents: [], locations: [], groups: [] };
+
+const COLUMNS = [
+  { key: "group_name", label: "Group Name" },
+  { key: "rate_name", label: "Rate Name" },
+  { key: "charge_category_label", label: "Standard / If Apply" },
+  { key: "rate_cost", label: "Rate Cost", isNumeric: true },
+  { key: "sales", label: "Sales", isNumeric: true },
+];
+
+function parseOptions(result) {
+  return {
+    agents: normalizeIdOptions(result.agent_options),
+    locations: normalizeNameOptions(result.location_options),
+    groups: normalizeNameOptions(result.import_group_options),
+  };
+}
+
+export default function AgentTariffs() {
+  const toast = useToast();
+  const textColor = useColorModeValue("gray.700", "white");
+  const borderColor = useColorModeValue("gray.200", "gray.700");
+  const panelBg = useColorModeValue("gray.50", "gray.700");
+  const inputBg = useColorModeValue("white", "navy.900");
+  const inputText = useColorModeValue("gray.800", "gray.100");
+  const placeholderColor = useColorModeValue("gray.400", "gray.500");
+
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [pins, setPins] = useState({});
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [meta, setMeta] = useState({ totalCount: 0, totalPages: 1, hasNext: false, hasPrevious: false });
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const optionsPayload = useMemo(
+    () => ({
+      agent_id: intParam(filters.agent_id),
+      location: filters.location || undefined,
+      import_group: filters.import_group || undefined,
+    }),
+    [filters.agent_id, filters.location, filters.import_group]
+  );
+
+  const { options, loading: optionsLoading, onSearch } = useTariffOptions({
+    fetchOptions: getAgentRateTariffOptionsApi,
+    payload: optionsPayload,
+    parse: parseOptions,
+    initial: EMPTY_OPTIONS,
+  });
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await getAgentRateTariffsApi({
+        page,
+        page_size: TARIFF_PAGE_SIZE,
+        search: debouncedSearch || undefined,
+        ...optionsPayload,
+        active: filters.active === "" ? undefined : filters.active === "true",
+      });
+      setRows(Array.isArray(result.data) ? result.data : []);
+      setMeta({
+        totalCount: result.total_count || 0,
+        totalPages: result.total_pages || 1,
+        hasNext: Boolean(result.has_next),
+        hasPrevious: Boolean(result.has_previous),
+      });
+    } catch (error) {
+      setRows([]);
+      setMeta({ totalCount: 0, totalPages: 1, hasNext: false, hasPrevious: false });
+      toast({
+        title: "Error",
+        description: tariffErrorMessage(error, "Failed to load agent tariffs."),
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [page, debouncedSearch, optionsPayload, filters.active, toast]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleFilterChange = (field, value, optionList) => {
+    setFilters((prev) => ({ ...prev, [field]: value || "" }));
+    setPins((prev) => ({
+      ...prev,
+      [field]: value ? optionList?.find((option) => String(option.id) === String(value)) || prev[field] : null,
+    }));
+    setPage(1);
+  };
+
+  const clearFilters = () => {
+    setFilters(DEFAULT_FILTERS);
+    setPins({});
+    setSearch("");
+    setDebouncedSearch("");
+    setPage(1);
+  };
+
+  const hasAnyFilter = Boolean(debouncedSearch || search || Object.values(filters).some(Boolean));
+  const selectProps = { size: "sm", bg: inputBg, color: inputText, borderColor, prefillOnFocus: false };
+
+  const field = (label, control) => (
+    <FormControl>
+      <FormLabel fontSize="xs" mb="1" color={textColor}>
+        {label}
+      </FormLabel>
+      {control}
+    </FormControl>
+  );
+
+  return (
+    <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
+      <Flex justify="space-between" align="center" mb="4" flexWrap="wrap" gap="3">
+        <Text fontSize="lg" fontWeight="700" color={textColor}>
+          Agent Tariffs
+        </Text>
+        <HStack spacing="3" flexWrap="wrap">
+          <InputGroup size="sm" w={{ base: "100%", md: "300px" }}>
+            <InputLeftElement pointerEvents="none">
+              <Icon as={MdSearch} color={placeholderColor} />
+            </InputLeftElement>
+            <Input
+              size="sm"
+              bg={inputBg}
+              color={inputText}
+              borderColor={borderColor}
+              borderRadius="md"
+              placeholder="Search rate name, group..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </InputGroup>
+          <Tooltip label="Refresh" hasArrow>
+            <IconButton
+              size="sm"
+              variant="outline"
+              aria-label="Refresh agent tariffs"
+              icon={<Icon as={MdRefresh} />}
+              onClick={loadData}
+              isLoading={loading}
+            />
+          </Tooltip>
+          {hasAnyFilter && (
+            <Button size="sm" variant="outline" leftIcon={<Icon as={MdClear} />} onClick={clearFilters}>
+              Clear Filters
+            </Button>
+          )}
+        </HStack>
+      </Flex>
+
+      <SimpleGrid
+        columns={{ base: 1, md: 2, xl: 4 }}
+        spacing="4"
+        p="4"
+        mb="4"
+        bg={panelBg}
+        borderRadius="md"
+        border="1px"
+        borderColor={borderColor}
+      >
+        {field(
+          "Agent Name",
+          <SimpleSearchableSelect
+            {...selectProps}
+            value={filters.agent_id}
+            options={withSelectedOption(options.agents, filters.agent_id, pins.agent_id)}
+            placeholder="All Agents"
+            formatOption={formatAgentOption}
+            isLoading={optionsLoading}
+            onSearchChange={(query) => onSearch("q_agent", query)}
+            onChange={(value) => handleFilterChange("agent_id", value, options.agents)}
+          />
+        )}
+        {field(
+          "Location",
+          <SimpleSearchableSelect
+            {...selectProps}
+            value={filters.location}
+            options={withSelectedOption(options.locations, filters.location, pins.location)}
+            placeholder="All Locations"
+            formatOption={(option) => option.name}
+            isLoading={optionsLoading}
+            onSearchChange={(query) => onSearch("q_location", query)}
+            onChange={(value) => handleFilterChange("location", value, options.locations)}
+          />
+        )}
+        {field(
+          "Group Name",
+          <SimpleSearchableSelect
+            {...selectProps}
+            value={filters.import_group}
+            options={withSelectedOption(options.groups, filters.import_group, pins.import_group)}
+            placeholder="All Groups"
+            formatOption={(option) => option.name}
+            isLoading={optionsLoading}
+            onSearchChange={(query) => onSearch("q_import_group", query)}
+            onChange={(value) => handleFilterChange("import_group", value, options.groups)}
+          />
+        )}
+        {field(
+          "Active",
+          <SimpleSearchableSelect
+            {...selectProps}
+            value={filters.active}
+            options={ACTIVE_OPTIONS}
+            placeholder="Active (default)"
+            formatOption={(option) => option.name}
+            onChange={(value) => handleFilterChange("active", value, ACTIVE_OPTIONS)}
+          />
+        )}
+      </SimpleGrid>
+
+      <TariffTable
+        columns={COLUMNS}
+        rows={rows}
+        loading={loading}
+        emptyText="No agent tariffs found. Try changing or clearing the filters."
+        page={page}
+        pageSize={TARIFF_PAGE_SIZE}
+        totalCount={meta.totalCount}
+        totalPages={meta.totalPages}
+        hasNext={meta.hasNext}
+        hasPrevious={meta.hasPrevious}
+        onPageChange={setPage}
+      />
+    </Box>
+  );
+}
