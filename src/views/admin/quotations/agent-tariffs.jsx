@@ -17,9 +17,13 @@ import {
   useColorModeValue,
   useToast,
 } from "@chakra-ui/react";
-import { MdClear, MdRefresh, MdSearch } from "react-icons/md";
+import { MdClear, MdDownload, MdPictureAsPdf, MdRefresh, MdSearch } from "react-icons/md";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
-import { getAgentRateTariffOptionsApi, getAgentRateTariffsApi } from "../../../api/rate";
+import { getAgentRateTariffOptionsApi, getAgentRateTariffsApi, withFetchAll } from "../../../api/rate";
+import FetchAllSwitch from "./FetchAllSwitch";
+import { buildPdfModel } from "./rateListPdf";
+import { downloadSheetAsExcel } from "./rateListExcel";
+import usePdfPreview from "./usePdfPreview";
 import TariffTable from "./TariffTable";
 import useTariffOptions from "./useTariffOptions";
 import {
@@ -28,6 +32,7 @@ import {
   normalizeIdOptions,
   normalizeNameOptions,
   TARIFF_PAGE_SIZE,
+  toTableRows,
   tariffErrorMessage,
   withSelectedOption,
 } from "./tariffScreenUtils";
@@ -45,6 +50,7 @@ const EMPTY_OPTIONS = { agents: [], locations: [], groups: [] };
 const COLUMNS = [
   { key: "group_name", label: "Group Name" },
   { key: "rate_name", label: "Rate Name" },
+  { key: "rate_text", label: "Rate Text" },
   { key: "charge_category_label", label: "Standard / If Apply" },
   { key: "rate_cost", label: "Rate Cost", isNumeric: true },
   { key: "sales", label: "Sales", isNumeric: true },
@@ -60,6 +66,7 @@ function parseOptions(result) {
 
 export default function AgentTariffs() {
   const toast = useToast();
+  const { openPdf, pdfPreviewModal } = usePdfPreview();
   const textColor = useColorModeValue("gray.700", "white");
   const borderColor = useColorModeValue("gray.200", "gray.700");
   const panelBg = useColorModeValue("gray.50", "gray.700");
@@ -72,8 +79,10 @@ export default function AgentTariffs() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [fetchAll, setFetchAll] = useState(false);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState("");
   const [meta, setMeta] = useState({ totalCount: 0, totalPages: 1, hasNext: false, hasPrevious: false });
 
   useEffect(() => {
@@ -100,16 +109,25 @@ export default function AgentTariffs() {
     initial: EMPTY_OPTIONS,
   });
 
+  // As in the stock list, fetch all is only available while a filter or search is applied.
+  const hasAnyFilter = Boolean(search || debouncedSearch || Object.values(filters).some(Boolean));
+  const usesFetchAll = fetchAll && hasAnyFilter;
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await getAgentRateTariffsApi({
-        page,
-        page_size: TARIFF_PAGE_SIZE,
-        search: debouncedSearch || undefined,
-        ...optionsPayload,
-        active: filters.active === "" ? undefined : filters.active === "true",
-      });
+      const result = await getAgentRateTariffsApi(
+        withFetchAll(
+          {
+            page,
+            page_size: TARIFF_PAGE_SIZE,
+            search: debouncedSearch || undefined,
+            ...optionsPayload,
+            active: filters.active === "" ? undefined : filters.active === "true",
+          },
+          usesFetchAll
+        )
+      );
       setRows(Array.isArray(result.data) ? result.data : []);
       setMeta({
         totalCount: result.total_count || 0,
@@ -130,11 +148,60 @@ export default function AgentTariffs() {
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch, optionsPayload, filters.active, toast]);
+  }, [page, debouncedSearch, optionsPayload, filters.active, usesFetchAll, toast]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Exports always cover every matching record, whatever the page / fetch all setting.
+  const handleExport = async (kind) => {
+    setExporting(kind);
+    try {
+      const result = await getAgentRateTariffsApi({
+        ...optionsPayload,
+        search: debouncedSearch || undefined,
+        active: filters.active === "" ? undefined : filters.active === "true",
+        fetch_all: true,
+      });
+      const all = Array.isArray(result.data) ? result.data : [];
+      if (!all.length) {
+        toast({ title: "No tariffs to export", status: "info", duration: 3000, isClosable: true });
+        return;
+      }
+      const head = COLUMNS.map((column) => column.label);
+      const body = toTableRows(COLUMNS, all);
+      if (kind === "pdf") {
+        const scope = [pins.agent_id?.name, filters.location, filters.import_group].filter(Boolean).join(" · ");
+        await openPdf(
+          buildPdfModel({
+            title: "Agent Tariff",
+            scopeLabel: scope,
+            sections: [{ head, body }],
+            filenameSuffix: "agent-tariff",
+          })
+        );
+      } else {
+        downloadSheetAsExcel({
+          headers: head,
+          rows: body,
+          filePrefix: "agent-tariff",
+          sheetName: "Agent Tariff",
+          colWidths: [20, 40, 40, 20, 14, 14],
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Export failed",
+        description: tariffErrorMessage(error, "Could not export agent tariffs."),
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setExporting("");
+    }
+  };
 
   const handleFilterChange = (field, value, optionList) => {
     setFilters((prev) => ({ ...prev, [field]: value || "" }));
@@ -153,7 +220,6 @@ export default function AgentTariffs() {
     setPage(1);
   };
 
-  const hasAnyFilter = Boolean(debouncedSearch || search || Object.values(filters).some(Boolean));
   const selectProps = { size: "sm", bg: inputBg, color: inputText, borderColor, prefillOnFocus: false };
 
   const field = (label, control) => (
@@ -197,11 +263,42 @@ export default function AgentTariffs() {
               isLoading={loading}
             />
           </Tooltip>
+          <FetchAllSwitch
+            isChecked={usesFetchAll}
+            isEnabled={hasAnyFilter}
+            onChange={(checked) => {
+              setFetchAll(checked);
+              setPage(1);
+            }}
+          />
           {hasAnyFilter && (
             <Button size="sm" variant="outline" leftIcon={<Icon as={MdClear} />} onClick={clearFilters}>
               Clear Filters
             </Button>
           )}
+          <Button
+            size="sm"
+            colorScheme="blue"
+            leftIcon={<Icon as={MdPictureAsPdf} />}
+            onClick={() => handleExport("pdf")}
+            isLoading={exporting === "pdf"}
+            loadingText="Generating..."
+            isDisabled={meta.totalCount === 0}
+          >
+            Export PDF
+          </Button>
+          <Button
+            size="sm"
+            colorScheme="green"
+            variant="outline"
+            leftIcon={<Icon as={MdDownload} />}
+            onClick={() => handleExport("excel")}
+            isLoading={exporting === "excel"}
+            loadingText="Exporting..."
+            isDisabled={meta.totalCount === 0}
+          >
+            Export Excel
+          </Button>
         </HStack>
       </Flex>
 
@@ -278,8 +375,11 @@ export default function AgentTariffs() {
         totalPages={meta.totalPages}
         hasNext={meta.hasNext}
         hasPrevious={meta.hasPrevious}
+        fetchAll={usesFetchAll}
         onPageChange={setPage}
       />
+
+      {pdfPreviewModal}
     </Box>
   );
 }

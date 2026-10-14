@@ -26,7 +26,6 @@ import {
   Select,
   SimpleGrid,
   Table,
-  Tag,
   Tbody,
   Td,
   Text,
@@ -57,8 +56,8 @@ import {
   MdUnfoldMore,
 } from "react-icons/md";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
-import api from "../../../api/axios";
-import { deleteRateListApi, getRateListOptionsApi } from "../../../api/rate";
+import { deleteRateListApi, getRateListApi, getRateListOptionsApi, withFetchAll } from "../../../api/rate";
+import FetchAllSwitch from "./FetchAllSwitch";
 import {
   buildRateListFilterSnapshot,
   clearPersistedRateListState,
@@ -70,9 +69,7 @@ import {
 import {
   buildRateListPdf,
   buildRateListPdfModel,
-  fetchAllFilteredRates,
   getRateListPdfFilename,
-  RATE_LIST_PDF_TYPES,
 } from "./rateListPdf";
 import { downloadRateListExcel } from "./rateListExcel";
 import { chargeCategoryLabel } from "../../../utils/rateListForm";
@@ -218,13 +215,6 @@ function RateCell({ value, cellProps, fontWeight, color, isNumeric, noOfLines = 
   );
 }
 
-function formatRateType(value) {
-  const match = RATE_TYPE_FILTER_OPTIONS.find((option) => option.id === value);
-  if (match) return match.name;
-  if (value === false || value == null || String(value).trim() === "") return "-";
-  return String(value);
-}
-
 function formatRateCost(item) {
   const rate = item.rate_float;
   if (rate === false || rate == null || String(rate).trim() === "") return "-";
@@ -244,8 +234,8 @@ const STICKY_ACTIONS_WIDTH = "104px";
 const RATE_LIST_COLUMNS = [
   { label: "Group Name", sortKey: "import_group", minW: "150px" },
   { label: "Rate Name", sortKey: "rate_name", minW: "240px" },
-  { label: "Charge Category", sortKey: "charge_category", aliases: ["charge_category_label"], minW: "160px" },
   { label: "Rate Text", sortKey: "rate_text", minW: "280px" },
+  { label: "Charge Category", sortKey: "charge_category", aliases: ["charge_category_label"], minW: "160px" },
   { label: "Rate Cost", sortKey: "rate_float", minW: "110px", isNumeric: true },
   { label: "Sales", sortKey: "fixed_sales_rate", minW: "110px", isNumeric: true },
 ];
@@ -385,6 +375,7 @@ export default function RateList() {
   const [filters, setFilters] = useState(() => savedListState?.filters ?? DEFAULT_FILTERS);
   filtersRef.current = filters;
   const [page, setPage] = useState(() => savedListState?.page ?? 1);
+  const [fetchAll, setFetchAll] = useState(false);
   const [sort, setSort] = useState(() => savedListState?.sort ?? { ...RATE_LIST_DEFAULT_SORT });
   const [sortableFields, setSortableFields] = useState(null);
   const isDefaultSort =
@@ -407,6 +398,8 @@ export default function RateList() {
     filters.incl_in_tariff
   );
   const hasAnyFilter = Boolean(search || hasAnyAdvanceFilter);
+  // As in the stock list, fetch all is only available while a filter or search is applied.
+  const usesFetchAll = fetchAll && hasAnyFilter;
   const [showFilterFields, setShowFilterFields] = useState(
     () => savedListState?.showFilterFields ?? false
   );
@@ -548,14 +541,9 @@ export default function RateList() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const params = {
-        ...buildListParams(),
-        page,
-        page_size: RATE_LIST_PAGE_SIZE,
-      };
-
-      const response = await api.get("/api/rate/list", { params });
-      const result = response?.data || {};
+      const result = await getRateListApi(
+        withFetchAll({ ...buildListParams(), page, page_size: RATE_LIST_PAGE_SIZE }, usesFetchAll)
+      );
 
       setItems(Array.isArray(result.data) ? result.data : []);
       setTotalPages(result.total_pages || 1);
@@ -587,7 +575,7 @@ export default function RateList() {
     } finally {
       setLoading(false);
     }
-  }, [buildListParams, page, toast]);
+  }, [buildListParams, page, usesFetchAll, toast]);
 
   useEffect(() => {
     loadData();
@@ -968,7 +956,6 @@ export default function RateList() {
       try {
         const model = buildRateListPdfModel({
           items: ratesToExport,
-          reportType: RATE_LIST_PDF_TYPES.COST_AND_FIXED,
           scopeLabel,
         });
         setPdfModel(model);
@@ -1006,7 +993,7 @@ export default function RateList() {
   const handleExportFilteredPdf = useCallback(async () => {
     setIsPdfLoading(true);
     try {
-      const filteredRates = await fetchAllFilteredRates(api, buildListParams());
+      const { data: filteredRates = [] } = await getRateListApi({ ...buildListParams(), fetch_all: true });
       await openPdfPreview(filteredRates, `Filtered rates (${filteredRates.length})`);
     } catch (error) {
       console.error("Failed to load filtered rates for PDF:", error);
@@ -1052,7 +1039,7 @@ export default function RateList() {
   const handleExportFilteredExcel = useCallback(async () => {
     setIsExcelLoading(true);
     try {
-      const filteredRates = await fetchAllFilteredRates(api, buildListParams());
+      const { data: filteredRates = [] } = await getRateListApi({ ...buildListParams(), fetch_all: true });
       exportRatesToExcel(filteredRates, hasAnyFilter ? "rate-list-filtered" : "rate-list");
     } catch (error) {
       console.error("Failed to load rates for Excel:", error);
@@ -1216,6 +1203,14 @@ export default function RateList() {
                 Clear Filters
               </Button>
             )}
+            <FetchAllSwitch
+              isChecked={usesFetchAll}
+              isEnabled={hasAnyFilter}
+              onChange={(checked) => {
+                setFetchAll(checked);
+                setPage(1);
+              }}
+            />
           </HStack>
 
           <HStack spacing="2" flexWrap="wrap">
@@ -1627,11 +1622,11 @@ export default function RateList() {
                         </Td>
                         <RateCell value={item.import_group} cellProps={tableCellProps} />
                         <RateCell value={item.rate_name} cellProps={tableCellProps} fontWeight="600" />
+                        <RateCell value={displayText(item.rate_text)} cellProps={tableCellProps} noOfLines={3} />
                         <RateCell
                           value={chargeCategoryLabel(item.charge_category, item.charge_category_label)}
                           cellProps={tableCellProps}
                         />
-                        <RateCell value={displayText(item.rate_text)} cellProps={tableCellProps} noOfLines={3} />
                         <RateCell
                           value={formatRateCost(item)}
                           cellProps={tableCellProps}
@@ -1664,10 +1659,11 @@ export default function RateList() {
               gap={3}
             >
               <Text fontSize="sm" color={mutedTextColor}>
-                Showing {pageStart}–{pageEnd} of {totalCount} rate{totalCount === 1 ? "" : "s"}
-                {totalPages > 1 ? ` · Page ${page} of ${totalPages}` : ""}
+                {usesFetchAll
+                  ? `Showing all ${items.length} matching records (fetch all)`
+                  : `Showing ${pageStart}–${pageEnd} of ${totalCount} rate${totalCount === 1 ? "" : "s"}${totalPages > 1 ? ` · Page ${page} of ${totalPages}` : ""}`}
               </Text>
-              {totalPages > 1 && (
+              {!usesFetchAll && totalPages > 1 && (
                 <HStack spacing={1} wrap="wrap">
                   <Button size="sm" variant="outline" onClick={() => setPage(1)} isDisabled={!hasPrevious || page === 1}>
                     First

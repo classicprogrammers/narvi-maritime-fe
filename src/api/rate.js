@@ -15,6 +15,11 @@ function unwrapRateApiData(response) {
   return data;
 }
 
+export const getRateListApi = async (params = {}) => {
+  const response = await api.get("/api/rate/list", { params });
+  return response?.data || {};
+};
+
 export const getRateListOptionsApi = async (payload = {}) => {
   const response = await api.post("/api/rate/list/options", {
     page: 1,
@@ -72,16 +77,12 @@ export const getClientRateTariffOptionsApi = async (payload = {}) => {
   return unwrapRateApiData(response);
 };
 
-/** Fetch every page of a tariff list (used for full PDF/Excel exports). */
-export const fetchAllTariffRows = async (fetchPage, params = {}) => {
-  const all = [];
-  let page = 1;
-  for (;;) {
-    const result = await fetchPage({ ...params, page, page_size: 200 });
-    const batch = Array.isArray(result.data) ? result.data : [];
-    all.push(...batch);
-    if (!result.has_next || batch.length === 0 || page >= 200) break;
-    page += 1;
-  }
-  return all;
+/**
+ * List params for either one page or everything: fetch_all=true returns every matching
+ * record in one response (page/page_size are ignored), as in the stock list.
+ */
+export const withFetchAll = (params, fetchAll) => {
+  if (!fetchAll) return params;
+  const { page, page_size, ...rest } = params;
+  return { ...rest, fetch_all: true };
 };

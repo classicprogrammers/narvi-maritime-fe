@@ -402,6 +402,17 @@ export const getVendorsApi = async (filterParams = {}) => {
   }
 };
 
+// Get one agent through the list endpoint: GET /api/agents?id={id}&user_id={user}
+export const getAgentByIdQueryApi = async (agentId) => {
+  const userId = getStoredUserId();
+  const response = await api.get(getApiEndpoint("VENDORS"), {
+    params: { id: agentId, ...(userId ? { user_id: userId } : {}) },
+  });
+  const body = response.data;
+  const payload = body?.result?.data ?? body?.data ?? body?.agents ?? body?.agent ?? body;
+  return Array.isArray(payload) ? payload[0] : payload;
+};
+
 // Get Agent by ID API
 export const getVendorByIdApi = async (agentId) => {
   try {

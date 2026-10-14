@@ -73,3 +73,11 @@ export function tariffErrorMessage(error, fallback) {
   const data = error?.response?.data;
   return data?.message || data?.result?.message || error?.message || fallback;
 }
+
+/** Cell text of a tariff column (used by the screen exports). */
+export function exportCell(column, row) {
+  return displayTariffValue(column.render ? column.render(row) : row[column.key]);
+}
+
+export const toTableRows = (columns, rows) =>
+  rows.map((row) => columns.map((column) => exportCell(column, row)));

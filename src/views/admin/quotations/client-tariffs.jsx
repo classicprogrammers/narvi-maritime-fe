@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Box,
   Button,
@@ -11,45 +11,40 @@ import {
   Input,
   InputGroup,
   InputLeftElement,
-  Modal,
-  ModalBody,
-  ModalCloseButton,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-  ModalOverlay,
+  Menu,
+  MenuButton,
+  MenuItem,
+  MenuList,
   SimpleGrid,
-  Spinner,
   Text,
+  Textarea,
   Tooltip,
   useColorModeValue,
-  useDisclosure,
   useToast,
 } from "@chakra-ui/react";
 import {
+  MdArrowDropDown,
   MdClear,
   MdDownload,
   MdPictureAsPdf,
-  MdPrint,
   MdRefresh,
   MdSearch,
 } from "react-icons/md";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import {
-  fetchAllTariffRows,
   getClientRateTariffOptionsApi,
   getClientRateTariffsApi,
+  withFetchAll,
 } from "../../../api/rate";
+import { getAgentByIdQueryApi } from "../../../api/vendor";
+import FetchAllSwitch from "./FetchAllSwitch";
 import TariffTable from "./TariffTable";
 import useTariffOptions from "./useTariffOptions";
-import {
-  buildRateListPdf,
-  buildTableReportPdfModel,
-  getRateListPdfFilename,
-} from "./rateListPdf";
+import { buildPdfModel } from "./rateListPdf";
+import usePdfPreview from "./usePdfPreview";
 import { downloadSheetAsExcel } from "./rateListExcel";
 import {
-  displayTariffValue,
+  toTableRows,
   formatAgentOption,
   intParam,
   normalizeIdOptions,
@@ -65,11 +60,14 @@ const DEFAULT_FILTERS = { client_id: "", location: "", agent_id: "", incl_in_tar
 const EMPTY_OPTIONS = { clients: [], locations: [], agents: [], inTariff: normalizeYesNoOptions() };
 
 const COLUMNS = [
-  { key: "location", label: "Location" },
   { key: "rate_name", label: "Rate Name" },
+  { key: "charge_category_label", label: "Standard / If Apply" },
   { key: "currency", label: "Currency", render: (row) => row.currency ?? row.currency_id?.name },
-  { key: "sales", label: "Sales", isNumeric: true },
+  { key: "sales", label: "Charges", isNumeric: true },
 ];
+
+// Columns of the grouped PDF, where the Standard / If Apply split is the section heading instead.
+const GROUPED_COLUMNS = COLUMNS.filter((column) => column.key !== "charge_category_label");
 
 function parseOptions(result) {
   return {
@@ -80,16 +78,23 @@ function parseOptions(result) {
   };
 }
 
-const exportCell = (column, row) => {
-  const value = column.render ? column.render(row) : row[column.key];
-  return displayTariffValue(value);
-};
+/** Consignee block of the selected agent: its "CNEE 2" entry (Narvi Singapore warehouse). */
+async function loadConsigneeText(agentId) {
+  if (!agentId) return "";
+  try {
+    const agent = await getAgentByIdQueryApi(agentId);
+    const entries = Array.isArray(agent?.agent_cnee_ids) ? agent.agent_cnee_ids : [];
+    const entry =
+      entries.find((item) => /cnee\s*2|^2$/i.test(String(item?.cnee1 || "").trim())) || entries[1];
+    return String(entry?.cnee_text || "").trim();
+  } catch (error) {
+    return "";
+  }
+}
 
 export default function ClientTariffs() {
   const toast = useToast();
-  const { isOpen: isPdfOpen, onOpen: onPdfOpen, onClose: onPdfClose } = useDisclosure();
-  const pdfIframeRef = useRef(null);
-  const pdfBlobUrlRef = useRef(null);
+  const { openPdf, pdfPreviewModal } = usePdfPreview();
 
   const textColor = useColorModeValue("gray.700", "white");
   const borderColor = useColorModeValue("gray.200", "gray.700");
@@ -103,13 +108,13 @@ export default function ClientTariffs() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [fetchAll, setFetchAll] = useState(false);
+  const [remarks, setRemarks] = useState("");
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [meta, setMeta] = useState({ totalCount: 0, totalPages: 1, hasNext: false, hasPrevious: false });
   const [isPdfLoading, setIsPdfLoading] = useState(false);
   const [isExcelLoading, setIsExcelLoading] = useState(false);
-  const [pdfModel, setPdfModel] = useState(null);
-  const [pdfUrl, setPdfUrl] = useState(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -137,15 +142,26 @@ export default function ClientTariffs() {
     initial: EMPTY_OPTIONS,
   });
 
+  // As in the stock list, fetch all is only available while a filter or search is applied.
+  const hasAnyFilter = Boolean(
+    search ||
+      debouncedSearch ||
+      filters.client_id ||
+      filters.location ||
+      filters.agent_id ||
+      filters.incl_in_tariff !== "true"
+  );
+  const usesFetchAll = fetchAll && hasAnyFilter;
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await getClientRateTariffsApi({
-        ...filterParams,
-        search: debouncedSearch || undefined,
-        page,
-        page_size: TARIFF_PAGE_SIZE,
-      });
+      const result = await getClientRateTariffsApi(
+        withFetchAll(
+          { ...filterParams, search: debouncedSearch || undefined, page, page_size: TARIFF_PAGE_SIZE },
+          usesFetchAll
+        )
+      );
       setRows(Array.isArray(result.data) ? result.data : []);
       setMeta({
         totalCount: result.total_count || 0,
@@ -166,7 +182,7 @@ export default function ClientTariffs() {
     } finally {
       setLoading(false);
     }
-  }, [filterParams, debouncedSearch, page, toast]);
+  }, [filterParams, debouncedSearch, page, usesFetchAll, toast]);
 
   useEffect(() => {
     loadData();
@@ -192,23 +208,15 @@ export default function ClientTariffs() {
     setPage(1);
   };
 
-  const hasAnyFilter = Boolean(
-    search ||
-      debouncedSearch ||
-      filters.client_id ||
-      filters.location ||
-      filters.agent_id ||
-      filters.incl_in_tariff !== "true"
-  );
-
-  const fetchAllRows = useCallback(
-    () =>
-      fetchAllTariffRows(getClientRateTariffsApi, {
-        ...filterParams,
-        search: debouncedSearch || undefined,
-      }),
-    [filterParams, debouncedSearch]
-  );
+  // Exports always cover every matching record, whatever the page / fetch all setting.
+  const fetchAllRows = useCallback(async () => {
+    const result = await getClientRateTariffsApi({
+      ...filterParams,
+      search: debouncedSearch || undefined,
+      fetch_all: true,
+    });
+    return Array.isArray(result.data) ? result.data : [];
+  }, [filterParams, debouncedSearch]);
 
   const exportScope = useMemo(() => {
     const parts = [];
@@ -228,12 +236,13 @@ export default function ClientTariffs() {
         toast({ title: "No tariffs to export", status: "info", duration: 3000, isClosable: true });
         return;
       }
+      const remarksRows = remarks.trim() ? [[], ["Remarks", remarks.trim()]] : [];
       downloadSheetAsExcel({
         headers: COLUMNS.map((column) => column.label),
-        rows: all.map((row) => COLUMNS.map((column) => exportCell(column, row))),
+        rows: [...toTableRows(COLUMNS, all), ...remarksRows],
         filePrefix: "client-tariff",
         sheetName: "Client Tariff",
-        colWidths: [24, 36, 14, 14],
+        colWidths: [44, 20, 14, 14],
       });
       toast({
         title: "Excel export",
@@ -253,16 +262,9 @@ export default function ClientTariffs() {
     } finally {
       setIsExcelLoading(false);
     }
-  }, [fetchAllRows, toast]);
+  }, [fetchAllRows, remarks, toast]);
 
-  const revokePdfUrl = () => {
-    if (pdfBlobUrlRef.current) {
-      URL.revokeObjectURL(pdfBlobUrlRef.current);
-      pdfBlobUrlRef.current = null;
-    }
-  };
-
-  const handleExportPdf = useCallback(async () => {
+  const handleExportPdf = useCallback(async (grouped) => {
     setIsPdfLoading(true);
     try {
       const all = await fetchAllRows();
@@ -270,20 +272,28 @@ export default function ClientTariffs() {
         toast({ title: "No tariffs to export", status: "info", duration: 3000, isClosable: true });
         return;
       }
-      const model = buildTableReportPdfModel({
+      const consignee = await loadConsigneeText(filters.agent_id);
+      const isIfApply = (row) => /if_apply/.test(String(row.charge_category || ""));
+      const sections = grouped
+        ? [
+            { title: "Standard Charges", rows: all.filter((row) => !isIfApply(row)) },
+            { title: "If Apply Charges", rows: all.filter(isIfApply) },
+          ]
+            .filter((section) => section.rows.length > 0)
+            .map(({ title, rows: sectionRows }) => ({
+              title,
+              head: GROUPED_COLUMNS.map((column) => column.label),
+              body: toTableRows(GROUPED_COLUMNS, sectionRows),
+            }))
+        : [{ head: COLUMNS.map((column) => column.label), body: toTableRows(COLUMNS, all) }];
+      const model = buildPdfModel({
         title: "Client Tariff",
         scopeLabel: exportScope,
-        head: COLUMNS.map((column) => column.label),
-        body: all.map((row) => COLUMNS.map((column) => exportCell(column, row))),
-        filenameSuffix: "client-tariff",
+        sections,
+        footerBlocks: [consignee, remarks.trim() ? `Remarks: ${remarks.trim()}` : ""],
+        filenameSuffix: grouped ? "client-tariff-grouped" : "client-tariff",
       });
-      const doc = await buildRateListPdf(model);
-      revokePdfUrl();
-      const url = URL.createObjectURL(doc.output("blob"));
-      pdfBlobUrlRef.current = url;
-      setPdfModel(model);
-      setPdfUrl(url);
-      onPdfOpen();
+      await openPdf(model);
     } catch (error) {
       toast({
         title: "PDF failed",
@@ -295,28 +305,7 @@ export default function ClientTariffs() {
     } finally {
       setIsPdfLoading(false);
     }
-  }, [fetchAllRows, exportScope, onPdfOpen, toast]);
-
-  const handleClosePdf = () => {
-    revokePdfUrl();
-    setPdfUrl(null);
-    onPdfClose();
-  };
-
-  const handleDownloadPdf = async () => {
-    if (!pdfModel) return;
-    const doc = await buildRateListPdf(pdfModel);
-    doc.save(getRateListPdfFilename(pdfModel));
-  };
-
-  const handlePrint = () => {
-    const win = pdfIframeRef.current?.contentWindow;
-    if (!win) return;
-    win.focus();
-    win.print();
-  };
-
-  useEffect(() => revokePdfUrl, []);
+  }, [fetchAllRows, filters.agent_id, remarks, exportScope, openPdf, toast]);
 
   const selectProps = { size: "sm", bg: inputBg, color: inputText, borderColor, prefillOnFocus: false };
 
@@ -361,22 +350,37 @@ export default function ClientTariffs() {
               isLoading={loading}
             />
           </Tooltip>
+          <FetchAllSwitch
+            isChecked={usesFetchAll}
+            isEnabled={hasAnyFilter}
+            onChange={(checked) => {
+              setFetchAll(checked);
+              setPage(1);
+            }}
+          />
           {hasAnyFilter && (
             <Button size="sm" variant="outline" leftIcon={<Icon as={MdClear} />} onClick={clearFilters}>
               Clear Filters
             </Button>
           )}
-          <Button
-            size="sm"
-            colorScheme="blue"
-            leftIcon={<Icon as={MdPictureAsPdf} />}
-            onClick={handleExportPdf}
-            isLoading={isPdfLoading}
-            loadingText="Generating..."
-            isDisabled={meta.totalCount === 0}
-          >
-            Export PDF
-          </Button>
+          <Menu>
+            <MenuButton
+              as={Button}
+              size="sm"
+              colorScheme="blue"
+              leftIcon={<Icon as={MdPictureAsPdf} />}
+              rightIcon={<Icon as={MdArrowDropDown} />}
+              isLoading={isPdfLoading}
+              loadingText="Generating..."
+              isDisabled={meta.totalCount === 0}
+            >
+              Export PDF
+            </MenuButton>
+            <MenuList>
+              <MenuItem onClick={() => handleExportPdf(false)}>All charges</MenuItem>
+              <MenuItem onClick={() => handleExportPdf(true)}>Grouped: Standard / If Apply</MenuItem>
+            </MenuList>
+          </Menu>
           <Button
             size="sm"
             colorScheme="green"
@@ -455,6 +459,23 @@ export default function ClientTariffs() {
         )}
       </SimpleGrid>
 
+      <FormControl mb="4">
+        <FormLabel fontSize="xs" mb="1" color={textColor}>
+          Remarks (printed on the PDF and Excel)
+        </FormLabel>
+        <Textarea
+          size="sm"
+          rows={2}
+          bg={inputBg}
+          color={inputText}
+          borderColor={borderColor}
+          borderRadius="md"
+          placeholder="Important information for the client, e.g. delivery to a non-bonded local warehouse will attract GST fee"
+          value={remarks}
+          onChange={(e) => setRemarks(e.target.value)}
+        />
+      </FormControl>
+
       <TariffTable
         columns={COLUMNS}
         rows={rows}
@@ -466,51 +487,11 @@ export default function ClientTariffs() {
         totalPages={meta.totalPages}
         hasNext={meta.hasNext}
         hasPrevious={meta.hasPrevious}
+        fetchAll={usesFetchAll}
         onPageChange={setPage}
       />
 
-      <Modal isOpen={isPdfOpen} onClose={handleClosePdf} size="full" scrollBehavior="inside">
-        <ModalOverlay />
-        <ModalContent m={0} maxW="100vw" h="100vh" maxH="100vh" borderRadius={0} display="flex" flexDirection="column">
-          <ModalHeader flexShrink={0}>
-            {pdfModel?.title || "Client Tariff"}
-            {pdfModel?.scopeLabel ? ` — ${pdfModel.scopeLabel}` : ""}
-          </ModalHeader>
-          <ModalCloseButton />
-          <ModalBody p={0} flex="1" minH={0} overflow="hidden" display="flex" flexDirection="column">
-            {pdfUrl ? (
-              <Box flex="1" minH={0} w="100%" display="flex">
-                <iframe
-                  ref={pdfIframeRef}
-                  title="Client tariff PDF preview"
-                  src={pdfUrl}
-                  style={{ border: "none", width: "100%", flex: 1, minHeight: 0 }}
-                />
-              </Box>
-            ) : (
-              <Flex align="center" justify="center" flex="1" minH={0}>
-                <Spinner size="lg" />
-              </Flex>
-            )}
-          </ModalBody>
-          <ModalFooter gap={2} flexWrap="wrap" flexShrink={0}>
-            <Button leftIcon={<Icon as={MdPrint} />} onClick={handlePrint} isDisabled={!pdfUrl}>
-              Print
-            </Button>
-            <Button
-              colorScheme="blue"
-              leftIcon={<Icon as={MdPictureAsPdf} />}
-              onClick={handleDownloadPdf}
-              isDisabled={!pdfModel}
-            >
-              Download
-            </Button>
-            <Button variant="ghost" onClick={handleClosePdf}>
-              Close
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      {pdfPreviewModal}
     </Box>
   );
 }

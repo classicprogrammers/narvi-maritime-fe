@@ -31,6 +31,7 @@ export default function TariffTable({
   totalPages,
   hasNext,
   hasPrevious,
+  fetchAll,
   onPageChange,
 }) {
   const borderColor = useColorModeValue("gray.200", "gray.700");
@@ -125,10 +126,11 @@ export default function TariffTable({
             gap={3}
           >
             <Text fontSize="sm" color={mutedColor}>
-              Showing {pageStart}–{pageEnd} of {totalCount}
-              {totalPages > 1 ? ` · Page ${page} of ${totalPages}` : ""}
+              {fetchAll
+                ? `Showing all ${rows.length} matching records (fetch all)`
+                : `Showing ${pageStart}–${pageEnd} of ${totalCount}${totalPages > 1 ? ` · Page ${page} of ${totalPages}` : ""}`}
             </Text>
-            {totalPages > 1 && (
+            {!fetchAll && totalPages > 1 && (
               <HStack spacing={1}>
                 <Button size="sm" variant="outline" onClick={() => onPageChange(1)} isDisabled={!hasPrevious}>
                   First

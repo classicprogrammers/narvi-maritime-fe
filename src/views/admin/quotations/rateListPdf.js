@@ -3,11 +3,6 @@ import autoTable from "jspdf-autotable";
 import narviLetterheadPrint from "../../../assets/letterHead/NarviLetterhead.jpeg";
 import { chargeCategoryLabel } from "../../../utils/rateListForm";
 
-export const RATE_LIST_PDF_TYPES = {
-  COST_AND_FIXED: "cost_and_fixed",
-  CLIENT_TARIFF: "client_tariff",
-};
-
 const CONTENT_LEFT = 30;
 const CONTENT_TOP = 160;
 const CONTENT_RIGHT = 24;
@@ -71,24 +66,50 @@ export function sortRateRowsForPdf(rows = []) {
   });
 }
 
-export function buildRateListPdfModel({
-  items = [],
-  reportType = RATE_LIST_PDF_TYPES.COST_AND_FIXED,
-  agentName = "",
+/**
+ * Every PDF is described by one model: a title, optional scope line, one or more table
+ * sections ({ title?, head, body }) and optional free-text footer blocks.
+ */
+export function buildPdfModel({
+  title,
   scopeLabel = "",
-} = {}) {
-  const rows = sortRateRowsForPdf(items.map(mapRateItemForPdf));
-  const isClientTariff = reportType === RATE_LIST_PDF_TYPES.CLIENT_TARIFF;
-
+  sections,
+  footerBlocks = [],
+  filenameSuffix = "report",
+}) {
   return {
-    reportType,
-    title: isClientTariff ? "Client Tariff — Fixed Sales Rates" : "Rate List Export",
-    agentName: agentName || "",
-    scopeLabel: scopeLabel || "",
-    rows,
+    title,
+    scopeLabel,
+    sections,
+    footerBlocks: footerBlocks.filter((block) => String(block || "").trim()),
+    filenameSuffix,
     generatedAt: new Date().toLocaleString(),
-    rowCount: rows.length,
+    rowCount: sections.reduce((total, section) => total + section.body.length, 0),
   };
+}
+
+export function buildRateListPdfModel({ items = [], scopeLabel = "" } = {}) {
+  const rows = sortRateRowsForPdf(items.map(mapRateItemForPdf));
+  return buildPdfModel({
+    title: "Rate List Export",
+    scopeLabel,
+    sections: [
+      {
+        head: ["Rate Type", "Location", "Client", "Agent", "Rate Name", "Rate Text", "Rate Cost", "Sales"],
+        body: rows.map((row) => [
+          row.rateType,
+          row.location,
+          row.client,
+          row.agent,
+          row.rateName,
+          row.rateText,
+          row.rateCost,
+          row.rateFixed,
+        ]),
+      },
+    ],
+    filenameSuffix: "cost-and-fixed",
+  });
 }
 
 async function loadLetterheadDataUrl() {
@@ -111,22 +132,7 @@ async function loadLetterheadDataUrl() {
   });
 }
 
-/** Model for a plain head/body table (used by the Client Tariffs screen). */
-export function buildTableReportPdfModel({ title, scopeLabel = "", head, body, filenameSuffix = "report" }) {
-  return {
-    reportType: "table",
-    filenameSuffix,
-    title,
-    scopeLabel,
-    table: { head, body },
-    rows: body,
-    generatedAt: new Date().toLocaleString(),
-    rowCount: body.length,
-  };
-}
-
 export async function buildRateListPdf(model) {
-  const tableStartY = CONTENT_TOP + 38;
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "pt",
@@ -137,7 +143,7 @@ export async function buildRateListPdf(model) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const tableWidth = pageWidth - CONTENT_LEFT - CONTENT_RIGHT;
-  const isClientTariff = model.reportType === RATE_LIST_PDF_TYPES.CLIENT_TARIFF;
+  const tableStartY = CONTENT_TOP + 38;
 
   let letterheadDataUrl = null;
   const drawLetterhead = () => {
@@ -152,39 +158,24 @@ export async function buildRateListPdf(model) {
     console.error("Failed to load letterhead for rate list PDF:", error);
   }
 
-  const recordCount = model.rowCount || model.rows.length;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
-  doc.text(`${model.title || "Rate List Export"} (${recordCount} record${recordCount === 1 ? "" : "s"})`, CONTENT_LEFT, CONTENT_TOP);
+  doc.text(
+    `${model.title} (${model.rowCount} record${model.rowCount === 1 ? "" : "s"})`,
+    CONTENT_LEFT,
+    CONTENT_TOP
+  );
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  const subtitle = model.scopeLabel || model.agentName;
   let metaY = CONTENT_TOP + 14;
-  if (subtitle) {
-    doc.text(subtitle, CONTENT_LEFT, metaY);
+  if (model.scopeLabel) {
+    doc.text(model.scopeLabel, CONTENT_LEFT, metaY);
     metaY += 12;
   }
   doc.text(`Generated: ${model.generatedAt}`, CONTENT_LEFT, metaY);
 
-  const head = model.table
-    ? [model.table.head]
-    : isClientTariff
-    ? [["Rate Type", "Location", "Client", "Agent", "Rate Name", "Rate Text", "Sales"]]
-    : [["Rate Type", "Location", "Client", "Agent", "Rate Name", "Rate Text", "Rate Cost", "Sales"]];
-
-  const body = model.table
-    ? model.table.body
-    : model.rows.map((row) =>
-    isClientTariff
-      ? [row.rateType, row.location, row.client, row.agent, row.rateName, row.rateText, row.rateFixed]
-      : [row.rateType, row.location, row.client, row.agent, row.rateName, row.rateText, row.rateCost, row.rateFixed]
-  );
-
-  autoTable(doc, {
-    startY: tableStartY,
-    head,
-    body,
+  const tableOptions = {
     theme: "grid",
     styles: {
       fontSize: 7,
@@ -204,10 +195,40 @@ export async function buildRateListPdf(model) {
     // Must run BEFORE the page's rows are drawn: the letterhead is a full-page image and
     // would otherwise paint over the table, leaving blank pages after the first.
     willDrawPage: (hookData) => {
-      if (hookData.pageNumber > 1) {
-        drawLetterhead();
-      }
+      if (hookData.pageNumber > 1) drawLetterhead();
     },
+  };
+
+  let nextY = tableStartY;
+  model.sections.forEach((section) => {
+    if (section.title) {
+      if (nextY > pageHeight - 80) {
+        doc.addPage();
+        drawLetterhead();
+        nextY = tableStartY;
+      }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text(section.title, CONTENT_LEFT, nextY);
+      nextY += 8;
+    }
+    autoTable(doc, { ...tableOptions, startY: nextY, head: [section.head], body: section.body });
+    nextY = doc.lastAutoTable.finalY + 16;
+  });
+
+  // Free-text blocks (consignee, remarks) go under the last table, wrapping to a new page if needed.
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  model.footerBlocks.forEach((block) => {
+    const lines = doc.splitTextToSize(String(block), tableWidth);
+    const blockHeight = lines.length * 11 + 10;
+    if (nextY + blockHeight > pageHeight - 40) {
+      doc.addPage();
+      drawLetterhead();
+      nextY = tableStartY;
+    }
+    doc.text(lines, CONTENT_LEFT, nextY);
+    nextY += blockHeight;
   });
 
   return doc;
@@ -215,38 +236,8 @@ export async function buildRateListPdf(model) {
 
 export function getRateListPdfFilename(model) {
   const dateTag = new Date().toISOString().slice(0, 10);
-  const suffix =
-    model.filenameSuffix ||
-    (model.reportType === RATE_LIST_PDF_TYPES.CLIENT_TARIFF ? "client-tariffs" : "cost-and-fixed");
-  const scopePart = (model.scopeLabel || model.agentName)
-    ? `-${String(model.scopeLabel || model.agentName).replace(/[^\w.-]+/g, "-").replace(/-+/g, "-")}`
+  const scopePart = model.scopeLabel
+    ? `-${String(model.scopeLabel).replace(/[^w.-]+/g, "-").replace(/-+/g, "-")}`
     : "";
-  return `rate-list-${suffix}${scopePart}-${dateTag}.pdf`;
-}
-
-export async function fetchAllFilteredRates(api, params = {}) {
-  const all = [];
-  let page = 1;
-  let hasNext = true;
-  const baseParams = { ...params };
-  delete baseParams.page;
-  delete baseParams.page_size;
-
-  while (hasNext) {
-    const response = await api.get("/api/rate/list", {
-      params: {
-        ...baseParams,
-        page,
-        page_size: 200,
-      },
-    });
-    const result = response?.data || {};
-    const batch = Array.isArray(result.data) ? result.data : [];
-    all.push(...batch);
-    hasNext = Boolean(result.has_next);
-    page += 1;
-    if (!hasNext || batch.length === 0 || page > 100) break;
-  }
-
-  return all;
+  return `rate-list-${model.filenameSuffix}${scopePart}-${dateTag}.pdf`;
 }
