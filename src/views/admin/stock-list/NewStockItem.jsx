@@ -121,6 +121,7 @@ import {
 } from "../../../utils/stockLocationOptions";
 import { normalizeStockValueForForm, normalizeStockValueForSave } from "../../../utils/stockValue";
 import { describeMissingClientVessel, isBlankStockRelation } from "../../../utils/stockClientVessel";
+import { describeMissingStatusFields } from "../../../utils/stockStatusRequirements";
 import EditModeNotice, { useEditModeColors } from "../../../components/forms/EditModeNotice";
 
 const STOCK_FORM_SORT_COLUMNS = [
@@ -2090,6 +2091,17 @@ export default function StockForm() {
             });
             return;
         }
+        const missingStatusFields = describeMissingStatusFields(reportRow ? [reportRow] : []);
+        if (missingStatusFields.length > 0) {
+            toast({
+                title: "Required fields missing for the selected status",
+                description: missingStatusFields.join(". "),
+                status: "warning",
+                duration: 10000,
+                isClosable: true,
+            });
+            return;
+        }
         const stayOnPage = (formRowsRef.current?.length || formRows.length) > 1;
         const ok = await generateStockReportManually(rowIndex);
         if (ok) {
@@ -2128,6 +2140,18 @@ export default function StockForm() {
                     description: missingClientVessel.join(". "),
                     status: "warning",
                     duration: 6000,
+                    isClosable: true,
+                });
+                return;
+            }
+
+            const missingStatusFields = describeMissingStatusFields(rowsForSave);
+            if (missingStatusFields.length > 0) {
+                toast({
+                    title: "Required fields missing for the selected status",
+                    description: missingStatusFields.join(". "),
+                    status: "warning",
+                    duration: 10000,
                     isClosable: true,
                 });
                 return;
