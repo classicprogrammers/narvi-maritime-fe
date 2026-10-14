@@ -1,9 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Badge,
   Box,
   Button,
-  Checkbox,
   Flex,
   FormControl,
   FormLabel,
@@ -20,188 +18,147 @@ import {
   ModalFooter,
   ModalHeader,
   ModalOverlay,
-  Select,
+  SimpleGrid,
   Spinner,
-  Table,
-  Tbody,
-  Td,
   Text,
-  Textarea,
-  Th,
-  Thead,
-  Tr,
+  Tooltip,
+  useColorModeValue,
   useDisclosure,
   useToast,
-  VStack,
 } from "@chakra-ui/react";
-import { MdAdd, MdDelete, MdEdit, MdSearch } from "react-icons/md";
-import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
-import { useMasterData } from "hooks/useMasterData";
 import {
-  createClientTariff,
-  deleteClientTariff,
-  extractClientTariffErrorMessage,
-  getClientTariffOptions,
-  getClientTariffs,
-  updateClientTariff,
-} from "api/clientTariff";
+  MdClear,
+  MdDownload,
+  MdPictureAsPdf,
+  MdPrint,
+  MdRefresh,
+  MdSearch,
+} from "react-icons/md";
+import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import {
+  fetchAllTariffRows,
+  getClientRateTariffOptionsApi,
+  getClientRateTariffsApi,
+} from "../../../api/rate";
+import TariffTable from "./TariffTable";
+import useTariffOptions from "./useTariffOptions";
+import {
+  buildRateListPdf,
+  buildTableReportPdfModel,
+  getRateListPdfFilename,
+} from "./rateListPdf";
+import { downloadSheetAsExcel } from "./rateListExcel";
+import {
+  displayTariffValue,
+  formatAgentOption,
+  intParam,
+  normalizeIdOptions,
+  normalizeNameOptions,
+  normalizeYesNoOptions,
+  TARIFF_PAGE_SIZE,
+  tariffErrorMessage,
+  withSelectedOption,
+} from "./tariffScreenUtils";
 
-const DEFAULT_FORM = {
-  location: "",
-  agent_id: "",
-  currency_id: "",
-  rate_name: "",
-  rate_text: "",
-  rate_calculation: "per_invoice",
-  rate: "",
-  valid_until: "",
-  active: true,
+// In Tariff defaults to Yes on the backend: it is only sent when the user picks "No".
+const DEFAULT_FILTERS = { client_id: "", location: "", agent_id: "", incl_in_tariff: "true" };
+const EMPTY_OPTIONS = { clients: [], locations: [], agents: [], inTariff: normalizeYesNoOptions() };
+
+const COLUMNS = [
+  { key: "location", label: "Location" },
+  { key: "rate_name", label: "Rate Name" },
+  { key: "currency", label: "Currency", render: (row) => row.currency ?? row.currency_id?.name },
+  { key: "sales", label: "Sales", isNumeric: true },
+];
+
+function parseOptions(result) {
+  return {
+    clients: normalizeIdOptions(result.client_options),
+    locations: normalizeNameOptions(result.location_options),
+    agents: normalizeIdOptions(result.agent_options),
+    inTariff: normalizeYesNoOptions(result.incl_in_tariff_options),
+  };
+}
+
+const exportCell = (column, row) => {
+  const value = column.render ? column.render(row) : row[column.key];
+  return displayTariffValue(value);
 };
-
-const DEFAULT_FILTERS = {
-  location: "",
-  agent_id: "",
-  currency_id: "",
-  rate_calculation: "",
-  rate_name: "",
-  active: "",
-};
-
-function boolFilterToParam(value) {
-  if (value === "true") return true;
-  if (value === "false") return false;
-  return undefined;
-}
-
-function normalizeRateCalculation(value) {
-  const raw = String(value || "").toLowerCase().trim();
-  if (raw === "per invoice" || raw === "per_invoice") return "per_invoice";
-  if (raw === "per trip" || raw === "per_trip") return "per_trip";
-  return raw;
-}
-
-function displayText(value) {
-  if (value === false || value == null || String(value).trim() === "") return "-";
-  return String(value);
-}
-
-function formatAgentOption(agent) {
-  if (!agent) return "";
-  const code = agent.name || "";
-  const company = agent.company_name || "";
-  if (code && company) return `${code} — ${company}`;
-  return code || company || `Agent ${agent.id}`;
-}
 
 export default function ClientTariffs() {
   const toast = useToast();
-  const { currencies } = useMasterData();
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  const { isOpen: isPdfOpen, onOpen: onPdfOpen, onClose: onPdfClose } = useDisclosure();
+  const pdfIframeRef = useRef(null);
+  const pdfBlobUrlRef = useRef(null);
 
-  const [items, setItems] = useState([]);
-  const [selectedIds, setSelectedIds] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [isEdit, setIsEdit] = useState(false);
-  const [formData, setFormData] = useState(DEFAULT_FORM);
+  const textColor = useColorModeValue("gray.700", "white");
+  const borderColor = useColorModeValue("gray.200", "gray.700");
+  const panelBg = useColorModeValue("gray.50", "gray.700");
+  const inputBg = useColorModeValue("white", "navy.900");
+  const inputText = useColorModeValue("gray.800", "gray.100");
+  const placeholderColor = useColorModeValue("gray.400", "gray.500");
 
-  const [search, setSearch] = useState("");
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [pins, setPins] = useState({});
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
-
-  const [locationOptions, setLocationOptions] = useState([]);
-  const [agentOptions, setAgentOptions] = useState([]);
-  const [rateCalculationOptions, setRateCalculationOptions] = useState([
-    { value: "per_invoice", label: "Per Invoice" },
-    { value: "per_trip", label: "Per Trip" },
-  ]);
-  const [optionsLoading, setOptionsLoading] = useState(false);
-
-  const optionsSearchTimer = useRef(null);
-
-  const loadOptions = useCallback(async (overrides = {}) => {
-    setOptionsLoading(true);
-    try {
-      const result = await getClientTariffOptions(overrides);
-      if (Array.isArray(result?.location_options)) {
-        setLocationOptions(result.location_options);
-      }
-      if (Array.isArray(result?.agent_options)) {
-        setAgentOptions(result.agent_options);
-      }
-      if (Array.isArray(result?.rate_calculation_options) && result.rate_calculation_options.length) {
-        setRateCalculationOptions(result.rate_calculation_options);
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: extractClientTariffErrorMessage(error, "Failed to load tariff options."),
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-    } finally {
-      setOptionsLoading(false);
-    }
-  }, [toast]);
-
-  const scheduleOptionsSearch = useCallback(
-    (field, value) => {
-      if (optionsSearchTimer.current) clearTimeout(optionsSearchTimer.current);
-      optionsSearchTimer.current = setTimeout(() => {
-        loadOptions({
-          q_location: field === "location" ? value : "",
-          q_agent: field === "agent" ? value : "",
-        });
-      }, 300);
-    },
-    [loadOptions]
-  );
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [meta, setMeta] = useState({ totalCount: 0, totalPages: 1, hasNext: false, hasPrevious: false });
+  const [isPdfLoading, setIsPdfLoading] = useState(false);
+  const [isExcelLoading, setIsExcelLoading] = useState(false);
+  const [pdfModel, setPdfModel] = useState(null);
+  const [pdfUrl, setPdfUrl] = useState(null);
 
   useEffect(() => {
-    loadOptions();
-    return () => {
-      if (optionsSearchTimer.current) clearTimeout(optionsSearchTimer.current);
-    };
-  }, [loadOptions]);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Selected filters, shared by the list, the dropdown narrowing and the full exports.
+  const filterParams = useMemo(
+    () => ({
+      client_id: intParam(filters.client_id),
+      location: filters.location || undefined,
+      agent_id: intParam(filters.agent_id),
+      incl_in_tariff: filters.incl_in_tariff === "false" ? false : undefined,
+    }),
+    [filters.client_id, filters.location, filters.agent_id, filters.incl_in_tariff]
+  );
+
+  const { options, loading: optionsLoading, onSearch } = useTariffOptions({
+    fetchOptions: getClientRateTariffOptionsApi,
+    payload: filterParams,
+    parse: parseOptions,
+    initial: EMPTY_OPTIONS,
+  });
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const params = {
+      const result = await getClientRateTariffsApi({
+        ...filterParams,
+        search: debouncedSearch || undefined,
         page,
-        page_size: pageSize,
-        search: search || undefined,
-        location: filters.location || undefined,
-        agent_id: filters.agent_id || undefined,
-        currency_id: filters.currency_id || undefined,
-        rate_calculation: filters.rate_calculation || undefined,
-        rate_name: filters.rate_name || undefined,
-        active: boolFilterToParam(filters.active),
-      };
-
-      const result = await getClientTariffs(params);
-      const rows = Array.isArray(result?.data)
-        ? result.data
-        : Array.isArray(result?.tariffs)
-          ? result.tariffs
-          : Array.isArray(result)
-            ? result
-            : [];
-
-      setItems(rows);
-      setTotalPages(result?.total_pages || 1);
-      setTotalCount(result?.total_count ?? rows.length);
+        page_size: TARIFF_PAGE_SIZE,
+      });
+      setRows(Array.isArray(result.data) ? result.data : []);
+      setMeta({
+        totalCount: result.total_count || 0,
+        totalPages: result.total_pages || 1,
+        hasNext: Boolean(result.has_next),
+        hasPrevious: Boolean(result.has_previous),
+      });
     } catch (error) {
-      setItems([]);
-      setTotalPages(1);
-      setTotalCount(0);
+      setRows([]);
+      setMeta({ totalCount: 0, totalPages: 1, hasNext: false, hasPrevious: false });
       toast({
         title: "Error",
-        description: extractClientTariffErrorMessage(error, "Failed to load client tariffs."),
+        description: tariffErrorMessage(error, "Failed to load client tariffs."),
         status: "error",
         duration: 3000,
         isClosable: true,
@@ -209,529 +166,347 @@ export default function ClientTariffs() {
     } finally {
       setLoading(false);
     }
-  }, [filters, page, pageSize, search, toast]);
+  }, [filterParams, debouncedSearch, page, toast]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  const clearFilters = () => {
-    setSearch("");
-    setFilters(DEFAULT_FILTERS);
+  const handleFilterChange = (field, value, optionList) => {
+    setFilters((prev) => ({
+      ...prev,
+      [field]: value || (field === "incl_in_tariff" ? "true" : ""),
+    }));
+    setPins((prev) => ({
+      ...prev,
+      [field]: value ? optionList?.find((option) => String(option.id) === String(value)) || prev[field] : null,
+    }));
     setPage(1);
   };
 
-  const openCreate = () => {
-    setIsEdit(false);
-    setFormData(DEFAULT_FORM);
-    loadOptions();
-    onOpen();
+  const clearFilters = () => {
+    setFilters(DEFAULT_FILTERS);
+    setPins({});
+    setSearch("");
+    setDebouncedSearch("");
+    setPage(1);
   };
 
-  const openEdit = (item) => {
-    setIsEdit(true);
-    setFormData({
-      id: item.id,
-      location: item.location || item.location_text || "",
-      agent_id: item.agent_id?.id || item.agent_id || "",
-      currency_id: item.currency_id?.id || item.currency_id || "",
-      rate_name: item.rate_name || "",
-      rate_text: item.rate_text === false ? "" : item.rate_text || "",
-      rate_calculation: normalizeRateCalculation(item.rate_calculation) || "per_invoice",
-      rate: item.rate ?? item.rates ?? "",
-      valid_until: item.valid_until || "",
-      active: item.active !== false,
-    });
-    loadOptions({
-      q_location: item.location || item.location_text || "",
-      q_agent: item.agent_id?.name || item.agent || "",
-    });
-    onOpen();
-  };
+  const hasAnyFilter = Boolean(
+    search ||
+      debouncedSearch ||
+      filters.client_id ||
+      filters.location ||
+      filters.agent_id ||
+      filters.incl_in_tariff !== "true"
+  );
 
-  const validateForm = () => {
-    if (!formData.location) return "Location is required.";
-    if (!formData.agent_id) return "Agent is required.";
-    if (!formData.currency_id) return "Currency is required.";
-    if (!formData.rate_name) return "Rate name is required.";
-    if (!formData.rate_calculation) return "Rate calculation is required.";
-    if (formData.rate === "" || formData.rate == null) return "Rate is required.";
-    if (Number.isNaN(Number(formData.rate))) return "Rate must be a number.";
-    return "";
-  };
+  const fetchAllRows = useCallback(
+    () =>
+      fetchAllTariffRows(getClientRateTariffsApi, {
+        ...filterParams,
+        search: debouncedSearch || undefined,
+      }),
+    [filterParams, debouncedSearch]
+  );
 
-  const saveTariff = async () => {
-    const validationError = validateForm();
-    if (validationError) {
-      toast({
-        title: "Validation Error",
-        description: validationError,
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
+  const exportScope = useMemo(() => {
+    const parts = [];
+    const client = options.clients.find((o) => String(o.id) === String(filters.client_id)) || pins.client_id;
+    const agent = options.agents.find((o) => String(o.id) === String(filters.agent_id)) || pins.agent_id;
+    if (client) parts.push(client.name);
+    if (filters.location) parts.push(filters.location);
+    if (agent) parts.push(agent.name);
+    return parts.join(" · ");
+  }, [options.clients, options.agents, filters, pins]);
 
-    setSaving(true);
+  const handleExportExcel = useCallback(async () => {
+    setIsExcelLoading(true);
     try {
-      const payload = {
-        location: formData.location,
-        agent_id: Number(formData.agent_id),
-        currency_id: Number(formData.currency_id),
-        rate_name: formData.rate_name,
-        rate_text: formData.rate_text || "",
-        rate_calculation: normalizeRateCalculation(formData.rate_calculation),
-        rate: Number(formData.rate),
-        valid_until: formData.valid_until || undefined,
-        active: Boolean(formData.active),
-      };
-
-      if (isEdit) {
-        await updateClientTariff({ id: formData.id, ...payload });
-      } else {
-        await createClientTariff(payload);
+      const all = await fetchAllRows();
+      if (!all.length) {
+        toast({ title: "No tariffs to export", status: "info", duration: 3000, isClosable: true });
+        return;
       }
-
+      downloadSheetAsExcel({
+        headers: COLUMNS.map((column) => column.label),
+        rows: all.map((row) => COLUMNS.map((column) => exportCell(column, row))),
+        filePrefix: "client-tariff",
+        sheetName: "Client Tariff",
+        colWidths: [24, 36, 14, 14],
+      });
       toast({
-        title: isEdit ? "Client tariff updated" : "Client tariff created",
+        title: "Excel export",
+        description: `${all.length} rate${all.length === 1 ? "" : "s"} exported.`,
         status: "success",
-        duration: 2500,
+        duration: 2200,
         isClosable: true,
       });
-
-      onClose();
-      setPage(1);
-      await loadData();
     } catch (error) {
       toast({
-        title: "Error",
-        description: extractClientTariffErrorMessage(
-          error,
-          isEdit ? "Failed to update client tariff." : "Failed to create client tariff."
-        ),
+        title: "Export failed",
+        description: tariffErrorMessage(error, "Could not load tariffs for Excel export."),
         status: "error",
-        duration: 4000,
+        duration: 3000,
         isClosable: true,
       });
     } finally {
-      setSaving(false);
+      setIsExcelLoading(false);
+    }
+  }, [fetchAllRows, toast]);
+
+  const revokePdfUrl = () => {
+    if (pdfBlobUrlRef.current) {
+      URL.revokeObjectURL(pdfBlobUrlRef.current);
+      pdfBlobUrlRef.current = null;
     }
   };
 
-  const deleteOne = async (id) => {
+  const handleExportPdf = useCallback(async () => {
+    setIsPdfLoading(true);
     try {
-      await deleteClientTariff(id);
-      toast({
-        title: "Client tariff deleted",
-        status: "success",
-        duration: 2000,
-        isClosable: true,
+      const all = await fetchAllRows();
+      if (!all.length) {
+        toast({ title: "No tariffs to export", status: "info", duration: 3000, isClosable: true });
+        return;
+      }
+      const model = buildTableReportPdfModel({
+        title: "Client Tariff",
+        scopeLabel: exportScope,
+        head: COLUMNS.map((column) => column.label),
+        body: all.map((row) => COLUMNS.map((column) => exportCell(column, row))),
+        filenameSuffix: "client-tariff",
       });
-      await loadData();
+      const doc = await buildRateListPdf(model);
+      revokePdfUrl();
+      const url = URL.createObjectURL(doc.output("blob"));
+      pdfBlobUrlRef.current = url;
+      setPdfModel(model);
+      setPdfUrl(url);
+      onPdfOpen();
     } catch (error) {
       toast({
-        title: "Error",
-        description: extractClientTariffErrorMessage(error, "Failed to delete client tariff."),
+        title: "PDF failed",
+        description: tariffErrorMessage(error, "Could not generate client tariff PDF."),
         status: "error",
         duration: 3000,
         isClosable: true,
       });
+    } finally {
+      setIsPdfLoading(false);
     }
+  }, [fetchAllRows, exportScope, onPdfOpen, toast]);
+
+  const handleClosePdf = () => {
+    revokePdfUrl();
+    setPdfUrl(null);
+    onPdfClose();
   };
 
-  const deleteSelected = async () => {
-    if (selectedIds.length === 0) return;
-    try {
-      await Promise.all(selectedIds.map((id) => deleteClientTariff(id)));
-      toast({
-        title: "Selected tariffs deleted",
-        status: "success",
-        duration: 2000,
-        isClosable: true,
-      });
-      setSelectedIds([]);
-      await loadData();
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: extractClientTariffErrorMessage(error, "Failed to delete some selected rows."),
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-    }
+  const handleDownloadPdf = async () => {
+    if (!pdfModel) return;
+    const doc = await buildRateListPdf(pdfModel);
+    doc.save(getRateListPdfFilename(pdfModel));
   };
 
-  const allSelected = useMemo(
-    () => items.length > 0 && selectedIds.length === items.length,
-    [items.length, selectedIds.length]
+  const handlePrint = () => {
+    const win = pdfIframeRef.current?.contentWindow;
+    if (!win) return;
+    win.focus();
+    win.print();
+  };
+
+  useEffect(() => revokePdfUrl, []);
+
+  const selectProps = { size: "sm", bg: inputBg, color: inputText, borderColor, prefillOnFocus: false };
+
+  const field = (label, control) => (
+    <FormControl>
+      <FormLabel fontSize="xs" mb="1" color={textColor}>
+        {label}
+      </FormLabel>
+      {control}
+    </FormControl>
   );
 
-  const rateCalcLabel = (value, label) =>
-    label || (normalizeRateCalculation(value) === "per_trip" ? "Per Trip" : "Per Invoice");
-
   return (
-    <Box pt={{ base: "130px", md: "80px", xl: "80px" }} px="24px">
-      <VStack align="stretch" spacing={4}>
-        <Flex justify="space-between" align="center" gap={3} wrap="wrap">
-          <HStack>
-            <Button leftIcon={<Icon as={MdAdd} />} colorScheme="blue" onClick={openCreate}>
-              New Client Tariff
-            </Button>
-            <Button
-              colorScheme="red"
-              variant="outline"
-              onClick={deleteSelected}
-              isDisabled={selectedIds.length === 0}
-            >
-              Delete Selected
-            </Button>
-          </HStack>
-          <Text fontWeight="600">Total: {totalCount}</Text>
-        </Flex>
-
-        <HStack align="end" wrap="wrap" spacing={3}>
-          <InputGroup maxW="320px">
-            <InputLeftElement>
-              <Icon as={MdSearch} color="gray.400" />
+    <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
+      <Flex justify="space-between" align="center" mb="4" flexWrap="wrap" gap="3">
+        <Text fontSize="lg" fontWeight="700" color={textColor}>
+          Client Tariffs
+        </Text>
+        <HStack spacing="3" flexWrap="wrap">
+          <InputGroup size="sm" w={{ base: "100%", md: "260px" }}>
+            <InputLeftElement pointerEvents="none">
+              <Icon as={MdSearch} color={placeholderColor} />
             </InputLeftElement>
             <Input
-              placeholder="Search..."
+              size="sm"
+              bg={inputBg}
+              color={inputText}
+              borderColor={borderColor}
+              borderRadius="md"
+              placeholder="Search rate name..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </InputGroup>
-          <Select
-            maxW="200px"
-            placeholder="All locations"
-            value={filters.location}
-            onChange={(e) => setFilters((p) => ({ ...p, location: e.target.value }))}
+          <Tooltip label="Refresh" hasArrow>
+            <IconButton
+              size="sm"
+              variant="outline"
+              aria-label="Refresh client tariffs"
+              icon={<Icon as={MdRefresh} />}
+              onClick={loadData}
+              isLoading={loading}
+            />
+          </Tooltip>
+          {hasAnyFilter && (
+            <Button size="sm" variant="outline" leftIcon={<Icon as={MdClear} />} onClick={clearFilters}>
+              Clear Filters
+            </Button>
+          )}
+          <Button
+            size="sm"
+            colorScheme="blue"
+            leftIcon={<Icon as={MdPictureAsPdf} />}
+            onClick={handleExportPdf}
+            isLoading={isPdfLoading}
+            loadingText="Generating..."
+            isDisabled={meta.totalCount === 0}
           >
-            <option value="">All locations</option>
-            {locationOptions.map((opt) => (
-              <option key={opt.name} value={opt.name}>
-                {opt.name}
-              </option>
-            ))}
-          </Select>
-          <Select
-            maxW="220px"
-            placeholder="All agents"
-            value={filters.agent_id}
-            onChange={(e) => setFilters((p) => ({ ...p, agent_id: e.target.value }))}
+            Export PDF
+          </Button>
+          <Button
+            size="sm"
+            colorScheme="green"
+            variant="outline"
+            leftIcon={<Icon as={MdDownload} />}
+            onClick={handleExportExcel}
+            isLoading={isExcelLoading}
+            loadingText="Exporting..."
+            isDisabled={meta.totalCount === 0}
           >
-            <option value="">All agents</option>
-            {agentOptions.map((agent) => (
-              <option key={agent.id} value={agent.id}>
-                {formatAgentOption(agent)}
-              </option>
-            ))}
-          </Select>
-          <Select
-            maxW="180px"
-            value={filters.currency_id}
-            onChange={(e) => setFilters((p) => ({ ...p, currency_id: e.target.value }))}
-          >
-            <option value="">All currencies</option>
-            {currencies.map((currency) => (
-              <option key={currency.id} value={currency.id}>
-                {currency.name}
-              </option>
-            ))}
-          </Select>
-          <Select
-            maxW="180px"
-            value={filters.rate_calculation}
-            onChange={(e) => setFilters((p) => ({ ...p, rate_calculation: e.target.value }))}
-          >
-            <option value="">All calculations</option>
-            {rateCalculationOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </Select>
-          <Input
-            maxW="180px"
-            placeholder="Rate name"
-            value={filters.rate_name}
-            onChange={(e) => setFilters((p) => ({ ...p, rate_name: e.target.value }))}
-          />
-          <Select
-            maxW="140px"
-            value={filters.active}
-            onChange={(e) => setFilters((p) => ({ ...p, active: e.target.value }))}
-          >
-            <option value="">All status</option>
-            <option value="true">Active</option>
-            <option value="false">Inactive</option>
-          </Select>
-          <Button onClick={() => setPage(1)}>Apply</Button>
-          <Button variant="ghost" onClick={clearFilters}>
-            Clear
+            Export Excel
           </Button>
         </HStack>
+      </Flex>
 
-        <Box borderWidth="1px" borderRadius="8px" maxH="65vh" overflowY="auto" overflowX="auto">
-          {loading ? (
-            <Flex py={12} justify="center">
-              <Spinner />
-            </Flex>
-          ) : (
-            <Table size="sm">
-              <Thead>
-                <Tr>
-                  <Th>
-                    <Checkbox
-                      isChecked={allSelected}
-                      onChange={(e) => {
-                        if (e.target.checked) setSelectedIds(items.map((it) => it.id));
-                        else setSelectedIds([]);
-                      }}
-                    />
-                  </Th>
-                  <Th>Location</Th>
-                  <Th>Agent</Th>
-                  <Th>Currency</Th>
-                  <Th>Rate Name</Th>
-                  <Th>Rate Text</Th>
-                  <Th>Rate Calculation</Th>
-                  <Th>Rate</Th>
-                  <Th>Valid Until</Th>
-                  <Th>Active</Th>
-                  <Th>Actions</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {items.length === 0 ? (
-                  <Tr>
-                    <Td colSpan={11}>
-                      <Text py={6} textAlign="center" color="gray.500">
-                        No client tariffs found.
-                      </Text>
-                    </Td>
-                  </Tr>
-                ) : (
-                  items.map((item) => (
-                    <Tr key={item.id}>
-                      <Td>
-                        <Checkbox
-                          isChecked={selectedIds.includes(item.id)}
-                          onChange={(e) => {
-                            setSelectedIds((prev) =>
-                              e.target.checked
-                                ? [...prev, item.id]
-                                : prev.filter((id) => id !== item.id)
-                            );
-                          }}
-                        />
-                      </Td>
-                      <Td>{item.location || item.location_text || "-"}</Td>
-                      <Td>{item.agent_id?.name || item.agent || "-"}</Td>
-                      <Td>{item.currency_id?.name || "-"}</Td>
-                      <Td>{item.rate_name || "-"}</Td>
-                      <Td maxW="200px" isTruncated title={displayText(item.rate_text)}>
-                        {displayText(item.rate_text)}
-                      </Td>
-                      <Td>
-                        <Badge colorScheme="purple">
-                          {rateCalcLabel(item.rate_calculation, item.rate_calculation_label)}
-                        </Badge>
-                      </Td>
-                      <Td>{item.rate ?? item.rates ?? "-"}</Td>
-                      <Td>{item.valid_until || "-"}</Td>
-                      <Td>
-                        <Badge colorScheme={item.active !== false ? "green" : "gray"}>
-                          {item.active !== false ? "Yes" : "No"}
-                        </Badge>
-                      </Td>
-                      <Td>
-                        <HStack spacing={1}>
-                          <IconButton
-                            aria-label="Edit"
-                            size="xs"
-                            icon={<MdEdit />}
-                            onClick={() => openEdit(item)}
-                          />
-                          <IconButton
-                            aria-label="Delete"
-                            size="xs"
-                            colorScheme="red"
-                            icon={<MdDelete />}
-                            onClick={() => deleteOne(item.id)}
-                          />
-                        </HStack>
-                      </Td>
-                    </Tr>
-                  ))
-                )}
-              </Tbody>
-            </Table>
-          )}
-        </Box>
+      <SimpleGrid
+        columns={{ base: 1, md: 2, xl: 4 }}
+        spacing="4"
+        p="4"
+        mb="4"
+        bg={panelBg}
+        borderRadius="md"
+        border="1px"
+        borderColor={borderColor}
+      >
+        {field(
+          "Client Name",
+          <SimpleSearchableSelect
+            {...selectProps}
+            value={filters.client_id}
+            options={withSelectedOption(options.clients, filters.client_id, pins.client_id)}
+            placeholder="All Clients"
+            formatOption={(option) => option.name}
+            isLoading={optionsLoading}
+            onSearchChange={(query) => onSearch("q_client", query)}
+            onChange={(value) => handleFilterChange("client_id", value, options.clients)}
+          />
+        )}
+        {field(
+          "Location",
+          <SimpleSearchableSelect
+            {...selectProps}
+            value={filters.location}
+            options={withSelectedOption(options.locations, filters.location, pins.location)}
+            placeholder="All Locations"
+            formatOption={(option) => option.name}
+            isLoading={optionsLoading}
+            onSearchChange={(query) => onSearch("q_location", query)}
+            onChange={(value) => handleFilterChange("location", value, options.locations)}
+          />
+        )}
+        {field(
+          "Agent",
+          <SimpleSearchableSelect
+            {...selectProps}
+            value={filters.agent_id}
+            options={withSelectedOption(options.agents, filters.agent_id, pins.agent_id)}
+            placeholder="All Agents"
+            formatOption={formatAgentOption}
+            isLoading={optionsLoading}
+            onSearchChange={(query) => onSearch("q_agent", query)}
+            onChange={(value) => handleFilterChange("agent_id", value, options.agents)}
+          />
+        )}
+        {field(
+          "In Tariff",
+          <SimpleSearchableSelect
+            {...selectProps}
+            value={filters.incl_in_tariff}
+            options={options.inTariff}
+            placeholder="Yes"
+            isClearable={false}
+            formatOption={(option) => option.name}
+            onChange={(value) => handleFilterChange("incl_in_tariff", value, options.inTariff)}
+          />
+        )}
+      </SimpleGrid>
 
-        <Flex justify="space-between" align="center" wrap="wrap" gap={3}>
-          <HStack>
-            <Text fontSize="sm">Page Size</Text>
-            <Select
-              w="110px"
-              size="sm"
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setPage(1);
-              }}
-            >
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-            </Select>
-          </HStack>
-          <HStack>
-            <Button size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} isDisabled={page <= 1}>
-              Previous
-            </Button>
-            <Text fontSize="sm">
-              Page {page} of {totalPages}
-            </Text>
-            <Button
-              size="sm"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              isDisabled={page >= totalPages}
-            >
-              Next
-            </Button>
-            <Text fontSize="sm" color="gray.600">
-              Showing {totalCount === 0 ? 0 : (page - 1) * pageSize + 1} to{" "}
-              {Math.min(page * pageSize, totalCount)} of {totalCount}
-            </Text>
-          </HStack>
-        </Flex>
-      </VStack>
+      <TariffTable
+        columns={COLUMNS}
+        rows={rows}
+        loading={loading}
+        emptyText="No client tariffs found. Try changing or clearing the filters."
+        page={page}
+        pageSize={TARIFF_PAGE_SIZE}
+        totalCount={meta.totalCount}
+        totalPages={meta.totalPages}
+        hasNext={meta.hasNext}
+        hasPrevious={meta.hasPrevious}
+        onPageChange={setPage}
+      />
 
-      <Modal isOpen={isOpen} onClose={onClose} size="3xl">
+      <Modal isOpen={isPdfOpen} onClose={handleClosePdf} size="full" scrollBehavior="inside">
         <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>{isEdit ? "Edit Client Tariff" : "New Client Tariff"}</ModalHeader>
+        <ModalContent m={0} maxW="100vw" h="100vh" maxH="100vh" borderRadius={0} display="flex" flexDirection="column">
+          <ModalHeader flexShrink={0}>
+            {pdfModel?.title || "Client Tariff"}
+            {pdfModel?.scopeLabel ? ` — ${pdfModel.scopeLabel}` : ""}
+          </ModalHeader>
           <ModalCloseButton />
-          <ModalBody>
-            <VStack spacing={4} align="stretch">
-              <HStack align="start" spacing={4}>
-                <FormControl isRequired>
-                  <FormLabel>Location</FormLabel>
-                  <SimpleSearchableSelect
-                    value={formData.location}
-                    onChange={(value) => setFormData((p) => ({ ...p, location: value || "" }))}
-                    options={locationOptions}
-                    valueKey="name"
-                    displayKey="name"
-                    placeholder="Select location from Rate List"
-                    isLoading={optionsLoading}
-                    onSearchChange={(q) => scheduleOptionsSearch("location", q)}
-                  />
-                </FormControl>
-                <FormControl isRequired>
-                  <FormLabel>Agent</FormLabel>
-                  <SimpleSearchableSelect
-                    value={formData.agent_id}
-                    onChange={(value) => setFormData((p) => ({ ...p, agent_id: value || "" }))}
-                    options={agentOptions}
-                    formatOption={formatAgentOption}
-                    placeholder="Select agent"
-                    isLoading={optionsLoading}
-                    onSearchChange={(q) => scheduleOptionsSearch("agent", q)}
-                  />
-                </FormControl>
-              </HStack>
-
-              <HStack align="start" spacing={4}>
-                <FormControl isRequired>
-                  <FormLabel>Currency</FormLabel>
-                  <Select
-                    value={formData.currency_id}
-                    onChange={(e) => setFormData((p) => ({ ...p, currency_id: e.target.value }))}
-                  >
-                    <option value="">Select currency</option>
-                    {currencies.map((currency) => (
-                      <option key={currency.id} value={currency.id}>
-                        {currency.name}
-                      </option>
-                    ))}
-                  </Select>
-                </FormControl>
-                <FormControl isRequired>
-                  <FormLabel>Rate Calculation</FormLabel>
-                  <Select
-                    value={formData.rate_calculation}
-                    onChange={(e) =>
-                      setFormData((p) => ({ ...p, rate_calculation: e.target.value }))
-                    }
-                  >
-                    {rateCalculationOptions.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </Select>
-                </FormControl>
-              </HStack>
-
-              <HStack align="start" spacing={4}>
-                <FormControl isRequired>
-                  <FormLabel>Rate Name</FormLabel>
-                  <Input
-                    value={formData.rate_name}
-                    onChange={(e) => setFormData((p) => ({ ...p, rate_name: e.target.value }))}
-                  />
-                </FormControl>
-                <FormControl isRequired>
-                  <FormLabel>Rate</FormLabel>
-                  <Input
-                    type="number"
-                    step="any"
-                    value={formData.rate}
-                    onChange={(e) => setFormData((p) => ({ ...p, rate: e.target.value }))}
-                  />
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Valid Until</FormLabel>
-                  <Input
-                    type="date"
-                    value={formData.valid_until}
-                    onChange={(e) => setFormData((p) => ({ ...p, valid_until: e.target.value }))}
-                  />
-                </FormControl>
-              </HStack>
-
-              <FormControl>
-                <FormLabel>Rate Text</FormLabel>
-                <Textarea
-                  value={formData.rate_text}
-                  onChange={(e) => setFormData((p) => ({ ...p, rate_text: e.target.value }))}
+          <ModalBody p={0} flex="1" minH={0} overflow="hidden" display="flex" flexDirection="column">
+            {pdfUrl ? (
+              <Box flex="1" minH={0} w="100%" display="flex">
+                <iframe
+                  ref={pdfIframeRef}
+                  title="Client tariff PDF preview"
+                  src={pdfUrl}
+                  style={{ border: "none", width: "100%", flex: 1, minHeight: 0 }}
                 />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel>Active</FormLabel>
-                <Select
-                  value={String(formData.active)}
-                  onChange={(e) =>
-                    setFormData((p) => ({ ...p, active: e.target.value === "true" }))
-                  }
-                >
-                  <option value="true">Yes</option>
-                  <option value="false">No</option>
-                </Select>
-              </FormControl>
-            </VStack>
+              </Box>
+            ) : (
+              <Flex align="center" justify="center" flex="1" minH={0}>
+                <Spinner size="lg" />
+              </Flex>
+            )}
           </ModalBody>
-          <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onClose}>
-              Cancel
+          <ModalFooter gap={2} flexWrap="wrap" flexShrink={0}>
+            <Button leftIcon={<Icon as={MdPrint} />} onClick={handlePrint} isDisabled={!pdfUrl}>
+              Print
             </Button>
-            <Button colorScheme="blue" onClick={saveTariff} isLoading={saving}>
-              {isEdit ? "Update" : "Create"}
+            <Button
+              colorScheme="blue"
+              leftIcon={<Icon as={MdPictureAsPdf} />}
+              onClick={handleDownloadPdf}
+              isDisabled={!pdfModel}
+            >
+              Download
+            </Button>
+            <Button variant="ghost" onClick={handleClosePdf}>
+              Close
             </Button>
           </ModalFooter>
         </ModalContent>
