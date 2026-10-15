@@ -1378,6 +1378,13 @@ export default function StockForm() {
             }
 
             const applyCopy = (targetIndex) => {
+                // Cancel reason only applies to cancelled rows (it is hidden on other statuses)
+                if (
+                    fieldList.includes("cancelText") &&
+                    normalizeStockStatusKey(newRows[targetIndex].stockStatus) !== "cancelled"
+                ) {
+                    return;
+                }
                 newRows[targetIndex] = withUnlockedStockReport(newRows[targetIndex], sourceValues);
             };
 
@@ -3522,7 +3529,7 @@ export default function StockForm() {
                                         </Td>
                                         {/* Cancel reason (cancel_text) */}
                                         <Td {...cellProps}>
-                                            {normalizeStockStatusKey(row.stockStatus) === "cancelled" ? (
+                                            {normalizeStockStatusKey(row.stockStatus) === "cancelled" ? assignCell(rowIndex, "cancelText",
                                                 <Textarea
                                                     value={row.cancelText || ""}
                                                     onChange={(e) => handleInputChange(rowIndex, "cancelText", e.target.value)}
