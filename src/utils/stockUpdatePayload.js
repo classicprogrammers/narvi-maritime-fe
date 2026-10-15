@@ -224,6 +224,107 @@ export function buildStockUpdateDimensionsOps(currentDims = [], originalDims = [
   return ops.length > 0 ? ops : undefined;
 }
 
+const warehouseName = (wh) => {
+  if (wh == null || wh === false) return "";
+  if (typeof wh === "string") return wh.trim();
+  return String(wh.name ?? "").trim();
+};
+
+const resolveWarehouseId = (wh) => {
+  if (!wh || typeof wh !== "object" || wh.id == null || wh.id === "" || wh.id === false) return null;
+  const id = Number(wh.id);
+  return Number.isFinite(id) ? id : null;
+};
+
+/**
+ * Form rows for warehouses from an API stock record.
+ * Uses `warehouses` [{id, name}]; falls back to splitting `warehouse_text` by line.
+ */
+export function normalizeWarehousesFromStock(stock) {
+  if (Array.isArray(stock?.warehouses)) {
+    return stock.warehouses
+      .map((wh) => ({ id: resolveWarehouseId(wh), name: warehouseName(wh) }))
+      .filter((wh) => wh.name || wh.id != null);
+  }
+  const text = typeof stock?.warehouse_text === "string" ? stock.warehouse_text : "";
+  return text
+    .split(/\r?\n/)
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .map((name) => ({ id: null, name }));
+}
+
+/** Warehouses for create payloads: non-blank names only. */
+export function mapCreateWarehouses(warehouses) {
+  if (!Array.isArray(warehouses)) return undefined;
+  const mapped = warehouses
+    .map((wh) => warehouseName(wh))
+    .filter(Boolean)
+    .map((name) => ({ name }));
+  return mapped.length > 0 ? mapped : undefined;
+}
+
+/**
+ * Build warehouses ops for stock update: create / update / delete.
+ * Only changed rows are returned (backend leaves omitted rows untouched).
+ * @returns {Array|undefined} ops array, or undefined when nothing changed
+ */
+export function buildStockUpdateWarehousesOps(currentList = [], originalList = []) {
+  const current = Array.isArray(currentList) ? currentList : [];
+  const original = Array.isArray(originalList) ? originalList : [];
+  const originalById = new Map();
+  original.forEach((wh) => {
+    const id = resolveWarehouseId(wh);
+    if (id != null) originalById.set(String(id), wh);
+  });
+
+  const ops = [];
+  const keptIds = new Set();
+
+  current.forEach((wh) => {
+    const name = warehouseName(wh);
+    const id = resolveWarehouseId(wh);
+    if (id != null && originalById.has(String(id))) {
+      keptIds.add(String(id));
+      if (name !== warehouseName(originalById.get(String(id)))) {
+        // Blank name on an existing row means the user cleared it — remove it.
+        ops.push(name ? { op: "update", id, name } : { op: "delete", id });
+      }
+      return;
+    }
+    if (!name) return;
+
+    // Same name already persisted (e.g. post-create baseline without ids) — don't re-create.
+    const contentMatch = original.find((o) => {
+      const oid = resolveWarehouseId(o);
+      if (oid != null && keptIds.has(String(oid))) return false;
+      return warehouseName(o) === name;
+    });
+    if (contentMatch) {
+      const oid = resolveWarehouseId(contentMatch);
+      if (oid != null) keptIds.add(String(oid));
+      return;
+    }
+    ops.push({ op: "create", name });
+  });
+
+  originalById.forEach((_wh, idStr) => {
+    if (!keptIds.has(idStr)) ops.push({ op: "delete", id: Number(idStr) });
+  });
+
+  return ops.length > 0 ? ops : undefined;
+}
+
+/** Prefer a warehouse list that still has server ids (mirrors resolveDimensionsBaseline). */
+export function resolveWarehousesBaseline(stockWarehouses, baselineWarehouses) {
+  const stock = Array.isArray(stockWarehouses) ? stockWarehouses : null;
+  const baseline = Array.isArray(baselineWarehouses) ? baselineWarehouses : null;
+  if (stock?.some((w) => resolveWarehouseId(w) != null)) return stock;
+  if (baseline?.some((w) => resolveWarehouseId(w) != null)) return baseline;
+  if (stock && stock.length > 0) return stock;
+  return baseline || stock || [];
+}
+
 /**
  * Prefer dimension lists that still have server ids / real rows.
  * Important: `[]` is truthy in JS, so callers must not use `stock.dimensions || baseline`.
@@ -395,7 +496,9 @@ export function captureFormRowUpdateBaseline(row) {
     value: row.value,
     extra2: row.extra2 || "",
     destinationId: row.destinationId,
-    warehouseId: row.warehouseId || "",
+    warehouses: Array.isArray(row.warehouses)
+      ? row.warehouses.map((wh) => ({ ...(wh || {}) }))
+      : [],
     shippingDoc: row.shippingDoc || "",
     exportDoc: row.exportDoc || "",
     exportDoc2: row.exportDoc2 || "",

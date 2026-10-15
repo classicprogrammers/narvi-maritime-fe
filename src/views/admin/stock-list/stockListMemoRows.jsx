@@ -347,9 +347,7 @@ function StockViewTableRowInner({
                 </StockStatusBadge>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
-                    {item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-"}
-                </StockCellText>
+                {renderMultiLineLabels(item.warehouse_text || item.warehouse_new || item.warehouse_id || item.stock_warehouse)}
             </Td>
             <Td {...cellProps}>
                 <StockCellText {...STOCK_CELL_TEXT_PROPS}>{item.origin_text || "-"}</StockCellText>

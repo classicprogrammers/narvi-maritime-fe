@@ -74,7 +74,8 @@ import {
 } from "../../../utils/stockLocationOptions";
 import { normalizeStockValueForForm, normalizeStockValueForSave } from "../../../utils/stockValue";
 import { buildStockCreateLinePayload, normalizeCancelTextForForm, normalizeCancelTextForSave } from "../../../utils/stockCreatePayload";
-import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps, resolveDimensionsBaseline, filterNewPendingAttachments, filterNewAttachmentDeletes } from "../../../utils/stockUpdatePayload";
+import StockWarehousesModal, { warehousesToText } from "../../../components/stock-list/StockWarehousesModal";
+import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps, resolveDimensionsBaseline, buildStockUpdateWarehousesOps, resolveWarehousesBaseline, normalizeWarehousesFromStock, filterNewPendingAttachments, filterNewAttachmentDeletes } from "../../../utils/stockUpdatePayload";
 import {
     cloneStockFormRow,
     createManualStockReportGenerator,
@@ -148,6 +149,7 @@ export default function StockForm() {
         poNumber: "",
         reqNo: "",
         warehouseId: "",
+        warehouses: [],
         shippingDoc: "",
         items: "",
         weightKgs: "",
@@ -214,6 +216,8 @@ export default function StockForm() {
         onOpen: onCancelReasonModalOpen,
         onClose: onCancelReasonModalClose,
     } = useDisclosure();
+    const { isOpen: isWarehousesModalOpen, onOpen: onWarehousesModalOpen, onClose: onWarehousesModalClose } = useDisclosure();
+    const [warehouseModalRowIndex, setWarehouseModalRowIndex] = useState(0);
     const [cancelReasonModal, setCancelReasonModal] = useState({
         rowIndex: null,
         previousStatus: "",
@@ -530,7 +534,8 @@ export default function StockForm() {
             supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
             poNumber: getFieldValue(stock.po_text),
             reqNo: getFieldValue(stock.req_no),
-            warehouseId: getFieldValue(stock.warehouse_new) || getFieldValue(stock.warehouse_id) || "",
+            warehouses: normalizeWarehousesFromStock(stock),
+            warehouseId: warehousesToText(normalizeWarehousesFromStock(stock)),
             shippingDoc: getFieldValue(stock.shipping_doc),
             items: getFieldValue(stock.items) || getFieldValue(stock.item_desc),
             weightKgs: getFieldValue(stock.weight_kg ?? stock.weight_kgs, ""),
@@ -970,7 +975,7 @@ export default function StockForm() {
             sl_create_datetime: new Date().toISOString().replace('T', ' ').slice(0, 19),
             extra: "",
             ...buildNarviDestinationSaveFields(rowData.destinationId),
-            warehouse_new: rowData.warehouseId || "",
+            warehouses: undefined, // filled below with create/update/delete ops
             shipping_doc: rowData.shippingDoc || "",
             export_doc: "",
             exp_ready_in_stock: toClearableDateValue(rowData.expReadyInStock),
@@ -1030,11 +1035,25 @@ export default function StockForm() {
             delete payload.dimensions;
         }
 
+        const warehouseOps = buildStockUpdateWarehousesOps(
+            rowData.warehouses,
+            resolveWarehousesBaseline(
+                originalStock ? normalizeWarehousesFromStock(originalStock) : null,
+                baselineFormRow?.warehouses
+            )
+        );
+        if (warehouseOps) {
+            payload.warehouses = warehouseOps;
+        } else {
+            delete payload.warehouses;
+        }
+
         const baselineRow = baselineFormRow
             || (originalStock ? loadFormDataFromStock(originalStock, true) : null);
 
         if (!baselineRow) {
             delete payload.dimensions;
+            delete payload.warehouses;
             delete payload.sl_create_datetime;
             return {
                 stock_id: payload.stock_id,
@@ -1095,7 +1114,7 @@ export default function StockForm() {
             value: normalizeStockValueForSave(baselineRow.value),
             extra: "",
             ...buildNarviDestinationSaveFields(baselineRow.destinationId),
-            warehouse_new: baselineRow.warehouseId || "",
+            warehouses: undefined,
             shipping_doc: baselineRow.shippingDoc || "",
             export_doc: "",
             exp_ready_in_stock: toClearableDateValue(baselineRow.expReadyInStock),
@@ -1664,17 +1683,19 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Textarea
-                                            value={row.warehouseId || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "warehouseId", e.target.value)}
-                                            placeholder="Enter Warehouse ID"
+                                        <Button
                                             size="sm"
-                                            rows={2}
-                                            resize="vertical"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
+                                            leftIcon={<Icon as={MdAdd} />}
+                                            onClick={() => {
+                                                setWarehouseModalRowIndex(rowIndex);
+                                                onWarehousesModalOpen();
+                                            }}
+                                            colorScheme="blue"
+                                            variant="outline"
+                                            title={row.warehouseId ? String(row.warehouseId) : undefined}
+                                        >
+                                            Warehouses ({row.warehouses?.length || 0})
+                                        </Button>
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
                                         <Input
@@ -2385,6 +2406,20 @@ export default function StockForm() {
                 dgField="details"
                 dateField="expReadyInStock"
                 statusActorName={statusChangeActorName}
+            />
+            <StockWarehousesModal
+                isOpen={isWarehousesModalOpen}
+                onClose={onWarehousesModalClose}
+                warehouses={formRows[warehouseModalRowIndex]?.warehouses}
+                onSave={(list) => {
+                    setFormRows((prev) =>
+                        prev.map((r, i) =>
+                            i === warehouseModalRowIndex
+                                ? { ...r, warehouses: list, warehouseId: warehousesToText(list) }
+                                : r
+                        )
+                    );
+                }}
             />
             <Modal
                 isOpen={isCancelReasonModalOpen}

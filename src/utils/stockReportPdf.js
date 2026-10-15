@@ -189,7 +189,7 @@ export function mapAdminStockItemToPdfRow(item, helpers) {
         item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? (pcsLines.length ? pcsLines.length : "");
 
     const warehouseId =
-        item.warehouse_new || item.warehouse_id || item.stock_warehouse || item.warehouse || "-";
+        item.warehouse_text || item.warehouse_new || item.warehouse_id || item.stock_warehouse || item.warehouse || "-";
 
     const dateOnStock = clean(formatDate(item.date_on_stock));
     const firstEntryDate = clean(formatDate(item.first_entry_date || item.date_on_stock));

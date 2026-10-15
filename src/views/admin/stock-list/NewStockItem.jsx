@@ -76,7 +76,8 @@ import useStockListOptionPins from "../../../hooks/useStockListOptionPins";
 import { mergeSelectedIntoOptions } from "../../../utils/stockFormSelectUtils";
 import { clampIsoDateToToday, getLocalTodayIso } from "../../../components/forms/DmyDateInput";
 import { buildStockCreateLinePayload, normalizeCancelTextForForm, normalizeCancelTextForSave } from "../../../utils/stockCreatePayload";
-import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps, resolveDimensionsBaseline, filterNewPendingAttachments, filterNewAttachmentDeletes } from "../../../utils/stockUpdatePayload";
+import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps, resolveDimensionsBaseline, buildStockUpdateWarehousesOps, resolveWarehousesBaseline, normalizeWarehousesFromStock, filterNewPendingAttachments, filterNewAttachmentDeletes } from "../../../utils/stockUpdatePayload";
+import StockWarehousesModal, { warehousesToText } from "../../../components/stock-list/StockWarehousesModal";
 import {
     filterItemsWithBulkSaveFailures,
     filterRowsWithBulkSaveFailures,
@@ -121,7 +122,8 @@ import {
 } from "../../../utils/stockLocationOptions";
 import { normalizeStockValueForForm, normalizeStockValueForSave } from "../../../utils/stockValue";
 import { describeMissingClientVessel, isBlankStockRelation } from "../../../utils/stockClientVessel";
-import { describeMissingStatusFields } from "../../../utils/stockStatusRequirements";
+import { getMissingStatusIssues } from "../../../utils/stockStatusRequirements";
+import StockStatusRequirementsModal from "../../../components/stock-list/StockStatusRequirementsModal";
 import EditModeNotice, { useEditModeColors } from "../../../components/forms/EditModeNotice";
 
 const STOCK_FORM_SORT_COLUMNS = [
@@ -360,9 +362,12 @@ export default function StockForm() {
         previousStatus: "",
         text: "",
     });
+    const { isOpen: isWarehousesModalOpen, onOpen: onWarehousesModalOpen, onClose: onWarehousesModalClose } = useDisclosure();
+    const [warehouseModalRowIndex, setWarehouseModalRowIndex] = useState(0);
     const [currentRowIndexForDimensions, setCurrentRowIndexForDimensions] = useState(0);
     const [dimensionsList, setDimensionsList] = useState([]);
     const [showClientVesselErrors, setShowClientVesselErrors] = useState(false);
+    const [statusRequirementIssues, setStatusRequirementIssues] = useState([]);
 
     const textColor = useColorModeValue("gray.700", "white");
     const inputBg = useColorModeValue("gray.100", "gray.800");
@@ -546,7 +551,8 @@ export default function StockForm() {
         poNumber: "", // Free text + textarea
         reqNo: "", // Free text + textarea (API: req_no)
         expReadyInStock: "", // Ready ex Supplier - date field
-        warehouseId: "", // Free text + textarea
+        warehouseId: "", // Derived display text (names, one per line) from `warehouses`
+        warehouses: [], // Array of { id, name }
         dateOnStock: "", // Date field
         shippedDate: "", // Shipped date
         deliveredDate: "", // Delivered date
@@ -1246,7 +1252,8 @@ export default function StockForm() {
             poNumber: getFieldValue(stock.po_text) || "",
             reqNo: getFieldValue(stock.req_no) || "",
             expReadyInStock: getFieldValue(stock.exp_ready_in_stock) || "",
-            warehouseId: getFieldValue(stock.warehouse_new) || getFieldValue(stock.warehouse_id) || "",
+            warehouses: normalizeWarehousesFromStock(stock),
+            warehouseId: warehousesToText(normalizeWarehousesFromStock(stock)),
             dateOnStock: getFieldValue(stock.date_on_stock) || "",
             shippedDate: getFieldValue(stock.shipped_date) || "",
             deliveredDate: getFieldValue(stock.delivered_date) || "",
@@ -1365,6 +1372,10 @@ export default function StockForm() {
             fieldList.forEach((field) => {
                 sourceValues[field] = newRows[rowIndex][field];
             });
+            // Copied warehouses/dimensions are new rows on the target stock — never reuse source ids
+            if (Array.isArray(sourceValues.warehouses)) {
+                sourceValues.warehouses = sourceValues.warehouses.map((wh) => ({ ...(wh || {}), id: null }));
+            }
 
             const applyCopy = (targetIndex) => {
                 newRows[targetIndex] = withUnlockedStockReport(newRows[targetIndex], sourceValues);
@@ -1699,6 +1710,9 @@ export default function StockForm() {
                 dimensions: Array.isArray(rowToCopy.dimensions)
                     ? rowToCopy.dimensions.map((dim) => ({ ...(dim || {}), id: null }))
                     : [],
+                warehouses: Array.isArray(rowToCopy.warehouses)
+                    ? rowToCopy.warehouses.map((wh) => ({ ...(wh || {}), id: null }))
+                    : [],
             };
             const newRows = [...prev];
             newRows.splice(rowIndex + 1, 0, newRow); // Insert after current row
@@ -1817,7 +1831,7 @@ export default function StockForm() {
             shipment_type: "", // Include shipment_type as empty string
             extra: rowData.extra2 || "",
             ...buildNarviDestinationSaveFields(rowData.destinationId),
-            warehouse_new: rowData.warehouseId || "", // Warehouse - Free text
+            warehouses: undefined, // filled below with create/update/delete ops
             shipping_doc: rowData.shippingDoc || "",
             export_doc: rowData.exportDoc || "",
             export_doc_2: rowData.exportDoc2 || "",
@@ -1914,12 +1928,26 @@ export default function StockForm() {
             delete payload.dimensions;
         }
 
+        const warehouseOps = buildStockUpdateWarehousesOps(
+            rowData.warehouses,
+            resolveWarehousesBaseline(
+                originalStock ? normalizeWarehousesFromStock(originalStock) : null,
+                baselineFormRow?.warehouses
+            )
+        );
+        if (warehouseOps) {
+            payload.warehouses = warehouseOps;
+        } else {
+            delete payload.warehouses;
+        }
+
         const baselineRow = baselineFormRow
             || (originalStock ? loadFormDataFromStock(originalStock, true) : null);
 
         if (!baselineRow) {
             // No baseline yet (should be rare) — never re-send full create payload / dimensions
             delete payload.dimensions;
+            delete payload.warehouses;
             return {
                 stock_id: payload.stock_id,
                 ...(payload.stock_item_id ? { stock_item_id: payload.stock_item_id } : {}),
@@ -1972,7 +2000,8 @@ export default function StockForm() {
             shipment_type: "",
             extra: baselineRow.extra2 || "",
             ...buildNarviDestinationSaveFields(baselineRow.destinationId),
-            warehouse_new: baselineRow.warehouseId || "",
+            // No warehouse ops on baseline — candidate already holds only changed ops
+            warehouses: undefined,
             shipping_doc: baselineRow.shippingDoc || "",
             export_doc: baselineRow.exportDoc || "",
             export_doc_2: baselineRow.exportDoc2 || "",
@@ -2091,15 +2120,12 @@ export default function StockForm() {
             });
             return;
         }
-        const missingStatusFields = describeMissingStatusFields(reportRow ? [reportRow] : []);
-        if (missingStatusFields.length > 0) {
-            toast({
-                title: "Required fields missing for the selected status",
-                description: missingStatusFields.join(". "),
-                status: "warning",
-                duration: 10000,
-                isClosable: true,
-            });
+        const missingStatusIssues = getMissingStatusIssues(reportRow ? [reportRow] : []).map((issue) => ({
+            ...issue,
+            rowNumber: rowIndex + 1,
+        }));
+        if (missingStatusIssues.length > 0) {
+            setStatusRequirementIssues(missingStatusIssues);
             return;
         }
         const stayOnPage = (formRowsRef.current?.length || formRows.length) > 1;
@@ -2145,15 +2171,9 @@ export default function StockForm() {
                 return;
             }
 
-            const missingStatusFields = describeMissingStatusFields(rowsForSave);
-            if (missingStatusFields.length > 0) {
-                toast({
-                    title: "Required fields missing for the selected status",
-                    description: missingStatusFields.join(". "),
-                    status: "warning",
-                    duration: 10000,
-                    isClosable: true,
-                });
+            const missingStatusIssues = getMissingStatusIssues(rowsForSave);
+            if (missingStatusIssues.length > 0) {
+                setStatusRequirementIssues(missingStatusIssues);
                 return;
             }
 
@@ -2672,23 +2692,20 @@ export default function StockForm() {
                                             )}
                                         </Td>
                                         <Td {...cellProps} overflow="visible">
-                                            {assignCell(rowIndex, "warehouseId",
-                                                <Textarea
-                                                    value={row.warehouseId || ""}
-                                                    onChange={(e) => handleInputChange(rowIndex, "warehouseId", e.target.value)}
-                                                    placeholder="Enter Warehouse ID"
+                                            {assignCell(rowIndex, ["warehouses", "warehouseId"],
+                                                <Button
                                                     size="sm"
-                                                    rows={2}
-                                                    w="auto"
-                                                    minW="24ch"
-                                                    maxW="90ch"
-                                                    cols={getAutoCols(row.warehouseId, "Enter Warehouse ID", { min: 24, max: 60 })}
-                                                    resize="vertical"
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                    borderColor={borderColor}
+                                                    leftIcon={<Icon as={MdAdd} />}
+                                                    onClick={() => {
+                                                        setWarehouseModalRowIndex(rowIndex);
+                                                        onWarehousesModalOpen();
+                                                    }}
+                                                    colorScheme="blue"
+                                                    variant="outline"
                                                     title={row.warehouseId ? String(row.warehouseId) : undefined}
-                                                    />
+                                                >
+                                                    Warehouses ({row.warehouses?.length || 0})
+                                                </Button>
                                             )}
                                         </Td>
                                         <Td {...cellProps} overflow="visible">
@@ -3686,6 +3703,21 @@ export default function StockForm() {
                 statusActorName={statusChangeActorName}
             />
 
+            <StockWarehousesModal
+                isOpen={isWarehousesModalOpen}
+                onClose={onWarehousesModalClose}
+                warehouses={formRows[warehouseModalRowIndex]?.warehouses}
+                onSave={(list) => {
+                    setFormRows((prev) =>
+                        prev.map((r, i) =>
+                            i === warehouseModalRowIndex
+                                ? { ...r, warehouses: list, warehouseId: warehousesToText(list) }
+                                : r
+                        )
+                    );
+                }}
+            />
+
             {/* Dimensions Modal */}
             <Modal isOpen={isDimensionsModalOpen} onClose={onDimensionsModalClose} size="xl">
                 <ModalOverlay />
@@ -3964,6 +3996,10 @@ export default function StockForm() {
                     </ModalFooter>
                 </ModalContent>
             </Modal>
+            <StockStatusRequirementsModal
+                issues={statusRequirementIssues}
+                onClose={() => setStatusRequirementIssues([])}
+            />
             <Modal
                 isOpen={isCancelReasonModalOpen}
                 onClose={handleCancelReasonModalDismiss}

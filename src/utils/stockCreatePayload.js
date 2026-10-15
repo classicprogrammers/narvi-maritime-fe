@@ -11,6 +11,7 @@ import {
   toStockLocationPayloadId,
 } from "./stockLocationOptions";
 import { normalizeStockValueForSave } from "./stockValue";
+import { mapCreateWarehouses } from "./stockUpdatePayload";
 
 /** Keys accepted by the stock create API (line object). */
 export const STOCK_CREATE_LINE_KEYS = new Set([
@@ -76,6 +77,7 @@ export const STOCK_CREATE_LINE_KEYS = new Set([
   "export_doc",
   "export_doc_2",
   "dimensions",
+  "warehouses",
   "attachments",
 ]);
 
@@ -282,7 +284,7 @@ export const buildStockCreateLinePayload = (rowData, context = {}) => {
     cw_air_freight_new: toNumber(rowData.cwAirfreight),
     value: normalizeStockValueForSave(rowData.value),
     ...destinationFields,
-    warehouse_new: rowData.warehouseId || "",
+    warehouses: mapCreateWarehouses(rowData.warehouses),
     po_text: rowData.poNumber || "",
     req_no: rowData.reqNo || "",
     shipping_doc: rowData.shippingDoc || "",

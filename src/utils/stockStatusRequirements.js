@@ -1,4 +1,4 @@
-import { normalizeStockStatusKey } from "../constants/stockStatus";
+import { formatStockStatusLabel, normalizeStockStatusKey } from "../constants/stockStatus";
 
 const isFilled = (value) => {
     if (value == null || value === false) return false;
@@ -98,11 +98,12 @@ const REQUIREMENTS = {
 const stockDocsMissing = (row) => !hasAttachments(row);
 
 /**
- * Returns human-readable problems for rows whose status requirements are not met.
+ * Returns one issue per row whose status requirements are not met:
+ * { rowNumber, status, statusLabel, missing: string[] }.
  * Rows with no status (or a status without requirements, e.g. arrived/irregular) are skipped.
  */
-export function describeMissingStatusFields(rows) {
-    const problems = [];
+export function getMissingStatusIssues(rows) {
+    const issues = [];
     (Array.isArray(rows) ? rows : []).forEach((row, index) => {
         const status = normalizeStockStatusKey(row?.stockStatus);
         const checks = REQUIREMENTS[status];
@@ -113,8 +114,8 @@ export function describeMissingStatusFields(rows) {
             missing.push("Upload docs (CI PL or at least a DN) — or fill in Warning ‼️⛔ to explain what is missing");
         }
         if (missing.length > 0) {
-            problems.push(`Row ${index + 1} (${status.replace(/_/g, " ")}): ${missing.join(", ")}`);
+            issues.push({ rowNumber: index + 1, status, statusLabel: formatStockStatusLabel(status), missing });
         }
     });
-    return problems;
+    return issues;
 }

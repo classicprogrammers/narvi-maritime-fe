@@ -2264,7 +2264,7 @@ export default function Stocks() {
         const soNumber = item.so_id
             ? getSoNumberName(item.so_id)
             : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number)) || "-";
-        const warehouseId = getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-";
+        const warehouseId = item.warehouse_text || getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-";
         const shippingDocs = item.shipping_doc || "-";
         const exportDoc1 = item.export_doc || "-";
         const exportDoc2 = item.export_doc_2 || "-";
@@ -2321,7 +2321,7 @@ export default function Stocks() {
                 formatStockDestinationDisplay(item, "destination"),
                 item.dg_un || "-",
                 soNumber,
-                item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-",
+                item.warehouse_text || item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-",
             ];
         });
 
@@ -2364,7 +2364,7 @@ export default function Stocks() {
                 item.export_doc_2 || "-",
                 item.dg_un || "-",
                 soNumber,
-                getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-",
+                item.warehouse_text || getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-",
             ];
         });
 
@@ -2411,7 +2411,7 @@ export default function Stocks() {
         const soNumber = item.so_id
             ? getSoNumberName(item.so_id)
             : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number)) || "-";
-        const warehouseId = getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-";
+        const warehouseId = item.warehouse_text || getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-";
         const shippingDocs = item.shipping_doc || "-";
         const exportDoc1 = item.export_doc || "-";
         const exportDoc2 = item.export_doc_2 || "-";
@@ -2493,7 +2493,7 @@ export default function Stocks() {
                 getDisplayName(item.client_id || item.client) || "-",
                 getDisplayName(item.vessel_id || item.vessel) || "-",
                 item.warning || "-",
-                item.warehouse_new || item.warehouse_id || item.stock_warehouse || item.warehouse || "-",
+                item.warehouse_text || item.warehouse_new || item.warehouse_id || item.stock_warehouse || item.warehouse || "-",
                 getDisplayName(item.supplier_id || item.supplier) || "-",
                 (item.req_no || "-").replace(/\n/g, " "),
                 (item.po_text || "-").replace(/\n/g, " "),
@@ -2543,7 +2543,7 @@ export default function Stocks() {
             destination: formatStockDestinationDisplay(item, "destination"),
             dg_un: item.dg_un || "-",
             so_number: soNumber,
-            warehouse_id: getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-",
+            warehouse_id: item.warehouse_text || getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-",
             shipping_docs: item.shipping_doc || "-",
             export_doc_1: item.export_doc || "-",
             export_doc_2: item.export_doc_2 || "-",
@@ -3751,7 +3751,6 @@ export default function Stocks() {
             { backend: "value", original: ["value"], edited: ["value"], transform: (v) => normalizeStockValueForSave(v) },
             { backend: "shipment_type", original: ["shipment_type"], edited: ["shipment_type"], transform: (v) => v || "" },
             { backend: "extra", original: ["extra", "extra2"], edited: ["extra"], transform: (v) => v || "" },
-            { backend: "warehouse_new", original: ["warehouse_new", "warehouse_id", "stock_warehouse"], edited: ["warehouse_new", "warehouse_id"], transform: (v) => v || "" }, // Free text field
             { backend: "shipping_doc", original: ["shipping_doc"], edited: ["shipping_doc"], transform: (v) => v || "" },
             { backend: "export_doc", original: ["export_doc"], edited: ["export_doc"], transform: (v) => v || "" },
             { backend: "export_doc_2", original: ["export_doc_2"], edited: ["export_doc_2"], transform: (v) => v || "" },
@@ -3987,7 +3986,7 @@ export default function Stocks() {
             destination: formatStockDestinationDisplay(item, "destination"),
             dg_un: item.dg_un || "-",
             so_number: soNumber,
-            warehouse_id: getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-",
+            warehouse_id: item.warehouse_text || getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-",
             shipping_docs: item.shipping_doc || "-",
             export_doc_1: item.export_doc || "-",
             export_doc_2: item.export_doc_2 || "-",
@@ -4533,7 +4532,7 @@ export default function Stocks() {
                             )}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "warehouse_new", item.warehouse_new || item.warehouse_id || item.stock_warehouse) : <StockCellText {...cellText}>{renderText(item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-")}</StockCellText>}
+                            {renderMultiLineLabels(item.warehouse_text || item.warehouse_new || item.warehouse_id || item.stock_warehouse)}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                             {isEditing ? renderEditableCell(item, "origin_text", item.origin_text, "text") : <StockCellText {...cellText}>{item.origin_text || "-"}</StockCellText>}
@@ -4777,7 +4776,7 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "delivered_date", item.delivered_date, "date") : <StockCellText {...cellText}>{formatDate(item.delivered_date)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "warehouse_new", item.warehouse_new || item.warehouse_id || item.stock_warehouse) : <StockCellText {...cellText}>{renderText(item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-")}</StockCellText>}
+                            {renderMultiLineLabels(item.warehouse_text || item.warehouse_new || item.warehouse_id || item.stock_warehouse)}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "supplier_id", item.supplier_id, "select", vendors.map(v => ({ value: v.id, label: v.name }))) : <StockCellText {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</StockCellText>}
