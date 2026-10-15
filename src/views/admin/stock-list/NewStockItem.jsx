@@ -1596,6 +1596,10 @@ export default function StockForm() {
                         : null;
             }
 
+            if (field === "warehouses") {
+                updatedRow.warehouseId = warehousesToText(value);
+            }
+
             // Stock is only valid while its requirements hold: if this edit breaks them, drop the status
             if (field !== "stockStatus" && normalizeStockStatusKey(updatedRow.stockStatus) === "stock") {
                 const brokenNow = getMissingStatusIssues([updatedRow]);

@@ -497,7 +497,28 @@ function StockReportPreview({
                                             />
                                         </Field>
                                     ) : null}
-                                    {shown("warehouseId") ? (
+                                    {shown("warehouseId") && Array.isArray(row.warehouses) && row.warehouses.length > 0
+                                        ? row.warehouses.map((warehouse, index) => (
+                                            <Field
+                                                key={warehouse?.id ?? `warehouse-${index}`}
+                                                label={row.warehouses.length > 1 ? `Warehouse ID ${index + 1}` : "Warehouse ID"}
+                                            >
+                                                <Input
+                                                    {...fieldInputProps}
+                                                    value={warehouse?.name || ""}
+                                                    onChange={(e) =>
+                                                        onFieldChange(
+                                                            "warehouses",
+                                                            row.warehouses.map((item, i) =>
+                                                                i === index ? { ...item, name: e.target.value } : item
+                                                            )
+                                                        )
+                                                    }
+                                                />
+                                            </Field>
+                                        ))
+                                        : null}
+                                    {shown("warehouseId") && !(Array.isArray(row.warehouses) && row.warehouses.length > 0) ? (
                                         <Field label="Warehouse ID">
                                             <Input
                                                 {...fieldInputProps}
