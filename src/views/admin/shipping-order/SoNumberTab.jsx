@@ -78,7 +78,7 @@ import {
 } from "../../../api/shippingOrders";
 import { useHistory, Link, useLocation } from "react-router-dom";
 import * as XLSX from "xlsx";
-import { normalizeOrder, buildPayloadFromForm, getOrderAttachmentsForDisplay, validateShippingOrderServiceBoat } from "./shippingOrderUtils";
+import { normalizeOrder, buildPayloadFromForm, getOrderAttachmentsForDisplay, validateShippingOrderServiceBoat, validateShippingOrderRequiredFields } from "./shippingOrderUtils";
 import {
   applyShippingOrderFilesToPayload,
   mapExistingCiplFilesFromOrder,
@@ -1172,12 +1172,12 @@ const SoNumberTab = () => {
   };
 
   const handleFormSubmit = async () => {
-    const hasClient = !!formData?.client_id;
+    const requiredError = formData ? validateShippingOrderRequiredFields(formData) : "Client is required.";
 
-    if (!formData || !hasClient) {
+    if (requiredError) {
       toast({
         title: "Missing details",
-        description: "Client is required.",
+        description: requiredError,
         status: "warning",
         duration: 4000,
         isClosable: true,

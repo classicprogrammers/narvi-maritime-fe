@@ -368,6 +368,7 @@ export default function StockForm() {
     const [dimensionsList, setDimensionsList] = useState([]);
     const [showClientVesselErrors, setShowClientVesselErrors] = useState(false);
     const [statusRequirementIssues, setStatusRequirementIssues] = useState([]);
+    const [pendingStockPreviewIndex, setPendingStockPreviewIndex] = useState(null);
 
     const textColor = useColorModeValue("gray.700", "white");
     const inputBg = useColorModeValue("gray.100", "gray.800");
@@ -1581,6 +1582,8 @@ export default function StockForm() {
                 if (String(oldStatus) !== String(newStatus) && String(newStatus).trim() !== "") {
                     updatedRow.stockStatusChangedBy = statusChangeActorName;
                     updatedRow.stockStatusPreviousForPayload = oldStatus;
+                    // Moving to Stock requires a generated SL (Stock) Report before saving
+                    updatedRow.stockReportRequired = normalizeStockStatusKey(newStatus) === "stock";
                 }
             }
 
@@ -1593,10 +1596,36 @@ export default function StockForm() {
                         : null;
             }
 
+            // Stock is only valid while its requirements hold: if this edit breaks them, drop the status
+            if (field !== "stockStatus" && normalizeStockStatusKey(updatedRow.stockStatus) === "stock") {
+                const brokenNow = getMissingStatusIssues([updatedRow]);
+                if (brokenNow.length > 0 && getMissingStatusIssues([prev[rowIndex]]).length === 0) {
+                    const changedThisSession = Boolean(updatedRow.stockReportRequired);
+                    updatedRow.stockStatus = changedThisSession
+                        ? normalizeStockStatusKey(updatedRow.stockStatusPreviousForPayload)
+                        : "";
+                    updatedRow.stockReportRequired = false;
+                    updatedRow.statusResetIssues = brokenNow[0].missing;
+                }
+            }
+
             newRows[rowIndex] = updatedRow;
             return newRows;
         });
     };
+
+    // Tell the user when a status was removed because a required field was cleared
+    useEffect(() => {
+        const resetIndex = formRows.findIndex((row) => row.statusResetIssues);
+        if (resetIndex === -1) return;
+        const missing = formRows[resetIndex].statusResetIssues;
+        setStatusRequirementIssues([
+            { rowNumber: resetIndex + 1, status: "stock", statusLabel: "Stock status removed", missing },
+        ]);
+        setFormRows((prev) =>
+            prev.map((row) => (row.statusResetIssues ? { ...row, statusResetIssues: undefined } : row))
+        );
+    }, [formRows]);
 
     const openCancelReasonModal = (rowIndex) => {
         const row = formRowsRef.current?.[rowIndex] || formRows[rowIndex];
@@ -1644,7 +1673,36 @@ export default function StockForm() {
             openCancelReasonModal(rowIndex);
             return;
         }
+        const currentRow = formRowsRef.current?.[rowIndex] ?? formRows[rowIndex];
+        const alreadyStock = normalizeStockStatusKey(currentRow?.stockStatus) === "stock";
+        if (normalized === "stock" && !alreadyStock && currentRow) {
+            // Stock: the status is only applied once every requirement is met; otherwise list what is missing
+            const issues = getMissingStatusIssues([{ ...currentRow, stockStatus: "stock" }]).map((issue) => ({
+                ...issue,
+                rowNumber: rowIndex + 1,
+            }));
+            if (issues.length > 0) {
+                setStatusRequirementIssues(issues);
+                return;
+            }
+            handleInputChange(rowIndex, "stockStatus", nextStatus);
+            setPendingStockPreviewIndex(rowIndex);
+            return;
+        }
         handleInputChange(rowIndex, "stockStatus", nextStatus);
+    };
+
+    // Click on "Generate Stock Report": for Stock rows, surface missing fields before the preview
+    const handleGenerateStockReportClick = (rowIndex) => {
+        const row = formRowsRef.current?.[rowIndex] ?? formRows[rowIndex];
+        if (row && normalizeStockStatusKey(row.stockStatus) === "stock") {
+            const issues = getMissingStatusIssues([row]).map((issue) => ({ ...issue, rowNumber: rowIndex + 1 }));
+            if (issues.length > 0) {
+                setStatusRequirementIssues(issues);
+                return;
+            }
+        }
+        openStockReportPreview(rowIndex);
     };
 
     const handleColumnSort = (sortKey) => {
@@ -2095,6 +2153,15 @@ export default function StockForm() {
         setStockReportPreview({ rowIndex });
     };
 
+    // Open the preview once the status change to Stock has been committed to formRows
+    useEffect(() => {
+        if (pendingStockPreviewIndex == null) return;
+        const index = pendingStockPreviewIndex;
+        setPendingStockPreviewIndex(null);
+        openStockReportPreview(index);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pendingStockPreviewIndex]);
+
     const cancelStockReportPreview = () => {
         if (stockReportPdfLoadingRowIndex != null) return;
         const snapshot = stockReportSnapshotRef.current;
@@ -2178,7 +2245,7 @@ export default function StockForm() {
                 return;
             }
 
-            const missingStatusIssues = getMissingStatusIssues(rowsForSave);
+            const missingStatusIssues = getMissingStatusIssues(rowsForSave, { requireStockReport: true });
             if (missingStatusIssues.length > 0) {
                 setStatusRequirementIssues(missingStatusIssues);
                 return;
@@ -3585,7 +3652,7 @@ export default function StockForm() {
                                                         colorScheme="blue"
                                                         whiteSpace="nowrap"
                                                         leftIcon={<Icon as={MdPictureAsPdf} boxSize={4} />}
-                                                        onClick={() => openStockReportPreview(rowIndex)}
+                                                        onClick={() => handleGenerateStockReportClick(rowIndex)}
                                                         isLoading={stockReportPdfLoadingRowIndex === rowIndex}
                                                         isDisabled={Boolean(row.stockReportLocked)}
                                                         loadingText="Generating..."

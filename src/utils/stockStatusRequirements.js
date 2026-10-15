@@ -101,8 +101,10 @@ const stockDocsMissing = (row) => !hasAttachments(row);
  * Returns one issue per row whose status requirements are not met:
  * { rowNumber, status, statusLabel, missing: string[] }.
  * Rows with no status (or a status without requirements, e.g. arrived/irregular) are skipped.
+ * With `requireStockReport`, a row moved to Stock in this session (`stockReportRequired`) must also
+ * have its Stock Report (SL Report) generated (`stockReportLocked`).
  */
-export function getMissingStatusIssues(rows) {
+export function getMissingStatusIssues(rows, { requireStockReport = false } = {}) {
     const issues = [];
     (Array.isArray(rows) ? rows : []).forEach((row, index) => {
         const status = normalizeStockStatusKey(row?.stockStatus);
@@ -112,6 +114,9 @@ export function getMissingStatusIssues(rows) {
         const missing = checks.filter(([, ok]) => !ok(row)).map(([label]) => label);
         if (status === "stock" && stockDocsMissing(row) && !isFilled(row.warning)) {
             missing.push("Upload docs (CI PL or at least a DN) — or fill in Warning ‼️⛔ to explain what is missing");
+        }
+        if (requireStockReport && status === "stock" && row.stockReportRequired && !row.stockReportLocked) {
+            missing.push("SL Report — click “Generate Stock Report” and confirm the preview");
         }
         if (missing.length > 0) {
             issues.push({ rowNumber: index + 1, status, statusLabel: formatStockStatusLabel(status), missing });

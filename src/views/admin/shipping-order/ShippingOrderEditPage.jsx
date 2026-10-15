@@ -21,7 +21,7 @@ import { MdArrowBack, MdContentCopy } from "react-icons/md";
 import { getNarviQuotations } from "../../../api/narviQuotation";
 import { createShippingOrder, getShippingOrderById, getShippingOrderStockApi, updateShippingOrder } from "../../../api/shippingOrders";
 import { useMasterData } from "../../../hooks/useMasterData";
-import { normalizeOrder, buildPayloadFromForm, validateShippingOrderServiceBoat } from "./shippingOrderUtils";
+import { normalizeOrder, buildPayloadFromForm, validateShippingOrderServiceBoat, validateShippingOrderRequiredFields } from "./shippingOrderUtils";
 import {
   applyShippingOrderFilesToPayload,
   notifyShippingOrderSaveResult,
@@ -218,11 +218,11 @@ export default function ShippingOrderEditPage() {
   }, []);
 
   const handleSave = async () => {
-    const hasClient = !!formData?.client_id;
-    if (!formData || !hasClient) {
+    const requiredError = formData ? validateShippingOrderRequiredFields(formData) : "Client is required.";
+    if (requiredError) {
       toast({
         title: "Missing details",
-        description: "Client is required.",
+        description: requiredError,
         status: "warning",
         duration: 4000,
         isClosable: true,

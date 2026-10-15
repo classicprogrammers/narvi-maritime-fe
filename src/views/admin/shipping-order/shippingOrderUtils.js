@@ -262,6 +262,14 @@ export function getServiceBoatFormPayload(data) {
   };
 }
 
+/** Client, vessel and destination type must be filled in. */
+export function validateShippingOrderRequiredFields(data) {
+  if (!resolveRelationId(data?.client_id)) return "Client is required.";
+  if (!resolveRelationId(data?.vessel_id)) return "Vessel is required.";
+  if (!data?.destination_type) return "Destination type is required.";
+  return null;
+}
+
 /** When delivery via service boat is yes, paid-by and client cost confirmation are required. */
 export function validateShippingOrderServiceBoat(data) {
   if (!isDeliveryViaServiceBoat(data?.delivery_via_service_boat)) return null;

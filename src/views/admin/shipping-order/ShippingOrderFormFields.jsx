@@ -213,7 +213,7 @@ export default function ShippingOrderFormFields({
               size="sm"
             />
           </FormControl>
-          <FormControl flex="1" minW="260px">
+          <FormControl flex="1" isRequired minW="260px">
             <Flex justify="space-between" align="center" mb={1}>
               <FormLabel mb={0}>Vessel</FormLabel>
               {showVesselDbLink && !isEditMode && (
@@ -261,7 +261,7 @@ export default function ShippingOrderFormFields({
           </FormControl>
         </Flex>
         <Flex gap="4" flexWrap="wrap" mt="4">
-          <FormControl flex="1" minW="260px">
+          <FormControl flex="1" isRequired minW="260px">
             <FormLabel>Destination Type</FormLabel>
             <Select
               size="sm"

@@ -121,6 +121,7 @@ const mapClientStockRows = (stockList, clientName = "") =>
       previousReportEntries: reportEntries.slice(1),
       client: toClientStockDisplay(getRowClientName(item) || clientName),
       dateOnStock: toClientStockDisplay(item.date_on_stock || item.first_entry_date),
+      daysOnStock: toClientStockDisplay(item.days_on_stock),
       firstEntryDate: toClientStockDisplay(item.first_entry_date || item.date_on_stock),
       vessel: toClientStockDisplay(item.vessel?.name || item.vessel),
       warning: toClientStockDisplay(item.warning),
@@ -400,6 +401,7 @@ const CLIENT_STOCK_EXPORT_COLUMNS = [
   { header: "PO#", value: (row) => row.poNo || "-" },
   { header: "Stock Status", value: (row) => row.stockStatus || "-" },
   { header: "Date On Stock", value: (row) => row.dateOnStock || "-" },
+  { header: "Days On Stock", value: (row) => row.daysOnStock || "-" },
   { header: "Boxes", value: (row) => row.boxes || "-" },
   { header: "Weight", value: (row) => row.weight || "-" },
   { header: "Total Volume CBM", value: (row) => row.totalVolumeCbm || "-" },
@@ -1501,6 +1503,7 @@ function ClientStockReportView() {
               <Th>PO#</Th>
               <Th>STOCK STATUS</Th>
               <Th>DATE ON STOCK</Th>
+              <Th>DAYS ON STOCK</Th>
               <Th>BOXES</Th>
               <Th>WEIGHT</Th>
               <Th>TOTAL VOLUME CBM</Th>
@@ -1561,6 +1564,9 @@ function ClientStockReportView() {
                   </Td>
                   <Td>
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.dateOnStock}</StockCellText>
+                  </Td>
+                  <Td>
+                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.daysOnStock}</StockCellText>
                   </Td>
                   <Td>
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.boxes}</StockCellText>
