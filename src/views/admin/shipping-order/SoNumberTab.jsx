@@ -86,11 +86,15 @@ import {
   resolveShippingOrderDownloadFilename,
 } from "../../../utils/shippingOrderAttachments";
 import ShippingOrderFormFields from "./ShippingOrderFormFields";
+import ShippingOrderColumnEmptyFilter from "./ShippingOrderColumnEmptyFilter";
 import {
   buildShippingOrderListQueryParams,
   buildShippingOrderListSortParams,
   clearPendingSoFilter,
   getInitialShippingOrderListState,
+  mergeShippingOrderEmptyFilters,
+  readShippingOrderEmptyFilters,
+  shippingOrderEmptyFilterParamForField,
   parseSoFilterFromUrl,
   parseVesselFilterFromUrl,
   resolvePicIdsByNames,
@@ -297,6 +301,19 @@ const SoNumberTab = () => {
   const [searchStatusFilter, setSearchStatusFilter] = useState(
     savedState.searchStatusFilter || ""
   );
+
+  const [emptyFilters, setEmptyFilters] = useState(() =>
+    readShippingOrderEmptyFilters(savedState.emptyFilters)
+  );
+  const handleColumnEmptyFilter = useCallback((param, mode) => {
+    setEmptyFilters((prev) => {
+      const next = { ...prev };
+      if (mode === "empty" || mode === "not_empty") next[param] = mode;
+      else delete next[param];
+      return next;
+    });
+    setPage(1);
+  }, []);
 
   // Pagination state
   const [page, setPage] = useState(savedState.page);
@@ -520,6 +537,7 @@ const SoNumberTab = () => {
       searchPicFilter,
       searchStatusFilter,
       page,
+      emptyFilters,
       activeFilters,
       activeATHPics,
       activeSINPics,
@@ -530,6 +548,7 @@ const SoNumberTab = () => {
       nextActionSortOption,
     });
   }, [
+    emptyFilters,
     searchValue,
     searchQuery,
     searchClientFilter,
@@ -632,16 +651,20 @@ const SoNumberTab = () => {
 
     const soId = searchQuery && searchQuery.trim() !== "" ? searchQuery.trim() : undefined;
 
-    return {
-      ...(fetchAll ? { fetch_all: true } : { page: pageOverride, page_size: pageSizeOverride }),
-      ...(soId != null && soId !== "" && { so_id: soId }),
-      ...advancedParams,
-      ...buildShippingOrderListSortParams(nextActionSortOption),
-      ...(vesselId != null && vesselId !== "" && { vessel_id: vesselId }),
-      ...(countryId != null && countryId !== "" && { country_id: countryId }),
-      ...(destinationText && { destination: destinationText }),
-    };
+    return mergeShippingOrderEmptyFilters(
+      {
+        ...(fetchAll ? { fetch_all: true } : { page: pageOverride, page_size: pageSizeOverride }),
+        ...(soId != null && soId !== "" && { so_id: soId }),
+        ...advancedParams,
+        ...buildShippingOrderListSortParams(nextActionSortOption),
+        ...(vesselId != null && vesselId !== "" && { vessel_id: vesselId }),
+        ...(countryId != null && countryId !== "" && { country_id: countryId }),
+        ...(destinationText && { destination: destinationText }),
+      },
+      emptyFilters
+    );
   }, [
+    emptyFilters,
     page,
     pageSize,
     searchQuery,
@@ -2014,6 +2037,20 @@ const SoNumberTab = () => {
                 ? "Try clearing search or filters to see more results."
                 : "Create a shipping order to see it listed here."}
             </Text>
+            {Object.keys(emptyFilters).length > 0 && (
+              <Button
+                mt={1}
+                size="sm"
+                variant="outline"
+                leftIcon={<Icon as={MdClear} />}
+                onClick={() => {
+                  setEmptyFilters({});
+                  setPage(1);
+                }}
+              >
+                Clear empty/filled filters
+              </Button>
+            )}
             {!searchQuery && (
               <Button mt={1} size="sm" colorScheme="blue" leftIcon={<Icon as={MdAdd} />} onClick={handleCreate}>
                 New SO
@@ -2106,6 +2143,16 @@ const SoNumberTab = () => {
                               {col.field === "next_action" && nextActionSortOption === "next_action" && (
                                 <Text fontSize="xs">↓</Text>
                               )}
+                              {(() => {
+                                const emptyParam = shippingOrderEmptyFilterParamForField(col.field);
+                                return emptyParam ? (
+                                  <ShippingOrderColumnEmptyFilter
+                                    label={col.label}
+                                    value={emptyFilters[emptyParam] || ""}
+                                    onChange={(mode) => handleColumnEmptyFilter(emptyParam, mode)}
+                                  />
+                                ) : null;
+                              })()}
                             </HStack>
                           )}
                         </Th>

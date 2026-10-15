@@ -130,6 +130,82 @@ export function buildShippingOrderListQueryParams({
   return params;
 }
 
+/**
+ * Table columns that GET /api/shipping/orders can filter with empty / not_empty.
+ * Keyed by the column `field` used in the shipping order table.
+ */
+export const SHIPPING_ORDER_EMPTY_FILTER_PARAM_BY_FIELD = {
+  so_number: "name",
+  done: "done",
+  next_action: "next_action",
+  so_delivery_date: "so_delivery_date",
+  vessel_name: "vessel_id",
+  destination: "destination",
+  internal_remark: "internal_remark",
+  vsls_agent_dtls: "vsls_agent_dtls",
+  client: "client_id",
+  pic: "pic",
+  eta_date: "eta_date",
+  etb: "etb",
+  etd: "etd",
+  client_case_invoice_ref: "client_case_invoice_ref",
+  quotation: "quotation_id",
+  date_order: "date_order",
+  cancel_text: "cancel_text",
+};
+
+const SHIPPING_ORDER_EMPTY_FILTER_PARAMS = new Set(
+  Object.values(SHIPPING_ORDER_EMPTY_FILTER_PARAM_BY_FIELD)
+);
+
+export function shippingOrderEmptyFilterParamForField(field) {
+  return SHIPPING_ORDER_EMPTY_FILTER_PARAM_BY_FIELD[field] || null;
+}
+
+function normalizeEmptyPresence(value) {
+  if (value == null || value === false || Array.isArray(value)) return null;
+  const normalized = String(value).trim().toLowerCase();
+  return normalized === "empty" || normalized === "not_empty" ? normalized : null;
+}
+
+export function readShippingOrderEmptyFilters(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const next = {};
+  for (const [key, mode] of Object.entries(value)) {
+    if (!SHIPPING_ORDER_EMPTY_FILTER_PARAMS.has(key)) continue;
+    const presence = normalizeEmptyPresence(mode);
+    if (presence) next[key] = presence;
+  }
+  return next;
+}
+
+function hasConcreteParamValue(value) {
+  if (value == null || value === false || value === "") return false;
+  if (normalizeEmptyPresence(value)) return false;
+  if (Array.isArray(value)) return value.length > 0;
+  return String(value).trim() !== "";
+}
+
+/**
+ * Add column empty / not_empty params. A concrete value already set for the same
+ * column (e.g. the vessel search filter) wins so both are not sent.
+ */
+export function mergeShippingOrderEmptyFilters(params = {}, filters = {}) {
+  const next = { ...params };
+  for (const [param, mode] of Object.entries(filters || {})) {
+    if (!SHIPPING_ORDER_EMPTY_FILTER_PARAMS.has(param)) continue;
+    const presence = normalizeEmptyPresence(mode);
+    if (!presence) continue;
+    const concrete =
+      param === "pic"
+        ? hasConcreteParamValue(next.pic_new)
+        : hasConcreteParamValue(next[param]);
+    if (concrete) continue;
+    next[param] = presence;
+  }
+  return next;
+}
+
 export const defaultShippingOrderListState = {
   searchValue: "",
   searchQuery: "",
@@ -142,6 +218,7 @@ export const defaultShippingOrderListState = {
   page: 1,
   sortBy: "id",
   sortOrder: "desc",
+  emptyFilters: {},
   activeFilters: {
     activeATH: false,
     activeSIN: false,
@@ -180,6 +257,7 @@ export function readPersistedShippingOrderListState() {
       searchStatusFilter:
         typeof p.searchStatusFilter === "string" ? p.searchStatusFilter : "",
       page: typeof p.page === "number" ? p.page : 1,
+      emptyFilters: readShippingOrderEmptyFilters(p.emptyFilters),
       sortBy: typeof p.sortBy === "string" ? p.sortBy : "id",
       sortOrder: p.sortOrder === "asc" || p.sortOrder === "desc" ? p.sortOrder : "desc",
       activeFilters:

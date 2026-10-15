@@ -188,6 +188,13 @@ export const getShippingOrders = async (params = {}) => {
       }
     }
 
+    // Column empty / not_empty filters (e.g. vessel_id=empty) override the value filter.
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === "empty" || value === "not_empty") {
+        requestParams[key] = value;
+      }
+    });
+
     const response = await api.get('/api/shipping/orders', {
       params: requestParams,
     });
