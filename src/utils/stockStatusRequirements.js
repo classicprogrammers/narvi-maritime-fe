@@ -57,7 +57,11 @@ const STOCK_FIELDS = [
     ["Date on Stock", (r) => isFilled(r.dateOnStock)],
     ["PCS", (r) => hasPositiveNumber(r.item)],
     ["Weight", (r) => hasPositiveNumber(r.weightKgs)],
-    ["Dimensions", hasDimensions],
+    // Exception: dimensions that will never be available — allowed when Warning explains it
+    [
+        "Dimensions — or fill in Warning ‼️⛔ (e.g. “dimensions not available”)",
+        (r) => hasDimensions(r) || isFilled(r.warning),
+    ],
     ["Value", (r) => isFilled(r.value)],
     ["Currency", (r) => hasRelation(r.currency)],
 ];
