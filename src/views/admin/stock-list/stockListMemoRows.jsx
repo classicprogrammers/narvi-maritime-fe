@@ -63,6 +63,18 @@ export const STOCK_CELL_TEXT_PROPS = {
     display: "block",
 };
 
+/** StockDB Main: wrap long text onto two lines, then truncate with an ellipsis. */
+export const STOCK_CELL_TEXT_CLAMP_PROPS = {
+    color: "inherit",
+    fontSize: "sm",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "normal",
+    wordBreak: "break-word",
+    display: "-webkit-box",
+    sx: { WebkitLineClamp: 2, WebkitBoxOrient: "vertical" },
+};
+
 const STOCK_VIEW_CHECKBOX_SX = {
     "& .chakra-checkbox__control": {
         borderColor: "gray.600",
@@ -93,6 +105,34 @@ export function getColoredStatusRowSx() {
 }
 
 const COLORED_STATUS_ROW_SX = getColoredStatusRowSx();
+
+/** StockDB Main keeps its original look: striped neutral rows and a colored status badge. */
+export function getPlainStatusColorScheme(status) {
+    switch (String(status || "").trim().toLowerCase().replace(/[\s-]+/g, "_")) {
+        case "pending":
+        case "on_delivery":
+            return "blue";
+        case "stock":
+        case "arrived":
+        case "arrived_dest":
+            return "gray";
+        case "on_shipping":
+        case "shipped":
+            return "orange";
+        case "in_transit":
+            return "green";
+        case "delivered":
+        case "irregular":
+        case "irregularities":
+            return "red";
+        case "cancelled":
+            return "purple";
+        case "released":
+            return "cyan";
+        default:
+            return "gray";
+    }
+}
 
 export function getDisplayName(val) {
     if (val == null || val === false || val === "") return "-";
@@ -276,17 +316,28 @@ function StockViewTableRowInner({
     onPreviewAll,
     onDownloadFile,
     onOpenPreviousReports,
+    plainColors = false,
+    rowIndex = 0,
+    tableRowBgAlt,
+    tableRowHoverBg,
 }) {
+    const textProps = plainColors ? STOCK_CELL_TEXT_CLAMP_PROPS : STOCK_CELL_TEXT_PROPS;
     const statusStyle = getStockRowStatusStyle(item.stock_status, tableRowBg, tableTextColor);
-    const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
+    const rowBg = plainColors
+        ? (rowIndex % 2 === 0 ? tableRowBg : tableRowBgAlt)
+        : (statusStyle.bgColor || statusStyle.lightBg || tableRowBg);
 
     return (
         <Tr
             bg={rowBg}
-            sx={{
-                ...COLORED_STATUS_ROW_SX,
-                "& td": { bg: "inherit" },
-            }}
+            sx={
+                plainColors
+                    ? { "& td": { bg: "inherit" }, _hover: { bg: tableRowHoverBg, "& td": { bg: tableRowHoverBg } } }
+                    : {
+                        ...COLORED_STATUS_ROW_SX,
+                        "& td": { bg: "inherit" },
+                    }
+            }
         >
             <Td
                 borderRight="1px"
@@ -304,17 +355,17 @@ function StockViewTableRowInner({
                 />
             </Td>
             <Td {...cellProps} {...sticky[1]}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                <StockCellText {...textProps}>
                     {getDisplayName(item.vessel_id || item.vessel)}
                 </StockCellText>
             </Td>
             <Td {...cellProps} {...sticky[2]}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                <StockCellText {...textProps}>
                     {renderText(item.warning)}
                 </StockCellText>
             </Td>
             <Td {...cellProps} {...sticky[3]}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                <StockCellText {...textProps}>
                     {getDisplayName(item.supplier_id || item.supplier)}
                 </StockCellText>
             </Td>
@@ -328,103 +379,115 @@ function StockViewTableRowInner({
                 />
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                <StockCellText {...textProps}>
                     {renderText(item.si_number) || "-"}
                 </StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                <StockCellText {...textProps}>
                     {renderText(item.si_combined) || "-"}
                 </StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                <StockCellText {...textProps}>
                     {renderText(item.di_no) || "-"}
                 </StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockStatusBadge statusStyle={statusStyle}>
-                    {statusStyle.label || "-"}
-                </StockStatusBadge>
+                {plainColors ? (
+                    <Badge
+                        colorScheme={getPlainStatusColorScheme(item.stock_status)}
+                        size="sm"
+                        borderRadius="full"
+                        px="3"
+                        py="1"
+                    >
+                        {statusStyle.label || "-"}
+                    </Badge>
+                ) : (
+                    <StockStatusBadge statusStyle={statusStyle}>
+                        {statusStyle.label || "-"}
+                    </StockStatusBadge>
+                )}
             </Td>
             <Td {...cellProps}>
                 {renderMultiLineLabels(getWarehouseDisplayText(item))}
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>{item.origin_text || "-"}</StockCellText>
+                <StockCellText {...textProps}>{item.origin_text || "-"}</StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                <StockCellText {...textProps}>
                     {renderText(getStockViaHub1Display(item))}
                 </StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                <StockCellText {...textProps}>
                     {renderText(getStockViaHub2Display(item))}
                 </StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                <StockCellText {...textProps}>
                     {renderText(formatStockDestinationDisplay(item, "ap"))}
                 </StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                <StockCellText {...textProps}>
                     {renderText(formatStockDestinationDisplay(item, "destination"))}
                 </StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>{renderText(item.shipping_doc)}</StockCellText>
+                <StockCellText {...textProps}>{renderText(item.shipping_doc)}</StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>{renderText(item.export_doc)}</StockCellText>
+                <StockCellText {...textProps}>{renderText(item.export_doc)}</StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>{renderText(item.export_doc_2)}</StockCellText>
+                <StockCellText {...textProps}>{renderText(item.export_doc_2)}</StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                <StockCellText {...textProps}>
                     {formatDate(item.exp_ready_in_stock)}
                 </StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>{formatDate(item.date_on_stock)}</StockCellText>
+                <StockCellText {...textProps}>{formatDate(item.date_on_stock)}</StockCellText>
             </Td>
             <Td {...cellProps} textAlign="center">
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>{renderText(item.days_on_stock)}</StockCellText>
+                <StockCellText {...textProps}>{renderText(item.days_on_stock)}</StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>{formatDate(item.shipped_date)}</StockCellText>
+                <StockCellText {...textProps}>{formatDate(item.shipped_date)}</StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>{formatDate(item.delivered_date)}</StockCellText>
+                <StockCellText {...textProps}>{formatDate(item.delivered_date)}</StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>{renderText(item.remarks)}</StockCellText>
+                <StockCellText {...textProps}>{renderText(item.remarks)}</StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                <StockCellText {...textProps}>
                     {renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}
                 </StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                <StockCellText {...textProps}>
                     {renderText(item.weight_kg ?? item.weight_kgs)}
                 </StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>{renderText(item.lwh_text)}</StockCellText>
+                <StockCellText {...textProps}>{renderText(item.lwh_text)}</StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>{formatStockT1Display(item.t_1)}</StockCellText>
+                <StockCellText {...textProps}>{formatStockT1Display(item.t_1)}</StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>{renderText(item.dg_un)}</StockCellText>
+                <StockCellText {...textProps}>{renderText(item.dg_un)}</StockCellText>
             </Td>
             <Td {...cellProps} cursor="pointer" onClick={() => onOpenDimensions(item)}>
                 <HStack spacing={2} align="center" justify="flex-start">
                     <StockCellText
-                        {...STOCK_CELL_TEXT_PROPS}
+                        {...textProps}
                         color="blue.500"
                         _hover={{ textDecoration: "underline" }}
                     >
@@ -438,7 +501,7 @@ function StockViewTableRowInner({
             <Td {...cellProps} cursor="pointer" onClick={() => onOpenDimensions(item)}>
                 <HStack spacing={2} align="center" justify="flex-start">
                     <StockCellText
-                        {...STOCK_CELL_TEXT_PROPS}
+                        {...textProps}
                         color="blue.500"
                         _hover={{ textDecoration: "underline" }}
                     >
@@ -450,22 +513,22 @@ function StockViewTableRowInner({
                 </HStack>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                <StockCellText {...textProps}>
                     {getDisplayName(item.currency_id || item.currency)}
                 </StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                <StockCellText {...textProps}>
                     {formatStockValueDisplay(item.value)}
                 </StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                <StockCellText {...textProps}>
                     {getDisplayName(item.client_id || item.client)}
                 </StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                <StockCellText {...textProps}>
                     {renderText(item.internal_remark || "")}
                 </StockCellText>
             </Td>
@@ -476,16 +539,17 @@ function StockViewTableRowInner({
                     onPreviewAll={onPreviewAll}
                     onDownloadFile={onDownloadFile}
                     onOpenPreviousReports={onOpenPreviousReports}
+                    compact={plainColors}
                 />
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                <StockCellText {...textProps}>
                     {renderText(item.stock_item_id)}
                 </StockCellText>
             </Td>
             {showCancelReason && (
                 <Td {...cellProps}>
-                    <StockCellText {...STOCK_CELL_TEXT_PROPS}>
+                    <StockCellText {...textProps}>
                         {item.cancel_text && item.cancel_text !== false
                             ? String(item.cancel_text)
                             : "-"}
@@ -571,6 +635,10 @@ export const StockViewTableRow = memo(StockViewTableRowInner, (prev, next) => (
     prev.tableBorderColor === next.tableBorderColor &&
     prev.tableRowBg === next.tableRowBg &&
     prev.tableTextColor === next.tableTextColor &&
+    prev.plainColors === next.plainColors &&
+    prev.rowIndex === next.rowIndex &&
+    prev.tableRowBgAlt === next.tableRowBgAlt &&
+    prev.tableRowHoverBg === next.tableRowHoverBg &&
     prev.shippingOrders === next.shippingOrders &&
     prev.onSelect === next.onSelect &&
     prev.onEdit === next.onEdit &&
@@ -724,13 +792,16 @@ function StockViewDataTableInner({
     onPreviewAll,
     onDownloadFile,
     onOpenPreviousReports,
+    plainColors = false,
+    tableRowBgAlt,
+    tableRowHoverBg,
 }) {
     const allItemsSelected =
         displayedItems.length > 0 && displayedItems.every((item) => selectedRows.has(item.id));
     const someItemsSelected = displayedItems.some((item) => selectedRows.has(item.id));
 
     return (
-        <Table size="sm" minW="6000px">
+        <Table size="sm" variant="simple" minW="6000px">
             <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={3}>
                 <Tr>
                     <Th
@@ -790,10 +861,14 @@ function StockViewDataTableInner({
                 </Tr>
             </Thead>
             <Tbody>
-                {displayedItems.map((item) => (
+                {displayedItems.map((item, index) => (
                     <StockViewTableRow
                         key={item.id}
                         item={item}
+                        plainColors={plainColors}
+                        rowIndex={index}
+                        tableRowBgAlt={tableRowBgAlt}
+                        tableRowHoverBg={tableRowHoverBg}
                         isSelected={selectedRows.has(item.id)}
                         showCancelReason={showCancelReason}
                         cellProps={cellProps}
@@ -829,6 +904,9 @@ export const StockViewDataTable = memo(StockViewDataTableInner, (prev, next) => 
     prev.tableBorderColor === next.tableBorderColor &&
     prev.tableRowBg === next.tableRowBg &&
     prev.tableTextColor === next.tableTextColor &&
+    prev.plainColors === next.plainColors &&
+    prev.tableRowBgAlt === next.tableRowBgAlt &&
+    prev.tableRowHoverBg === next.tableRowHoverBg &&
     prev.shippingOrders === next.shippingOrders &&
     prev.onSelectAll === next.onSelectAll &&
     prev.onSelect === next.onSelect &&

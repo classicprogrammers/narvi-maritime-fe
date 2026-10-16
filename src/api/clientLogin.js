@@ -97,6 +97,12 @@ export function parseClientLoginIds(record) {
   return ids;
 }
 
+export function getPrimaryClientId(record) {
+  const raw = record?.primary_client_id ?? record?.primary_client;
+  const id = toClientId(raw);
+  return id == null ? "" : id;
+}
+
 export function formatClientLoginNames(record) {
   if (!Array.isArray(record?.client_ids) || !record.client_ids.length) return "";
   return record.client_ids

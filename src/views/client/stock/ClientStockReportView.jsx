@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Badge,
   Box,
   Button,
   Checkbox,
@@ -32,6 +33,7 @@ import {
   Th,
   Thead,
   Tr,
+  VStack,
   useColorModeValue,
   useToast,
 } from "@chakra-ui/react";
@@ -57,6 +59,7 @@ import {
 } from "constants/stockStatus";
 import { getAttachmentEntriesNewestFirst } from "utils/stockReportAttachmentsUi";
 import { normalizeLegacyStockReportFilename } from "utils/stockReportPdf";
+import { getWarehouseDisplayText } from "utils/stockUpdatePayload";
 import StockListAttachmentsCell from "components/stock-list/StockListAttachmentsCell";
 import StockCellText, { getStockCellTooltip } from "components/stock-list/StockCellText";
 import StockSoNumberLink from "components/stock-list/StockSoNumberLink";
@@ -102,7 +105,26 @@ const toClientStockDisplay = (value) => {
   return !text || text === "[object Object]" ? "-" : text;
 };
 
-const mapClientStockRows = (stockList, clientName = "") =>
+function renderStockLabels(value) {
+  const lines = String(value ?? "")
+    .split(/[\n,]+/)
+    .map((v) => v.trim())
+    .filter((v) => v && v !== "-");
+  if (!lines.length) {
+    return <StockCellText fontSize="sm">-</StockCellText>;
+  }
+  return (
+    <VStack align="start" spacing={1}>
+      {lines.map((line, idx) => (
+        <Badge key={idx} colorScheme="blue" variant="subtle" title={line}>
+          {line}
+        </Badge>
+      ))}
+    </VStack>
+  );
+}
+
+const mapClientStockRows =(stockList, clientName = "") =>
   (Array.isArray(stockList) ? stockList : [])
     .filter((item) => normalizeStockStatusKey(item.stock_status) !== "cancelled")
     .map((item, idx) => {
@@ -122,6 +144,9 @@ const mapClientStockRows = (stockList, clientName = "") =>
       client: toClientStockDisplay(getRowClientName(item) || clientName),
       dateOnStock: toClientStockDisplay(item.date_on_stock || item.first_entry_date),
       daysOnStock: toClientStockDisplay(item.days_on_stock),
+      warehouseId: toClientStockDisplay(
+        getWarehouseDisplayText(item) || item.warehouse
+      ),
       firstEntryDate: toClientStockDisplay(item.first_entry_date || item.date_on_stock),
       vessel: toClientStockDisplay(item.vessel?.name || item.vessel),
       warning: toClientStockDisplay(item.warning),
@@ -402,6 +427,7 @@ const CLIENT_STOCK_EXPORT_COLUMNS = [
   { header: "Stock Status", value: (row) => row.stockStatus || "-" },
   { header: "Date On Stock", value: (row) => row.dateOnStock || "-" },
   { header: "Days On Stock", value: (row) => row.daysOnStock || "-" },
+  { header: "Warehouse ID", value: (row) => row.warehouseId || "-" },
   { header: "Boxes", value: (row) => row.boxes || "-" },
   { header: "Weight", value: (row) => row.weight || "-" },
   { header: "Total Volume CBM", value: (row) => row.totalVolumeCbm || "-" },
@@ -1504,6 +1530,7 @@ function ClientStockReportView() {
               <Th>STOCK STATUS</Th>
               <Th>DATE ON STOCK</Th>
               <Th>DAYS ON STOCK</Th>
+              <Th>WAREHOUSE ID</Th>
               <Th>BOXES</Th>
               <Th>WEIGHT</Th>
               <Th>TOTAL VOLUME CBM</Th>
@@ -1548,10 +1575,10 @@ function ClientStockReportView() {
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.supplier}</StockCellText>
                   </Td>
                   <Td>
-                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.reqNo}</StockCellText>
+                    {renderStockLabels(row.reqNo)}
                   </Td>
                   <Td>
-                    <StockCellText fontSize="sm" isTruncated maxW="240px">{row.poNo}</StockCellText>
+                    {renderStockLabels(row.poNo)}
                   </Td>
                   <Td title={getStockCellTooltip(formatStatus(row.stockStatus))}>
                     <StockStatusBadge
@@ -1567,6 +1594,9 @@ function ClientStockReportView() {
                   </Td>
                   <Td>
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.daysOnStock}</StockCellText>
+                  </Td>
+                  <Td>
+                    {renderStockLabels(row.warehouseId)}
                   </Td>
                   <Td>
                     <StockCellText fontSize="sm" isTruncated maxW="240px">{row.boxes}</StockCellText>

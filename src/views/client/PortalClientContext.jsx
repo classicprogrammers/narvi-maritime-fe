@@ -67,7 +67,13 @@ export function PortalClientProvider({ children }) {
         setError(PORTAL_CLIENT_MISSING_MESSAGE);
         return;
       }
-      applyClientList(result.clients, result.multiClient, getSelectedPortalClientId() ?? attemptedId);
+      // No stored choice (first load): the backend already scoped data to the primary client and
+      // returns it as selected_client, so preselect that.
+      applyClientList(
+        result.clients,
+        result.multiClient,
+        getSelectedPortalClientId() ?? attemptedId ?? result.selectedClient?.id ?? result.primaryClient?.id ?? null
+      );
     } catch (error) {
       if (requestId !== requestRef.current) return;
       const message = getPortalApiErrorMessage(error, "Failed to load clients.");

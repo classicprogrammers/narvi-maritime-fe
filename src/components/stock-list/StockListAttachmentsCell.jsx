@@ -21,6 +21,8 @@ export default function StockListAttachmentsCell({
     /** "reports" = status-report PDFs only; "all" = every attachment (client API) */
     attachmentMode = "reports",
     previousLabel = "Previous status reports",
+    /** Show only the latest file plus a "View more" button for the rest. */
+    compact = false,
 }) {
     const list = Array.isArray(attachments) ? attachments : [];
     if (list.length === 0) {
@@ -81,6 +83,28 @@ export default function StockListAttachmentsCell({
             <Text fontSize="xs" color="gray.500">
                 {emptyLabel}
             </Text>
+        );
+    }
+
+    if (compact) {
+        const latestFile = latestReport?.att ?? nonReportAttachments[0];
+        const moreCount = Math.max(previewAttachments.length - 1, 0);
+        return (
+            <VStack spacing={1} align="stretch">
+                {latestFile && renderFileRow(latestFile, "latest-file")}
+                {moreCount > 0 && onPreviewAll && (
+                    <Button
+                        size="xs"
+                        variant="outline"
+                        colorScheme="blue"
+                        leftIcon={<Icon as={MdVisibility} />}
+                        w="100%"
+                        onClick={() => onPreviewAll(previewAttachments, stockId, 0)}
+                    >
+                        View more ({moreCount})
+                    </Button>
+                )}
+            </VStack>
         );
     }
 

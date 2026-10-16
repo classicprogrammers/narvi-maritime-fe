@@ -23,6 +23,10 @@ export async function getClientContext() {
     status: data.status || "success",
     multiClient: data.multi_client === true || clients.length > 1,
     clients,
+    primaryClient:
+      data.primary_client && data.primary_client !== false
+        ? parseNamedClients([data.primary_client])[0] || null
+        : null,
     selectedClient:
       data.selected_client && data.selected_client !== false
         ? parseNamedClients([data.selected_client])[0] || null

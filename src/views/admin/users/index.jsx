@@ -67,6 +67,7 @@ import {
   listClientLoginApi,
   updateClientLoginApi,
   parseClientLoginIds,
+  getPrimaryClientId,
   buildClientLoginIdsPayload,
 } from "api/clientLogin";
 import { getCustomersForSelect } from "api/entitySelects";
@@ -130,6 +131,7 @@ export default function Users() {
   const [showClientPassword, setShowClientPassword] = useState(false);
   const [clientFormData, setClientFormData] = useState({
     client_ids: [],
+    primary_client_id: "",
     email: "",
     password: "",
     confirm_password: "",
@@ -292,6 +294,7 @@ export default function Users() {
   const resetClientForm = () => {
     setClientFormData({
       client_ids: [],
+      primary_client_id: "",
       email: "",
       password: "",
       confirm_password: "",
@@ -502,6 +505,7 @@ export default function Users() {
       setEditingClientLogin(item);
       setClientFormData({
         client_ids: parseClientLoginIds(fetched || item),
+        primary_client_id: getPrimaryClientId(fetched || item),
         email: fetched?.email ?? item.email ?? "",
         password: "",
         confirm_password: "",
@@ -568,6 +572,13 @@ export default function Users() {
       return;
     }
 
+    // Must be one of the selected clients; null clears it.
+    const primaryId = Number(clientFormData.primary_client_id);
+    const primaryClientIdForSubmit =
+      clientFormData.primary_client_id !== "" && clientFormData.client_ids.includes(primaryId)
+        ? primaryId
+        : null;
+
     setIsClientSubmitting(true);
     try {
       if (editingClientLogin) {
@@ -579,6 +590,7 @@ export default function Users() {
         }
         payload.active = Boolean(clientFormData.active);
         payload.client_ids = buildClientLoginIdsPayload(clientFormData.client_ids);
+        payload.primary_client_id = primaryClientIdForSubmit;
         const res = await updateClientLoginApi(payload);
         toast({
           title: "Success",
@@ -594,6 +606,7 @@ export default function Users() {
           password: clientFormData.password,
           confirm_password: clientFormData.confirm_password,
         };
+        if (primaryClientIdForSubmit != null) payload.primary_client_id = primaryClientIdForSubmit;
         const res = await createClientLoginApi(payload);
         toast({
           title: "Success",
@@ -1000,6 +1013,30 @@ export default function Users() {
                   Search and add every client this login should access. Saving replaces the full list.
                 </Text>
               )}
+            </FormControl>
+            <FormControl mb="12px">
+              <FormLabel>Primary client</FormLabel>
+              <Select
+                value={
+                  clientFormData.client_ids.includes(Number(clientFormData.primary_client_id))
+                    ? String(clientFormData.primary_client_id)
+                    : ""
+                }
+                onChange={(e) =>
+                  handleClientFormChange("primary_client_id", e.target.value === "" ? "" : Number(e.target.value))
+                }
+                isDisabled={!clientFormData.client_ids.length}
+              >
+                <option value="">None (all clients combined)</option>
+                {clientFormData.client_ids.map((id) => {
+                  const option = clientOptions.find((item) => Number(item.id) === Number(id));
+                  return (
+                    <option key={id} value={id}>
+                      {option?.name || `Client ${id}`}
+                    </option>
+                  );
+                })}
+              </Select>
             </FormControl>
             <FormControl mb="12px" isRequired={!editingClientLogin}>
               <FormLabel>Email</FormLabel>

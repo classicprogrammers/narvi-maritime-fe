@@ -439,6 +439,10 @@ function StatusFilterRow({ statusEntries, isChecked, onToggle, borderColor, text
 }
 
 const STOCK_VIEW_EDIT_STORAGE_KEY = "narvi_stock_view_edit_state";
+/** StockDB Main renders this same page; it keeps its own persisted filters. */
+const STOCK_MAIN_DB_STORAGE_KEY = "narvi_stock_main_db_state";
+const getStockViewStorageKey = (variant) =>
+    variant === "main-db" ? STOCK_MAIN_DB_STORAGE_KEY : STOCK_VIEW_EDIT_STORAGE_KEY;
 
 function getStockItemIdFilterFromSearch(search) {
     const params = new URLSearchParams(search || "");
@@ -462,9 +466,9 @@ function getStockViewFiltersFromSearch(search) {
     };
 }
 
-function readPersistedStockViewEditState() {
+function readPersistedStockViewEditState(storageKey = STOCK_VIEW_EDIT_STORAGE_KEY) {
     try {
-        const raw = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(STOCK_VIEW_EDIT_STORAGE_KEY) : null;
+        const raw = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(storageKey) : null;
         if (!raw) return null;
         const p = JSON.parse(raw);
         return {
@@ -539,10 +543,10 @@ function readPersistedStockViewEditState() {
     }
 }
 
-function writePersistedStockViewEditState(state) {
+function writePersistedStockViewEditState(state, storageKey = STOCK_VIEW_EDIT_STORAGE_KEY) {
     try {
         if (typeof sessionStorage === "undefined") return;
-        sessionStorage.setItem(STOCK_VIEW_EDIT_STORAGE_KEY, JSON.stringify(state));
+        sessionStorage.setItem(storageKey, JSON.stringify(state));
     } catch {
         // ignore
     }
@@ -592,7 +596,10 @@ const defaultStockViewEditState = {
     clientSortOption: "none",
 };
 
-export default function Stocks() {
+export default function Stocks({ variant = "stocks" } = {}) {
+    const storageKey = getStockViewStorageKey(variant);
+    const sourcePage = variant === "main-db" ? "main-db" : "stocks";
+    const isMainDb = variant === "main-db";
     const history = useHistory();
     const location = useLocation();
     const [selectedRows, setSelectedRows] = useState(new Set());
@@ -605,9 +612,9 @@ export default function Stocks() {
                 ...fromUrl,
             };
         }
-        return readPersistedStockViewEditState() || defaultStockViewEditState;
+        return readPersistedStockViewEditState(storageKey) || defaultStockViewEditState;
     });
-    const [activeTab, setActiveTab] = useState(savedState.activeTab);
+    const [activeTab, setActiveTab] = useState(isMainDb ? 0 : savedState.activeTab);
 
     const PAGE_SIZE = 40;
 
@@ -658,7 +665,7 @@ export default function Stocks() {
     const [clientViewViaHub1, setClientViewViaHub1] = useState(savedState.clientViewViaHub1);
 
     // State to control filters section visibility - default to open
-    const [showFilters, setShowFilters] = useState(true);
+    const [showFilters, setShowFilters] = useState(!isMainDb);
     const [createDateFrom, setCreateDateFrom] = useState(savedState.createDateFrom || "");
     const [createDateTo, setCreateDateTo] = useState(savedState.createDateTo || "");
     const [daysRangeFrom, setDaysRangeFrom] = useState(savedState.daysRangeFrom || "");
@@ -772,8 +779,8 @@ export default function Stocks() {
             stockViewEmptyFilters,
             sortOption,
             clientSortOption,
-        });
-    }, [activeTab, stockViewPage, clientViewPage, vesselViewClient, vesselViewVessel, vesselViewStatuses, clientViewClient, clientViewStatuses, clientViewFilterType, clientViewSearchClient, clientViewSearchVessel, clientViewVesselFilter, clientViewViaHub1, stockViewClient, stockViewVessel, stockViewStatus, stockViewStockItemId, stockViewDateOnStock, stockViewDaysOnStock, createDateFrom, createDateTo, daysRangeFrom, daysRangeTo, fetchAllStockList, stockViewFilterSO, stockViewFilterSI, stockViewFilterSICombined, stockViewFilterDI, stockViewFilterPO, stockViewFilterReqNo, stockViewFilterWarehouseNew, stockViewSearchFilter, stockViewHasDestination, stockViewViaHub1, stockViewViaHub2, stockViewApDestination, stockViewOrigin, stockViewActiveFilter, stockViewEmptyFilters, sortOption, clientSortOption]);
+        }, storageKey);
+    }, [storageKey, activeTab, stockViewPage, clientViewPage, vesselViewClient, vesselViewVessel, vesselViewStatuses, clientViewClient, clientViewStatuses, clientViewFilterType, clientViewSearchClient, clientViewSearchVessel, clientViewVesselFilter, clientViewViaHub1, stockViewClient, stockViewVessel, stockViewStatus, stockViewStockItemId, stockViewDateOnStock, stockViewDaysOnStock, createDateFrom, createDateTo, daysRangeFrom, daysRangeTo, fetchAllStockList, stockViewFilterSO, stockViewFilterSI, stockViewFilterSICombined, stockViewFilterDI, stockViewFilterPO, stockViewFilterReqNo, stockViewFilterWarehouseNew, stockViewSearchFilter, stockViewHasDestination, stockViewViaHub1, stockViewViaHub2, stockViewApDestination, stockViewOrigin, stockViewActiveFilter, stockViewEmptyFilters, sortOption, clientSortOption]);
 
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
@@ -875,6 +882,11 @@ export default function Stocks() {
     const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
     const tableRowBg = useColorModeValue("white", "gray.800");
     const tableRowBgAlt = useColorModeValue("gray.50", "gray.700");
+    const tableRowHoverBg = useColorModeValue("gray.100", "gray.700");
+    // StockDB Main table styling mirrors the Shipping Orders table
+    const mainDbRowBgAlt = useColorModeValue("gray.50", "whiteAlpha.50");
+    const mainDbRowHoverBg = useColorModeValue("blue.50", "blue.900");
+    const mainDbHeaderColor = useColorModeValue("gray.500", "gray.400");
     const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
     const tableTextColor = useColorModeValue("gray.600", "gray.300");
     const tableTextColorSecondary = useColorModeValue("gray.500", "gray.400");
@@ -895,31 +907,33 @@ export default function Stocks() {
     const dimSummaryTitleColor = useColorModeValue("blue.700", "blue.200");
     const dimSummaryLabelColor = useColorModeValue("blue.600", "blue.300");
 
+    // StockDB Main: same header/cell look as the Shipping Orders table (no vertical lines)
     const headerProps = useMemo(() => ({
-        borderRight: "1px",
+        borderRight: isMainDb ? "0" : "1px",
         borderColor: tableBorderColor,
-        py: "12px",
-        px: "16px",
-        fontSize: "12px",
+        py: isMainDb ? 3 : "12px",
+        px: isMainDb ? 4 : "16px",
+        fontSize: isMainDb ? "11px" : "12px",
         fontWeight: "600",
-        color: "#000000",
+        letterSpacing: isMainDb ? "0.06em" : undefined,
+        color: isMainDb ? mainDbHeaderColor : "#000000",
         textTransform: "uppercase",
         whiteSpace: "nowrap",
         maxW: "240px",
         overflow: "hidden",
         textOverflow: "ellipsis",
-    }), [tableBorderColor]);
+    }), [tableBorderColor, mainDbHeaderColor, isMainDb]);
     const cellProps = useMemo(() => ({
-        borderRight: "1px",
+        borderRight: isMainDb ? "0" : "1px",
         borderColor: tableBorderColor,
-        py: "12px",
-        px: "16px",
+        py: isMainDb ? 3 : "12px",
+        px: isMainDb ? 4 : "16px",
         whiteSpace: "nowrap",
         maxW: "240px",
         overflow: "hidden",
         textOverflow: "ellipsis",
         color: "inherit",
-    }), [tableBorderColor]);
+    }), [tableBorderColor, isMainDb]);
     const cellText = STOCK_CELL_TEXT_PROPS;
 
     const stockViewStickyBodyProps = useMemo(() => {
@@ -1659,7 +1673,7 @@ export default function Stocks() {
             stockViewHasDestination,
             stockViewActiveFilter,
         };
-        const editState = { selectedItems: [item], isBulkEdit: false, filterState, sourcePage: 'stocks' };
+        const editState = { selectedItems: [item], isBulkEdit: false, filterState, sourcePage };
         history.push({
             pathname: '/admin/stock-list/stock',
             state: editState
@@ -1701,7 +1715,7 @@ export default function Stocks() {
                 stockViewHasDestination,
                 stockViewActiveFilter,
             };
-            const editState = { selectedItems: selectedItemsData, isBulkEdit: selectedItemsData.length > 1, filterState, sourcePage: 'stocks' };
+            const editState = { selectedItems: selectedItemsData, isBulkEdit: selectedItemsData.length > 1, filterState, sourcePage };
             history.push({
                 pathname: '/admin/stock-list/stock',
                 state: editState
@@ -4962,14 +4976,30 @@ export default function Stocks() {
                 {/* Header */}
                 <Flex px="25px" justify="space-between" mt="20px" mb="20px" align="center">
                     <HStack spacing="3">
-                        <Text
-                            color={textColor}
-                            fontSize="22px"
-                            fontWeight="700"
-                            lineHeight="100%"
-                        >
-                            Stock List Management
-                        </Text>
+                        {isMainDb ? (
+                            <VStack align="flex-start" spacing="1">
+                                <HStack spacing="3">
+                                    <Text color={textColor} fontSize="22px" fontWeight="700" lineHeight="100%">
+                                        StockDB Main
+                                    </Text>
+                                    <Badge colorScheme="blue" borderRadius="full" px="3" py="1" fontSize="xs">
+                                        {total_count > 0 ? total_count : stockList.length} items
+                                    </Badge>
+                                </HStack>
+                                <Text fontSize="sm" color={tableTextColorSecondary}>
+                                    Master stock database — search, filter and select items to edit or export.
+                                </Text>
+                            </VStack>
+                        ) : (
+                            <Text
+                                color={textColor}
+                                fontSize="22px"
+                                fontWeight="700"
+                                lineHeight="100%"
+                            >
+                                Stock List Management
+                            </Text>
+                        )}
                     </HStack>
                     <HStack spacing="3">
                         {activeTab === 0 && (
@@ -4994,6 +5024,11 @@ export default function Stocks() {
                                     size="sm"
                                 >
                                     {showFilters ? "Hide Filters" : "Filters"}
+                                    {isMainDb && !showFilters && hasStockViewFilters && (
+                                        <Badge ml="2" colorScheme="red" borderRadius="full" fontSize="10px">
+                                            active
+                                        </Badge>
+                                    )}
                                 </Button>
                                 <Menu>
                                     <MenuButton
@@ -5463,9 +5498,9 @@ export default function Stocks() {
 
                 {/* Tabs for Stock View and Client View */}
                 <Box px="25px" mb="20px">
-                    <Tabs isLazy index={activeTab} onChange={setActiveTab} variant="enclosed" colorScheme="blue">
-                        <Flex justify="space-between" align="center" mb="4">
-                            <TabList flex="1">
+                    <Tabs isLazy index={isMainDb ? 0 : activeTab} onChange={isMainDb ? undefined : setActiveTab} variant="enclosed" colorScheme="blue">
+                        <Flex justify="space-between" align="center" mb={isMainDb ? "0" : "4"}>
+                            <TabList flex="1" display={isMainDb ? "none" : undefined}>
                                 <Tab>Stock View / Edit</Tab>
                                 <Tab>Stocklist view for clients</Tab>
                             </TabList>
@@ -5535,11 +5570,17 @@ export default function Stocks() {
 
                         <TabPanels>
                             {/* Tab 1: Stock View / Edit */}
-                            <TabPanel px="0" pt="20px">
+                            <TabPanel px="0" pt={isMainDb ? "0" : "20px"}>
                                 {/* Basic Filters Section */}
                                 <Collapse in={showFilters} animateOpacity>
                                     <Box mb="20px">
-                                        <Card bg={cardBg} p="4" border="1px" borderColor={borderColor}>
+                                        <Card
+                                            bg={cardBg}
+                                            p="4"
+                                            border="1px"
+                                            borderColor={borderColor}
+                                            {...(isMainDb ? { borderRadius: "lg", boxShadow: "sm" } : {})}
+                                        >
                                             <VStack spacing="4" align="stretch">
                                                 {/* Basic Filters */}
                                                 <Box>
@@ -6156,7 +6197,8 @@ export default function Stocks() {
                                     overflowY="auto"
                                     position="relative"
                                     minH="400px"
-                                    maxH="800px"
+                                    maxH={isMainDb ? "calc(100vh - 260px)" : "800px"}
+                                    {...(isMainDb ? { border: "1px", borderColor, borderRadius: "lg", boxShadow: "sm" } : {})}
                                     sx={{
                                         "&::-webkit-scrollbar": { width: "8px", height: "8px" },
                                         "&::-webkit-scrollbar-track": { background: "gray.100", borderRadius: "4px" },
@@ -6204,6 +6246,9 @@ export default function Stocks() {
                                             tableBorderColor={tableBorderColor}
                                             tableRowBg={tableRowBg}
                                             tableTextColor={tableTextColor}
+                                            plainColors={isMainDb}
+                                            tableRowBgAlt={isMainDb ? mainDbRowBgAlt : tableRowBgAlt}
+                                            tableRowHoverBg={isMainDb ? mainDbRowHoverBg : tableRowHoverBg}
                                             shippingOrders={shippingOrdersFromStock}
                                             emptyFilters={stockViewEmptyFilters}
                                             onEmptyFilterChange={handleColumnEmptyFilter}
