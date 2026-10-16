@@ -242,9 +242,11 @@ const resolveWarehouseId = (wh) => {
  */
 export function normalizeWarehousesFromStock(stock) {
   if (Array.isArray(stock?.warehouses) && stock.warehouses.length > 0) {
+    // Newest first: ids grow as warehouses are added, so highest id goes on top.
     return stock.warehouses
       .map((wh) => ({ id: resolveWarehouseId(wh), name: warehouseName(wh) }))
-      .filter((wh) => wh.name || wh.id != null);
+      .filter((wh) => wh.name || wh.id != null)
+      .sort((a, b) => (b.id ?? Infinity) - (a.id ?? Infinity));
   }
   // Same sources the list column falls back to, so what the list shows is never lost in the form.
   const legacy = [
@@ -261,7 +263,26 @@ export function normalizeWarehousesFromStock(stock) {
     .split(/\r?\n/)
     .map((name) => name.trim())
     .filter(Boolean)
+    .reverse() // newest first (text lists oldest first)
     .map((name) => ({ id: null, name }));
+}
+
+/**
+ * Warehouse text for the stock list view, newest first (one name per line).
+ * Prefers server rows (by id desc); `warehouse_text` lists oldest first, so it is reversed.
+ */
+export function getWarehouseDisplayText(item) {
+  const rows = Array.isArray(item?.warehouses) ? item.warehouses : [];
+  if (rows.length > 0) {
+    return [...rows]
+      .sort((a, b) => (Number(b?.id) || 0) - (Number(a?.id) || 0))
+      .map((wh) => warehouseName(wh))
+      .filter(Boolean)
+      .join("\n");
+  }
+  const text = typeof item?.warehouse_text === "string" ? item.warehouse_text : "";
+  if (text.includes("\n")) return text.split(/\r?\n/).reverse().join("\n");
+  return text || item?.warehouse_new || item?.warehouse_id || item?.stock_warehouse || "";
 }
 
 /**
@@ -275,7 +296,9 @@ export function getServerWarehouses(stock) {
 /** Warehouses for create payloads: non-blank names only. */
 export function mapCreateWarehouses(warehouses) {
   if (!Array.isArray(warehouses)) return undefined;
-  const mapped = warehouses
+  // The form lists newest first; send oldest first so server ids grow chronologically.
+  const mapped = [...warehouses]
+    .reverse()
     .map((wh) => warehouseName(wh))
     .filter(Boolean)
     .map((name) => ({ name }));
@@ -299,7 +322,8 @@ export function buildStockUpdateWarehousesOps(currentList = [], originalList = [
   const ops = [];
   const keptIds = new Set();
 
-  current.forEach((wh) => {
+  // Form order is newest first; process oldest first so new rows are created in chronological order.
+  [...current].reverse().forEach((wh) => {
     const name = warehouseName(wh);
     const id = resolveWarehouseId(wh);
     if (id != null && originalById.has(String(id))) {

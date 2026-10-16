@@ -1,4 +1,5 @@
 import React, { memo } from "react";
+import { getWarehouseDisplayText } from "../../../utils/stockUpdatePayload";
 import {
     Badge,
     Box,
@@ -347,7 +348,7 @@ function StockViewTableRowInner({
                 </StockStatusBadge>
             </Td>
             <Td {...cellProps}>
-                {renderMultiLineLabels(item.warehouse_text || item.warehouse_new || item.warehouse_id || item.stock_warehouse)}
+                {renderMultiLineLabels(getWarehouseDisplayText(item))}
             </Td>
             <Td {...cellProps}>
                 <StockCellText {...STOCK_CELL_TEXT_PROPS}>{item.origin_text || "-"}</StockCellText>

@@ -27,23 +27,36 @@ import {
 import { MdAdd, MdContentCopy, MdDelete, MdMoreVert } from "react-icons/md";
 
 /**
- * Append one warehouse (as a new, id-less row) to the rows after `fromIndex`.
- * Skips rows that already have a warehouse with the same name.
+ * Assign warehouse number `position` to the rows after `fromIndex`.
+ * If the target row already has a warehouse at that position it is renamed in place (keeps its id,
+ * so it saves as an update); otherwise the warehouse is appended as a new row.
+ * Skips rows that already have another warehouse with the same name.
  */
-export const assignWarehouseToRows = (rows, fromIndex, name, toAll) => {
-  const clean = String(name ?? "").trim();
+export const assignWarehouseToRows = (rows, fromIndex, src, toAll) => {
+  const clean = String(src?.name ?? "").trim();
   if (!clean) return rows;
   const lastIndex = toAll ? rows.length - 1 : Math.min(fromIndex + 1, rows.length - 1);
   return rows.map((row, i) => {
     if (i <= fromIndex || i > lastIndex) return row;
     const existing = Array.isArray(row.warehouses) ? row.warehouses : [];
     if (existing.some((wh) => String(wh?.name ?? "").trim() === clean)) return row;
-    const next = [...existing, { id: null, name: clean }];
+    // Brand-new warehouse (no id yet): always add it on top, never touch the target's existing ones.
+    // Existing warehouse that was edited: rename the target's warehouse in the same position
+    // counted from the oldest (bottom), so "warehouse 1" stays "warehouse 1" on every row.
+    const targetIdx = src?.id == null ? -1 : existing.length - 1 - src.fromEnd;
+    let next;
+    if (targetIdx >= 0 && existing[targetIdx]) {
+      next = existing.map((wh, idx) => (idx === targetIdx ? { ...wh, name: clean } : wh));
+    } else {
+      next = [{ id: null, name: clean }, ...existing];
+    }
     return { ...row, warehouses: next, warehouseId: warehousesToText(next) };
   });
 };
 
-const emptyWarehouse = () => ({ id: null, name: "" });
+let warehouseKeySeq = 0;
+const newWarehouseKey = () => `new-${++warehouseKeySeq}`;
+const emptyWarehouse = () => ({ id: null, name: "", _key: newWarehouseKey() });
 
 /** Display string (one name per line) used by validation/export helpers that read row.warehouseId. */
 export const warehousesToText = (warehouses) =>
@@ -64,7 +77,7 @@ export default function StockWarehousesModal({ isOpen, onClose, warehouses, onSa
 
   useEffect(() => {
     if (isOpen) {
-      setList(Array.isArray(warehouses) ? warehouses.map((wh) => ({ ...wh })) : []);
+      setList(Array.isArray(warehouses) ? warehouses.map((wh) => (wh.id == null ? { ...wh, _key: newWarehouseKey() } : { ...wh })) : []);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -81,9 +94,9 @@ export default function StockWarehousesModal({ isOpen, onClose, warehouses, onSa
         <ModalBody>
           <VStack spacing={4} align="stretch">
             {list.map((wh, index) => (
-              <Box key={wh.id ?? `new-${index}`} p={4} border="1px" borderColor={borderColor} borderRadius="md">
+              <Box key={wh.id ?? wh._key ?? `new-${index}`} p={4} border="1px" borderColor={borderColor} borderRadius="md">
                 <Flex justify="space-between" align="center" mb={3}>
-                  <Text fontWeight="600">Warehouse {index + 1}</Text>
+                  <Text fontWeight="600">Warehouse {list.length - index}</Text>
                   <HStack spacing={1}>
                     {onAssign && rowsBelow > 0 ? (
                       <Menu isLazy>
@@ -96,9 +109,9 @@ export default function StockWarehousesModal({ isOpen, onClose, warehouses, onSa
                           variant="ghost"
                         />
                         <MenuList zIndex={2000000}>
-                          <MenuItem onClick={() => onAssign(wh.name, false)}>Assign to row below</MenuItem>
+                          <MenuItem onClick={() => onAssign({ id: wh.id, name: wh.name, fromEnd: list.length - 1 - index }, false)}>Assign to row below</MenuItem>
                           {rowsBelow > 1 ? (
-                            <MenuItem onClick={() => onAssign(wh.name, true)}>Assign to all rows below</MenuItem>
+                            <MenuItem onClick={() => onAssign({ id: wh.id, name: wh.name, fromEnd: list.length - 1 - index }, true)}>Assign to all rows below</MenuItem>
                           ) : null}
                         </MenuList>
                       </Menu>
@@ -113,7 +126,7 @@ export default function StockWarehousesModal({ isOpen, onClose, warehouses, onSa
                       onClick={() =>
                         setList((prev) => {
                           const next = [...prev];
-                          next.splice(index + 1, 0, { id: null, name: wh.name });
+                          next.splice(index + 1, 0, { id: null, name: wh.name, _key: newWarehouseKey() });
                           return next;
                         })
                       }
@@ -131,6 +144,7 @@ export default function StockWarehousesModal({ isOpen, onClose, warehouses, onSa
                 <FormControl>
                   <FormLabel fontSize="sm">Warehouse ID</FormLabel>
                   <Input
+                    autoFocus={wh.id == null && wh.name === "" && index === 0}
                     value={wh.name || ""}
                     onChange={(e) => updateName(index, e.target.value)}
                     placeholder="Enter Warehouse ID"
@@ -144,7 +158,7 @@ export default function StockWarehousesModal({ isOpen, onClose, warehouses, onSa
             ))}
             <Button
               leftIcon={<Icon as={MdAdd} />}
-              onClick={() => setList((prev) => [...prev, emptyWarehouse()])}
+              onClick={() => setList((prev) => [emptyWarehouse(), ...prev])}
               colorScheme="blue"
               variant="outline"
             >
@@ -160,7 +174,11 @@ export default function StockWarehousesModal({ isOpen, onClose, warehouses, onSa
             colorScheme="blue"
             onClick={() => {
               // Drop blank brand-new rows; keep blank existing rows so the update can delete them.
-              onSave(list.filter((wh) => String(wh.name ?? "").trim() !== "" || wh.id != null));
+              onSave(
+                list
+                  .filter((wh) => String(wh.name ?? "").trim() !== "" || wh.id != null)
+                  .map(({ _key, ...rest }) => rest)
+              );
               onClose();
             }}
           >

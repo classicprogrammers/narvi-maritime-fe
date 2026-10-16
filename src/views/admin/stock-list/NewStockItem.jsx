@@ -3784,7 +3784,7 @@ export default function StockForm() {
                 onClose={onWarehousesModalClose}
                 warehouses={formRows[warehouseModalRowIndex]?.warehouses}
                 rowsBelow={formRows.length - warehouseModalRowIndex - 1}
-                onAssign={(name, toAll) => setFormRows((prev) => assignWarehouseToRows(prev, warehouseModalRowIndex, name, toAll))}
+                onAssign={(src, toAll) => setFormRows((prev) => assignWarehouseToRows(prev, warehouseModalRowIndex, src, toAll))}
                 onSave={(list) => {
                     setFormRows((prev) =>
                         prev.map((r, i) =>

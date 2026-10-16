@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { getWarehouseDisplayText } from "../../../utils/stockUpdatePayload";
 import {
     Box,
     Flex,
@@ -4532,7 +4533,7 @@ export default function Stocks() {
                             )}
                         </Td>
                         <Td {...cellProps}>
-                            {renderMultiLineLabels(item.warehouse_text || item.warehouse_new || item.warehouse_id || item.stock_warehouse)}
+                            {renderMultiLineLabels(getWarehouseDisplayText(item))}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                             {isEditing ? renderEditableCell(item, "origin_text", item.origin_text, "text") : <StockCellText {...cellText}>{item.origin_text || "-"}</StockCellText>}
@@ -4776,7 +4777,7 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "delivered_date", item.delivered_date, "date") : <StockCellText {...cellText}>{formatDate(item.delivered_date)}</StockCellText>}
                         </Td>
                         <Td {...cellProps}>
-                            {renderMultiLineLabels(item.warehouse_text || item.warehouse_new || item.warehouse_id || item.stock_warehouse)}
+                            {renderMultiLineLabels(getWarehouseDisplayText(item))}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "supplier_id", item.supplier_id, "select", vendors.map(v => ({ value: v.id, label: v.name }))) : <StockCellText {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</StockCellText>}
