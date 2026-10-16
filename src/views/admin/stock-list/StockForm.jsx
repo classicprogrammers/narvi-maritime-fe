@@ -74,7 +74,7 @@ import {
 } from "../../../utils/stockLocationOptions";
 import { normalizeStockValueForForm, normalizeStockValueForSave } from "../../../utils/stockValue";
 import { buildStockCreateLinePayload, normalizeCancelTextForForm, normalizeCancelTextForSave } from "../../../utils/stockCreatePayload";
-import StockWarehousesModal, { warehousesToText } from "../../../components/stock-list/StockWarehousesModal";
+import StockWarehousesModal, { warehousesToText, assignWarehouseToRows } from "../../../components/stock-list/StockWarehousesModal";
 import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps, resolveDimensionsBaseline, buildStockUpdateWarehousesOps, resolveWarehousesBaseline, normalizeWarehousesFromStock, getServerWarehouses, filterNewPendingAttachments, filterNewAttachmentDeletes } from "../../../utils/stockUpdatePayload";
 import {
     cloneStockFormRow,
@@ -2411,6 +2411,8 @@ export default function StockForm() {
                 isOpen={isWarehousesModalOpen}
                 onClose={onWarehousesModalClose}
                 warehouses={formRows[warehouseModalRowIndex]?.warehouses}
+                rowsBelow={formRows.length - warehouseModalRowIndex - 1}
+                onAssign={(name, toAll) => setFormRows((prev) => assignWarehouseToRows(prev, warehouseModalRowIndex, name, toAll))}
                 onSave={(list) => {
                     setFormRows((prev) =>
                         prev.map((r, i) =>

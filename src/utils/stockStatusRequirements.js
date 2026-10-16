@@ -81,7 +81,8 @@ const REQUIREMENTS = {
         ...BASE,
         ["PCS", (r) => hasPositiveNumber(r.item)],
         ["Weight kgs", (r) => hasPositiveNumber(r.weightKgs)],
-        ["Dimensions", hasDimensions],
+        // Exception: a filled Origin means the supplier ships to HUB 1 (usually by courier) without dimensions
+        ["Dimensions", (r) => isFilled(r.origin_text) || hasDimensions(r)],
         ["Via HUB 2 or AP Destination", hasViaHub2OrApDestination],
         [
             "Shipping docs or Export Doc 1 or Export Doc 2",

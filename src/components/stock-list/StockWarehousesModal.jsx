@@ -9,6 +9,10 @@ import {
   Icon,
   IconButton,
   Input,
+  Menu,
+  MenuButton,
+  MenuItem,
+  MenuList,
   Modal,
   ModalBody,
   ModalCloseButton,
@@ -20,7 +24,24 @@ import {
   VStack,
   useColorModeValue,
 } from "@chakra-ui/react";
-import { MdAdd, MdContentCopy, MdDelete } from "react-icons/md";
+import { MdAdd, MdContentCopy, MdDelete, MdMoreVert } from "react-icons/md";
+
+/**
+ * Append one warehouse (as a new, id-less row) to the rows after `fromIndex`.
+ * Skips rows that already have a warehouse with the same name.
+ */
+export const assignWarehouseToRows = (rows, fromIndex, name, toAll) => {
+  const clean = String(name ?? "").trim();
+  if (!clean) return rows;
+  const lastIndex = toAll ? rows.length - 1 : Math.min(fromIndex + 1, rows.length - 1);
+  return rows.map((row, i) => {
+    if (i <= fromIndex || i > lastIndex) return row;
+    const existing = Array.isArray(row.warehouses) ? row.warehouses : [];
+    if (existing.some((wh) => String(wh?.name ?? "").trim() === clean)) return row;
+    const next = [...existing, { id: null, name: clean }];
+    return { ...row, warehouses: next, warehouseId: warehousesToText(next) };
+  });
+};
 
 const emptyWarehouse = () => ({ id: null, name: "" });
 
@@ -35,7 +56,7 @@ export const warehousesToText = (warehouses) =>
  * Manage multiple warehouses for a stock row (same pattern as the dimensions modal).
  * `onSave(list)` receives [{ id, name }] — blank names are dropped for new rows.
  */
-export default function StockWarehousesModal({ isOpen, onClose, warehouses, onSave }) {
+export default function StockWarehousesModal({ isOpen, onClose, warehouses, onSave, rowsBelow = 0, onAssign }) {
   const [list, setList] = useState([]);
   const borderColor = useColorModeValue("gray.200", "gray.600");
   const inputBg = useColorModeValue("white", "gray.700");
@@ -64,6 +85,24 @@ export default function StockWarehousesModal({ isOpen, onClose, warehouses, onSa
                 <Flex justify="space-between" align="center" mb={3}>
                   <Text fontWeight="600">Warehouse {index + 1}</Text>
                   <HStack spacing={1}>
+                    {onAssign && rowsBelow > 0 ? (
+                      <Menu isLazy>
+                        <MenuButton
+                          as={IconButton}
+                          aria-label="Assign this warehouse to other rows"
+                          title="Assign this warehouse to other rows"
+                          icon={<Icon as={MdMoreVert} />}
+                          size="sm"
+                          variant="ghost"
+                        />
+                        <MenuList zIndex={2000000}>
+                          <MenuItem onClick={() => onAssign(wh.name, false)}>Assign to row below</MenuItem>
+                          {rowsBelow > 1 ? (
+                            <MenuItem onClick={() => onAssign(wh.name, true)}>Assign to all rows below</MenuItem>
+                          ) : null}
+                        </MenuList>
+                      </Menu>
+                    ) : null}
                     <IconButton
                       aria-label="Duplicate warehouse"
                       title="Duplicate this warehouse"

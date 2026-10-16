@@ -77,7 +77,7 @@ import { mergeSelectedIntoOptions } from "../../../utils/stockFormSelectUtils";
 import { clampIsoDateToToday, getLocalTodayIso } from "../../../components/forms/DmyDateInput";
 import { buildStockCreateLinePayload, normalizeCancelTextForForm, normalizeCancelTextForSave } from "../../../utils/stockCreatePayload";
 import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps, resolveDimensionsBaseline, buildStockUpdateWarehousesOps, resolveWarehousesBaseline, normalizeWarehousesFromStock, getServerWarehouses, filterNewPendingAttachments, filterNewAttachmentDeletes } from "../../../utils/stockUpdatePayload";
-import StockWarehousesModal, { warehousesToText } from "../../../components/stock-list/StockWarehousesModal";
+import StockWarehousesModal, { warehousesToText, assignWarehouseToRows } from "../../../components/stock-list/StockWarehousesModal";
 import {
     filterItemsWithBulkSaveFailures,
     filterRowsWithBulkSaveFailures,
@@ -2770,7 +2770,6 @@ export default function StockForm() {
                                             )}
                                         </Td>
                                         <Td {...cellProps} overflow="visible">
-                                            {assignCell(rowIndex, ["warehouses", "warehouseId"],
                                                 <Button
                                                     size="sm"
                                                     leftIcon={<Icon as={MdAdd} />}
@@ -2784,7 +2783,6 @@ export default function StockForm() {
                                                 >
                                                     Warehouses ({row.warehouses?.length || 0})
                                                 </Button>
-                                            )}
                                         </Td>
                                         <Td {...cellProps} overflow="visible">
                                             {assignCell(rowIndex, "dateOnStock",
@@ -3785,6 +3783,8 @@ export default function StockForm() {
                 isOpen={isWarehousesModalOpen}
                 onClose={onWarehousesModalClose}
                 warehouses={formRows[warehouseModalRowIndex]?.warehouses}
+                rowsBelow={formRows.length - warehouseModalRowIndex - 1}
+                onAssign={(name, toAll) => setFormRows((prev) => assignWarehouseToRows(prev, warehouseModalRowIndex, name, toAll))}
                 onSave={(list) => {
                     setFormRows((prev) =>
                         prev.map((r, i) =>
