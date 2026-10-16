@@ -75,7 +75,7 @@ import {
 import { normalizeStockValueForForm, normalizeStockValueForSave } from "../../../utils/stockValue";
 import { buildStockCreateLinePayload, normalizeCancelTextForForm, normalizeCancelTextForSave } from "../../../utils/stockCreatePayload";
 import StockWarehousesModal, { warehousesToText } from "../../../components/stock-list/StockWarehousesModal";
-import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps, resolveDimensionsBaseline, buildStockUpdateWarehousesOps, resolveWarehousesBaseline, normalizeWarehousesFromStock, filterNewPendingAttachments, filterNewAttachmentDeletes } from "../../../utils/stockUpdatePayload";
+import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps, resolveDimensionsBaseline, buildStockUpdateWarehousesOps, resolveWarehousesBaseline, normalizeWarehousesFromStock, getServerWarehouses, filterNewPendingAttachments, filterNewAttachmentDeletes } from "../../../utils/stockUpdatePayload";
 import {
     cloneStockFormRow,
     createManualStockReportGenerator,
@@ -1038,7 +1038,7 @@ export default function StockForm() {
         const warehouseOps = buildStockUpdateWarehousesOps(
             rowData.warehouses,
             resolveWarehousesBaseline(
-                originalStock ? normalizeWarehousesFromStock(originalStock) : null,
+                originalStock ? getServerWarehouses(originalStock) : null,
                 baselineFormRow?.warehouses
             )
         );

@@ -76,7 +76,7 @@ import useStockListOptionPins from "../../../hooks/useStockListOptionPins";
 import { mergeSelectedIntoOptions } from "../../../utils/stockFormSelectUtils";
 import { clampIsoDateToToday, getLocalTodayIso } from "../../../components/forms/DmyDateInput";
 import { buildStockCreateLinePayload, normalizeCancelTextForForm, normalizeCancelTextForSave } from "../../../utils/stockCreatePayload";
-import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps, resolveDimensionsBaseline, buildStockUpdateWarehousesOps, resolveWarehousesBaseline, normalizeWarehousesFromStock, filterNewPendingAttachments, filterNewAttachmentDeletes } from "../../../utils/stockUpdatePayload";
+import { pickStockUpdateChangedFields, buildStockUpdateDimensionsOps, resolveDimensionsBaseline, buildStockUpdateWarehousesOps, resolveWarehousesBaseline, normalizeWarehousesFromStock, getServerWarehouses, filterNewPendingAttachments, filterNewAttachmentDeletes } from "../../../utils/stockUpdatePayload";
 import StockWarehousesModal, { warehousesToText } from "../../../components/stock-list/StockWarehousesModal";
 import {
     filterItemsWithBulkSaveFailures,
@@ -2000,7 +2000,7 @@ export default function StockForm() {
         const warehouseOps = buildStockUpdateWarehousesOps(
             rowData.warehouses,
             resolveWarehousesBaseline(
-                originalStock ? normalizeWarehousesFromStock(originalStock) : null,
+                originalStock ? getServerWarehouses(originalStock) : null,
                 baselineFormRow?.warehouses
             )
         );

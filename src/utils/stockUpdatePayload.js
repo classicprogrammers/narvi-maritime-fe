@@ -241,17 +241,35 @@ const resolveWarehouseId = (wh) => {
  * Uses `warehouses` [{id, name}]; falls back to splitting `warehouse_text` by line.
  */
 export function normalizeWarehousesFromStock(stock) {
-  if (Array.isArray(stock?.warehouses)) {
+  if (Array.isArray(stock?.warehouses) && stock.warehouses.length > 0) {
     return stock.warehouses
       .map((wh) => ({ id: resolveWarehouseId(wh), name: warehouseName(wh) }))
       .filter((wh) => wh.name || wh.id != null);
   }
-  const text = typeof stock?.warehouse_text === "string" ? stock.warehouse_text : "";
+  // Same sources the list column falls back to, so what the list shows is never lost in the form.
+  const legacy = [
+    stock?.warehouse_text,
+    stock?.warehouse_new,
+    stock?.warehouse_id,
+    stock?.stock_warehouse,
+    stock?.warehouse,
+  ]
+    .map((v) => (Array.isArray(v) ? v[1] : v && typeof v === "object" ? v.name : v))
+    .find((v) => typeof v === "string" && v.trim() !== "");
+  const text = legacy || "";
   return text
     .split(/\r?\n/)
     .map((name) => name.trim())
     .filter(Boolean)
     .map((name) => ({ id: null, name }));
+}
+
+/**
+ * Warehouse rows that really exist on the server. Never the warehouse_text fallback:
+ * legacy text rows must diff as "new" so they are sent as create ops on save.
+ */
+export function getServerWarehouses(stock) {
+  return Array.isArray(stock?.warehouses) ? stock.warehouses : [];
 }
 
 /** Warehouses for create payloads: non-blank names only. */
