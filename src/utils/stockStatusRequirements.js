@@ -115,6 +115,8 @@ export function getMissingStatusIssues(rows, { requireStockReport = false } = {}
         const status = normalizeStockStatusKey(row?.stockStatus);
         const checks = REQUIREMENTS[status];
         if (!checks) return;
+        // Requirements were knowingly waived for this status ("Save anyway" with a reason); Stock is never waived
+        if (status !== "stock" && row.statusWaived === status) return;
 
         const missing = checks.filter(([, ok]) => !ok(row)).map(([label]) => label);
         if (status === "stock" && stockDocsMissing(row) && !isFilled(row.warning)) {
@@ -128,4 +130,25 @@ export function getMissingStatusIssues(rows, { requireStockReport = false } = {}
         }
     });
     return issues;
+}
+
+const NOTE_NEW_LINE = String.fromCharCode(10);
+export const STATUS_WAIVER_NOTE_PREFIX = "Status set without:";
+
+/**
+ * Builds the Warning text after a "set/save anyway" override. A row keeps ONE status-waiver note:
+ * the previous one (exact text, or any line starting with the prefix) is replaced, while everything
+ * else the user typed in Warning is kept on its own lines.
+ */
+export function mergeStatusWaiverNote(existingWarning, newNote, previousNote = "") {
+    let text = String(existingWarning || "");
+    if (previousNote && text.includes(previousNote)) {
+        text = text.replace(previousNote, "");
+    }
+    const kept = text
+        .split(NOTE_NEW_LINE)
+        .filter((line) => !line.trim().startsWith(STATUS_WAIVER_NOTE_PREFIX))
+        .join(NOTE_NEW_LINE)
+        .trim();
+    return kept ? [kept, newNote].join(NOTE_NEW_LINE) : newNote;
 }

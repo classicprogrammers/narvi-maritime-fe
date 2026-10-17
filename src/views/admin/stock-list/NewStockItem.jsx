@@ -122,7 +122,11 @@ import {
 } from "../../../utils/stockLocationOptions";
 import { normalizeStockValueForForm, normalizeStockValueForSave } from "../../../utils/stockValue";
 import { describeMissingClientVessel, isBlankStockRelation } from "../../../utils/stockClientVessel";
-import { getMissingStatusIssues } from "../../../utils/stockStatusRequirements";
+import {
+    getMissingStatusIssues,
+    mergeStatusWaiverNote,
+    STATUS_WAIVER_NOTE_PREFIX,
+} from "../../../utils/stockStatusRequirements";
 import StockStatusRequirementsModal from "../../../components/stock-list/StockStatusRequirementsModal";
 import EditModeNotice, { useEditModeColors } from "../../../components/forms/EditModeNotice";
 
@@ -368,6 +372,10 @@ export default function StockForm() {
     const [dimensionsList, setDimensionsList] = useState([]);
     const [showClientVesselErrors, setShowClientVesselErrors] = useState(false);
     const [statusRequirementIssues, setStatusRequirementIssues] = useState([]);
+    // true when the missing-fields modal came from Save, where "Save anyway" is allowed
+    const [statusIssuesFromSave, setStatusIssuesFromSave] = useState(false);
+    // status picked in the dropdown while required fields are missing (applied only via "Set status anyway")
+    const [pendingStatusChange, setPendingStatusChange] = useState(null);
     const [pendingStockPreviewIndex, setPendingStockPreviewIndex] = useState(null);
 
     const textColor = useColorModeValue("gray.700", "white");
@@ -1582,6 +1590,7 @@ export default function StockForm() {
                 if (String(oldStatus) !== String(newStatus) && String(newStatus).trim() !== "") {
                     updatedRow.stockStatusChangedBy = statusChangeActorName;
                     updatedRow.stockStatusPreviousForPayload = oldStatus;
+                    updatedRow.statusWaived = undefined;
                     // Moving to Stock requires a generated SL (Stock) Report before saving
                     updatedRow.stockReportRequired = normalizeStockStatusKey(newStatus) === "stock";
                 }
@@ -1693,7 +1702,42 @@ export default function StockForm() {
             setPendingStockPreviewIndex(rowIndex);
             return;
         }
+        if (normalized && normalized !== "stock" && currentRow && normalizeStockStatusKey(currentRow.stockStatus) !== normalized) {
+            const issues = getMissingStatusIssues([{ ...currentRow, stockStatus: normalized }]).map((issue) => ({
+                ...issue,
+                rowNumber: rowIndex + 1,
+            }));
+            if (issues.length > 0) {
+                // Not applied yet: the user either fills the fields or sets the status anyway with a reason
+                setPendingStatusChange({ rowIndex, status: nextStatus });
+                setStatusRequirementIssues(issues);
+                return;
+            }
+        }
         handleInputChange(rowIndex, "stockStatus", nextStatus);
+    };
+
+    // Apply the picked status although required fields are missing; the reason is recorded in Warning
+    const handleSetStatusAnyway = (reason) => {
+        const pending = pendingStatusChange;
+        const issue = statusRequirementIssues[0];
+        if (!pending || !issue) return;
+        const waivedStatus = normalizeStockStatusKey(pending.status);
+        handleInputChange(pending.rowIndex, "stockStatus", pending.status);
+        setFormRows((prev) =>
+            prev.map((row, index) => {
+                if (index !== pending.rowIndex) return row;
+                const note = `${STATUS_WAIVER_NOTE_PREFIX} ${issue.missing.join(", ")} — ${reason}`;
+                return {
+                    ...row,
+                    warning: mergeStatusWaiverNote(row.warning, note, row.statusWaiverNote),
+                    statusWaiverNote: note,
+                    statusWaived: waivedStatus,
+                };
+            })
+        );
+        setPendingStatusChange(null);
+        setStatusRequirementIssues([]);
     };
 
     // Click on "Generate Stock Report": for Stock rows, surface missing fields before the preview
@@ -2225,7 +2269,33 @@ export default function StockForm() {
         }
     };
 
-    const handleSaveStockItem = async () => {
+    // Save despite missing status fields: record what was missing + the reason in Warning, then save
+    const handleSaveAnywayWithReason = (reason) => {
+        const issues = statusRequirementIssues;
+        const currentRows =
+            Array.isArray(formRowsRef.current) && formRowsRef.current.length > 0
+                ? formRowsRef.current
+                : formRows;
+        const nextRows = currentRows.map((row, index) => {
+            const issue = issues.find((item) => item.rowNumber === index + 1);
+            if (!issue) return row;
+            const note = `${STATUS_WAIVER_NOTE_PREFIX} ${issue.missing.join(", ")} — ${reason}`;
+            return {
+                ...row,
+                warning: mergeStatusWaiverNote(row.warning, note, row.statusWaiverNote),
+                statusWaiverNote: note,
+                statusWaived: issue.status,
+            };
+        });
+        formRowsRef.current = nextRows;
+        setFormRows(nextRows);
+        setStatusRequirementIssues([]);
+        setStatusIssuesFromSave(false);
+        handleSaveStockItem({ skipStatusCheck: true });
+    };
+
+    const handleSaveStockItem = async (options) => {
+        const skipStatusCheck = options?.skipStatusCheck === true;
         try {
             const rowsForSave =
                 Array.isArray(formRowsRef.current) && formRowsRef.current.length > 0
@@ -2249,8 +2319,11 @@ export default function StockForm() {
                 return;
             }
 
-            const missingStatusIssues = getMissingStatusIssues(rowsForSave, { requireStockReport: true });
+            const missingStatusIssues = skipStatusCheck
+                ? []
+                : getMissingStatusIssues(rowsForSave, { requireStockReport: true });
             if (missingStatusIssues.length > 0) {
+                setStatusIssuesFromSave(true);
                 setStatusRequirementIssues(missingStatusIssues);
                 return;
             }
@@ -4076,7 +4149,24 @@ export default function StockForm() {
             </Modal>
             <StockStatusRequirementsModal
                 issues={statusRequirementIssues}
-                onClose={() => setStatusRequirementIssues([])}
+                onClose={() => {
+                    setStatusRequirementIssues([]);
+                    setStatusIssuesFromSave(false);
+                    setPendingStatusChange(null);
+                }}
+                onSaveAnyway={
+                    pendingStatusChange
+                        ? handleSetStatusAnyway
+                        : statusIssuesFromSave
+                            ? handleSaveAnywayWithReason
+                            : undefined
+                }
+                overrideLabel={
+                    pendingStatusChange
+                        ? "Set status anyway — these fields are not available (e.g. sub-item of a combined shipment)"
+                        : undefined
+                }
+                confirmLabel={pendingStatusChange ? "Set status anyway" : undefined}
             />
             <Modal
                 isOpen={isCancelReasonModalOpen}

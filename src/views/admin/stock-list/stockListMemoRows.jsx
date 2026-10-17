@@ -321,7 +321,7 @@ function StockViewTableRowInner({
     tableRowBgAlt,
     tableRowHoverBg,
 }) {
-    const textProps = plainColors ? STOCK_CELL_TEXT_CLAMP_PROPS : STOCK_CELL_TEXT_PROPS;
+    const textProps = STOCK_CELL_TEXT_CLAMP_PROPS;
     const statusStyle = getStockRowStatusStyle(item.stock_status, tableRowBg, tableTextColor);
     const rowBg = plainColors
         ? (rowIndex % 2 === 0 ? tableRowBg : tableRowBgAlt)
@@ -436,7 +436,7 @@ function StockViewTableRowInner({
                     {renderText(formatStockDestinationDisplay(item, "destination"))}
                 </StockCellText>
             </Td>
-            <Td {...cellProps}>
+            <Td {...cellProps} minW="250px" w="250px" maxW="250px">
                 <StockCellText {...textProps}>{renderText(item.shipping_doc)}</StockCellText>
             </Td>
             <Td {...cellProps}>
@@ -462,7 +462,7 @@ function StockViewTableRowInner({
             <Td {...cellProps}>
                 <StockCellText {...textProps}>{formatDate(item.delivered_date)}</StockCellText>
             </Td>
-            <Td {...cellProps}>
+            <Td {...cellProps} minW="340px" w="340px" maxW="340px">
                 <StockCellText {...textProps}>{renderText(item.remarks)}</StockCellText>
             </Td>
             <Td {...cellProps}>
@@ -476,7 +476,10 @@ function StockViewTableRowInner({
                 </StockCellText>
             </Td>
             <Td {...cellProps}>
-                <StockCellText {...textProps}>{renderText(item.lwh_text)}</StockCellText>
+                {/* LWH text is shown exactly as typed: every line break stays, no truncation */}
+                <StockCellText {...STOCK_CELL_TEXT_PROPS} whiteSpace="pre-line" display="block">
+                    {renderText(item.lwh_text)}
+                </StockCellText>
             </Td>
             <Td {...cellProps}>
                 <StockCellText {...textProps}>{formatStockT1Display(item.t_1)}</StockCellText>
@@ -522,7 +525,7 @@ function StockViewTableRowInner({
                     {formatStockValueDisplay(item.value)}
                 </StockCellText>
             </Td>
-            <Td {...cellProps}>
+            <Td {...cellProps} minW="300px" w="300px" maxW="300px">
                 <StockCellText {...textProps}>
                     {getDisplayName(item.client_id || item.client)}
                 </StockCellText>
@@ -677,7 +680,7 @@ const STOCK_VIEW_HEADER_COLUMNS = [
     { label: "VIA HUB 2" },
     { label: "AP DESTINATION" },
     { label: "DESTINATION" },
-    { label: "SHIPPING DOCS" },
+    { label: "SHIPPING DOCS", width: "250px" },
     { label: "EXPORT DOC 1" },
     { label: "EXPORT DOC 2" },
     { label: "EXP READY FROM SUPPLIER" },
@@ -685,7 +688,7 @@ const STOCK_VIEW_HEADER_COLUMNS = [
     { label: "DAYS ON STOCK", textAlign: "center" },
     { label: "SHIPPED DATE" },
     { label: "DELIVERED DATE" },
-    { label: "REMARKS" },
+    { label: "REMARKS", width: "340px" },
     { label: "BOXES" },
     { label: "WEIGHT KGS" },
     { label: "LWH TEXT" },
@@ -695,7 +698,7 @@ const STOCK_VIEW_HEADER_COLUMNS = [
     { label: "TOTAL CW AIR FREIGHT" },
     { label: "CURRENCY" },
     { label: "VALUE" },
-    { label: "CLIENT" },
+    { label: "CLIENT", width: "300px" },
     { label: "INTERNAL REMARKS" },
     { label: "FILES" },
     { label: "STOCKITEMID" },
@@ -833,6 +836,7 @@ function StockViewDataTableInner({
                                 {...headerProps}
                                 {...(column.stickyIndex != null ? stickyHeader[column.stickyIndex] : {})}
                                 {...(column.textAlign ? { textAlign: column.textAlign } : {})}
+                                {...(column.width ? { minW: column.width, w: column.width, maxW: column.width } : {})}
                                 {...(isStockT1Heading(column.label) ? { textTransform: "none" } : {})}
                             >
                                 <Flex

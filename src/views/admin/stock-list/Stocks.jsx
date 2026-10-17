@@ -937,8 +937,8 @@ export default function Stocks({ variant = "stocks" } = {}) {
     const cellText = STOCK_CELL_TEXT_PROPS;
 
     const stockViewStickyBodyProps = useMemo(() => {
-        const widths = [48, 220, 200, 170];
-        const left = [0, 48, 268, 468];
+        const widths = [48, 220, 300, 260];
+        const left = [0, 48, 268, 568];
         return [0, 1, 2, 3].map((colIndex) => ({
             position: "sticky",
             left: `${left[colIndex]}px`,
@@ -950,8 +950,8 @@ export default function Stocks({ variant = "stocks" } = {}) {
         }));
     }, [stickyEdgeShadow]);
     const stockViewStickyHeaderProps = useMemo(() => {
-        const widths = [48, 220, 200, 170];
-        const left = [0, 48, 268, 468];
+        const widths = [48, 220, 300, 260];
+        const left = [0, 48, 268, 568];
         return [0, 1, 2, 3].map((colIndex) => ({
             position: "sticky",
             left: `${left[colIndex]}px`,
@@ -967,8 +967,8 @@ export default function Stocks({ variant = "stocks" } = {}) {
 
     const getStockViewStickyProps = (colIndex, isHeader = false) => {
         if (colIndex < 0 || colIndex > 3) return {};
-        const widths = [48, 220, 200, 170];
-        const left = [0, 48, 268, 468];
+        const widths = [48, 220, 300, 260];
+        const left = [0, 48, 268, 568];
         return {
             position: "sticky",
             left: `${left[colIndex]}px`,
