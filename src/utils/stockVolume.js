@@ -57,3 +57,19 @@ export const resolveDisplayVolumeCbm = (dim = {}) => {
   const value = getDimensionVolumeCbm(dim);
   return value > 0 ? formatVolumeCbm(value) : formatVolumeCbm(dim.volume_cbm);
 };
+
+export const sumDimensionsWeightKg = (dimensions = []) =>
+    (Array.isArray(dimensions) ? dimensions : []).reduce((sum, dim) => {
+        const n = Number(dim?.weight_kg ?? dim?.weight);
+        return sum + (Number.isFinite(n) ? n : 0);
+    }, 0);
+
+/** Explicit total weight wins; otherwise fall back to the sum of piece weights. */
+export const resolveTotalWeightKg = (totalWeight, dimensions = []) => {
+    const explicit = Number(totalWeight);
+    if (totalWeight != null && String(totalWeight).trim() !== "" && Number.isFinite(explicit) && explicit > 0) {
+        return totalWeight;
+    }
+    const summed = sumDimensionsWeightKg(dimensions);
+    return summed > 0 ? Number(summed.toFixed(2)) : (totalWeight ?? "");
+};

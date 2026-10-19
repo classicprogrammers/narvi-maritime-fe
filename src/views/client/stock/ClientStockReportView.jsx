@@ -94,7 +94,6 @@ import { getRowClientName } from "utils/portalClients";
 import { usePortalClient } from "views/client/PortalClientContext";
 import { clearClientNavigationState } from "views/client/dashboard/clientDashboardNavigation";
 import * as XLSX from "xlsx";
-
 const toClientStockDisplay = (value) => {
   if (value == null || value === false || value === "") return "-";
   if (typeof value === "object") {

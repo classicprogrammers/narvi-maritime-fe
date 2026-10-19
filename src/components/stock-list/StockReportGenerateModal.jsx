@@ -46,7 +46,7 @@ import StockOriginCountrySelect from "../forms/StockOriginCountrySelect";
 import StockValueInput from "../forms/StockValueInput";
 import DmyDateInput, { getLocalTodayIso, normalizeToIsoDate } from "../forms/DmyDateInput";
 import { formatStatusForPdf } from "../../utils/stockReportPdf";
-import { calculateVolumeCbmFromLwhCm } from "../../utils/stockVolume";
+import { calculateVolumeCbmFromLwhCm, resolveTotalWeightKg } from "../../utils/stockVolume";
 import { isStockT1Marked, STOCK_T1_HEADING, STOCK_T1_MARK } from "../../constants/stockT1";
 
 const BRAND = "#1c4a95";
@@ -96,6 +96,7 @@ const DIMENSION_COLUMNS = [
     { key: "height_cm", label: "Height (cm)", editable: true },
     { key: "volume_cbm", label: "CBM", editable: false },
     { key: "cw_air_freight", label: "VW", editable: true },
+    { key: "weight_kg", label: "Weight (kg)", editable: true },
 ];
 
 function Field({ label, children, span = 1 }) {
@@ -878,6 +879,7 @@ function StockReportPreview({
                                             <Input
                                                 {...fieldInputProps}
                                                 value={row.weightKgs || ""}
+                                                placeholder={String(resolveTotalWeightKg("", dimensions) || "")}
                                                 onChange={(e) => onFieldChange("weightKgs", e.target.value)}
                                             />
                                         </Field>

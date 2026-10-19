@@ -28,7 +28,7 @@ import {
     getStockViaHub2Display,
     toStockLocationDisplayValue,
 } from "./stockLocationOptions";
-import { getDimensionVolumeCbm, sumDimensionsVolumeCbm } from "./stockVolume";
+import { getDimensionVolumeCbm, sumDimensionsVolumeCbm, resolveTotalWeightKg } from "./stockVolume";
 import {
     applyStockReportAttachmentOnStatusChange,
     isStockReportAttachment,
@@ -627,7 +627,7 @@ export function mapFormRowToAdminItemForPdf(row, helpers = {}) {
         days_on_stock: pickFormRowValue(row, "daysOnStock", "days_on_stock"),
         create_date: pickFormRowValue(row, "slCreateDate", "slCreateDateTime", "create_date"),
         write_date: row.write_date,
-        weight_kg: pickFormRowValue(row, "weightKgs", "weight_kg"),
+        weight_kg: resolveTotalWeightKg(pickFormRowValue(row, "weightKgs", "weight_kg"), dims),
         volume_cbm: totalCbm,
         total_volume_cbm: totalCbm,
         total_cw_air_freight: pickFormRowValue(row, "cwAirfreight", "total_cw_air_freight", "cw_air_freight_new"),

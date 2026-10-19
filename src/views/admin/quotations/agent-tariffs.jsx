@@ -52,6 +52,7 @@ const COLUMNS = [
   { key: "rate_name", label: "Rate Name" },
   { key: "rate_text", label: "Rate Text" },
   { key: "charge_category_label", label: "Standard / If Apply" },
+  { key: "rate_calculation", label: "Rate Calculation" },
   { key: "rate_cost", label: "Rate Cost", isNumeric: true },
   { key: "sales", label: "Sales", isNumeric: true },
 ];

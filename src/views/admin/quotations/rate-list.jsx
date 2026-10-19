@@ -236,6 +236,7 @@ const RATE_LIST_COLUMNS = [
   { label: "Rate Name", sortKey: "rate_name", minW: "240px" },
   { label: "Rate Text", sortKey: "rate_text", minW: "280px" },
   { label: "Charge Category", sortKey: "charge_category", aliases: ["charge_category_label"], minW: "160px" },
+  { label: "Rate Calculation", sortKey: "rate_calculation", minW: "180px" },
   { label: "Rate Cost", sortKey: "rate_float", minW: "110px", isNumeric: true },
   { label: "Sales", sortKey: "fixed_sales_rate", minW: "110px", isNumeric: true },
 ];
@@ -1626,6 +1627,11 @@ export default function RateList() {
                         <RateCell
                           value={chargeCategoryLabel(item.charge_category, item.charge_category_label)}
                           cellProps={tableCellProps}
+                        />
+                        <RateCell
+                          value={displayText(item.rate_calculation)}
+                          cellProps={tableCellProps}
+                          noOfLines={3}
                         />
                         <RateCell
                           value={formatRateCost(item)}

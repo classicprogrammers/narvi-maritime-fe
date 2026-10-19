@@ -120,12 +120,17 @@ export function normalizeGroupedBarInput(data, seriesDefs = []) {
   }
 }
 
-export function buildPieChartOptions(labels = [], chartLabelColor, { donut = false } = {}) {
+export function buildPieChartOptions(
+  labels = [],
+  chartLabelColor,
+  { donut = false, colors = PIE_COLORS, dataLabelColor = "#fff" } = {}
+) {
   const safeLabels = Array.isArray(labels) ? labels : [];
   const base = {
     chart: { toolbar: { show: false } },
     labels: safeLabels,
-    colors: PIE_COLORS,
+    colors,
+    fill: { type: "solid", opacity: 1 },
     legend: { position: "bottom", labels: { colors: chartLabelColor } },
     dataLabels: {
       enabled: true,
@@ -137,7 +142,7 @@ export function buildPieChartOptions(labels = [], chartLabelColor, { donut = fal
           return "";
         }
       },
-      style: { fontSize: "12px", fontWeight: 600, colors: ["#fff"] },
+      style: { fontSize: "12px", fontWeight: 600, colors: [dataLabelColor] },
       dropShadow: { enabled: false },
     },
     stroke: { colors: ["#fff"] },

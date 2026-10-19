@@ -28,6 +28,7 @@ import IconBox from "components/icons/IconBox";
 import MiniStatistics from "components/card/MiniStatistics";
 import { getNarviDashboard, normalizeNarviDashboard } from "../../../api/narviDashboard";
 import { extractNarviQuotationError } from "../../../api/narviQuotation";
+import { getStockRowStatusStyle } from "components/stock-list/StockStatusBadge";
 import {
   buildHorizontalBarChartOptions,
   buildPieChartOptions,
@@ -135,7 +136,13 @@ function DashboardDonutChart({ data, height = 300 }) {
   );
 }
 
-function DashboardPieChart({ data, height = 300 }) {
+function stockStatusPieColor(label) {
+  const { bgColor } = getStockRowStatusStyle(label, "#d8d8d8");
+  // Apex doesn't reliably handle 8-digit hex; drop the alpha channel.
+  return bgColor.length === 9 ? bgColor.slice(0, 7) : bgColor;
+}
+
+function DashboardPieChart({ data, height = 300, useStockStatusColors = false }) {
   const chartLabel = useColorModeValue("#707EAE", "#A3AED0");
   const normalized = useMemo(() => normalizePieInput(data) ?? { series: [], labels: [] }, [data]);
   const { series = [], labels = [] } = normalized;
@@ -143,6 +150,7 @@ function DashboardPieChart({ data, height = 300 }) {
     const nextLabels = [];
     const nextSeries = [];
     series.forEach((value, index) => {
+      if (useStockStatusColors && labels[index] === "Unset") return;
       if (value > 0) {
         nextLabels.push(labels[index] ?? "—");
         nextSeries.push(value);
@@ -150,7 +158,7 @@ function DashboardPieChart({ data, height = 300 }) {
     });
     if (nextLabels.length) return { labels: nextLabels, series: nextSeries };
     return { labels: labels.length ? labels : ["Total"], series: labels.length ? series : [0] };
-  }, [labels, series]);
+  }, [labels, series, useStockStatusColors]);
 
   const total = useMemo(
     () => display.series.reduce((sum, value) => sum + (Number(value) || 0), 0),
@@ -158,8 +166,15 @@ function DashboardPieChart({ data, height = 300 }) {
   );
 
   const options = useMemo(
-    () => buildPieChartOptions(display.labels, chartLabel),
-    [display.labels, chartLabel]
+    () =>
+      buildPieChartOptions(
+        display.labels,
+        chartLabel,
+        useStockStatusColors
+          ? { colors: display.labels.map(stockStatusPieColor), dataLabelColor: "#000" }
+          : {}
+      ),
+    [display.labels, chartLabel, useStockStatusColors]
   );
 
   if (total <= 0) {
@@ -591,7 +606,7 @@ export default function MainDashboard() {
               />
             </ChartCard>
             <ChartCard title="Stock" subtitle="Active items by status">
-              <DashboardPieChart data={charts.stock_active_status} />
+              <DashboardPieChart data={charts.stock_active_status} useStockStatusColors />
             </ChartCard>
             <RateListTrendCard data={charts.rate_list_type} />
           </SimpleGrid>
