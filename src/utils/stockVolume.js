@@ -64,12 +64,8 @@ export const sumDimensionsWeightKg = (dimensions = []) =>
         return sum + (Number.isFinite(n) ? n : 0);
     }, 0);
 
-/** Explicit total weight wins; otherwise fall back to the sum of piece weights. */
-export const resolveTotalWeightKg = (totalWeight, dimensions = []) => {
-    const explicit = Number(totalWeight);
-    if (totalWeight != null && String(totalWeight).trim() !== "" && Number.isFinite(explicit) && explicit > 0) {
-        return totalWeight;
-    }
+/** When any piece has a weight, the total is their sum; otherwise the typed total weight is kept. */
+export const resolveTotalWeightKg = (typedWeight, dimensions = []) => {
     const summed = sumDimensionsWeightKg(dimensions);
-    return summed > 0 ? Number(summed.toFixed(2)) : (totalWeight ?? "");
+    return summed > 0 ? Number(summed.toFixed(2)) : (typedWeight ?? "");
 };

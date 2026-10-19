@@ -99,7 +99,7 @@ import StockReportGenerateModal from "../../../components/stock-list/StockReport
 import { partitionAttachmentsRow, collectRowAttachmentsForPreview } from "../../../utils/stockReportAttachmentsUi";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
 import { useStockAttachmentsGallery } from "../../../hooks/useStockAttachmentsGallery";
-import { calculateVolumeCbmFromLwhCm, formatVolumeCbm, resolveDisplayVolumeCbm } from "../../../utils/stockVolume";
+import { calculateVolumeCbmFromLwhCm, formatVolumeCbm, resolveDisplayVolumeCbm, sumDimensionsWeightKg } from "../../../utils/stockVolume";
 import { StockSoNumberOpenButton } from "../../../components/stock-list/StockSoNumberLink";
 import {
   resolveStockSoIdForForm,
@@ -2925,6 +2925,7 @@ export default function StockForm() {
                                             {assignCell(rowIndex, "weightKgs",
                                                 <NumberInput
                                                     value={row.weightKgs}
+                                                    isReadOnly={sumDimensionsWeightKg(row.dimensions) > 0}
                                                     onChange={(value) => handleInputChange(rowIndex, "weightKgs", value)}
                                                     min={0}
                                                     precision={2}
@@ -4109,6 +4110,11 @@ export default function StockForm() {
                             >
                                 Add Dimension
                             </Button>
+                            {sumDimensionsWeightKg(dimensionsList) > 0 ? (
+                                <Text fontSize="sm" color={inputText}>
+                                    Total weight: <b>{sumDimensionsWeightKg(dimensionsList).toFixed(2)} kg</b> (applied to Weight kgs on save)
+                                </Text>
+                            ) : null}
                         </VStack>
                     </ModalBody>
                     <ModalFooter>
@@ -4119,10 +4125,18 @@ export default function StockForm() {
                             colorScheme="blue"
                             onClick={() => {
                                 const updatedRows = [...formRows];
+                                const previousWeightSum = sumDimensionsWeightKg(updatedRows[currentRowIndexForDimensions]?.dimensions);
+                                const nextWeightSum = sumDimensionsWeightKg(dimensionsList);
                                 updatedRows[currentRowIndexForDimensions] = {
                                     ...updatedRows[currentRowIndexForDimensions],
                                     dimensions: dimensionsList,
                                 };
+                                // Piece weights drive Weight kgs; with none entered, the typed value is kept.
+                                if (nextWeightSum > 0) {
+                                    updatedRows[currentRowIndexForDimensions].weightKgs = String(Number(nextWeightSum.toFixed(2)));
+                                } else if (previousWeightSum > 0) {
+                                    updatedRows[currentRowIndexForDimensions].weightKgs = "";
+                                }
                                 // Recalculate volume_cbm if needed
                                 if (dimensionsList.length > 0 && dimensionsList[0]) {
                                     const dim = dimensionsList[0];

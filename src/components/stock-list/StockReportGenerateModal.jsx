@@ -46,7 +46,7 @@ import StockOriginCountrySelect from "../forms/StockOriginCountrySelect";
 import StockValueInput from "../forms/StockValueInput";
 import DmyDateInput, { getLocalTodayIso, normalizeToIsoDate } from "../forms/DmyDateInput";
 import { formatStatusForPdf } from "../../utils/stockReportPdf";
-import { calculateVolumeCbmFromLwhCm, resolveTotalWeightKg } from "../../utils/stockVolume";
+import { calculateVolumeCbmFromLwhCm, resolveTotalWeightKg, sumDimensionsWeightKg } from "../../utils/stockVolume";
 import { isStockT1Marked, STOCK_T1_HEADING, STOCK_T1_MARK } from "../../constants/stockT1";
 
 const BRAND = "#1c4a95";
@@ -265,8 +265,10 @@ function StockReportPreview({
         .map((dim, index) => (dimensionHasValue(dim) ? index : -1))
         .filter((index) => index >= 0 && index < dimensions.length);
     const visibleDimensionColumns = DIMENSION_COLUMNS.filter(({ key }) =>
+        key === "weight_kg" ||
         visibleDimensionIndexes.some((index) => hasValue(initialDimensions[index]?.[key]))
     );
+    const dimensionsWeightSum = sumDimensionsWeightKg(dimensions);
     const totalCbm = row.volumeCbm || dimensions.reduce((sum, dim) => sum + (Number(dim.volume_cbm) || 0), 0);
 
     const showGeneral = shown(
@@ -321,6 +323,13 @@ function StockReportPreview({
             return merged;
         });
         onFieldChange("dimensions", next);
+        // Piece weights drive the total weight; with none entered, the typed total is kept.
+        const nextSum = sumDimensionsWeightKg(next);
+        if (nextSum > 0) {
+            onFieldChange("weightKgs", String(Number(nextSum.toFixed(2))));
+        } else if (dimensionsWeightSum > 0) {
+            onFieldChange("weightKgs", "");
+        }
     };
 
     return (
@@ -878,8 +887,8 @@ function StockReportPreview({
                                         <Field label="Total weight (kg)">
                                             <Input
                                                 {...fieldInputProps}
-                                                value={row.weightKgs || ""}
-                                                placeholder={String(resolveTotalWeightKg("", dimensions) || "")}
+                                                value={resolveTotalWeightKg(row.weightKgs || "", dimensions)}
+                                                isReadOnly={dimensionsWeightSum > 0}
                                                 onChange={(e) => onFieldChange("weightKgs", e.target.value)}
                                             />
                                         </Field>

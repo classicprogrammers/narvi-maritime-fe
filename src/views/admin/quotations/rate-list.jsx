@@ -252,11 +252,12 @@ function SortableHeader({ column, sort, isSortable, onSort, headerCellProps, hov
       minW={column.minW}
       isNumeric={column.isNumeric}
       aria-sort={isSortable ? direction : undefined}
-      color={isActive ? "blue.600" : headerCellProps.color}
+      color={isActive ? "blue.100" : headerCellProps.color}
       cursor={isSortable ? "pointer" : undefined}
+      userSelect="none"
       tabIndex={isSortable ? 0 : undefined}
       title={isSortable ? `Sort by ${column.label}` : undefined}
-      _hover={isSortable ? { bg: hoverBg } : undefined}
+      _hover={isSortable ? { bg: "gray.500" } : undefined}
       onClick={isSortable ? () => onSort(column.sortKey) : undefined}
       onKeyDown={
         isSortable
@@ -271,7 +272,7 @@ function SortableHeader({ column, sort, isSortable, onSort, headerCellProps, hov
     >
       <HStack spacing="1" justify={column.isNumeric ? "flex-end" : "flex-start"}>
         <Text as="span">{column.label}</Text>
-        {isSortable && <Icon as={icon} boxSize="14px" opacity={isActive ? 1 : 0.4} />}
+        {isSortable && <Icon as={icon} boxSize="13px" opacity={isActive ? 1 : 0.55} />}
       </HStack>
     </Th>
   );
@@ -311,9 +312,10 @@ export default function RateList() {
 
   const textColor = useColorModeValue("gray.700", "white");
   const borderColor = useColorModeValue("gray.200", "gray.700");
-  const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
+  const tableHeaderBg = useColorModeValue("gray.600", "gray.700");
   const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
-  const headerColor = useColorModeValue("gray.500", "gray.400");
+  const tableHeaderBorderColor = useColorModeValue("gray.500", "gray.600");
+  const headerColor = "white";
   const mutedTextColor = useColorModeValue("gray.500", "gray.400");
   const cardBg = useColorModeValue("white", "gray.800");
   const inputBg = useColorModeValue("white", "navy.900");
@@ -332,13 +334,13 @@ export default function RateList() {
   );
 
   const tableHeaderCellProps = {
-    py: 3,
-    px: 4,
+    py: "12px",
+    px: "8px",
     fontSize: "11px",
-    letterSpacing: "0.06em",
     color: headerColor,
     bg: tableHeaderBg,
-    borderColor: tableBorderColor,
+    borderRight: "1px",
+    borderColor: tableHeaderBorderColor,
     whiteSpace: "nowrap",
     textTransform: "uppercase",
     fontWeight: "600",
