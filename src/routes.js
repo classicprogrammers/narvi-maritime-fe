@@ -31,6 +31,7 @@ import {
   MdHistory,
   MdCloud,
   MdAccountBalance,
+  MdCategory,
 } from "react-icons/md";
 
 // Admin Imports
@@ -54,6 +55,7 @@ import RateList from "views/admin/quotations/rate-list";
 import RateListForm from "views/admin/quotations/RateListForm";
 import AgentTariffs from "views/admin/quotations/agent-tariffs";
 import ClientTariffs from "views/admin/quotations/client-tariffs";
+import ChargeCategories from "views/admin/quotations/ChargeCategories";
 import Invoice from "views/admin/quotations/Invoice";
 import ShippingOrder from "views/admin/shipping-order";
 import ShippingOrderEditPage from "views/admin/shipping-order/ShippingOrderEditPage";
@@ -185,6 +187,14 @@ const routes = [
           <Icon as={MdAttachMoney} width="20px" height="20px" color="inherit" />
         ),
         component: ClientTariffs,
+      },
+      {
+        name: "Charge Categories",
+        path: "/quotations/charge-categories",
+        icon: (
+          <Icon as={MdCategory} width="20px" height="20px" color="inherit" />
+        ),
+        component: ChargeCategories,
       },
       {
         name: "Invoice",

@@ -91,6 +91,7 @@ const DEFAULT_FILTERS = {
   import_group: "",
   active: "",
   incl_in_tariff: "",
+  charge_category_id: "",
 };
 
 const BOOLEAN_FILTER_OPTIONS = [
@@ -298,6 +299,7 @@ export default function RateList() {
   const pdfPreviewBlobUrlRef = useRef(null);
 
   const [filterOptions, setFilterOptions] = useState(EMPTY_FILTER_OPTIONS);
+  const [chargeCategoryOptions, setChargeCategoryOptions] = useState([]);
   const [isLoadingFilterOptions, setIsLoadingFilterOptions] = useState(false);
   const optionQueriesRef = useRef({ ...EMPTY_OPTION_QUERIES });
   const optionsRequestIdRef = useRef(0);
@@ -401,7 +403,8 @@ export default function RateList() {
     filters.rate_text ||
     filters.import_group ||
     filters.active ||
-    filters.incl_in_tariff
+    filters.incl_in_tariff ||
+    filters.charge_category_id
   );
   const hasAnyFilter = Boolean(search || hasAnyAdvanceFilter);
   // As in the stock list, fetch all is only available while a filter or search is applied.
@@ -436,6 +439,7 @@ export default function RateList() {
       client_id: intFilterToParam(filters.client_id),
       agent_id: intFilterToParam(filters.agent_id),
       currency_id: intFilterToParam(filters.currency_id),
+      charge_category_id: intFilterToParam(filters.charge_category_id),
       rate_text: filters.rate_text.trim() || undefined,
       import_group: filters.import_group.trim() || undefined,
       active: filters.active === "" ? undefined : filters.active === "true",
@@ -745,6 +749,9 @@ export default function RateList() {
         };
 
         setFilterOptions(nextOptions);
+        if (Array.isArray(result.charge_category_options)) {
+          setChargeCategoryOptions(normalizeIdNameOptions(result.charge_category_options));
+        }
         pinSelectedOptions(effectiveFilters, nextOptions);
       } catch (error) {
         if (requestId !== optionsRequestIdRef.current) return;
@@ -1385,6 +1392,19 @@ export default function RateList() {
                 isLoading={isLoadingFilterOptions}
                 onSearchChange={(query) => handleOptionSearchChange("q_currency", query)}
                 prefillOnFocus={false}
+                {...searchableSelectProps}
+              />
+            )}
+            {renderFilterField(
+              "Charge Category",
+              <SimpleSearchableSelect
+                value={filters.charge_category_id}
+                onChange={(value) => handleFilterChange("charge_category_id", value || "")}
+                options={chargeCategoryOptions}
+                placeholder="All Categories"
+                displayKey="name"
+                valueKey="id"
+                formatOption={(option) => option.name}
                 {...searchableSelectProps}
               />
             )}

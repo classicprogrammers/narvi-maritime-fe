@@ -623,7 +623,23 @@ export function rateTypeLabel(value) {
   return RATE_TYPE_OPTIONS.find((opt) => opt.id === value)?.label || value || "—";
 }
 
-export function isStandardCategory(category) {
+// Categories are managed records, so the API may return any number of sections. These are only the
+// defaults for the original codes (display label / collapsible) when the response doesn't say.
+const SECTION_DEFAULTS = Object.fromEntries(CHARGE_SECTIONS.map((meta) => [meta.key, meta]));
+
+function buildSectionMeta(key, found) {
+  const defaults = SECTION_DEFAULTS[key] || {};
+  return {
+    key,
+    label: found.label || found.name || defaults.label || key,
+    collapsible: defaults.collapsible ?? found.collapsible ?? false,
+    is_standard: found.is_standard,
+  };
+}
+
+/** `isStandard` (the category's "Counts as Standard" flag) wins; the code check is the legacy fallback. */
+export function isStandardCategory(category, isStandard) {
+  if (typeof isStandard === "boolean") return isStandard;
   return category === "standard" || category === "dob_standard";
 }
 
@@ -678,34 +694,30 @@ export function rateTypesForSelection(origin, agent) {
 
 export function sectionsFromRatesResponse(sections) {
   const list = Array.isArray(sections) ? sections : [];
-  const byKey = Object.fromEntries(list.filter((section) => section?.key).map((section) => [section.key, section]));
-  return CHARGE_SECTIONS.map((meta) => {
-    const found = byKey[meta.key] || {};
-    const rates = Array.isArray(found.rates) ? [...found.rates] : [];
-    rates.sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
-    return {
-      key: meta.key,
-      label: found.label || meta.label,
-      collapsible: meta.collapsible,
-      rates,
-    };
-  });
+  // Keep the order the API sends (category sequence) and render whatever sections come back.
+  return list
+    .filter((section) => section?.key)
+    .map((found) => {
+      const rates = Array.isArray(found.rates) ? [...found.rates] : [];
+      rates.sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
+      return { ...buildSectionMeta(found.key, found), rates };
+    });
 }
 
 export function detailSections(sections) {
-  const list = Array.isArray(sections) ? sections : null;
-  const source = sections && typeof sections === "object" && !Array.isArray(sections) ? sections : {};
-  return CHARGE_SECTIONS.map((meta) => {
-    const found = list ? list.find((section) => section.key === meta.key) || {} : source[meta.key] || {};
-    const lines = Array.isArray(found.lines) ? [...found.lines] : [];
-    lines.sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
-    return {
-      key: meta.key,
-      label: found.label || meta.label,
-      collapsible: meta.collapsible,
-      lines,
-    };
-  });
+  // Sections arrive as a list, or (older shape) an object keyed by category code.
+  const list = Array.isArray(sections)
+    ? sections
+    : sections && typeof sections === "object"
+      ? Object.entries(sections).map(([key, value]) => ({ ...value, key: value?.key || key }))
+      : [];
+  return list
+    .filter((section) => section?.key)
+    .map((found) => {
+      const lines = Array.isArray(found.lines) ? [...found.lines] : [];
+      lines.sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
+      return { ...buildSectionMeta(found.key, found), lines };
+    });
 }
 
 export function initialRateSelection(sections) {
@@ -732,7 +744,7 @@ export function previewScenarioTotals(scenario) {
       selectedTotal += amount;
       if (rate.currency) selectedCurrencies.push(rate.currency);
       const category = rate.charge_category || section.key;
-      if (isStandardCategory(category)) {
+      if (isStandardCategory(category, rate.is_standard ?? section.is_standard)) {
         standard += amount;
         if (rate.currency) standardCurrencies.push(rate.currency);
       }

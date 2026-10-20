@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { downloadSheetAsExcel } from "./rateListExcel";
 import narviLetterheadPrint from "../../../assets/letterHead/NarviLetterhead.jpeg";
 import { apiString, detailSections, isLineSelected, lineDisplayName, m2oName, quotationReference, quotationVesselName } from "./quotationUtils";
 
@@ -227,8 +228,29 @@ export async function buildQuotationReportPdf(model) {
   cursorY += 10;
   doc.setFont("helvetica", "normal");
 
+  const bold = { fontStyle: "bold" };
+  const rowToPdf = (row) => {
+    // Grouped quotations add heading and subtotal rows; plain rows have no `type`.
+    if (row.type === "scenario") {
+      return [{ content: row.label, colSpan: 4, styles: { ...bold, fillColor: [226, 232, 240] } }];
+    }
+    if (row.type === "category") {
+      return [{ content: row.label, colSpan: 4, styles: { ...bold, fillColor: [243, 244, 246] } }];
+    }
+    if (row.type === "subtotal" || row.type === "scenarioTotal") {
+      const styles = row.type === "scenarioTotal" ? { ...bold, fillColor: [226, 232, 240] } : bold;
+      return [
+        { content: row.label, styles },
+        { content: row.currency, styles: { ...styles, halign: "center" } },
+        { content: row.amount, styles: { ...styles, halign: "right" } },
+        { content: "", styles },
+      ];
+    }
+    return [row.rateName, row.currency, row.amount, row.remark];
+  };
+
   const tableBody = [
-    ...model.rows.map((row) => [row.rateName, row.currency, row.amount, row.remark]),
+    ...model.rows.map(rowToPdf),
     [
       { content: "Quotation total", styles: { fontStyle: "bold" } },
       { content: model.totalCurrency, styles: { fontStyle: "bold", halign: "center" } },
@@ -306,22 +328,135 @@ export function getQuotationReportPdfFilename(model) {
   return `quotation-${idPart || "report"}-${dateTag}.pdf`;
 }
 
-export async function downloadQuotationPdf(quotation) {
+function lineAmount(line) {
+  const n = Number(line?.rate_to_client);
+  return Number.isNaN(n) ? 0 : n;
+}
+
+function scenarioLabelOf(scenario, index) {
+  return scenario?.origin || scenario?.name || `Scenario ${index + 1}`;
+}
+
+/** Scenario → category (in sequence order) → selected lines, each level with its subtotal. */
+export function buildGroupedQuotationRows(quotation) {
   const rows = [];
-  (quotation?.scenarios || []).forEach((scenario) => {
-    const scenarioLabel = scenario?.origin || scenario?.name || "Scenario";
+  (quotation?.scenarios || []).forEach((scenario, index) => {
+    const scenarioLabel = scenarioLabelOf(scenario, index);
+    rows.push({ type: "scenario", label: scenarioLabel });
+
+    let scenarioSum = 0;
     detailSections(scenario.sections).forEach((section) => {
-      section.lines.forEach((line) => {
-        if (!isLineSelected(line)) return;
+      const selected = section.lines.filter(isLineSelected);
+      if (!selected.length) return;
+
+      rows.push({ type: "category", label: section.label });
+      let sectionSum = 0;
+      selected.forEach((line) => {
+        sectionSum += lineAmount(line);
         rows.push({
-          rateName: `${scenarioLabel} — ${lineDisplayName(line)}`,
+          type: "line",
+          rateName: lineDisplayName(line),
           currency: "USD",
           amount: formatReportAmount(line.rate_to_client),
           remark: apiString(line.remark) || apiString(line.free_text),
         });
       });
+      scenarioSum += sectionSum;
+      rows.push({
+        type: "subtotal",
+        label: `Subtotal ${section.label}`,
+        currency: "USD",
+        amount: formatReportAmount(sectionSum),
+      });
+    });
+
+    const apiSubtotal = Number(scenario?.subtotal_selected_usd);
+    rows.push({
+      type: "scenarioTotal",
+      label: `${scenarioLabel} subtotal`,
+      currency: "USD",
+      amount: formatReportAmount(Number.isNaN(apiSubtotal) || scenario?.subtotal_selected_usd == null ? scenarioSum : apiSubtotal),
     });
   });
+  return rows;
+}
+
+/** Short email text: one subtotal per scenario and the grand total, no individual charges. */
+export function buildQuotationSummary(quotation) {
+  const scenarios = (quotation?.scenarios || []).map((scenario, index) => {
+    const selectedSum = detailSections(scenario.sections)
+      .flatMap((section) => section.lines.filter(isLineSelected))
+      .reduce((sum, line) => sum + lineAmount(line), 0);
+    const apiSubtotal = scenario?.subtotal_selected_usd;
+    const value = apiSubtotal == null || Number.isNaN(Number(apiSubtotal)) ? selectedSum : Number(apiSubtotal);
+    return { label: scenarioLabelOf(scenario, index), amount: formatReportAmount(value) };
+  });
+  return {
+    reference: quotationReference(quotation),
+    clientName: quotation?.client_name || m2oName(quotation?.client_id, ""),
+    vesselName: quotationVesselName(quotation),
+    scenarios,
+    total: formatReportAmount(quotation?.totals?.grand_total_usd),
+    currency: "USD",
+  };
+}
+
+export function buildQuotationSummaryText(summary) {
+  return [
+    `Client: ${summary.clientName}`,
+    `Vessel: ${summary.vesselName}`,
+    "",
+    ...summary.scenarios.map((s) => `${s.label}\t${summary.currency}\t${s.amount}`),
+    `Total\t${summary.currency}\t${summary.total}`,
+  ].join("\n");
+}
+
+export function buildQuotationSummaryHtml(summary) {
+  const cell = "padding:6px 8px;border:1px solid #b4b4b4;";
+  const rowHtml = summary.scenarios
+    .map(
+      (s) => `<tr>
+        <td style="${cell}">${escapeHtml(s.label)}</td>
+        <td style="${cell}text-align:center;white-space:nowrap;">${escapeHtml(summary.currency)}</td>
+        <td style="${cell}text-align:right;white-space:nowrap;">${escapeHtml(s.amount)}</td>
+      </tr>`
+    )
+    .join("");
+  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#111;">
+    <p style="margin:0 0 4px;"><b>Client:</b> ${escapeHtml(summary.clientName)}</p>
+    <p style="margin:0 0 10px;"><b>Vessel:</b> ${escapeHtml(summary.vesselName)}</p>
+    <table style="border-collapse:collapse;width:100%;max-width:700px;">
+      <tbody>
+        ${rowHtml}
+        <tr>
+          <td style="${cell}font-weight:bold;">Total</td>
+          <td style="${cell}text-align:center;font-weight:bold;">${escapeHtml(summary.currency)}</td>
+          <td style="${cell}text-align:right;font-weight:bold;">${escapeHtml(summary.total)}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>`;
+}
+
+export function downloadQuotationExcel(quotation) {
+  const reference = quotationReference(quotation);
+  const rows = buildGroupedQuotationRows(quotation).map((row) => {
+    if (row.type === "scenario" || row.type === "category") return [row.label, "", "", ""];
+    if (row.type === "subtotal" || row.type === "scenarioTotal") return [row.label, row.currency, row.amount, ""];
+    return [row.rateName, row.currency, row.amount, row.remark];
+  });
+  rows.push(["Total", "USD", formatReportAmount(quotation?.totals?.grand_total_usd), ""]);
+  downloadSheetAsExcel({
+    headers: ["Charge", "Currency", "Amount", "Remark"],
+    rows,
+    filePrefix: `quotation-${String(reference || "report").replace(/[^\w.-]+/g, "-")}`,
+    sheetName: "Quotation",
+    colWidths: [50, 10, 16, 40],
+  });
+}
+
+export async function downloadQuotationPdf(quotation) {
+  const rows = buildGroupedQuotationRows(quotation);
 
   const reference = quotationReference(quotation);
   const model = {

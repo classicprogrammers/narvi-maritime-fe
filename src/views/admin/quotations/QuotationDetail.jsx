@@ -33,7 +33,14 @@ import QuotationStateBadge from "./QuotationStateBadge";
 import QuotationTotalsBar from "./QuotationTotalsBar";
 import RevisionTimeline from "./RevisionTimeline";
 import ScenarioCard from "./ScenarioCard";
-import { downloadQuotationPdf } from "./quotationReport";
+import {
+  buildQuotationSummary,
+  buildQuotationSummaryHtml,
+  buildQuotationSummaryText,
+  copyQuotationReportToClipboard,
+  downloadQuotationExcel,
+  downloadQuotationPdf,
+} from "./quotationReport";
 import {
   apiString,
   draftToLinePayload,
@@ -345,6 +352,36 @@ export default function QuotationDetail() {
                 </Button>
               ) : null}
               <CopyTextButton quotationId={quotation.id} />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    const summary = buildQuotationSummary(quotation);
+                    await copyQuotationReportToClipboard(
+                      buildQuotationSummaryHtml(summary),
+                      buildQuotationSummaryText(summary)
+                    );
+                    toast({
+                      title: "Summary copied",
+                      description: "Scenario subtotals and the total are ready to paste into an email.",
+                      status: "success",
+                      duration: 3000,
+                      isClosable: true,
+                    });
+                  } catch (error) {
+                    toast({
+                      title: "Copy failed",
+                      description: "Could not copy the summary.",
+                      status: "error",
+                      duration: 3000,
+                      isClosable: true,
+                    });
+                  }
+                }}
+              >
+                Copy summary
+              </Button>
               {hasRevisions ? (
                 <Button size="sm" variant="outline" onClick={openVersions}>
                   View versions
@@ -372,6 +409,25 @@ export default function QuotationDetail() {
                 }}
               >
                 PDF
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  try {
+                    downloadQuotationExcel(quotation);
+                  } catch (error) {
+                    toast({
+                      title: "Excel failed",
+                      description: "Could not generate the quotation Excel file.",
+                      status: "error",
+                      duration: 3000,
+                      isClosable: true,
+                    });
+                  }
+                }}
+              >
+                Excel
               </Button>
             </Flex>
           </Flex>

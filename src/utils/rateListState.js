@@ -19,6 +19,7 @@ export const defaultRateListState = {
     import_group: "",
     active: "",
     incl_in_tariff: "",
+    charge_category_id: "",
   },
   page: 1,
   sort: { ...RATE_LIST_DEFAULT_SORT },
@@ -71,6 +72,7 @@ export function buildRateListFilterSnapshot(state = {}) {
         typeof state.filters?.incl_in_tariff === "string"
           ? state.filters.incl_in_tariff
           : defaultFilters.incl_in_tariff,
+      charge_category_id: state.filters?.charge_category_id ?? defaultFilters.charge_category_id,
     },
     page: typeof state.page === "number" && state.page >= 1 ? state.page : 1,
     sort: normalizeRateListSort(state.sort),

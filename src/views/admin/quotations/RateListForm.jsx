@@ -42,12 +42,11 @@ import Card from "components/card/Card";
 import { CellWithAssignMenu } from "components/forms/AssignToRowsBelowMenu";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import { createRateListApi, deleteRateListApi, updateRateListApi } from "../../../api/rate";
+import { getAllChargeCategoriesApi } from "../../../api/chargeCategory";
 import { useMasterData } from "../../../hooks/useMasterData";
 import {
-  CHARGE_CATEGORY_OPTIONS,
   buildRateCreatePayload,
   buildRateUpdateLine,
-  chargeCategoryLabel,
   DEFAULT_RATE_FORM_ROW,
   mapRateItemToFormRow,
   toDateInputValue,
@@ -89,7 +88,7 @@ const FORM_SORT_COLUMNS = [
   { label: "Agent", sortKey: "agent_id", type: "agent" },
   { label: "Rate Name", sortKey: "rate_name", type: "text" },
   { label: "Rate Text", sortKey: "rate_text", type: "text" },
-  { label: "Charge Category", sortKey: "charge_category", type: "charge_category" },
+  { label: "Charge Category", sortKey: "charge_category_id", type: "charge_category" },
   { label: "Rate Cost", sortKey: "rate_float", type: "number" },
   { label: "Rate Fixed", sortKey: "fixed_sales_rate", type: "number" },
   { label: "Rate Calculation", sortKey: "rate_calculation", type: "text" },
@@ -126,7 +125,11 @@ function getRowSortValue(row, oldIndex, column, ctx) {
     return RATE_TYPE_OPTIONS.find((option) => option.id === row.rate_type)?.name || row.rate_type || "";
   }
   if (type === "charge_category") {
-    return chargeCategoryLabel(row.charge_category);
+    // Categories sort by their configured sequence, which is the order of the fetched list.
+    const position = (ctx.chargeCategories || []).findIndex(
+      (option) => String(option.id) === String(row.charge_category_id)
+    );
+    return position === -1 ? "" : position;
   }
   if (type === "boolean") {
     return row[sortKey] ? 1 : 0;
@@ -320,6 +323,8 @@ export default function RateListForm() {
   const [clientOptionPins, setClientOptionPins] = useState({});
   const [currencyOptionPins, setCurrencyOptionPins] = useState({});
   const [sort, setSort] = useState({ sortKey: null, sortOrder: null });
+  const [chargeCategories, setChargeCategories] = useState([]);
+  const [isLoadingChargeCategories, setIsLoadingChargeCategories] = useState(true);
   const [saving, setSaving] = useState(false);
   const [rateToDelete, setRateToDelete] = useState(null);
   const [isDeletingRate, setIsDeletingRate] = useState(false);
@@ -488,6 +493,46 @@ export default function RateListForm() {
       ...labelRules,
     };
   }, [cardBg, isEditing, tableBorderColor]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getAllChargeCategoriesApi()
+      .then((list) => {
+        if (!cancelled) setChargeCategories(list);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        toast({
+          title: "Could not load charge categories",
+          description: error?.message || "Please try again.",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingChargeCategories(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // New rows default to Standard (else the first category) once the categories are known.
+  useEffect(() => {
+    if (!chargeCategories.length) return;
+    const standard =
+      chargeCategories.find((category) => category.code === "standard") || chargeCategories[0];
+    setFormRows((prev) => {
+      if (!prev.some((row) => !row.id && !row.charge_category_id)) return prev;
+      return prev.map((row) =>
+        !row.id && !row.charge_category_id
+          ? { ...row, charge_category_id: standard.id, charge_category_label: standard.name }
+          : row
+      );
+    });
+  }, [chargeCategories, formRows]);
 
   useEffect(() => {
     if (initializedForKeyRef.current === location.key) return;
@@ -682,6 +727,7 @@ export default function RateListForm() {
       clients,
       currencies,
       agents,
+      chargeCategories,
     };
 
     const indexed = formRows.map((row, oldIndex) => ({ row, oldIndex }));
@@ -1257,17 +1303,22 @@ export default function RateListForm() {
                     <Td {...tdProps}>
                       {assignCell(
                         index,
-                        "charge_category",
+                        "charge_category_id",
                         <Box minW="160px">
                           <Select
-                            value={row.charge_category || "standard"}
-                            onChange={(e) => updateRow(index, "charge_category", e.target.value)}
+                            value={row.charge_category_id ?? ""}
+                            onChange={(e) => updateRow(index, "charge_category_id", e.target.value)}
                             {...cellInputProps}
                             w="100%"
                           >
-                            {CHARGE_CATEGORY_OPTIONS.map((option) => (
+                            {!chargeCategories.some((option) => String(option.id) === String(row.charge_category_id)) && (
+                              <option value={row.charge_category_id ?? ""}>
+                                {row.charge_category_label || (isLoadingChargeCategories ? "Loading..." : "Select category")}
+                              </option>
+                            )}
+                            {chargeCategories.map((option) => (
                               <option key={option.id} value={option.id}>
-                                {option.label}
+                                {option.name}
                               </option>
                             ))}
                           </Select>

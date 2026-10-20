@@ -20,11 +20,13 @@ import {
   Textarea,
   Tooltip,
   useColorModeValue,
+  useDisclosure,
   useToast,
 } from "@chakra-ui/react";
 import {
   MdArrowDropDown,
   MdClear,
+  MdContentCopy,
   MdDownload,
   MdPictureAsPdf,
   MdRefresh,
@@ -37,6 +39,7 @@ import {
   withFetchAll,
 } from "../../../api/rate";
 import { getAgentByIdQueryApi } from "../../../api/vendor";
+import CopyTariffModal from "./CopyTariffModal";
 import FetchAllSwitch from "./FetchAllSwitch";
 import TariffTable from "./TariffTable";
 import useTariffOptions from "./useTariffOptions";
@@ -95,6 +98,7 @@ async function loadConsigneeText(agentId) {
 export default function ClientTariffs() {
   const toast = useToast();
   const { openPdf, pdfPreviewModal } = usePdfPreview();
+  const copyModal = useDisclosure();
 
   const textColor = useColorModeValue("gray.700", "white");
   const borderColor = useColorModeValue("gray.200", "gray.700");
@@ -228,6 +232,22 @@ export default function ClientTariffs() {
     return parts.join(" · ");
   }, [options.clients, options.agents, filters, pins]);
 
+  const sourceClient = useMemo(
+    () => options.clients.find((o) => String(o.id) === String(filters.client_id)) || pins.client_id || null,
+    [options.clients, filters.client_id, pins.client_id]
+  );
+
+  // After copying, show the new client's tariff so it can be adjusted straight away.
+  const handleCopied = (client) => {
+    if (client) {
+      setFilters((prev) => ({ ...prev, client_id: String(client.id) }));
+      setPins((prev) => ({ ...prev, client_id: client }));
+      setPage(1);
+    } else {
+      loadData();
+    }
+  };
+
   const handleExportExcel = useCallback(async () => {
     setIsExcelLoading(true);
     try {
@@ -236,7 +256,11 @@ export default function ClientTariffs() {
         toast({ title: "No tariffs to export", status: "info", duration: 3000, isClosable: true });
         return;
       }
-      const remarksRows = remarks.trim() ? [[], ["Remarks", remarks.trim()]] : [];
+      const consignee = await loadConsigneeText(filters.agent_id);
+      const remarksRows = [
+        ...(consignee ? [[], ...consignee.split(/\r?\n/).map((line) => [line])] : []),
+        ...(remarks.trim() ? [[], ["Remarks", remarks.trim()]] : []),
+      ];
       downloadSheetAsExcel({
         headers: COLUMNS.map((column) => column.label),
         rows: [...toTableRows(COLUMNS, all), ...remarksRows],
@@ -262,7 +286,7 @@ export default function ClientTariffs() {
     } finally {
       setIsExcelLoading(false);
     }
-  }, [fetchAllRows, remarks, toast]);
+  }, [fetchAllRows, filters.agent_id, remarks, toast]);
 
   const handleExportPdf = useCallback(async (grouped) => {
     setIsPdfLoading(true);
@@ -363,6 +387,20 @@ export default function ClientTariffs() {
               Clear Filters
             </Button>
           )}
+          <Tooltip
+            label={filters.client_id ? "Copy this client's tariff to another client" : "Select a client first"}
+            hasArrow
+          >
+            <Button
+              size="sm"
+              variant="outline"
+              leftIcon={<Icon as={MdContentCopy} />}
+              onClick={copyModal.onOpen}
+              isDisabled={!filters.client_id || meta.totalCount === 0}
+            >
+              Copy Tariff
+            </Button>
+          </Tooltip>
           <Menu>
             <MenuButton
               as={Button}
@@ -491,6 +529,13 @@ export default function ClientTariffs() {
         onPageChange={setPage}
       />
 
+      <CopyTariffModal
+        isOpen={copyModal.isOpen}
+        onClose={copyModal.onClose}
+        sourceClient={sourceClient}
+        filterParams={filterParams}
+        onCopied={handleCopied}
+      />
       {pdfPreviewModal}
     </Box>
   );
