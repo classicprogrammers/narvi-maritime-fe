@@ -31,6 +31,7 @@ import {
   MdArrowDownward,
   MdArrowUpward,
   MdChevronLeft,
+  MdContentCopy,
   MdDelete,
   MdSave,
   MdTableChart,
@@ -87,6 +88,7 @@ const FORM_SORT_COLUMNS = [
   { label: "Location Text", sortKey: "location_text", type: "text" },
   { label: "Agent", sortKey: "agent_id", type: "agent" },
   { label: "Rate Name", sortKey: "rate_name", type: "text" },
+  { label: "Rate Text", sortKey: "rate_text", type: "text" },
   { label: "Charge Category", sortKey: "charge_category", type: "charge_category" },
   { label: "Rate Cost", sortKey: "rate_float", type: "number" },
   { label: "Rate Fixed", sortKey: "fixed_sales_rate", type: "number" },
@@ -97,7 +99,6 @@ const FORM_SORT_COLUMNS = [
   { label: "Group Name", sortKey: "import_group", type: "text" },
   { label: "In Tariff", sortKey: "incl_in_tariff", type: "boolean" },
   { label: "Active", sortKey: "active", type: "boolean" },
-  { label: "Rate Text", sortKey: "rate_text", type: "text" },
   { label: "Remarks", sortKey: "remarks", type: "text" },
 ];
 
@@ -237,6 +238,13 @@ function getAutoHtmlSize(value, placeholder = "", opts = {}) {
   return Math.min(max, Math.max(min, desired));
 }
 
+// Rows needed to show the whole text at the given column width (wrapped lines + explicit newlines).
+function getAutoRows(value, cols, minRows = 2) {
+  const lines = String(value ?? "").split(/\r?\n/);
+  const wrapped = lines.reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / cols)), 0);
+  return Math.max(minRows, wrapped);
+}
+
 function getAutoCols(value, placeholder = "", opts = {}) {
   const { min = 18, max = 50, padding = 2 } = opts;
   const text = String(value ?? "");
@@ -279,6 +287,18 @@ function removeIndexFromPins(pins, removedIndex) {
     if (index < removedIndex) next[index] = value;
     else if (index > removedIndex) next[index - 1] = value;
   });
+  return next;
+}
+
+function duplicateIndexInPins(pins, sourceIndex) {
+  const next = {};
+  Object.entries(pins).forEach(([key, value]) => {
+    const index = Number(key);
+    next[index > sourceIndex ? index + 1 : index] = value;
+  });
+  if (Object.prototype.hasOwnProperty.call(pins, sourceIndex)) {
+    next[sourceIndex + 1] = pins[sourceIndex];
+  }
   return next;
 }
 
@@ -739,6 +759,28 @@ export default function RateListForm() {
     }
   };
 
+  // Copies a row as a new, unsaved rate inserted right after the source row.
+  const handleCopyRow = (index) => {
+    const source = formRows[index];
+    if (!source) return;
+    const { id, rate_id, _key, ...fields } = source;
+    const copy = {
+      ...createEmptyRow(),
+      ...fields,
+      id: undefined,
+      rate_id: "",
+      _order: (Number(source._order) || 0) + 0.5,
+    };
+    setFormRows((prev) => {
+      const next = [...prev];
+      next.splice(index + 1, 0, copy);
+      return next;
+    });
+    setAgentOptionPins((prev) => duplicateIndexInPins(prev, index));
+    setClientOptionPins((prev) => duplicateIndexInPins(prev, index));
+    setCurrencyOptionPins((prev) => duplicateIndexInPins(prev, index));
+  };
+
   const handleRemoveNewRow = (index) => {
     if (formRows.length <= 1 || formRows[index]?.id) return;
     setFormRows((prev) => prev.filter((_, rowIndex) => rowIndex !== index));
@@ -1054,20 +1096,32 @@ export default function RateListForm() {
                             {`Item ${index + 1}${formRows.length > 1 ? ` of ${formRows.length}` : ""}`}
                             {row.rate_id ? ` · ${row.rate_id}` : row.rate_name ? ` · ${row.rate_name}` : ""}
                           </Text>
-                          <IconButton
-                            icon={<Icon as={MdDelete} />}
-                            size="sm"
-                            colorScheme="red"
-                            variant="ghost"
-                            aria-label={row.id ? "Delete rate" : "Delete row"}
-                            title={row.id ? "Delete this rate permanently" : "Delete row"}
-                            onClick={() =>
-                              row.id
-                                ? setRateToDelete({ id: row.id, label: row.rate_id || row.rate_name })
-                                : handleRemoveNewRow(index)
-                            }
-                            isDisabled={formRows.length === 1 || saving}
-                          />
+                          <HStack spacing="2">
+                            <IconButton
+                              icon={<Icon as={MdContentCopy} />}
+                              size="sm"
+                              colorScheme="green"
+                              variant="ghost"
+                              aria-label="Copy row"
+                              title="Copy/Repeat row"
+                              onClick={() => handleCopyRow(index)}
+                              isDisabled={saving}
+                            />
+                            <IconButton
+                              icon={<Icon as={MdDelete} />}
+                              size="sm"
+                              colorScheme="red"
+                              variant="ghost"
+                              aria-label={row.id ? "Delete rate" : "Delete row"}
+                              title={row.id ? "Delete this rate permanently" : "Delete row"}
+                              onClick={() =>
+                                row.id
+                                  ? setRateToDelete({ id: row.id, label: row.rate_id || row.rate_name })
+                                  : handleRemoveNewRow(index)
+                              }
+                              isDisabled={formRows.length === 1 || saving}
+                            />
+                          </HStack>
                         </Flex>
                       </Td>
                     )}
@@ -1165,16 +1219,39 @@ export default function RateListForm() {
                         />
                       )}
                     </Td>
-                    <Td {...tdProps}>
+                    <Td {...tdProps} whiteSpace="normal">
                       {assignCell(
                         index,
                         "rate_name",
-                        <Input
+                        <Textarea
                           value={row.rate_name}
                           onChange={(e) => updateRow(index, "rate_name", e.target.value)}
+                          rows={getAutoRows(row.rate_name, getAutoCols(row.rate_name, "Rate Name"))}
                           {...cellInputProps}
-                          htmlSize={getAutoHtmlSize(row.rate_name, "Rate Name")}
-                        />
+                          minW="0"
+                          maxW="100%"
+                          w="auto"
+                          resize="vertical"
+                          cols={getAutoCols(row.rate_name, "Rate Name")}
+                        />,
+                        "flex-start"
+                      )}
+                    </Td>
+                    <Td {...tdProps} whiteSpace="normal">
+                      {assignCell(
+                        index,
+                        "rate_text",
+                        <Textarea
+                          value={row.rate_text}
+                          onChange={(e) => updateRow(index, "rate_text", e.target.value)}
+                          rows={2}
+                          {...cellInputProps}
+                          minW="0"
+                          maxW="100%"
+                          w="auto"
+                          cols={getAutoCols(row.rate_text, "Rate Text")}
+                        />,
+                        "flex-start"
                       )}
                     </Td>
                     <Td {...tdProps}>
@@ -1322,23 +1399,6 @@ export default function RateListForm() {
                     <Td {...tdProps} whiteSpace="normal">
                       {assignCell(
                         index,
-                        "rate_text",
-                        <Textarea
-                          value={row.rate_text}
-                          onChange={(e) => updateRow(index, "rate_text", e.target.value)}
-                          rows={2}
-                          {...cellInputProps}
-                          minW={FIELD_MIN_W}
-                          maxW={FIELD_MAX_W}
-                          w="auto"
-                          cols={getAutoCols(row.rate_text, "Rate Text")}
-                        />,
-                        "flex-start"
-                      )}
-                    </Td>
-                    <Td {...tdProps} whiteSpace="normal">
-                      {assignCell(
-                        index,
                         "remarks",
                         <Textarea
                           value={row.remarks}
@@ -1354,18 +1414,30 @@ export default function RateListForm() {
                       )}
                     </Td>
                     <Td {...tdProps} minW="90px">
-                      <IconButton
-                        icon={<Icon as={MdDelete} />}
-                        size="sm"
-                        colorScheme="red"
-                        variant="ghost"
-                        aria-label={row.id ? "Delete rate" : "Delete row"}
-                        title={row.id ? "Delete this rate permanently" : "Delete row"}
-                        onClick={() =>
-                          row.id ? setRateToDelete({ id: row.id, label: row.rate_id || row.rate_name }) : handleRemoveNewRow(index)
-                        }
-                        isDisabled={formRows.length === 1 || saving}
-                      />
+                      <HStack spacing="2">
+                        <IconButton
+                          icon={<Icon as={MdContentCopy} />}
+                          size="sm"
+                          colorScheme="green"
+                          variant="ghost"
+                          aria-label="Copy row"
+                          title="Copy/Repeat row"
+                          onClick={() => handleCopyRow(index)}
+                          isDisabled={saving}
+                        />
+                        <IconButton
+                          icon={<Icon as={MdDelete} />}
+                          size="sm"
+                          colorScheme="red"
+                          variant="ghost"
+                          aria-label={row.id ? "Delete rate" : "Delete row"}
+                          title={row.id ? "Delete this rate permanently" : "Delete row"}
+                          onClick={() =>
+                            row.id ? setRateToDelete({ id: row.id, label: row.rate_id || row.rate_name }) : handleRemoveNewRow(index)
+                          }
+                          isDisabled={formRows.length === 1 || saving}
+                        />
+                      </HStack>
                     </Td>
                   </Tr>
                 ))}

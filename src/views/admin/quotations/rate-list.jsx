@@ -233,6 +233,7 @@ const STICKY_ACTIONS_WIDTH = "104px";
 /** Sort keys sent as sort_by to GET /api/rate/list for each sortable table column. */
 const RATE_LIST_COLUMNS = [
   { label: "Group Name", sortKey: "import_group", minW: "150px" },
+  { label: "Sort Order", sortKey: "sort_order", minW: "110px" },
   { label: "Rate Name", sortKey: "rate_name", minW: "240px" },
   { label: "Rate Text", sortKey: "rate_text", minW: "280px" },
   { label: "Charge Category", sortKey: "charge_category", aliases: ["charge_category_label"], minW: "160px" },
@@ -1626,7 +1627,8 @@ export default function RateList() {
                           </HStack>
                         </Td>
                         <RateCell value={item.import_group} cellProps={tableCellProps} />
-                        <RateCell value={item.rate_name} cellProps={tableCellProps} fontWeight="600" />
+                        <RateCell value={displayText(item.sort_order)} cellProps={tableCellProps} />
+                        <RateCell value={item.rate_name}cellProps={tableCellProps} fontWeight="600" />
                         <RateCell value={displayText(item.rate_text)} cellProps={tableCellProps} noOfLines={3} />
                         <RateCell
                           value={chargeCategoryLabel(item.charge_category, item.charge_category_label)}
