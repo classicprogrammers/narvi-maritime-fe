@@ -316,6 +316,8 @@ export default function RateList() {
   const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
   const tableHeaderBorderColor = useColorModeValue("gray.500", "gray.600");
   const headerColor = "white";
+  const panelBg = useColorModeValue("gray.50", "gray.700");
+  const panelLabelColor = useColorModeValue("gray.500", "gray.400");
   const mutedTextColor = useColorModeValue("gray.500", "gray.400");
   const cardBg = useColorModeValue("white", "gray.800");
   const inputBg = useColorModeValue("white", "navy.900");
@@ -1220,7 +1222,7 @@ export default function RateList() {
             <Text
               fontSize="xs"
               fontWeight="600"
-              color={headerColor}
+              color={panelLabelColor}
               textTransform="uppercase"
               letterSpacing="0.06em"
             >
@@ -1275,7 +1277,7 @@ export default function RateList() {
             columns={{ base: 1, md: 2, lg: 3, xl: 5 }}
             spacing="4"
             p="4"
-            bg={tableHeaderBg}
+            bg={panelBg}
             borderRadius="md"
             border="1px"
             borderColor={borderColor}
@@ -1424,7 +1426,7 @@ export default function RateList() {
           justify="space-between"
           flexWrap="wrap"
           gap="3"
-          bg={selectedCount > 0 ? selectionBarBg : tableHeaderBg}
+          bg={selectedCount > 0 ? selectionBarBg : panelBg}
           border="1px"
           borderColor={selectedCount > 0 ? selectionBarBorder : borderColor}
           borderRadius="md"
