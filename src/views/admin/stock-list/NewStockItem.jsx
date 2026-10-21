@@ -1327,6 +1327,9 @@ export default function StockForm() {
                 volume_dim: dim.volume_dim || "",
                 volume_cbm: dim.volume_cbm || "",
                 cw_air_freight: dim.cw_air_freight || "",
+                cw_courier: dim.cw_courier || "",
+                cw_road: dim.cw_road || "",
+                cw_lcl: dim.cw_lcl || "",
                 weight_kg: dim.weight_kg || "",
             })) : [],
         };
@@ -4050,25 +4053,6 @@ export default function StockForm() {
                                             </Text>
                                         </FormControl>
                                         <FormControl flex="1" minW="150px">
-                                            <FormLabel fontSize="sm">CW Air Freight</FormLabel>
-                                            <NumberInput
-                                                value={dim.cw_air_freight || ""}
-                                                onChange={(value) => {
-                                                    const updated = [...dimensionsList];
-                                                    updated[index] = {
-                                                        ...updated[index],
-                                                        cw_air_freight: value,
-                                                    };
-                                                    setDimensionsList(updated);
-                                                }}
-                                                min={0}
-                                                precision={2}
-                                                size="sm"
-                                            >
-                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                            </NumberInput>
-                                        </FormControl>
-                                        <FormControl flex="1" minW="150px">
                                             <FormLabel fontSize="sm">Weight (kg)</FormLabel>
                                             <NumberInput
                                                 value={dim.weight_kg || ""}
@@ -4088,6 +4072,37 @@ export default function StockForm() {
                                             </NumberInput>
                                         </FormControl>
                                     </Flex>
+                                    <Box mt={3} p={3} borderRadius="md" border="1px" borderColor={borderColor}>
+                                        <Text fontSize="xs" fontWeight="bold" textTransform="uppercase" color="gray.500" mb={2}>
+                                            Chargeable Weight (kg) - calculated on save
+                                        </Text>
+                                        <Flex gap={3} wrap="wrap">
+                                            <Box w="calc(50% - 6px)">
+                                                <Text fontSize="xs" color="gray.500" mb={0.5}>Air Freight</Text>
+                                                <Text fontSize="md" fontWeight="semibold" color={inputText}>
+                                                    {dim.cw_air_freight || "-"}
+                                                </Text>
+                                            </Box>
+                                            <Box w="calc(50% - 6px)">
+                                                <Text fontSize="xs" color="gray.500" mb={0.5}>Courier</Text>
+                                                <Text fontSize="md" fontWeight="semibold" color={inputText}>
+                                                    {dim.cw_courier || "-"}
+                                                </Text>
+                                            </Box>
+                                            <Box w="calc(50% - 6px)">
+                                                <Text fontSize="xs" color="gray.500" mb={0.5}>Road</Text>
+                                                <Text fontSize="md" fontWeight="semibold" color={inputText}>
+                                                    {dim.cw_road || "-"}
+                                                </Text>
+                                            </Box>
+                                            <Box w="calc(50% - 6px)">
+                                                <Text fontSize="xs" color="gray.500" mb={0.5}>LCL Ocean</Text>
+                                                <Text fontSize="md" fontWeight="semibold" color={inputText}>
+                                                    {dim.cw_lcl || "-"}
+                                                </Text>
+                                            </Box>
+                                        </Flex>
+                                    </Box>
                                 </Box>
                             ))}
                             <Button

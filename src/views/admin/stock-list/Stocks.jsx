@@ -785,11 +785,17 @@ export default function Stocks({ variant = "stocks" } = {}) {
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
     const [selectedDimensions, setSelectedDimensions] = useState([]);
+    const [selectedDimensionTotals, setSelectedDimensionTotals] = useState({});
     const [stockReportHistoryContext, setStockReportHistoryContext] = useState(null);
     const { openGallery, galleryModal } = useStockAttachmentsGallery();
     const onPreviewAll = useEventCallback(openGallery);
     const onOpenDimensions = useEventCallback((item) => {
         setSelectedDimensions(item.dimensions || []);
+        setSelectedDimensionTotals({
+            courier: item.total_cw_courier,
+            road: item.total_cw_road,
+            lcl: item.total_cw_lcl,
+        });
         onDimensionsModalOpen();
     });
     const onOpenPreviousReports = useEventCallback((entries, stockItemId) => {
@@ -4620,6 +4626,11 @@ export default function Stocks({ variant = "stocks" } = {}) {
                             cursor={!isEditing ? "pointer" : "default"}
                             onClick={!isEditing ? () => {
                                 setSelectedDimensions(item.dimensions || []);
+                                setSelectedDimensionTotals({
+                                    courier: item.total_cw_courier,
+                                    road: item.total_cw_road,
+                                    lcl: item.total_cw_lcl,
+                                });
                                 onDimensionsModalOpen();
                             } : undefined}
                         >
@@ -4641,6 +4652,11 @@ export default function Stocks({ variant = "stocks" } = {}) {
                             cursor={!isEditing ? "pointer" : "default"}
                             onClick={!isEditing ? () => {
                                 setSelectedDimensions(item.dimensions || []);
+                                setSelectedDimensionTotals({
+                                    courier: item.total_cw_courier,
+                                    road: item.total_cw_road,
+                                    lcl: item.total_cw_lcl,
+                                });
                                 onDimensionsModalOpen();
                             } : undefined}
                         >
@@ -7342,6 +7358,30 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                             </Box>
                                             <Box>
                                                 <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
+                                                    CW Courier
+                                                </Text>
+                                                <Text fontSize="md" fontWeight="semibold" color="green.500">
+                                                    {renderText(dim.cw_courier) || "-"}
+                                                </Text>
+                                            </Box>
+                                            <Box>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
+                                                    CW Road
+                                                </Text>
+                                                <Text fontSize="md" fontWeight="semibold" color="green.500">
+                                                    {renderText(dim.cw_road) || "-"}
+                                                </Text>
+                                            </Box>
+                                            <Box>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
+                                                    CW LCL
+                                                </Text>
+                                                <Text fontSize="md" fontWeight="semibold" color="green.500">
+                                                    {renderText(dim.cw_lcl) || "-"}
+                                                </Text>
+                                            </Box>
+                                            <Box>
+                                                <Text fontSize="xs" color={tableTextColorSecondary} mb={1}>
                                                     Weight (kg)
                                                 </Text>
                                                 <Text fontSize="md" fontWeight="semibold" color="orange.500">
@@ -7380,6 +7420,30 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                     </Text>
                                                     <Text fontSize="lg" fontWeight="bold" color={dimSummaryTitleColor}>
                                                         {selectedDimensions.reduce((sum, dim) => sum + (parseFloat(dim.cw_air_freight) || 0), 0).toFixed(1)}
+                                                    </Text>
+                                                </Box>
+                                                <Box>
+                                                    <Text fontSize="xs" color={dimSummaryLabelColor} mb={1}>
+                                                        Total CW Courier
+                                                    </Text>
+                                                    <Text fontSize="lg" fontWeight="bold" color={dimSummaryTitleColor}>
+                                                        {renderText(selectedDimensionTotals.courier) || "-"}
+                                                    </Text>
+                                                </Box>
+                                                <Box>
+                                                    <Text fontSize="xs" color={dimSummaryLabelColor} mb={1}>
+                                                        Total CW Road
+                                                    </Text>
+                                                    <Text fontSize="lg" fontWeight="bold" color={dimSummaryTitleColor}>
+                                                        {renderText(selectedDimensionTotals.road) || "-"}
+                                                    </Text>
+                                                </Box>
+                                                <Box>
+                                                    <Text fontSize="xs" color={dimSummaryLabelColor} mb={1}>
+                                                        Total CW LCL
+                                                    </Text>
+                                                    <Text fontSize="lg" fontWeight="bold" color={dimSummaryTitleColor}>
+                                                        {renderText(selectedDimensionTotals.lcl) || "-"}
                                                     </Text>
                                                 </Box>
                                                 <Box>
