@@ -100,6 +100,7 @@ import {
   serializeCiPlMultiFieldLines,
   CI_PL_MANIFEST_DEFAULT_DESCRIPTION,
 } from "../../../../utils/ciPlDescriptionField";
+import { normalizeLineWarehouses, warehousesToJoinedText, warehousesToLines, warehouseIdsFromList } from "../../../../utils/stockLineWarehouses";
 import { formatApiNumericDisplay, formatCiPlCurrencyDisplay } from "../../../../utils/formatApiNumericDisplay";
 import {
   buildCiplStockLinePayload,
@@ -1371,12 +1372,8 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
           : it.from_si_advise != null && it.from_si_advise !== false
             ? String(it.from_si_advise)
             : (it.origin != null && it.origin !== false ? String(it.origin) : "");
-      const whRaw =
-        it.warehouse_new != null && it.warehouse_new !== false
-          ? it.warehouse_new
-          : it.warehouse_id;
-      const warehouseId =
-        whRaw != null && whRaw !== false ? String(whRaw) : "";
+      const warehouses = normalizeLineWarehouses(it);
+      const warehouseId = warehousesToJoinedText(warehouses);
       const lwhVal = it.lwh != null && it.lwh !== false ? String(it.lwh) : "";
       const stockIdRaw = it.stock_item_id;
       const stockItemId =
@@ -1393,6 +1390,8 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
             id: idx + 1,
             origin: originVal,
             warehouseId,
+            warehouses,
+            warehouseIds: warehouseIdsFromList(warehouses),
             supplier: supplierName,
             awbNumber:
               it.awb_number != null && it.awb_number !== false
@@ -3881,15 +3880,15 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                             {isDeliveryConfirmation && (
                               <>
                                 <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || ""}</Td>
-                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.warehouseId || ""}</Td>
+                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" whiteSpace="pre-line">{warehousesToLines(item.warehouses, item.warehouseId) || ""}</Td>
                                 <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.awbNumber || formData.shippedBy || ""}</Td>
                               </>
                             )}
                             {isDeliveryLike ? (
                               <>
                                 <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.origin}</Td>
-                                {!isDeliveryConfirmation && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
-                                  {item.warehouseId || ""}
+                                {!isDeliveryConfirmation && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" whiteSpace="pre-line">
+                                  {warehousesToLines(item.warehouses, item.warehouseId) || ""}
                                 </Td>}
                                 <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier}</Td>
                                 <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">{item.poNumber}</Td>
