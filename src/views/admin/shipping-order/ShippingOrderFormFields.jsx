@@ -20,6 +20,13 @@ import ShippingOrderCiplFilesField from "../../../components/shipping-order/Ship
 import { useClientVesselFilterOptions } from "../../../hooks/useClientVesselFilterOptions";
 import { isDeliveryViaServiceBoat, resolveRelationId } from "./shippingOrderUtils";
 
+const DESTINATION_TYPE_OPTIONS = [
+  { id: "port_country", name: "Port Name + Country" },
+  { id: "city_country", name: "City + Country" },
+  { id: "airport_country", name: "Airport + Country" },
+  { id: "country", name: "Country" },
+];
+
 /**
  * Shared form body for shipping order (used in modal and edit page).
  * Parent owns formData state and passes onOpenVslsAgentDtlsModal to open the VSLS editor modal.
@@ -263,27 +270,24 @@ export default function ShippingOrderFormFields({
         <Flex gap="4" flexWrap="wrap" mt="4">
           <FormControl flex="1" isRequired minW="260px">
             <FormLabel>Destination Type</FormLabel>
-            <Select
-              size="sm"
+            {/* Custom list instead of a native <select>: its options rendered blank in Chrome */}
+            <SimpleSearchableSelect
+              value={formData.destination_type || ""}
+              onChange={(value) =>
+                setFormData((prev) =>
+                  prev.destination_type === value
+                    ? prev
+                    : { ...prev, destination_type: value, destination: "", country_id: null }
+                )
+              }
+              options={DESTINATION_TYPE_OPTIONS}
+              placeholder="Select destination type"
+              prefillOnFocus={false}
+              isClearable={false}
               bg={editFieldBg}
               color={inputText}
               borderColor={borderColor}
-              value={formData.destination_type || ""}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  destination_type: e.target.value,
-                  destination: "",
-                  country_id: null,
-                }))
-              }
-              placeholder="Select destination type"
-            >
-              <option value="port_country">Port Name + Country</option>
-              <option value="city_country">City + Country</option>
-              <option value="airport_country">Airport + Country</option>
-              <option value="country">Country</option>
-            </Select>
+            />
           </FormControl>
           {formData.destination_type && formData.destination_type !== "country" && (
             <FormControl flex="1" minW="260px">

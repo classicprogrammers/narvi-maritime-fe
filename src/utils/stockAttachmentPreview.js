@@ -1,6 +1,7 @@
 import {
     downloadStockItemAttachmentApi,
     getStockItemAttachmentsApi,
+    getStockItemByIdApi,
 } from "../api/stock";
 
 export function getStockAttachmentLabel(att) {
@@ -137,6 +138,31 @@ async function resolveFromLegacyAttachmentsApi(attachment, stockItemId) {
     throw new Error("Attachment data format not supported");
 }
 
+function findAttachmentsInStockResponse(response) {
+    const candidates = [
+        response?.result?.data?.attachments,
+        response?.result?.attachments,
+        response?.data?.attachments,
+        response?.attachments,
+        response?.result?.data?.[0]?.attachments,
+        response?.result?.data?.stock?.attachments,
+    ];
+    return candidates.find((c) => Array.isArray(c)) || [];
+}
+
+/**
+ * Saved rows can keep an attachment without server id/data (the upload payload is stripped after save).
+ * Look it up on the saved stock record by filename so it opens through the normal download API.
+ */
+async function resolveSavedAttachmentId(attachment, stockItemId) {
+    const response = await getStockItemByIdApi(stockItemId);
+    const label = getStockAttachmentLabel(attachment);
+    const match = findAttachmentsInStockResponse(response).find(
+        (att) => att?.id != null && getStockAttachmentLabel(att) === label
+    );
+    return match?.id ?? null;
+}
+
 /** Resolve a stock attachment to a URL suitable for iframe/img preview. */
 export async function resolveStockAttachmentPreviewUrl(attachment, stockItemId = null) {
     if (!attachment) {
@@ -149,8 +175,19 @@ export async function resolveStockAttachmentPreviewUrl(attachment, stockItemId =
         return createNamedPreviewFromBlob(attachment, filename, mimeType);
     }
 
-    if (stockItemId && attachment.id) {
-        const response = await downloadStockItemAttachmentApi(stockItemId, attachment.id, false);
+    let attachmentId = attachment.id;
+    if (
+        stockItemId
+        && attachmentId == null
+        && !attachment.datas
+        && !attachment.url
+        && !attachment.path
+    ) {
+        attachmentId = await resolveSavedAttachmentId(attachment, stockItemId);
+    }
+
+    if (stockItemId && attachmentId != null) {
+        const response = await downloadStockItemAttachmentApi(stockItemId, attachmentId, false);
         if (response.data instanceof Blob) {
             const mimeType = response.type || attachment.mimetype || "application/octet-stream";
             const filename =

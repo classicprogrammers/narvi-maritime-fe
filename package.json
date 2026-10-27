@@ -47,6 +47,9 @@
     "build:prod": "cross-env GENERATE_SOURCEMAP=false react-scripts build",
     "build:analyze": "npm run build && npx source-map-explorer 'build/static/js/*.js'",
     "test": "react-scripts test",
+    "test:ci": "cross-env CI=true react-scripts test --watchAll=false",
+    "lint:changed": "node scripts/lint-changed.js",
+    "check": "npm run lint:changed && npm run test:ci && npm run build",
     "eject": "react-scripts eject",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d build",
@@ -63,11 +66,22 @@
     "@emotion/react": "^11.4.1",
     "@emotion/styled": "^11.3.0",
     "ajv": "^8.17.1",
+    "eslint": {
+      "ajv": "^6.12.6"
+    },
+    "@eslint/eslintrc": {
+      "ajv": "^6.12.6"
+    },
     "ajv-keywords": {
       "ajv": "^8.17.1"
     },
     "ajv-formats": {
       "ajv": "^8.17.1"
+    }
+  },
+  "jest": {
+    "moduleNameMapper": {
+      "^axios$": "axios/dist/node/axios.cjs"
     }
   },
   "eslintConfig": {

@@ -104,6 +104,8 @@ export const getShippingOrders = async (params = {}) => {
       destination,
       pic_new,
       pic_id,
+      is_mso,
+      mso_id,
     } = params;
 
     const fetchAllRequested =
@@ -149,6 +151,12 @@ export const getShippingOrders = async (params = {}) => {
       } else if (doneValues.length > 1) {
         requestParams.done = doneValues;
       }
+    }
+    if (is_mso === true || is_mso === false) {
+      requestParams.is_mso = is_mso;
+    }
+    if (mso_id != null && mso_id !== "") {
+      requestParams.mso_id = mso_id;
     }
     if (destination != null && String(destination).trim() !== "") {
       requestParams.destination = String(destination).trim();

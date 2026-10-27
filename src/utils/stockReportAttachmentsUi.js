@@ -57,14 +57,24 @@ export function partitionAttachmentsRow(row) {
     return { nonReportExisting, nonReportPending, reportEntries };
 }
 
-/** All attachments on an edit-form row, in display order (for gallery preview). */
+/**
+ * An attachment can be previewed when it carries its own data/id/url/path, or when the row is a
+ * saved record (stockId) so the file can be looked up on the server.
+ */
+export function canPreviewRowAttachment(att, row) {
+    if (!att) return false;
+    if (att.datas || att.url || att.path || att.id != null) return true;
+    return row?.stockId != null && row.stockId !== false && String(row.stockId).trim() !== "";
+}
+
+/** All previewable attachments on an edit-form row, in display order (for gallery preview). */
 export function collectRowAttachmentsForPreview(row) {
     const { nonReportExisting, nonReportPending, reportEntries } = partitionAttachmentsRow(row);
     return [
         ...nonReportExisting,
         ...nonReportPending.map(({ att }) => att),
         ...reportEntries.map(({ att }) => att),
-    ];
+    ].filter((att) => canPreviewRowAttachment(att, row));
 }
 
 /** Visible attachments in list/table cells (excludes older status reports). */

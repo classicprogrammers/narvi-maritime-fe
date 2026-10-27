@@ -48,6 +48,7 @@ import {
     MdAttachFile,
     MdClose as MdRemove,
     MdPictureAsPdf,
+    MdVisibility,
 } from "react-icons/md";
 import { createStockItemApi } from "../../../api/stock";
 import { normalizeStockStatusKey } from "../../../constants/stockStatus";
@@ -87,7 +88,8 @@ function withUnlockedStockReport(row, patch = {}) {
     return { ...(row || {}), ...patch, stockReportLocked: false };
 }
 import StockReportGenerateModal from "../../../components/stock-list/StockReportGenerateModal";
-import { partitionAttachmentsRow } from "../../../utils/stockReportAttachmentsUi";
+import { partitionAttachmentsRow, collectRowAttachmentsForPreview } from "../../../utils/stockReportAttachmentsUi";
+import { useStockAttachmentsGallery } from "../../../hooks/useStockAttachmentsGallery";
 import { calculateVolumeCbmFromLwhCm, formatRowTotalVolumeCbm } from "../../../utils/stockVolume";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
 import { isStockOriginHubFormField, normalizeStockOriginHubText } from "../../../utils/stockOriginHubText";
@@ -208,6 +210,7 @@ export default function StockForm() {
     const getPayloadRef = useRef(() => ({}));
     const [stockReportPdfLoadingRowIndex, setStockReportPdfLoadingRowIndex] = useState(null);
     const [stockReportHistoryRowIndex, setStockReportHistoryRowIndex] = useState(null);
+    const { openGallery, galleryModal } = useStockAttachmentsGallery();
     const [stockReportPreview, setStockReportPreview] = useState(null);
     const [stockReportPhase, setStockReportPhase] = useState("");
     const stockReportSnapshotRef = useRef(null);
@@ -2189,8 +2192,23 @@ export default function StockForm() {
                                                     partitionAttachmentsRow(row);
                                                 const latestReport = reportEntries[0];
                                                 const olderReports = reportEntries.slice(1);
+                                                const previewAttachments = collectRowAttachmentsForPreview(row);
                                                 return (
                                                     <>
+                                                        {previewAttachments.length > 0 && (
+                                                            <Button
+                                                                size="xs"
+                                                                variant="outline"
+                                                                colorScheme="blue"
+                                                                leftIcon={<Icon as={MdVisibility} />}
+                                                                w="100%"
+                                                                onClick={() =>
+                                                                    openGallery(previewAttachments, row.stockId ?? null, 0)
+                                                                }
+                                                            >
+                                                                View all documents ({previewAttachments.length})
+                                                            </Button>
+                                                        )}
                                                         {nonReportExisting.map((att, attIdx) => (
                                                             <Flex
                                                                 key={`existing-${att.id || attIdx}`}
@@ -2467,11 +2485,17 @@ export default function StockForm() {
                         : []
                 }
                 rowIndex={stockReportHistoryRowIndex ?? 0}
-                stockItemId={null}
-                showFileActions={false}
+                stockItemId={
+                    stockReportHistoryRowIndex !== null
+                        ? formRows[stockReportHistoryRowIndex]?.stockId ?? null
+                        : null
+                }
+                showFileActions
+                onPreviewAll={openGallery}
                 onDeleteExisting={handleDeleteExistingAttachment}
                 onDeletePending={handleDeleteAttachment}
             />
+            {galleryModal}
         </Box>
     );
 }

@@ -16,7 +16,7 @@ import {
   useDisclosure,
   useToast,
 } from "@chakra-ui/react";
-import { useHistory, useParams } from "react-router-dom";
+import { useHistory, useLocation, useParams } from "react-router-dom";
 import { MdArrowBack, MdContentCopy } from "react-icons/md";
 import { getNarviQuotations } from "../../../api/narviQuotation";
 import { createShippingOrder, getShippingOrderById, getShippingOrderStockApi, updateShippingOrder } from "../../../api/shippingOrders";
@@ -26,6 +26,7 @@ import {
   applyShippingOrderFilesToPayload,
   notifyShippingOrderSaveResult,
 } from "../../../utils/shippingOrderAttachments";
+import { getMsoApiError } from "../../../utils/shippingOrderMso";
 import ShippingOrderFormFields from "./ShippingOrderFormFields";
 import ShippingOrderStockList from "../../../components/shipping-order/ShippingOrderStockList";
 import EditModeNotice, { useEditModeColors } from "../../../components/forms/EditModeNotice";
@@ -101,6 +102,10 @@ export default function ShippingOrderEditPage() {
   const { id } = useParams();
   const isCreate = id == null || id === "";
   const history = useHistory();
+  const location = useLocation();
+  // Opened from the MSO tab as /admin/shipping-orders/create?is_mso=1
+  const isCreateMso = isCreate && new URLSearchParams(location.search).get("is_mso") === "1";
+  const listPath = isCreateMso ? "/admin/shipping-orders?tab=mso" : "/admin/shipping-orders";
   const toast = useToast();
 
   const [formData, setFormData] = useState(null);
@@ -247,17 +252,20 @@ export default function ShippingOrderEditPage() {
           buildPayloadFromForm(formData, false),
           formData
         );
+        if (isCreateMso) createPayload.is_mso = true;
         const createResponse = await createShippingOrder(createPayload);
+        const createError = getMsoApiError(createResponse);
+        if (createError) throw new Error(createError);
         const createNotify = notifyShippingOrderSaveResult(createResponse, toast, { created: true });
         if (createNotify.ok && !createNotify.partial) {
           toast({
-            title: "SO created",
+            title: isCreateMso ? "MSO created" : "SO created",
             status: "success",
             duration: 3000,
             isClosable: true,
           });
         }
-        history.push("/admin/shipping-orders");
+        history.push(listPath);
         return;
       }
       const payload =applyShippingOrderFilesToPayload(
@@ -290,7 +298,7 @@ export default function ShippingOrderEditPage() {
   };
 
   const handleCancel = () => {
-    history.push("/admin/shipping-orders");
+    history.push(listPath);
   };
 
   if (isLoadingOrder) {
@@ -360,7 +368,7 @@ export default function ShippingOrderEditPage() {
               Back
             </Button>
             <Text fontSize="xl" fontWeight="bold">
-              {isCreate ? "Create SO" : `Edit SO — ${formData.so_number || `SO-${id}`}`}
+              {isCreateMso ? "Create MSO" : isCreate ? "Create SO" : `Edit SO — ${formData.so_number || `SO-${id}`}`}
             </Text>
           </Flex>
           <Flex gap={2}>
@@ -368,7 +376,7 @@ export default function ShippingOrderEditPage() {
               Cancel
             </Button>
             <Button colorScheme="green" onClick={handleSave} isLoading={isSaving} loadingText={isCreate ? "Creating..." : "Updating..."}>
-              {isCreate ? "Create SO" : "Save Changes"}
+              {isCreateMso ? "Create MSO" : isCreate ? "Create SO" : "Save Changes"}
             </Button>
           </Flex>
         </Flex>
