@@ -25,8 +25,9 @@ Create React App (react-scripts 5), JavaScript (JSX), no TypeScript. Absolute im
 - Use Chakra theme tokens, not hardcoded colors. Reuse components from `src/components/`.
 - Put pure logic in `src/utils/` so it is testable; keep components thin.
 - Minimal diffs. No drive-by refactors, renames or new dependencies without asking.
-- Never push, force-push, `reset --hard`, or edit `.env*`. Work only on `feature/*` branches cut from `staging`.
-- Do not commit unless the user asks, or the active workflow step says to (developer commits per task on the feature branch).
+- Never push, force-push, `reset --hard`, or edit `.env*`.
+- Only two branches: `staging` (all work is committed and pushed here for testing) and `main` (updated from `staging` after testing). Do not create `feature/*` or other branches.
+- Do not commit unless the user asks, or the active workflow step says to (developer commits per task on `staging`).
 
 ## Workflow
 Features go through `/feature`: spec -> plan -> code -> QA -> review -> human approval.

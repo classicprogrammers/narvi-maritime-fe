@@ -21,7 +21,10 @@ import { useHistory } from "react-router-dom";
 import ReactApexChart from "react-apexcharts";
 import { MdRefresh } from "react-icons/md";
 import LineChart from "components/charts/LineChart";
+import { getStockRowStatusStyle } from "components/stock-list/StockStatusBadge";
 import clientDashboardApi from "api/clientDashboard";
+import clientStockApi from "api/clientStock";
+import { buildClientStockStatusBreakdown } from "utils/clientStockStatusBreakdown";
 import { usePortalClient } from "views/client/PortalClientContext";
 import { formatDashboardCount, formatDashboardLabel } from "views/admin/default/dashboardUtils";
 import {
@@ -31,6 +34,17 @@ import {
 
 const PIE_COLORS = ["#174693", "#01B574", "#FFB547", "#39B8FF", "#E53E3E", "#805AD5"];
 
+/** Same colours as the stock status badges in the admin stock list; PIE_COLORS only for unknown statuses. */
+const getJobStatusSliceColor = (status, index) =>
+  getStockRowStatusStyle(status, null).bgColor || PIE_COLORS[index % PIE_COLORS.length];
+
+const statusBreakdownHasData = (chart) => {
+  const values = Array.isArray(chart?.series)
+    ? chart.series
+    : (chart?.items ?? []).map((item) => item?.count);
+  return values.some((value) => Number(value) > 0);
+};
+
 function ClientDashboard() {
   const history = useHistory();
   const toast = useToast();
@@ -38,6 +52,8 @@ function ClientDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [dashboard, setDashboard] = useState(null);
+  /** Status counts from the client Stock Report data; null until loaded or when it fails. */
+  const [stockStatusItems, setStockStatusItems] = useState(null);
 
   const cardBg = useColorModeValue("white", "navy.800");
   const borderColor = useColorModeValue("secondaryGray.200", "whiteAlpha.200");
@@ -48,9 +64,16 @@ function ClientDashboard() {
   const loadDashboard = useCallback(async () => {
     setLoading(true);
     setError(null);
+    // Same data as the Stock Report's default (active) view; the pie falls back to the
+    // dashboard API chart if this call fails.
+    const stockPromise = clientStockApi
+      .getClientStock({ fetch_all: true, active: "true" })
+      .then((res) => buildClientStockStatusBreakdown(res?.stock_list))
+      .catch(() => null);
     try {
       const response = await clientDashboardApi.getClientDashboard();
       setDashboard(clientDashboardApi.normalizeClientDashboard(response));
+      setStockStatusItems(await stockPromise);
     } catch (err) {
       const message = err?.response?.data?.message || err?.message || "Failed to load dashboard.";
       setError(message);
@@ -137,9 +160,18 @@ function ClientDashboard() {
     };
   }, [primaryChart, primaryTrendData, chartLabel]);
 
-  const jobsByStatusChart = dashboard?.charts?.jobsByStatus;
+  const jobsByStatusChart = useMemo(() => {
+    const apiChart = dashboard?.charts?.jobsByStatus;
+    if (!stockStatusItems) return apiChart;
+    return { title: apiChart?.title, subtitle: apiChart?.subtitle, items: stockStatusItems };
+  }, [dashboard, stockStatusItems]);
+  const hasJobsByStatusData = statusBreakdownHasData(jobsByStatusChart);
   const jobsByStatusKey = useMemo(
-    () => `jobs-status-${(jobsByStatusChart?.labels ?? []).join("-")}`,
+    () =>
+      `jobs-status-${(
+        jobsByStatusChart?.labels ??
+        (jobsByStatusChart?.items ?? []).map((item) => `${item?.key}:${item?.count}`)
+      ).join("-")}`,
     [jobsByStatusChart]
   );
 
@@ -153,12 +185,15 @@ function ClientDashboard() {
     return [0];
   }, [jobsByStatusChart]);
 
-  const statusBreakdownOptions = useMemo(
-    () => ({
-      labels: Array.isArray(jobsByStatusChart?.labels)
-        ? jobsByStatusChart.labels
-        : (jobsByStatusChart?.items ?? []).map((item) => item?.label ?? formatDashboardLabel(item?.key)),
-      colors: PIE_COLORS,
+  const statusBreakdownOptions = useMemo(() => {
+    const labels = Array.isArray(jobsByStatusChart?.labels)
+      ? jobsByStatusChart.labels
+      : (jobsByStatusChart?.items ?? []).map((item) => item?.label ?? formatDashboardLabel(item?.key));
+    return {
+      labels,
+      colors: labels.map((label, index) =>
+        getJobStatusSliceColor(jobsByStatusChart?.items?.[index]?.key || label, index)
+      ),
       chart: {
         toolbar: { show: false },
         events: {
@@ -180,9 +215,8 @@ function ClientDashboard() {
         active: { filter: { type: "none" } },
         hover: { filter: { type: "lighten" } },
       },
-    }),
-    [history, jobsByStatusChart]
-  );
+    };
+  }, [history, jobsByStatusChart]);
 
   const handleCardClick = useCallback(
     (cardKey) => {
@@ -327,16 +361,24 @@ function ClientDashboard() {
               <Text fontSize="sm" color={muted} mb={3}>
                 {jobsByStatusChart?.subtitle ?? "Distribution of current stock/job statuses."}
               </Text>
-              <Box h={{ base: "280px", md: "320px" }} minW={0} cursor="pointer">
-                <ReactApexChart
-                  key={jobsByStatusKey}
-                  type="pie"
-                  series={statusBreakdownData}
-                  options={statusBreakdownOptions}
-                  width="100%"
-                  height="100%"
-                />
-              </Box>
+              {hasJobsByStatusData ? (
+                <Box h={{ base: "280px", md: "320px" }} minW={0} cursor="pointer">
+                  <ReactApexChart
+                    key={jobsByStatusKey}
+                    type="pie"
+                    series={statusBreakdownData}
+                    options={statusBreakdownOptions}
+                    width="100%"
+                    height="100%"
+                  />
+                </Box>
+              ) : (
+                <Flex h={{ base: "280px", md: "320px" }} align="center" justify="center">
+                  <Text fontSize="sm" color={muted}>
+                    No active stock items.
+                  </Text>
+                </Flex>
+              )}
             </Box>
           </SimpleGrid>
         </>

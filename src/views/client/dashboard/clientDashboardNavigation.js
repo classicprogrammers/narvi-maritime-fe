@@ -1,3 +1,5 @@
+import { resolveClientPortalNavStockStatus } from "constants/stockStatus";
+
 export const CLIENT_DASHBOARD_CARD_ROUTES = {
   active_movements: {
     pathname: "/Client/Stock",
@@ -41,6 +43,14 @@ export function getJobStatusRouteFromPieSlice({ key, label } = {}) {
     return {
       pathname: "/Client/Stock",
       state: { dashboardFilter: { stockStatus: "pending" } },
+    };
+  }
+
+  const navStatus = resolveClientPortalNavStockStatus(normalizedKey);
+  if (navStatus) {
+    return {
+      pathname: "/Client/Stock",
+      state: { dashboardFilter: { stockStatus: navStatus } },
     };
   }
 
