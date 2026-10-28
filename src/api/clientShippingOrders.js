@@ -5,7 +5,7 @@ import { extractClientsFromPayload } from "../utils/portalClients";
 const CLIENT_SHIPPING_ORDER_BASE = "/api/client/shipping/order";
 
 /**
- * Client portal read-only shipping orders.
+ * Client portal shipping orders (read, plus client edits and "seen" marking).
  * Auth: Bearer client token (axios interceptor). No token in the URL.
  */
 
@@ -27,6 +27,8 @@ const buildListParams = (params = {}) => {
     name,
     id,
     client_case_invoice_ref,
+    new_from_narvi,
+    awaiting_narvi,
   } = params;
 
   const fetchAllRequested =
@@ -97,6 +99,13 @@ const buildListParams = (params = {}) => {
 
   if (client_case_invoice_ref != null && String(client_case_invoice_ref).trim() !== "") {
     requestParams.client_case_invoice_ref = String(client_case_invoice_ref).trim();
+  }
+
+  if (new_from_narvi === true) {
+    requestParams.new_from_narvi = true;
+  }
+  if (awaiting_narvi === true) {
+    requestParams.awaiting_narvi = true;
   }
 
   if (sort_by != null && String(sort_by).trim() !== "") {
@@ -279,6 +288,61 @@ export const getClientShippingOrderById = async (id) => {
   return { ...result, order: result.order || result.orders?.[0] || null };
 };
 
+const throwIfClientError = (data, fallbackMessage) => {
+  if (data?.result?.status === "error" || data?.status === "error") {
+    throw new Error(data.result?.message || data.message || fallbackMessage);
+  }
+};
+
+/** Backend error messages are shown as is, also when they arrive with a non-2xx status. */
+const clientErrorFromAxios = (err, fallbackMessage) => {
+  const data = err?.response?.data;
+  const message = data?.result?.message || data?.message;
+  if (message) return new Error(message);
+  return err instanceof Error ? err : new Error(fallbackMessage);
+};
+
+const postClientOrderAction = async (path, body, fallbackMessage) => {
+  let data;
+  try {
+    const response = await api.post(path, body);
+    data = response.data || response;
+  } catch (err) {
+    throw clientErrorFromAxios(err, fallbackMessage);
+  }
+  throwIfClientError(data, fallbackMessage);
+  return unwrapClientPayload(data) || {};
+};
+
+/**
+ * POST /api/client/shipping/order/update
+ * Payload is id plus only the changed keys (see utils/clientOrderUpdates).
+ * Returns the full updated order.
+ */
+export const updateClientShippingOrderApi = async (payload) => {
+  if (!payload || payload.id == null || payload.id === "") {
+    throw new Error("Order id is required.");
+  }
+  const source = await postClientOrderAction(
+    `${CLIENT_SHIPPING_ORDER_BASE}/update`,
+    payload,
+    "Failed to update shipping order"
+  );
+  return { status: source.status || "success", order: firstOrderRecord(source.order) };
+};
+
+/** POST /api/client/shipping/order/seen — clears has_new_from_narvi for one order */
+export const markClientShippingOrderSeenApi = async (orderId) => {
+  if (orderId == null || orderId === "") {
+    throw new Error("Order id is required.");
+  }
+  return postClientOrderAction(
+    `${CLIENT_SHIPPING_ORDER_BASE}/seen`,
+    { id: orderId },
+    "Failed to mark shipping order as seen"
+  );
+};
+
 /** GET /api/client/shipping/order/<order_id>/stock — full stock_list for one SO */
 export const getClientShippingOrderStockApi = async (orderId, stockItemsUrl = null) => {
   if (orderId == null || orderId === "") {
@@ -420,6 +484,8 @@ export const downloadClientShippingOrderPackageApi = async (
 const clientShippingOrdersApi = {
   getClientShippingOrders,
   getClientShippingOrderById,
+  updateClientShippingOrderApi,
+  markClientShippingOrderSeenApi,
   getClientShippingOrderStockApi,
   getClientShippingOrderAttachmentsApi,
   downloadClientShippingOrderAttachmentApi,

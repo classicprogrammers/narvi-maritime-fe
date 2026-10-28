@@ -31,7 +31,7 @@ import {
   useColorModeValue,
   useToast,
 } from "@chakra-ui/react";
-import { MdFileDownload, MdRefresh, MdSearch, MdVisibility } from "react-icons/md";
+import { MdEdit, MdFileDownload, MdRefresh, MdSearch, MdVisibility } from "react-icons/md";
 import { useHistory, useLocation } from "react-router-dom";
 import clientShippingOrdersApi from "api/clientShippingOrders";
 import clientVesselApi from "api/clientVessel";
@@ -50,6 +50,13 @@ import ClientPortalTableShell, {
   useClientPortalTableColors,
 } from "views/client/ClientPortalTableShell";
 import * as XLSX from "xlsx";
+import { getClientOrderTwoWayState, shouldMarkClientOrderSeen } from "utils/clientOrderUpdates";
+import {
+  ClientOrderChanges,
+  ClientOrderEditForm,
+  ClientOrderRemarks,
+  ClientOrderSyncStatus,
+} from "views/client/shipping-orders/ClientOrderTwoWayPanels";
 
 const tagFilesWithKind = (files, kind) =>
   (Array.isArray(files) ? files : [])
@@ -137,6 +144,24 @@ const CLIENT_SHIPPING_ORDER_STATUS_OPTIONS = [
   { value: "done", label: "Done" },
 ];
 
+const CLIENT_SHIPPING_ORDER_UPDATE_OPTIONS = [
+  { value: "new_from_narvi", label: "New from Narvi" },
+  { value: "awaiting_narvi", label: "Awaiting Narvi" },
+];
+
+const CLIENT_SHIPPING_ORDER_SORT_OPTIONS = [
+  { value: "so_id", label: "SO Number" },
+  { value: "staff_updated_at", label: "Last Narvi update" },
+  { value: "client_updated_at", label: "My last update" },
+];
+
+const buildTwoWayListParams = (filters) => ({
+  sort_by: filters.sortBy || "so_id",
+  sort_order: "desc",
+  new_from_narvi: filters.updates === "new_from_narvi" || undefined,
+  awaiting_narvi: filters.updates === "awaiting_narvi" || undefined,
+});
+
 const getClientShippingOrderStockCount = (order) => {
   const count = Number(order?.stock_item_count);
   if (Number.isFinite(count)) return count;
@@ -162,6 +187,7 @@ const mapClientShippingOrderListRows = (orders) =>
         attachmentsUrl: raw.attachments_url || null,
         totalFileCount: attachmentCount + ciplCount + (hasPackage ? 1 : 0),
         destinationDisplay: formatShippingOrderDestinationDisplay(order),
+        twoWay: getClientOrderTwoWayState(raw),
       };
     })
     .filter(Boolean);
@@ -179,6 +205,7 @@ const mergeClientShippingOrderDetail = (baseOrder, raw) => {
     ciplCount: Number(raw?.cipl_file_count ?? baseOrder.ciplCount) || 0,
     hasPackage: Boolean(raw?.has_shipping_package ?? baseOrder.hasPackage),
     stock_items_url: normalized.stock_items_url || baseOrder.stock_items_url,
+    twoWay: getClientOrderTwoWayState(raw),
   };
 };
 
@@ -234,6 +261,8 @@ function ClientShippingOrders() {
     destinationId: "",
     soNumber: soNumberFromSearch(location.search),
     clientCaseInvoiceRef: "",
+    updates: "",
+    sortBy: "so_id",
   });
   const [search, setSearch] = useState("");
   const [entries, setEntries] = useState("50");
@@ -252,6 +281,7 @@ function ClientShippingOrders() {
     stockList: [],
     isLoading: false,
   });
+  const [isEditingOrder, setIsEditingOrder] = useState(false);
   const filesCacheRef = useRef(new Map());
   const stockCacheRef = useRef(new Map());
   const ordersRequestIdRef = useRef(0);
@@ -260,6 +290,7 @@ function ClientShippingOrders() {
   const borderColor = useColorModeValue("secondaryGray.200", "whiteAlpha.200");
   const headingColor = useColorModeValue("navy.700", "white");
   const muted = useColorModeValue("secondaryGray.700", "secondaryGray.600");
+  const newFromNarviRowBg = useColorModeValue("orange.50", "whiteAlpha.100");
   const tableColors = useClientPortalTableColors();
   const { tableRowHoverBg, tableRowEvenBg } = tableColors;
 
@@ -332,8 +363,7 @@ function ClientShippingOrders() {
       const res = await clientShippingOrdersApi.getClientShippingOrders({
         page: currentPage,
         page_size: pageSize,
-        sort_by: "so_id",
-        sort_order: "desc",
+        ...buildTwoWayListParams(filters),
         search: search.trim() || undefined,
         done: filters.status || undefined,
         vessel_id: selectedVessel?.id,
@@ -378,13 +408,7 @@ function ClientShippingOrders() {
       }
     }
   }, [
-    filters.countryId,
-    filters.destinationId,
-    filters.destinationQuery,
-    filters.soNumber,
-    filters.clientCaseInvoiceRef,
-    filters.status,
-    filters.vessel,
+    filters,
     currentPage,
     entries,
     search,
@@ -488,6 +512,8 @@ function ClientShippingOrders() {
       destinationId: "",
       soNumber: "",
       clientCaseInvoiceRef: "",
+      updates: "",
+      sortBy: "so_id",
     });
     setSearch("");
     setEntries("50");
@@ -600,7 +626,55 @@ function ClientShippingOrders() {
     }
   };
 
+  const updateRowTwoWay = useCallback((orderId, patch) => {
+    setRows((prev) =>
+      prev.map((row) =>
+        row.id === orderId ? { ...row, twoWay: { ...row.twoWay, ...patch } } : row
+      )
+    );
+  }, []);
+
+  // Only an explicit open marks an order as seen; list loading never does.
+  const markOrderSeenIfNew = (order) => {
+    if (!shouldMarkClientOrderSeen(order?._raw)) return;
+    clientShippingOrdersApi
+      .markClientShippingOrderSeenApi(order.id)
+      .then(() => updateRowTwoWay(order.id, { hasNewFromNarvi: false }))
+      .catch(() => {});
+  };
+
+  const handleOrderSaved = async (savedRawOrder) => {
+    const current = stockModal.order;
+    if (!current?.id) return;
+    let next = savedRawOrder ? mergeClientShippingOrderDetail(current, savedRawOrder) : current;
+    try {
+      // Reload detail so the remarks dialog and Changes panel include the new entries.
+      const detailRes = await clientShippingOrdersApi.getClientShippingOrderById(current.id);
+      if (detailRes?.order) next = mergeClientShippingOrderDetail(next, detailRes.order);
+    } catch (_e) {
+      // Keep the order from the update response.
+    }
+    setStockModal((prev) => (prev.order?.id === current.id ? { ...prev, order: next } : prev));
+    setRows((prev) =>
+      prev.map((row) =>
+        row.id === current.id
+          ? {
+              ...row,
+              eta_date: next.eta_date,
+              etb: next.etb,
+              etd: next.etd,
+              client_case_invoice_ref: next.client_case_invoice_ref,
+              vsls_agent_dtls: next.vsls_agent_dtls,
+              _raw: next._raw,
+              twoWay: next.twoWay,
+            }
+          : row
+      )
+    );
+  };
+
   const handleCloseStockItems = () => {
+    setIsEditingOrder(false);
     setStockModal({
       isOpen: false,
       order: null,
@@ -614,6 +688,8 @@ function ClientShippingOrders() {
     const cacheKey = String(order.id);
     const cachedStock = stockCacheRef.current.get(cacheKey);
     const hasCachedStock = Array.isArray(cachedStock);
+    setIsEditingOrder(false);
+    markOrderSeenIfNew(order);
     setStockModal({
       isOpen: true,
       order,
@@ -683,8 +759,7 @@ function ClientShippingOrders() {
       );
       const res = await clientShippingOrdersApi.getClientShippingOrders({
         fetch_all: true,
-        sort_by: "so_id",
-        sort_order: "desc",
+        ...buildTwoWayListParams(filters),
         search: search.trim() || undefined,
         done: filters.status || undefined,
         vessel_id: selectedVessel?.id,
@@ -869,6 +944,41 @@ function ClientShippingOrders() {
               }
             />
           </GridItem>
+          <GridItem>
+            <Text fontSize="xs" mb={1} color={muted}>
+              Updates
+            </Text>
+            <Select
+              size="sm"
+              h="40px"
+              value={filters.updates}
+              onChange={(e) => setFilters((prev) => ({ ...prev, updates: e.target.value }))}
+            >
+              <option value="">All</option>
+              {CLIENT_SHIPPING_ORDER_UPDATE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </Select>
+          </GridItem>
+          <GridItem>
+            <Text fontSize="xs" mb={1} color={muted}>
+              Sort by
+            </Text>
+            <Select
+              size="sm"
+              h="40px"
+              value={filters.sortBy}
+              onChange={(e) => setFilters((prev) => ({ ...prev, sortBy: e.target.value }))}
+            >
+              {CLIENT_SHIPPING_ORDER_SORT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </Select>
+          </GridItem>
         </Grid>
         <Flex mt={4} gap={3}>
           <Button
@@ -968,6 +1078,7 @@ function ClientShippingOrders() {
               <Th>ETD</Th>
               <Th>SO Case Closed Date</Th>
               <Th>Client Case / Invoice Ref</Th>
+              <Th>Latest Remarks</Th>
               <Th>Files</Th>
             </Tr>
           </Thead>
@@ -975,10 +1086,33 @@ function ClientShippingOrders() {
             {rows.map((row) => (
               <Tr
                 key={row.id || row.so_number}
+                bg={row.twoWay?.hasNewFromNarvi ? newFromNarviRowBg : undefined}
                 _hover={{ bg: tableRowHoverBg }}
-                _even={{ bg: tableRowEvenBg }}
+                _even={{ bg: row.twoWay?.hasNewFromNarvi ? newFromNarviRowBg : tableRowEvenBg }}
               >
-                <Td fontWeight="600">{row.so_number || "-"}</Td>
+                <Td fontWeight="600">
+                  <VStack align="start" spacing={1}>
+                    <Button
+                      size="sm"
+                      variant="link"
+                      colorScheme="blue"
+                      fontWeight="600"
+                      onClick={() => handleOpenStockItems(row)}
+                    >
+                      {row.so_number || "-"}
+                    </Button>
+                    {row.twoWay?.hasNewFromNarvi ? (
+                      <Badge colorScheme="orange" borderRadius="full" px={2}>
+                        New from Narvi
+                      </Badge>
+                    ) : null}
+                    {row.twoWay?.clientUpdatePending ? (
+                      <Badge colorScheme="gray" borderRadius="full" px={2}>
+                        Awaiting Narvi
+                      </Badge>
+                    ) : null}
+                  </VStack>
+                </Td>
                 <Td>{getRowClientName(row) || "—"}</Td>
                 <Td whiteSpace="nowrap">
                   {getClientShippingOrderStockCount(row) > 0 || row.stock_items_url ? (
@@ -1032,6 +1166,31 @@ function ClientShippingOrders() {
                     <Text noOfLines={2}>{row.client_case_invoice_ref || "-"}</Text>
                   </Tooltip>
                 </Td>
+                <Td minW="180px" maxW="240px">
+                  {row.twoWay?.remarkToClient || row.twoWay?.remarkToNm ? (
+                    <VStack align="stretch" spacing={1}>
+                      {[
+                        ["From Narvi", row.twoWay.remarkToClient],
+                        ["To Narvi", row.twoWay.remarkToNm],
+                      ]
+                        .filter(([, remark]) => remark)
+                        .map(([label, remark]) => (
+                          <Tooltip key={label} label={remark.text}>
+                            <Text fontSize="xs" noOfLines={2}>
+                              <Text as="span" fontWeight="700" color={muted}>
+                                {label}:{" "}
+                              </Text>
+                              {remark.text}
+                            </Text>
+                          </Tooltip>
+                        ))}
+                    </VStack>
+                  ) : (
+                    <Text fontSize="sm" color={muted}>
+                      -
+                    </Text>
+                  )}
+                </Td>
                 <Td>{renderFilesCell(row)}</Td>
               </Tr>
             ))}
@@ -1063,15 +1222,27 @@ function ClientShippingOrders() {
                 </Text>
               </Box>
               {stockModal.order ? (
-                <Badge
-                  colorScheme={statusColorScheme(stockModal.order.done)}
-                  borderRadius="full"
-                  px={3}
-                  py={1}
-                  fontSize="sm"
-                >
-                  {formatStatusLabel(stockModal.order.done)}
-                </Badge>
+                <Flex align="center" gap={3}>
+                  {stockModal.order.twoWay?.isEditable && !isEditingOrder ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      leftIcon={<Icon as={MdEdit} />}
+                      onClick={() => setIsEditingOrder(true)}
+                    >
+                      Edit
+                    </Button>
+                  ) : null}
+                  <Badge
+                    colorScheme={statusColorScheme(stockModal.order.done)}
+                    borderRadius="full"
+                    px={3}
+                    py={1}
+                    fontSize="sm"
+                  >
+                    {formatStatusLabel(stockModal.order.done)}
+                  </Badge>
+                </Flex>
               ) : null}
             </Flex>
           </ModalHeader>
@@ -1142,6 +1313,24 @@ function ClientShippingOrders() {
                   </ReadOnlyDetailField>
                 </Grid>
               </Box>
+            ) : null}
+            {stockModal.order ? (
+              <>
+                <ClientOrderSyncStatus twoWay={stockModal.order.twoWay} />
+                {isEditingOrder && stockModal.order.twoWay?.isEditable ? (
+                  <ClientOrderEditForm
+                    order={stockModal.order}
+                    onSaved={handleOrderSaved}
+                    onCancel={() => setIsEditingOrder(false)}
+                  />
+                ) : null}
+                <ClientOrderRemarks
+                  order={stockModal.order}
+                  twoWay={stockModal.order.twoWay}
+                  onSaved={handleOrderSaved}
+                />
+                <ClientOrderChanges changes={stockModal.order.twoWay?.changes} />
+              </>
             ) : null}
             <Box
               border="1px solid"

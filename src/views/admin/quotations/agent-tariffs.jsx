@@ -57,6 +57,9 @@ const COLUMNS = [
   { key: "sales", label: "Sales", isNumeric: true },
 ];
 
+// The Excel export leaves out Rate Text and Sales.
+const EXCEL_COLUMNS = COLUMNS.filter((column) => !["rate_text", "sales"].includes(column.key));
+
 function parseOptions(result) {
   return {
     agents: normalizeIdOptions(result.agent_options),
@@ -170,9 +173,9 @@ export default function AgentTariffs() {
         toast({ title: "No tariffs to export", status: "info", duration: 3000, isClosable: true });
         return;
       }
-      const head = COLUMNS.map((column) => column.label);
-      const body = toTableRows(COLUMNS, all);
       if (kind === "pdf") {
+        const head = COLUMNS.map((column) => column.label);
+        const body = toTableRows(COLUMNS, all);
         const scope = [pins.agent_id?.name, filters.location, filters.import_group].filter(Boolean).join(" · ");
         await openPdf(
           buildPdfModel({
@@ -184,11 +187,11 @@ export default function AgentTariffs() {
         );
       } else {
         downloadSheetAsExcel({
-          headers: head,
-          rows: body,
+          headers: EXCEL_COLUMNS.map((column) => column.label),
+          rows: toTableRows(EXCEL_COLUMNS, all),
           filePrefix: "agent-tariff",
           sheetName: "Agent Tariff",
-          colWidths: [20, 40, 40, 20, 14, 14],
+          colWidths: [20, 40, 20, 20, 14],
         });
       }
     } catch (error) {
