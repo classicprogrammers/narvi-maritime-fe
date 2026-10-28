@@ -69,6 +69,8 @@ import {
   postCiplSimpleFormCreateApi,
   postCiplSimpleFormUpdateApi,
   postCiplSimpleFormArchiveApi,
+  postCiplSimpleFormConvertApi,
+  postCurrencyRoeApi,
   postCiplPerUnitFormApi,
   postCiplPerUnitFormCreateApi,
   postCiplPerUnitFormUpdateApi,
@@ -104,6 +106,7 @@ import { getWarehouseDisplayText, normalizeWarehousesFromStock } from "../../../
 import { formatApiNumericDisplay, formatCiPlCurrencyDisplay } from "../../../../utils/formatApiNumericDisplay";
 import {
   buildCiplStockLinePayload,
+  ciplLineNeedsConversion,
   createEmptyCiplEntry,
   getCiplActiveEntries,
   getCiplEntryValueUsd,
@@ -111,7 +114,9 @@ import {
   getCiplPdfEntryRows,
   getCiplStockLineValueUsd,
   mergeCiplStockLineFromApi,
+  parseCiplLineCurrencyFromApi,
   parseCiplStockLineEntriesFromApi,
+  recalcCiplLineConvertedValues,
   syncCiplStockLineSummaryFields,
 } from "../../../../utils/ciPlStockLineEntries";
 
@@ -545,6 +550,8 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
   const isCiPlManifestTab = !isShippingAdvise && !isDeliveryLike && ciPlTabIndex === 2;
   const isCiPlDraftTab = isCiPlForm && !isCiPlArchivedView;
   const isCiPlEntriesTab = isCiPlForm && !isCiPlManifestTab;
+  // Item currency / ROE conversion is only supported by the simple CIPL form for now.
+  const isCiPlCurrencyTab = isCiPlForm && !isCiPlPerUnitTab && !isCiPlManifestTab;
 
   // Calculate totals
   const totals = {
@@ -615,9 +622,68 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         const nextEntries = baseEntries.map((entry) =>
           entry.localKey === entryLocalKey ? { ...entry, [field]: value } : entry
         );
-        return syncCiplStockLineSummaryFields({ ...item, entries: nextEntries }, isCiPlPerUnitTab);
+        const nextItem = { ...item, entries: nextEntries };
+        return syncCiplStockLineSummaryFields(
+          field === "sourceValue" ? recalcCiplLineConvertedValues(nextItem) : nextItem,
+          isCiPlPerUnitTab
+        );
       })
     );
+  };
+  const updateCargoItemLine = (itemIndex, updater) => {
+    setCargoItems((prev) =>
+      prev.map((item, idx) => {
+        if (idx !== itemIndex) return item;
+        const nextItem = updater(item);
+        if (nextItem === item) return item;
+        return syncCiplStockLineSummaryFields(
+          recalcCiplLineConvertedValues({ ...nextItem, entries: resolveCargoItemEntries(nextItem) }),
+          isCiPlPerUnitTab
+        );
+      })
+    );
+  };
+  const handleCargoItemCurrencyChange = async (itemIndex, value) => {
+    const sourceCurrencyId = value != null && value !== "" ? String(value) : "";
+    const needsConversion = ciplLineNeedsConversion(sourceCurrencyId, formData.currencyId);
+    updateCargoItemLine(itemIndex, (item) => ({
+      ...item,
+      sourceCurrencyId,
+      sourceCurrencyName: sourceCurrencyId ? getOptionNameById(currencyOptions, sourceCurrencyId) : "",
+      sourceCurrencyDirty: true,
+      needsConversion,
+      // The backend looks the rate up again for a new item currency.
+      roe: "",
+      roeDate: "",
+      roeManual: false,
+      roeDirty: false,
+    }));
+    if (!needsConversion || !formData.currencyId) return;
+    try {
+      const { roe, roeDate } = await postCurrencyRoeApi({
+        from_currency_id: sourceCurrencyId,
+        to_currency_id: formData.currencyId,
+        date: formatDateForApi(formData.date) || todayIso,
+      });
+      // No rate: the line save returns the backend's "Enter the ROE manually" error, shown as a toast.
+      if (roe == null) return;
+      updateCargoItemLine(itemIndex, (item) =>
+        item.sourceCurrencyId === sourceCurrencyId && !item.roeDirty && !item.roe
+          ? { ...item, roe: String(roe), roeDate }
+          : item
+      );
+    } catch (e) {
+      console.error("Failed to preview exchange rate:", e);
+    }
+  };
+  const handleCargoItemRoeChange = (itemIndex, value) => {
+    const text = value ?? "";
+    updateCargoItemLine(itemIndex, (item) => ({
+      ...item,
+      roe: text,
+      roeDirty: true,
+      roeManual: String(text).trim() !== "",
+    }));
   };
   const addCargoItemEntry = (itemIndex) => {
     setCargoItems((prev) =>
@@ -1421,6 +1487,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
             lineId,
             stockListId,
             stockItemId,
+            ...parseCiplLineCurrencyFromApi(it),
             entries: parseCiplStockLineEntriesFromApi(it, isCiPlPerUnitTab),
           },
           isCiPlPerUnitTab
@@ -1748,6 +1815,56 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
     };
   }, [isCiPlForm, isCiPlArchivedView, ciPlTabIndex]);
 
+  const mergeStockLinesFromServer = (updated) => {
+    if (!Array.isArray(updated?.stock_list) || updated.stock_list.length === 0) return;
+    setCargoItems((prev) => {
+      const next = prev.map((item, idx) => {
+        const serverLine =
+          updated.stock_list.find(
+            (line) =>
+              item.lineId != null &&
+              line?.id != null &&
+              Number(line.id) === Number(item.lineId)
+          ) ??
+          updated.stock_list.find(
+            (line) =>
+              item.stockListId != null &&
+              line?.stock_list_id != null &&
+              Number(line.stock_list_id) === Number(item.stockListId)
+          ) ??
+          updated.stock_list[idx];
+        if (!serverLine) return item;
+        const supplier = resolveStockLineSupplierName(serverLine) || item.supplier;
+        const merged = mergeCiplStockLineFromApi(item, serverLine, isCiPlPerUnitTab, {
+          isManifest: isCiPlManifestTab,
+        });
+        return supplier === merged.supplier ? merged : { ...merged, supplier };
+      });
+      const mergedSignature = JSON.stringify(
+        buildCiplStockLinePayload(next, isCiPlPerUnitTab)
+      );
+      lastSubmittedCiplLinesRef.current = mergedSignature;
+      lastSavedAutosaveRef.current.stockLines = mergedSignature;
+      return next;
+    });
+  };
+
+  const handleConvertAllToFormCurrency = async () => {
+    try {
+      const currentId = await ensureFormId();
+      if (!currentId) return;
+      setIsSiFormLoading(true);
+      const updated = await postCiplSimpleFormConvertApi({ id: currentId });
+      mergeStockLinesFromServer(updated);
+      if (updated) syncFormTotalsFromApi(updated);
+    } catch (e) {
+      console.error("Failed to convert CIPL lines to form currency:", e);
+      showFormSaveError(toast, e, "Failed to convert to form currency");
+    } finally {
+      setIsSiFormLoading(false);
+    }
+  };
+
   // Autosave CIPL editable stock notebook line fields.
   useEffect(() => {
     if (isResettingRef.current) return;
@@ -1772,38 +1889,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         lastSubmittedCiplLinesRef.current = nextLinesSignature;
         lastSavedAutosaveRef.current.stockLines = nextLinesSignature;
         if (updated?.id != null) setSiFormId(updated.id);
-        if (Array.isArray(updated?.stock_list) && updated.stock_list.length > 0) {
-          setCargoItems((prev) => {
-            const next = prev.map((item, idx) => {
-              const serverLine =
-                updated.stock_list.find(
-                  (line) =>
-                    item.lineId != null &&
-                    line?.id != null &&
-                    Number(line.id) === Number(item.lineId)
-                ) ??
-                updated.stock_list.find(
-                  (line) =>
-                    item.stockListId != null &&
-                    line?.stock_list_id != null &&
-                    Number(line.stock_list_id) === Number(item.stockListId)
-                ) ??
-                updated.stock_list[idx];
-              if (!serverLine) return item;
-              const supplier = resolveStockLineSupplierName(serverLine) || item.supplier;
-              const merged = mergeCiplStockLineFromApi(item, serverLine, isCiPlPerUnitTab, {
-                isManifest: isCiPlManifestTab,
-              });
-              return supplier === merged.supplier ? merged : { ...merged, supplier };
-            });
-            const mergedSignature = JSON.stringify(
-              buildCiplStockLinePayload(next, isCiPlPerUnitTab)
-            );
-            lastSubmittedCiplLinesRef.current = mergedSignature;
-            lastSavedAutosaveRef.current.stockLines = mergedSignature;
-            return next;
-          });
-        }
+        mergeStockLinesFromServer(updated);
         if (updated) {
           syncFormTotalsFromApi(updated);
           syncAutosaveSnapshotsFromApi(updated);
@@ -1869,6 +1955,11 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
           ...lastSavedAutosaveRef.current.header,
           ...changed,
         };
+        // Backend re-converts every line when the form currency or date changes.
+        if (updated && isCiPlCurrencyTab && ("currency_id" in changed || "date" in changed)) {
+          mergeStockLinesFromServer(updated);
+          syncFormTotalsFromApi(updated);
+        }
         if (updated) {
           syncAutosaveSnapshotsFromApi(updated);
         }
@@ -3448,6 +3539,24 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                       </FormControl>
                     )}
 
+                    {isCiPlCurrencyTab && isCiPlDraftTab && (
+                      <>
+                        <Box />
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          color="white"
+                          borderColor="whiteAlpha.700"
+                          _hover={{ bg: "whiteAlpha.200" }}
+                          justifySelf="start"
+                          onClick={handleConvertAllToFormCurrency}
+                          isDisabled={!formData.currencyId || isSiFormLoading}
+                        >
+                          Convert all to form currency
+                        </Button>
+                      </>
+                    )}
+
                     {!isDeliveryLike && (
                       <FormControl display="contents">
                         <FormLabel
@@ -3738,6 +3847,12 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="7%" minW="64px" textAlign="center">BOX</Th>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="8%" minW="72px" textAlign="center">WEIGHT</Th>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="12%" minW="112px" textAlign="center">LWH</Th>
+                            {isCiPlCurrencyTab && (
+                              <>
+                                <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="9%" minW="96px" textAlign="center">ITEM CURRENCY</Th>
+                                <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="7%" minW="72px" textAlign="center">ROE</Th>
+                              </>
+                            )}
                             <Th
                               borderRight="1px"
                               borderColor="gray.300"
@@ -3746,10 +3861,13 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                               fontSize="xs"
                               fontWeight="bold"
                               minW={isCiPlPerUnitTab ? "260px" : "280px"}
-                              w={isCiPlPerUnitTab ? "28%" : "42%"}
+                              w={isCiPlPerUnitTab ? "28%" : isCiPlCurrencyTab ? "26%" : "42%"}
                             >
                               DESCRIPTION
                             </Th>
+                            {isCiPlCurrencyTab && (
+                              <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="10%" minW="96px" textAlign="center">AMOUNT (ITEM CURRENCY)</Th>
+                            )}
                             {isCiPlPerUnitTab && (
                               <>
                                 <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="11%" minW="100px" textAlign="center">QUANTITY / PCS</Th>
@@ -3786,6 +3904,40 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                                 >
                                   {formatLwhWithLineBreaks(item.lwh)}
                                 </Td>
+                                {isCiPlCurrencyTab && (
+                                  <>
+                                    <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5" rowSpan={rowSpan} verticalAlign="middle">
+                                      <SimpleSearchableSelect
+                                        value={item.sourceCurrencyId || ""}
+                                        onChange={(val) => handleCargoItemCurrencyChange(itemIndex, val)}
+                                        options={currencyOptions}
+                                        displayKey="name"
+                                        valueKey="id"
+                                        prefillOnFocus={false}
+                                        size="xs"
+                                        placeholder="Form currency"
+                                      />
+                                    </Td>
+                                    <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5" textAlign="center" rowSpan={rowSpan} verticalAlign="middle">
+                                      {item.needsConversion ? (
+                                        <VStack spacing={0} align="stretch">
+                                          <Input
+                                            {...ciPlValueInputStyles}
+                                            value={item.roe || ""}
+                                            onChange={(e) => handleCargoItemRoeChange(itemIndex, e.target.value)}
+                                            placeholder="ROE"
+                                            title={item.roeDate ? `Rate date: ${formatIsoToDisplayDate(item.roeDate)}` : undefined}
+                                          />
+                                          {item.roeManual && (
+                                            <Text fontSize="2xs" color="orange.500" textAlign="center">manual</Text>
+                                          )}
+                                        </VStack>
+                                      ) : (
+                                        <Text fontSize="xs" textAlign="center">-</Text>
+                                      )}
+                                    </Td>
+                                  </>
+                                )}
                               </>
                             )}
                             <Td
@@ -3796,7 +3948,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                               fontSize="xs"
                               bg="#f1f3f5"
                               minW={isCiPlPerUnitTab ? "260px" : "280px"}
-                              w={isCiPlPerUnitTab ? "28%" : "42%"}
+                              w={isCiPlPerUnitTab ? "28%" : isCiPlCurrencyTab ? "26%" : "42%"}
                               verticalAlign="top"
                             >
                               <VStack align="stretch" spacing={1} w="100%">
@@ -3853,10 +4005,28 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                                 </Td>
                               </>
                             )}
+                            {isCiPlCurrencyTab && (
+                              <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5" textAlign="center">
+                                {item.needsConversion ? (
+                                  <Input
+                                    {...ciPlValueInputStyles}
+                                    value={entry.sourceValue || ""}
+                                    onChange={(e) => updateCargoItemEntry(itemIndex, entry.localKey, "sourceValue", e.target.value)}
+                                    placeholder={item.sourceCurrencyName || "Amount"}
+                                  />
+                                ) : (
+                                  <Text fontSize="xs" textAlign="center">-</Text>
+                                )}
+                              </Td>
+                            )}
                             <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5" textAlign="center">
                               {isCiPlPerUnitTab ? (
                                 <Text px={2} py={2} fontSize="xs" textAlign="center">
                                   {formatCiPlValueDisplay(getCiplEntryValueUsdForDisplay(entry, true)) || "-"}
+                                </Text>
+                              ) : isCiPlCurrencyTab && item.needsConversion ? (
+                                <Text px={2} py={2} fontSize="xs" textAlign="center">
+                                  {formatCiPlValueDisplay(entry.valueUsd) || "-"}
                                 </Text>
                               ) : (
                                 <Input
@@ -4044,6 +4214,9 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                             {formatApiNumericDisplay(stockListTableTotals.weight)}
                           </Td>
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center" />
+                          {isCiPlCurrencyTab && (
+                            <Td colSpan={2} borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" />
+                          )}
                           {isCiPlPerUnitTab ? (
                             <>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
@@ -4064,6 +4237,9 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                             >
                               {ciPlTotalDescriptionLabel}
                             </Td>
+                          )}
+                          {isCiPlCurrencyTab && (
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" />
                           )}
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">
                             {formatCiPlTotalValueDisplay(stockListTableTotals.valueUsd)}
@@ -4131,6 +4307,9 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                             </>
                           ) : (
                             <>
+                              {isCiPlCurrencyTab && (
+                                <Td colSpan={3} borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" />
+                              )}
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" />
                               <Td py={2} px={2} fontSize="xs" />
                             </>

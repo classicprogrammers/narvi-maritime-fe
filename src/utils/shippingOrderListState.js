@@ -77,6 +77,7 @@ export function buildShippingOrderListQueryParams({
   searchClientFilter = null,
   searchPicFilter = null,
   searchStatusFilter = "",
+  clientUpdatedSince = "",
 } = {}) {
   const params = {};
   const f = activeFilters;
@@ -125,6 +126,19 @@ export function buildShippingOrderListQueryParams({
 
   if (!params.done && searchStatusFilter) {
     params.done = searchStatusFilter;
+  }
+
+  // Orders the client changed that staff have not opened yet.
+  if (f.clientUpdates) {
+    params.client_update_unseen = true;
+  }
+
+  // Every order the client ever changed, optionally only since a date (YYYY-MM-DD).
+  if (f.clientEdited) {
+    params.client_updated = true;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(clientUpdatedSince || ""))) {
+      params.client_updated_since = clientUpdatedSince;
+    }
   }
 
   return params;
@@ -226,6 +240,8 @@ export const defaultShippingOrderListState = {
     readyForInvoiceClient: false,
     athReadyForInvoice: false,
     sinReadyForInvoice: false,
+    clientUpdates: false,
+    clientEdited: false,
   },
   activeATHPics: [],
   activeSINPics: [],
@@ -278,7 +294,9 @@ export function readPersistedShippingOrderListState() {
       nextActionSortOption:
         p.nextActionSortOption === "next_action" || p.nextActionSortOption === "desc"
           ? "next_action"
-          : "so_number",
+          : p.nextActionSortOption === "client_updated_at"
+            ? "client_updated_at"
+            : "so_number",
     };
   } catch {
     return null;
@@ -290,6 +308,10 @@ export function buildShippingOrderListSortParams(listSortOption) {
   if (listSortOption === "next_action") {
     // Backend owns default order for next_action; do not send sort_order.
     return { sort_by: "next_action" };
+  }
+  if (listSortOption === "client_updated_at") {
+    // Latest client change first; orders the client never changed come last (backend).
+    return { sort_by: "client_updated_at", sort_order: "desc" };
   }
   return { sort_by: "so_number", sort_order: "desc" };
 }

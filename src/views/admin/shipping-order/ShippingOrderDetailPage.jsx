@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertDialog,
   AlertDialogBody,
@@ -28,14 +28,22 @@ import { useHistory, useParams } from "react-router-dom";
 import Card from "components/card/Card";
 import ShippingOrderStockList from "../../../components/shipping-order/ShippingOrderStockList";
 import {
+  ShippingOrderChangesPanel,
+  ShippingOrderRemarksPanel,
+  formatRemarkDateTime,
+} from "../../../components/shipping-order/ShippingOrderRemarksPanels";
+import {
   deleteShippingOrder,
   downloadShippingOrderAttachmentApi,
   downloadShippingOrderCiplApi,
   getShippingOrderById,
   getShippingOrderStockApi,
+  markShippingOrderSeenApi,
   resolveShippingPackageDownloadUrl,
+  updateShippingOrder,
 } from "../../../api/shippingOrders";
 import { resolveShippingOrderDownloadFilename } from "../../../utils/shippingOrderAttachments";
+import { getAdminOrderTwoWayState, shouldMarkAdminOrderSeen } from "../../../utils/clientOrderUpdates";
 import {
   formatServiceBoatPaidByLabel,
   formatShippingOrderDestinationDisplay,
@@ -105,6 +113,10 @@ export default function ShippingOrderDetailPage() {
   const [loadError, setLoadError] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [downloadingFileKey, setDownloadingFileKey] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [isSendingRemark, setIsSendingRemark] = useState(false);
+  /** Set when this visit marked the client's change as seen, so staff still see it was new. */
+  const [clientUpdateSeenNow, setClientUpdateSeenNow] = useState(null);
 
   const headingColor = useColorModeValue("secondaryGray.900", "white");
   const cardBg = useColorModeValue("white", "navy.800");
@@ -113,6 +125,10 @@ export default function ShippingOrderDetailPage() {
   const goToList = useCallback(() => {
     history.push("/admin/shipping-orders");
   }, [history]);
+
+  useEffect(() => {
+    setClientUpdateSeenNow(null);
+  }, [id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -153,6 +169,17 @@ export default function ShippingOrderDetailPage() {
         }
         if (cancelled) return;
         setOrder(normalized);
+        // Only opening the detail marks the client's change as seen; the list never does.
+        if (shouldMarkAdminOrderSeen(raw)) {
+          markShippingOrderSeenApi(raw.id)
+            .then((res) => {
+              if (cancelled) return;
+              setClientUpdateSeenNow({
+                seenByNarviAt: res?.seen_by_narvi_at || new Date().toISOString(),
+              });
+            })
+            .catch((seenErr) => console.error("Failed to mark client update as seen", seenErr));
+        }
       } catch (error) {
         if (cancelled) return;
         const message =
@@ -178,7 +205,40 @@ export default function ShippingOrderDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [id, toast]);
+  }, [id, toast, reloadKey]);
+
+  const twoWay = useMemo(() => {
+    const state = getAdminOrderTwoWayState(order?._raw);
+    return clientUpdateSeenNow
+      ? { ...state, clientUpdateUnseen: false, seenByNarviAt: clientUpdateSeenNow.seenByNarviAt }
+      : state;
+  }, [order, clientUpdateSeenNow]);
+
+  const handleSendRemarkToClient = async (text) => {
+    if (!order?.id) return false;
+    setIsSendingRemark(true);
+    try {
+      await updateShippingOrder(order.id, { remark_to_client: text.trim() });
+      toast({ title: "Remark sent to client", status: "success", duration: 3000, isClosable: true });
+      setReloadKey((key) => key + 1);
+      return true;
+    } catch (error) {
+      toast({
+        title: "Unable to send remark",
+        description:
+          error?.response?.data?.result?.message ||
+          error?.response?.data?.message ||
+          error?.message ||
+          "Please try again.",
+        status: "error",
+        duration: 6000,
+        isClosable: true,
+      });
+      return false;
+    } finally {
+      setIsSendingRemark(false);
+    }
+  };
 
   const handleDownloadFile = async (file, kind) => {
     if (!order?.id || file?.id == null) return;
@@ -407,6 +467,32 @@ export default function ShippingOrderDetailPage() {
           </DetailField>
         </Grid>
       </Card>
+
+      {twoWay.clientUpdatedAt ? (
+        <Flex align="center" gap={2} wrap="wrap" mb={4}>
+          <Text fontSize="sm">
+            Client last changed this order: {formatRemarkDateTime(twoWay.clientUpdatedAt)}
+          </Text>
+          {clientUpdateSeenNow ? (
+            <Badge colorScheme="orange" borderRadius="full" px={2.5}>
+              New client update
+            </Badge>
+          ) : twoWay.seenByNarviAt ? (
+            <Badge colorScheme="green" borderRadius="full" px={2.5}>
+              Seen {formatRemarkDateTime(twoWay.seenByNarviAt)}
+            </Badge>
+          ) : null}
+        </Flex>
+      ) : null}
+
+      <ShippingOrderRemarksPanel
+        twoWay={twoWay}
+        viewer="admin"
+        canWrite
+        isSending={isSendingRemark}
+        onSend={handleSendRemarkToClient}
+      />
+      <ShippingOrderChangesPanel changes={twoWay.changes} viewer="admin" />
 
       <Card p={{ base: 4, md: 6 }} bg={cardBg} border="1px" borderColor={borderColor}>
         <ShippingOrderStockList

@@ -49,6 +49,35 @@ export function getClientOrderTwoWayState(raw) {
   };
 }
 
+/**
+ * Same two-way data as read by the admin portal. Admin field names differ:
+ * client_update_unseen (client side: client_update_pending) and
+ * staff_update_unseen_by_client (client side: has_new_from_narvi).
+ * The admin list returns the latest remarks as plain text; the detail call adds remarks/changes.
+ */
+export function getAdminOrderTwoWayState(raw) {
+  const order = raw && typeof raw === "object" ? raw : {};
+  const latest = (value, direction) =>
+    typeof value === "string" ? toRemark({ text: value, direction }) : toRemark(value);
+  return {
+    remarkToNm: latest(order.remark_to_nm, "to_nm"),
+    remarkToClient: latest(order.remark_to_client, "to_client"),
+    clientUpdateUnseen: order.client_update_unseen === true,
+    clientUpdatedAt: toTimestamp(order.client_updated_at),
+    seenByNarviAt: toTimestamp(order.seen_by_narvi_at),
+    staffUpdateUnseenByClient: order.staff_update_unseen_by_client === true,
+    remarks: (Array.isArray(order.remarks) ? order.remarks : []).map(toRemark).filter(Boolean),
+    changes: (Array.isArray(order.changes) ? order.changes : []).filter(
+      (change) => change && typeof change === "object"
+    ),
+  };
+}
+
+/** Staff opening an order with an unseen client change marks it seen; list loading never does. */
+export function shouldMarkAdminOrderSeen(raw) {
+  return Boolean(raw && raw.id != null && raw.client_update_unseen === true);
+}
+
 /** Initial edit form values. remark_to_nm is a new message, so it always starts empty. */
 export function buildClientOrderEditForm(raw) {
   const order = raw && typeof raw === "object" ? raw : {};
@@ -107,8 +136,37 @@ export function shouldMarkClientOrderSeen(raw) {
   return Boolean(raw && raw.id != null && raw.has_new_from_narvi === true);
 }
 
+const DATE_VALUE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})(?:[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?$/;
+
+/**
+ * Date-only text for a backend date or timestamp ("YYYY-MM-DD" or "YYYY-MM-DD HH:MM:SS").
+ * Always DD/MM/YYYY, whatever the browser locale. Returns null when the value is not a date.
+ */
+export function formatDateOnly(value) {
+  const match = isBlank(value) ? null : String(value).trim().match(DATE_VALUE_PATTERN);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  const date = new Date(Number(year), Number(month) - 1, Number(day));
+  if (Number.isNaN(date.getTime()) || date.getMonth() !== Number(month) - 1) return null;
+  return `${day}/${month}/${year}`;
+}
+
+/** Date and time for a backend timestamp: "DD/MM/YYYY hh:mm AM/PM". Falls back to the raw text. */
+export function formatDateTimeDMY(value) {
+  if (isBlank(value)) return "-";
+  const text = String(value).trim();
+  const day = formatDateOnly(text);
+  const time = text.match(/[ T](\d{2}):(\d{2})/);
+  if (!day) return text;
+  if (!time) return day;
+  const hours = Number(time[1]);
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+  return `${day} ${String(hour12).padStart(2, "0")}:${time[2]} ${hours >= 12 ? "PM" : "AM"}`;
+}
+
+/** Old / new value in the Changes panel. Date values are shown like the "When" column. */
 export function formatChangeValue(value) {
   if (isBlank(value)) return "—";
   if (typeof value === "object") return value.name || value.label || JSON.stringify(value);
-  return String(value);
+  return formatDateOnly(value) || String(value);
 }

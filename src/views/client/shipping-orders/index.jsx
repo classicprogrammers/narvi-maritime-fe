@@ -7,7 +7,9 @@ import {
   Grid,
   GridItem,
   Heading,
+  HStack,
   Icon,
+  IconButton,
   Input,
   InputGroup,
   InputLeftElement,
@@ -683,12 +685,12 @@ function ClientShippingOrders() {
     });
   };
 
-  const handleOpenStockItems = async (order) => {
+  const handleOpenStockItems = async (order, { edit = false } = {}) => {
     if (!order?.id) return;
     const cacheKey = String(order.id);
     const cachedStock = stockCacheRef.current.get(cacheKey);
     const hasCachedStock = Array.isArray(cachedStock);
-    setIsEditingOrder(false);
+    setIsEditingOrder(edit && order.twoWay?.isEditable === true);
     markOrderSeenIfNew(order);
     setStockModal({
       isOpen: true,
@@ -1067,6 +1069,7 @@ function ClientShippingOrders() {
         <Table size="sm" variant="simple" sx={getClientPortalTableSx(tableColors)}>
           <Thead>
             <Tr>
+              <Th>Actions</Th>
               <Th>SO Number</Th>
               <Th>Client</Th>
               <Th>View Stock Items</Th>
@@ -1090,6 +1093,32 @@ function ClientShippingOrders() {
                 _hover={{ bg: tableRowHoverBg }}
                 _even={{ bg: row.twoWay?.hasNewFromNarvi ? newFromNarviRowBg : tableRowEvenBg }}
               >
+                <Td>
+                  <HStack spacing={2}>
+                    <Tooltip label="View" hasArrow>
+                      <IconButton
+                        size="sm"
+                        aria-label="View shipping order"
+                        icon={<Icon as={MdVisibility} />}
+                        variant="outline"
+                        colorScheme="teal"
+                        onClick={() => handleOpenStockItems(row)}
+                      />
+                    </Tooltip>
+                    {row.twoWay?.isEditable ? (
+                      <Tooltip label="Edit" hasArrow>
+                        <IconButton
+                          size="sm"
+                          aria-label="Edit shipping order"
+                          icon={<Icon as={MdEdit} />}
+                          variant="outline"
+                          colorScheme="blue"
+                          onClick={() => handleOpenStockItems(row, { edit: true })}
+                        />
+                      </Tooltip>
+                    ) : null}
+                  </HStack>
+                </Td>
                 <Td fontWeight="600">
                   <VStack align="start" spacing={1}>
                     <Button

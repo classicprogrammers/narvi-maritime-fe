@@ -13,6 +13,7 @@ export function createEmptyCiplEntry() {
     localKey: `local-${localEntryCounter}-${Date.now()}`,
     description: "",
     valueUsd: "",
+    sourceValue: "",
     quantity: "",
     perUnit: "",
     deleted: false,
@@ -55,6 +56,7 @@ export function parseCiplStockLineEntriesFromApi(line, isPerUnit) {
             ? String(entry.description)
             : "",
         valueUsd: normalizeCiplEntryValue(entry.value_in_usd),
+        sourceValue: normalizeCiplEntryValue(entry.source_value),
         quantity: normalizeCiplEntryValue(entry.quantity_pcs ?? entry.quantity),
         perUnit: normalizeCiplEntryValue(entry.per_unit ?? entry.perunit),
         deleted: false,
@@ -206,6 +208,98 @@ const toNullIfEmpty = (value) => {
   return text === "" ? null : value;
 };
 
+const toIdString = (value) => {
+  const raw = value && typeof value === "object" ? value.id : value;
+  if (raw == null || raw === false || raw === "") return "";
+  return Number.isFinite(Number(raw)) ? String(Number(raw)) : "";
+};
+
+/** Item (source) currency + ROE of a simple CIPL stock line. ROE = form currency units per 1 item currency unit. */
+export function parseCiplLineCurrencyFromApi(line) {
+  const currency =
+    line?.source_currency_id && typeof line.source_currency_id === "object"
+      ? line.source_currency_id
+      : null;
+  const roe = line?.roe;
+  return {
+    sourceCurrencyId: toIdString(line?.source_currency_id),
+    sourceCurrencyName: currency?.name ? String(currency.name) : "",
+    needsConversion: line?.needs_conversion === true,
+    roe: roe != null && roe !== false && Number.isFinite(Number(roe)) ? String(roe) : "",
+    roeDate: line?.roe_date && line.roe_date !== false ? String(line.roe_date) : "",
+    roeManual: line?.roe_manual === true,
+    sourceCurrencyDirty: false,
+    roeDirty: false,
+  };
+}
+
+/** Prefer local comparison against the form currency; fall back to the server flag. */
+export function ciplLineNeedsConversion(sourceCurrencyId, formCurrencyId, serverFlag = false) {
+  const source = toIdString(sourceCurrencyId);
+  if (!source) return false;
+  const target = toIdString(formCurrencyId);
+  if (!target) return serverFlag === true;
+  return source !== target;
+}
+
+export function parseCiplRoe(value) {
+  const text = value == null ? "" : String(value).trim();
+  if (text === "") return null;
+  const num = Number(text);
+  return Number.isFinite(num) && num > 0 ? num : null;
+}
+
+/** Local preview of source_value x roe; the backend value replaces it after save. */
+export function computeCiplConvertedValue(sourceValue, roe) {
+  const amountText = sourceValue == null ? "" : String(sourceValue).trim();
+  const rate = parseCiplRoe(roe);
+  if (amountText === "" || rate == null) return "";
+  const amount = Number(amountText);
+  if (!Number.isFinite(amount)) return "";
+  return (amount * rate).toFixed(2);
+}
+
+export function recalcCiplLineConvertedValues(item) {
+  if (!item?.needsConversion) return item;
+  const entries = (Array.isArray(item.entries) ? item.entries : []).map((entry) =>
+    entry?.deleted
+      ? entry
+      : { ...entry, valueUsd: computeCiplConvertedValue(entry.sourceValue, item.roe) }
+  );
+  return { ...item, entries };
+}
+
+function buildLineCurrencyPayload(item) {
+  const payload = {};
+  if (item?.sourceCurrencyDirty) {
+    const id = toIdString(item.sourceCurrencyId);
+    payload.source_currency_id = id ? Number(id) : null;
+  }
+  if (item?.roeDirty) {
+    const text = item.roe == null ? "" : String(item.roe).trim();
+    if (text === "") {
+      payload.roe = null;
+    } else {
+      const rate = parseCiplRoe(text);
+      if (rate != null) payload.roe = rate;
+    }
+  }
+  return payload;
+}
+
+function buildEntryValuePayload(entry, isPerUnit, needsConversion) {
+  if (isPerUnit) {
+    return {
+      quantity_pcs: toNullIfEmpty(entry.quantity),
+      per_unit: toNullIfEmpty(entry.perUnit),
+    };
+  }
+  if (needsConversion) {
+    return { source_value: toNullIfEmpty(entry.sourceValue) };
+  }
+  return { value_in_usd: toNullIfEmpty(entry.valueUsd) };
+}
+
 /** Backward-compat top-level fields only for a single new entry with no server id. */
 export function shouldUseLegacySingleFieldPayload(activeEntries, deletedEntries) {
   return (
@@ -233,7 +327,9 @@ export function buildCiplStockLinePayloadItem(item, isPerUnit) {
     warehouse_new: toNullIfEmpty(item?.warehouseId),
     dg_un: toNullIfEmpty(item?.dg_un),
     lwh: toNullIfEmpty(item?.lwh),
+    ...buildLineCurrencyPayload(item),
   };
+  const needsConversion = !isPerUnit && item?.needsConversion === true;
 
   const allEntries = Array.isArray(item?.entries) ? item.entries : [];
   const activeEntries = allEntries.filter((entry) => !entry?.deleted);
@@ -249,19 +345,13 @@ export function buildCiplStockLinePayloadItem(item, isPerUnit) {
     return { ...base, entries: [] };
   }
 
-  if (shouldUseLegacySingleFieldPayload(activeEntries, deletedEntries)) {
+  // source_value is only accepted per entry, so converted lines always use the entries payload.
+  if (!needsConversion && shouldUseLegacySingleFieldPayload(activeEntries, deletedEntries)) {
     const entry = activeEntries[0];
     return {
       ...base,
       description: toNullIfEmpty(entry.description),
-      ...(isPerUnit
-        ? {
-          quantity_pcs: toNullIfEmpty(entry.quantity),
-          per_unit: toNullIfEmpty(entry.perUnit),
-        }
-        : {
-          value_in_usd: toNullIfEmpty(entry.valueUsd),
-        }),
+      ...buildEntryValuePayload(entry, isPerUnit, false),
     };
   }
 
@@ -272,14 +362,7 @@ export function buildCiplStockLinePayloadItem(item, isPerUnit) {
         ? { id: Number(entry.id) }
         : {}),
       description: toNullIfEmpty(entry.description),
-      ...(isPerUnit
-        ? {
-          quantity_pcs: toNullIfEmpty(entry.quantity),
-          per_unit: toNullIfEmpty(entry.perUnit),
-        }
-        : {
-          value_in_usd: toNullIfEmpty(entry.valueUsd),
-        }),
+      ...buildEntryValuePayload(entry, isPerUnit, needsConversion),
     })),
   ];
 
@@ -304,6 +387,7 @@ export function mergeCiplStockLineFromApi(item, serverLine, isPerUnit, options =
   const merged = syncCiplStockLineSummaryFields(
     {
       ...item,
+      ...parseCiplLineCurrencyFromApi(serverLine),
       lineId,
       entries,
     },

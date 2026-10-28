@@ -147,6 +147,28 @@ export const postCiplSimpleFormCreateApi = async (payload = {}) =>
 export const postCiplSimpleFormUpdateApi = async (payload = {}) =>
   postUpdate("/api/cipl/form/update", payload, "Failed to update CIPL simple form");
 
+/** Refresh the rate on every simple CIPL line without a manual ROE; returns the updated form. */
+export const postCiplSimpleFormConvertApi = async (payload = {}) =>
+  postUpdate("/api/cipl/form/convert", payload, "Failed to convert CIPL form currency");
+
+/** Preview ROE (units of to_currency for 1 unit of from_currency). roe is null when no rate exists. */
+export const postCurrencyRoeApi = async ({ from_currency_id, to_currency_id, date } = {}) => {
+  const payload = {
+    from_currency_id: Number(from_currency_id),
+    to_currency_id: Number(to_currency_id),
+  };
+  if (date) payload.date = date;
+  const response = await api.post("/api/currency/roe", payload);
+  assertSuccess(response.data, "Failed to fetch exchange rate");
+  const root = response.data?.result && typeof response.data.result === "object"
+    ? response.data.result
+    : response.data;
+  return {
+    roe: root?.roe != null && root.roe !== false ? Number(root.roe) : null,
+    roeDate: root?.roe_date && root.roe_date !== false ? String(root.roe_date) : "",
+  };
+};
+
 const extractArchiveResponse = (data, fallbackMessage) => {
   assertSuccess(data, fallbackMessage);
   const root = data?.result && typeof data.result === "object" ? data.result : data;

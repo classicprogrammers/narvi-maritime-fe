@@ -1,7 +1,12 @@
 import {
   buildClientOrderEditForm,
   buildClientOrderUpdatePayload,
+  formatChangeValue,
+  formatDateOnly,
+  formatDateTimeDMY,
+  getAdminOrderTwoWayState,
   getClientOrderTwoWayState,
+  shouldMarkAdminOrderSeen,
   shouldMarkClientOrderSeen,
   toDateInputValue,
   validateClientOrderDates,
@@ -80,6 +85,45 @@ describe("clientOrderUpdates", () => {
     expect(state.remarks).toHaveLength(1);
     expect(state.changes).toHaveLength(1);
     expect(getClientOrderTwoWayState(undefined).isEditable).toBe(false);
+  });
+
+  test("reads the admin field names, including plain-text latest remarks", () => {
+    const state = getAdminOrderTwoWayState({
+      remark_to_nm: "QA test remark from client",
+      remark_to_client: "",
+      client_update_unseen: true,
+      client_updated_at: "2026-10-28 13:41:26",
+      seen_by_narvi_at: false,
+      staff_update_unseen_by_client: false,
+    });
+    expect(state.remarkToNm).toEqual(expect.objectContaining({ text: "QA test remark from client", direction: "to_nm" }));
+    expect(state.remarkToClient).toBeNull();
+    expect(state.clientUpdateUnseen).toBe(true);
+    expect(state.seenByNarviAt).toBeNull();
+    expect(state.remarks).toEqual([]);
+  });
+
+  test("Changes panel shows dates without time and in the same format as the When column", () => {
+    // Always DD/MM/YYYY, whatever the browser locale
+    expect(formatDateOnly("2026-10-26")).toBe("26/10/2026");
+    expect(formatDateOnly("2026-10-26 14:49:03")).toBe("26/10/2026");
+    expect(formatDateOnly("2026-10-26 14:49:03.789542")).toBe("26/10/2026");
+    expect(formatDateOnly("2026-02-31")).toBeNull();
+    expect(formatDateOnly("Agent A")).toBeNull();
+    expect(formatDateTimeDMY("2026-10-28 14:49:03")).toBe("28/10/2026 02:49 PM");
+    expect(formatDateTimeDMY("2026-10-28 00:05:00")).toBe("28/10/2026 12:05 AM");
+    expect(formatDateTimeDMY("2026-10-28")).toBe("28/10/2026");
+    expect(formatDateTimeDMY(false)).toBe("-");
+    expect(formatChangeValue("2026-10-26")).toBe("26/10/2026");
+    expect(formatChangeValue("CASE-123")).toBe("CASE-123");
+    expect(formatChangeValue(null)).toBe("—");
+    expect(formatChangeValue({ name: "Karachi" })).toBe("Karachi");
+  });
+
+  test("staff mark seen only orders with an unseen client change", () => {
+    expect(shouldMarkAdminOrderSeen({ id: 1, client_update_unseen: true })).toBe(true);
+    expect(shouldMarkAdminOrderSeen({ id: 1, client_update_unseen: false })).toBe(false);
+    expect(shouldMarkAdminOrderSeen(undefined)).toBe(false);
   });
 
   test("marks seen only for flagged orders", () => {

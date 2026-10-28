@@ -58,6 +58,7 @@ import {
   MdFilterList,
   MdClear,
   MdContentCopy,
+  MdNotificationsActive,
   MdSort,
   MdDownload,
   MdVisibility,
@@ -257,6 +258,8 @@ const SoNumberTab = () => {
   const hoverBg = useColorModeValue("blue.50", "blue.900");
   const tableRowBg = useColorModeValue("white", "gray.800");
   const tableRowBgAlt = useColorModeValue("gray.50", "whiteAlpha.50");
+  // Orders the client changed that staff have not opened yet stand out in the list.
+  const clientUpdateRowBg = useColorModeValue("orange.50", "whiteAlpha.200");
   const stickyEdgeShadow = useColorModeValue(
     "inset -1px 0 0 var(--chakra-colors-gray-200)",
     "inset -1px 0 0 var(--chakra-colors-whiteAlpha-200)"
@@ -467,6 +470,9 @@ const SoNumberTab = () => {
   const [activeClientFilter, setActiveClientFilter] = useState(savedState.activeClientFilter);
   const [readyForInvoiceClientFilter, setReadyForInvoiceClientFilter] = useState(savedState.readyForInvoiceClientFilter);
 
+  const [clientUpdatedSince, setClientUpdatedSince] = useState("");
+  /** Orders the client changed that staff have not opened yet (shown on the chip). */
+  const [unseenClientUpdateCount, setUnseenClientUpdateCount] = useState(0);
   const [nextActionSortOption, setNextActionSortOption] = useState(
     savedState.nextActionSortOption || "so_number"
   );
@@ -639,6 +645,7 @@ const SoNumberTab = () => {
       searchClientFilter,
       searchPicFilter,
       searchStatusFilter,
+      clientUpdatedSince,
     });
 
     const vesselId = searchVesselFilter != null && typeof searchVesselFilter === "object"
@@ -682,9 +689,20 @@ const SoNumberTab = () => {
     searchCountryFilter,
     searchDestinationQuery,
     nextActionSortOption,
+    clientUpdatedSince,
   ]);
 
   const ordersRequestIdRef = useRef(0);
+
+  // Count for the "Client updates" chip. Reloads with the list, so it drops after staff open an order.
+  const refreshUnseenClientUpdateCount = useCallback(async () => {
+    try {
+      const data = await getShippingOrders({ page: 1, page_size: 1, client_update_unseen: true });
+      setUnseenClientUpdateCount(Number(data?.total_count) || 0);
+    } catch (_error) {
+      // The chip works without the count.
+    }
+  }, []);
 
   const fetchOrders = useCallback(async () => {
     const requestId = ++ordersRequestIdRef.current;
@@ -712,6 +730,7 @@ const SoNumberTab = () => {
       setTotalPages(data.total_pages || 1);
       setHasNext(data.has_next || false);
       setHasPrevious(data.has_previous || false);
+      refreshUnseenClientUpdateCount();
     } catch (error) {
       if (requestId !== ordersRequestIdRef.current) return;
       console.error("Failed to fetch shipping orders", error);
@@ -740,6 +759,7 @@ const SoNumberTab = () => {
     buildListRequestParams,
     page,
     pageSize,
+    refreshUnseenClientUpdateCount,
     toast,
   ]);
 
@@ -1001,7 +1021,9 @@ const SoNumberTab = () => {
   const nextActionSortLabel =
     nextActionSortOption === "next_action"
       ? "Next Action"
-      : "SO #";
+      : nextActionSortOption === "client_updated_at"
+        ? "Client last update"
+        : "SO #";
 
   const getSoNumber = (order) => {
     if (order.so_number) return order.so_number;
@@ -1258,7 +1280,12 @@ const SoNumberTab = () => {
 
   const renderTableBody = () =>
     orders.map((order, index) => {
-      const rowBg = index % 2 === 0 ? tableRowBg : tableRowBgAlt;
+      const hasUnseenClientUpdate = order._raw?.client_update_unseen === true;
+      const rowBg = hasUnseenClientUpdate
+        ? clientUpdateRowBg
+        : index % 2 === 0
+          ? tableRowBg
+          : tableRowBgAlt;
       const nextAction = prettyTableDate(order.next_action);
       const deliveryDate = prettyTableDate(order.so_delivery_date);
       const eta = getEtaDisplay(order);
@@ -1295,6 +1322,7 @@ const SoNumberTab = () => {
             w={STICKY_CHECKBOX_WIDTH}
             maxW={STICKY_CHECKBOX_WIDTH}
             px={2}
+            boxShadow={hasUnseenClientUpdate ? "inset 4px 0 0 var(--chakra-colors-orange-400)" : undefined}
           >
             <Checkbox
               isChecked={order?.id != null && selectedOrderIds.has(order.id)}
@@ -1356,6 +1384,41 @@ const SoNumberTab = () => {
             >
               {getSoNumber(order)}
             </Button>
+            {order._raw?.client_update_unseen !== true && order._raw?.client_updated_at && (
+              <Tooltip label={`Client last changed this order: ${order._raw.client_updated_at}`}>
+                <Badge display="block" w="fit-content" mt="1" colorScheme="gray" borderRadius="full" px={2} fontSize="2xs">
+                  Edited by client
+                </Badge>
+              </Tooltip>
+            )}
+            {hasUnseenClientUpdate && (
+              <Tooltip
+                label={
+                  order._raw?.remark_to_nm
+                    ? `Client remark: ${order._raw.remark_to_nm}`
+                    : "The client changed this order"
+                }
+              >
+                <Badge
+                  display="flex"
+                  alignItems="center"
+                  gap="1"
+                  w="fit-content"
+                  mt="1"
+                  colorScheme="orange"
+                  variant="solid"
+                  borderRadius="full"
+                  px={2}
+                  py="0.5"
+                  fontSize="2xs"
+                  cursor="pointer"
+                  onClick={() => handleView(order)}
+                >
+                  <Icon as={MdNotificationsActive} boxSize="3" />
+                  New client update
+                </Badge>
+              </Tooltip>
+            )}
           </Td>
           <Td {...tableCellProps} whiteSpace="nowrap">
             {stockItemCount > 0 ? (
@@ -1856,6 +1919,69 @@ const SoNumberTab = () => {
               </Tag>
             </WrapItem>
 
+            {/* Orders the client changed that staff have not opened yet */}
+            <WrapItem>
+              <Tag
+                size="md"
+                borderRadius="full"
+                variant={activeFilters.clientUpdates ? "solid" : "outline"}
+                colorScheme={activeFilters.clientUpdates || unseenClientUpdateCount > 0 ? "orange" : "gray"}
+                cursor="pointer"
+                onClick={() => toggleFilter("clientUpdates")}
+              >
+                <TagLabel>Client updates</TagLabel>
+                {unseenClientUpdateCount > 0 && (
+                  <Flex
+                    as="span"
+                    ml="2"
+                    minW="20px"
+                    h="20px"
+                    px="1.5"
+                    align="center"
+                    justify="center"
+                    borderRadius="full"
+                    fontSize="xs"
+                    fontWeight="700"
+                    lineHeight="1"
+                    bg={activeFilters.clientUpdates ? "white" : "orange.500"}
+                    color={activeFilters.clientUpdates ? "orange.600" : "white"}
+                  >
+                    {unseenClientUpdateCount}
+                  </Flex>
+                )}
+                {activeFilters.clientUpdates && (
+                  <TagCloseButton
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFilter("clientUpdates");
+                    }}
+                  />
+                )}
+              </Tag>
+            </WrapItem>
+
+            {/* Every order the client ever changed, even if staff already opened it */}
+            <WrapItem>
+              <Tag
+                size="md"
+                borderRadius="full"
+                variant={activeFilters.clientEdited ? "solid" : "outline"}
+                colorScheme={activeFilters.clientEdited ? "orange" : "gray"}
+                cursor="pointer"
+                onClick={() => toggleFilter("clientEdited")}
+              >
+                <TagLabel>Edited by client</TagLabel>
+                {activeFilters.clientEdited && (
+                  <TagCloseButton
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFilter("clientEdited");
+                    }}
+                  />
+                )}
+              </Tag>
+            </WrapItem>
+
             {/* Ready for Invoice Client Filter */}
             <WrapItem>
               <Tag
@@ -1981,10 +2107,30 @@ const SoNumberTab = () => {
                 <MenuList>
                   <MenuItem onClick={() => setNextActionSort("so_number")}>SO #</MenuItem>
                   <MenuItem onClick={() => setNextActionSort("next_action")}>Next Action</MenuItem>
+                  <MenuItem onClick={() => setNextActionSort("client_updated_at")}>Client last update</MenuItem>
                 </MenuList>
               </Menu>
             </HStack>
           </Flex>
+
+          {activeFilters.clientEdited && (
+            <Box w="100%" maxW="260px">
+              <FormControl>
+                <FormLabel fontSize="xs" mb="1" color={textColor}>
+                  Edited by client since (optional)
+                </FormLabel>
+                <Input
+                  size="sm"
+                  type="date"
+                  value={clientUpdatedSince}
+                  onChange={(e) => {
+                    setClientUpdatedSince(e.target.value);
+                    setPage(1);
+                  }}
+                />
+              </FormControl>
+            </Box>
+          )}
 
           {/* Client selection when Active Client or Ready for Invoice Client chip is on */}
           {(activeFilters.activeClient || activeFilters.readyForInvoiceClient) && (

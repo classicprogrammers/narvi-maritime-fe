@@ -106,6 +106,9 @@ export const getShippingOrders = async (params = {}) => {
       pic_id,
       is_mso,
       mso_id,
+      client_update_unseen,
+      client_updated,
+      client_updated_since,
     } = params;
 
     const fetchAllRequested =
@@ -157,6 +160,16 @@ export const getShippingOrders = async (params = {}) => {
     }
     if (mso_id != null && mso_id !== "") {
       requestParams.mso_id = mso_id;
+    }
+    if (client_update_unseen === true) {
+      requestParams.client_update_unseen = true;
+    }
+    // Every order the client ever changed, whether or not staff have opened it.
+    if (client_updated === true) {
+      requestParams.client_updated = true;
+    }
+    if (client_updated_since && /^\d{4}-\d{2}-\d{2}$/.test(String(client_updated_since))) {
+      requestParams.client_updated_since = String(client_updated_since);
     }
     if (destination != null && String(destination).trim() !== "") {
       requestParams.destination = String(destination).trim();
@@ -289,6 +302,20 @@ export const getShippingOrderById = async (id) => {
     params: { id: normalizedId },
   });
   return toShippingOrderResult(response.data || response);
+};
+
+/**
+ * POST /api/shipping/order/seen — staff looked at the client's change.
+ * Clears client_update_unseen and sets seen_by_narvi_at. Opening the order (GET) does not.
+ */
+export const markShippingOrderSeenApi = async (id) => {
+  if (id == null || id === "") {
+    throw new Error("Order id is required.");
+  }
+  const response = await api.post(`${getApiEndpoint("SHIPPING_ORDER")}/seen`, { id });
+  const data = response.data || response;
+  throwIfApiError(data);
+  return unwrapApiPayload(data) || {};
 };
 
 /** GET /api/shipping/order/<order_id>/stock — full stock_list for one SO */
@@ -572,6 +599,7 @@ export const getShippingOrderOptionsApi = async ({ q_destination = "", q_locatio
 export default {
   getShippingOrders,
   getShippingOrderById,
+  markShippingOrderSeenApi,
   getShippingOrderStockApi,
   createShippingOrder,
   updateShippingOrder,
