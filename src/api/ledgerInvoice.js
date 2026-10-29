@@ -34,6 +34,16 @@ export const getLedgerInvoices = async (params = {}) => {
     "payment_status",
     "destination",
     "search",
+    "sort_by",
+    "sort_order",
+    "so_done_status",
+    "client_case_invoice_ref",
+    "date_sales_invoice_from",
+    "date_sales_invoice_to",
+    "date_due_from",
+    "date_due_to",
+    "date_paid_from",
+    "date_paid_to",
   ];
   optionalKeys.forEach((key) => {
     const value = params[key];
@@ -71,6 +81,8 @@ export const getLedgerInvoices = async (params = {}) => {
     total_pages: data.total_pages ?? 1,
     has_next: data.has_next ?? false,
     has_previous: data.has_previous ?? false,
+    sort_by: data.sort_by ?? null,
+    sort_order: data.sort_order ?? null,
   };
 };
 
@@ -103,10 +115,23 @@ export const deleteLedgerInvoice = async (id) => {
   return data;
 };
 
+export const bulkUpdateLedgerInvoices = async ({ ids, values }) => {
+  const response = await api.post("/api/ledger/invoice/bulk-update", { ids, values });
+  const data = response.data || response;
+  unwrapError(data, "Failed to update selected records");
+  const payload = data?.result && data.result.updated_count != null ? data.result : data;
+  return {
+    updated_count: payload.updated_count ?? 0,
+    ids: payload.ids ?? ids,
+    updated_fields: payload.updated_fields ?? [],
+  };
+};
+
 export default {
   getLedgerInvoices,
   getLedgerInvoiceById,
   createLedgerInvoice,
   updateLedgerInvoice,
   deleteLedgerInvoice,
+  bulkUpdateLedgerInvoices,
 };

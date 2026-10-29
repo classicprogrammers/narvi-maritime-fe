@@ -9,6 +9,7 @@ import {
   Badge,
   Box,
   Button,
+  Checkbox,
   Collapse,
   Flex,
   FormControl,
@@ -37,14 +38,51 @@ import {
   useDisclosure,
   useToast,
 } from "@chakra-ui/react";
-import { MdAdd, MdClear, MdDelete, MdEdit, MdFilterList, MdOpenInNew, MdReceipt, MdSearch } from "react-icons/md";
+import {
+  MdAdd,
+  MdClear,
+  MdDateRange,
+  MdDelete,
+  MdEdit,
+  MdFilterList,
+  MdOpenInNew,
+  MdReceipt,
+  MdSearch,
+} from "react-icons/md";
 import { useHistory } from "react-router-dom";
-import { deleteLedgerCost, getLedgerCosts } from "api/ledgerCost";
+import { bulkUpdateLedgerCosts, deleteLedgerCost, getLedgerCosts } from "api/ledgerCost";
 import { useMasterData } from "hooks/useMasterData";
+import useLedgerAgentOptions from "hooks/useLedgerAgentOptions";
 import { getCached, MASTER_KEYS } from "utils/masterDataCache";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import LedgerAutoTag from "components/ledger/LedgerAutoTag";
+import LedgerBulkEditModal from "components/ledger/LedgerBulkEditModal";
+import LedgerDateRangeFilterModal from "components/ledger/LedgerDateRangeFilterModal";
+import LedgerSortableHeader from "components/ledger/LedgerSortableHeader";
+import { COST_COLUMNS } from "utils/ledgerColumns";
 import {
-  agentDisplayName,
+  BULK_MAX_IDS,
+  COST_BULK_FIELDS,
+  buildBulkUpdatePayload,
+  validateBulkSelection,
+} from "utils/ledgerBulkEdit";
+import {
+  agentOptionLabel,
+  agentOptionSecondary,
+  SO_DONE_STATUS_OPTIONS,
+  soDoneStatusColor,
+  soDoneStatusLabel,
+} from "utils/ledgerDisplay";
+import {
+  buildDateRangeParams,
+  COST_DATE_FILTER_FIELDS,
+  COST_SORT_KEYS,
+  countActiveDateRanges,
+  DEFAULT_LEDGER_SORT,
+  nextSortState,
+  sanitizeDateRanges,
+} from "utils/ledgerListQuery";
+import {
   BIZ_CATEGORY_OPTIONS,
   bizCategoryDisplay,
   extractApiMessage,
@@ -61,10 +99,16 @@ const defaultCostListState = {
   searchValue: "",
   soNumber: "",
   agentId: "",
+  agentLabel: "",
   clientId: "",
   vesselId: "",
   destination: "",
   bizCategory: "",
+  soDoneStatus: "",
+  clientCaseRef: "",
+  dateRanges: {},
+  sortBy: DEFAULT_LEDGER_SORT.sortBy,
+  sortOrder: DEFAULT_LEDGER_SORT.sortOrder,
   page: 1,
   pageSize: 50,
   showAdvancedFilters: false,
@@ -77,6 +121,11 @@ function readPersistedCostListState() {
     const parsed = JSON.parse(raw);
     const next = { ...defaultCostListState, ...(parsed && typeof parsed === "object" ? parsed : {}) };
     next.bizCategory = normalizeBizCategory(next.bizCategory);
+    next.dateRanges = sanitizeDateRanges(next.dateRanges, COST_DATE_FILTER_FIELDS);
+    if (!COST_SORT_KEYS.includes(next.sortBy) || !["asc", "desc"].includes(next.sortOrder)) {
+      next.sortBy = DEFAULT_LEDGER_SORT.sortBy;
+      next.sortOrder = DEFAULT_LEDGER_SORT.sortOrder;
+    }
     return next;
   } catch (error) {
     return { ...defaultCostListState };
@@ -128,15 +177,19 @@ function TruncatedText({ value, maxW = "160px", fontWeight, color, fontSize = "s
   );
 }
 
+const CHECKBOX_COL_W = "44px";
+
 export default function LedgerCost() {
   const toast = useToast();
   const history = useHistory();
-  const { refreshAgents, refreshClients, refreshVessels, refreshDestinations } = useMasterData();
+  const { refreshClients, refreshVessels, refreshDestinations, refreshCurrencies } = useMasterData();
   const savedState = useRef(readPersistedCostListState()).current;
-  const [agents, setAgents] = useState(() => getCached(MASTER_KEYS.AGENTS) ?? []);
+  const agentPicker = useLedgerAgentOptions();
+  const bulkAgentPicker = useLedgerAgentOptions();
   const [clients, setClients] = useState(() => getCached(MASTER_KEYS.CLIENTS) ?? []);
   const [vessels, setVessels] = useState(() => getCached(MASTER_KEYS.VESSELS) ?? []);
   const [destinations, setDestinations] = useState(() => getCached(MASTER_KEYS.DESTINATIONS) ?? []);
+  const [currencies, setCurrencies] = useState(() => getCached(MASTER_KEYS.CURRENCIES) ?? []);
   const [records, setRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -145,11 +198,21 @@ export default function LedgerCost() {
   const [soNumber, setSoNumber] = useState(savedState.soNumber);
   const [soNumberQuery, setSoNumberQuery] = useState(String(savedState.soNumber || "").trim());
   const [agentId, setAgentId] = useState(savedState.agentId);
+  const [agentLabel, setAgentLabel] = useState(savedState.agentLabel);
   const [clientId, setClientId] = useState(savedState.clientId);
   const [vesselId, setVesselId] = useState(savedState.vesselId);
   const [destination, setDestination] = useState(savedState.destination);
   const [destinationQuery, setDestinationQuery] = useState(String(savedState.destination || "").trim());
   const [bizCategory, setBizCategory] = useState(savedState.bizCategory);
+  const [soDoneStatus, setSoDoneStatus] = useState(savedState.soDoneStatus);
+  const [clientCaseRef, setClientCaseRef] = useState(savedState.clientCaseRef);
+  const [clientCaseRefQuery, setClientCaseRefQuery] = useState(String(savedState.clientCaseRef || "").trim());
+  const [dateRanges, setDateRanges] = useState(savedState.dateRanges);
+  const [sortBy, setSortBy] = useState(savedState.sortBy);
+  const [sortOrder, setSortOrder] = useState(savedState.sortOrder);
+  // Sort the server says it applied (headers show this; the request uses sortBy/sortOrder)
+  const [appliedSort, setAppliedSort] = useState({ sortBy: savedState.sortBy, sortOrder: savedState.sortOrder });
+  const lastGoodSortRef = useRef({ sortBy: savedState.sortBy, sortOrder: savedState.sortOrder });
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(savedState.showAdvancedFilters);
   const [page, setPage] = useState(savedState.page);
   const [pageSize, setPageSize] = useState(savedState.pageSize);
@@ -158,8 +221,15 @@ export default function LedgerCost() {
   const [hasNext, setHasNext] = useState(false);
   const [hasPrevious, setHasPrevious] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkError, setBulkError] = useState("");
+  const [isBulkSaving, setIsBulkSaving] = useState(false);
+  const [listError, setListError] = useState("");
+  const dateApplyPendingRef = useRef(false);
 
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
+  const { isOpen: isDateOpen, onOpen: onDateOpen, onClose: onDateClose } = useDisclosure();
+  const { isOpen: isBulkOpen, onOpen: onBulkOpen, onClose: onBulkClose } = useDisclosure();
   const cancelDeleteRef = useRef(null);
 
   const pageBg = useColorModeValue("gray.50", "gray.900");
@@ -175,6 +245,7 @@ export default function LedgerCost() {
   const headerColor = useColorModeValue("gray.500", "gray.400");
   const soColor = useColorModeValue("blue.700", "blue.200");
   const mutedColor = useColorModeValue("gray.500", "gray.400");
+  const labelColor = useColorModeValue("gray.700", "gray.200");
 
   const loadRecords = useCallback(async () => {
     setIsLoading(true);
@@ -189,20 +260,46 @@ export default function LedgerCost() {
         client_id: clientId,
         vessel_id: vesselId,
         destination: destinationQuery,
+        so_done_status: soDoneStatus,
+        client_case_invoice_ref: clientCaseRefQuery,
+        sort_by: sortBy,
+        sort_order: sortOrder,
+        ...buildDateRangeParams(dateRanges, COST_DATE_FILTER_FIELDS),
       });
       setRecords(Array.isArray(data.data) ? data.data : []);
       setTotalCount(data.total_count || 0);
       setTotalPages(data.total_pages || 0);
       setHasNext(Boolean(data.has_next));
       setHasPrevious(Boolean(data.has_previous));
+      // The server is the truth for the applied sort
+      const applied =
+        COST_SORT_KEYS.includes(data.sort_by) && ["asc", "desc"].includes(data.sort_order)
+          ? { sortBy: data.sort_by, sortOrder: data.sort_order }
+          : { sortBy, sortOrder };
+      setAppliedSort(applied);
+      lastGoodSortRef.current = { sortBy, sortOrder };
+      setListError("");
+      if (dateApplyPendingRef.current) {
+        dateApplyPendingRef.current = false;
+        onDateClose();
+      }
     } catch (error) {
+      const message = extractApiMessage(error, "Failed to load cost records.");
       toast({
         title: "Error",
-        description: extractApiMessage(error, "Failed to load cost records."),
+        description: message,
         status: "error",
         duration: 5000,
         isClosable: true,
       });
+      setListError(message);
+      dateApplyPendingRef.current = false;
+      // Restore the previous sort if the sort request failed
+      const good = lastGoodSortRef.current;
+      if (good.sortBy !== sortBy || good.sortOrder !== sortOrder) {
+        setSortBy(good.sortBy);
+        setSortOrder(good.sortOrder);
+      }
       setRecords([]);
       setTotalCount(0);
       setTotalPages(0);
@@ -211,7 +308,24 @@ export default function LedgerCost() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, searchQuery, soNumberQuery, bizCategory, agentId, clientId, vesselId, destinationQuery, toast]);
+  }, [
+    page,
+    pageSize,
+    searchQuery,
+    soNumberQuery,
+    bizCategory,
+    agentId,
+    clientId,
+    vesselId,
+    destinationQuery,
+    soDoneStatus,
+    clientCaseRefQuery,
+    sortBy,
+    sortOrder,
+    dateRanges,
+    onDateClose,
+    toast,
+  ]);
 
   useEffect(() => {
     loadRecords();
@@ -219,36 +333,47 @@ export default function LedgerCost() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      refreshAgents(),
-      refreshClients(),
-      refreshVessels(),
-      refreshDestinations(),
-    ])
-      .then(([agentList, clientList, vesselList, destinationList]) => {
+    Promise.all([refreshClients(), refreshVessels(), refreshDestinations(), refreshCurrencies()])
+      .then(([clientList, vesselList, destinationList, currencyList]) => {
         if (cancelled) return;
-        setAgents(Array.isArray(agentList) ? agentList : getCached(MASTER_KEYS.AGENTS) ?? []);
         setClients(Array.isArray(clientList) ? clientList : getCached(MASTER_KEYS.CLIENTS) ?? []);
         setVessels(Array.isArray(vesselList) ? vesselList : getCached(MASTER_KEYS.VESSELS) ?? []);
         setDestinations(
           Array.isArray(destinationList) ? destinationList : getCached(MASTER_KEYS.DESTINATIONS) ?? []
+        );
+        setCurrencies(
+          Array.isArray(currencyList) ? currencyList : getCached(MASTER_KEYS.CURRENCIES) ?? []
         );
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [refreshAgents, refreshClients, refreshVessels, refreshDestinations]);
+  }, [refreshClients, refreshVessels, refreshDestinations, refreshCurrencies]);
+
+  // Keep the persisted agent in the picker so its label always shows
+  const { pin: pinFilterAgent } = agentPicker;
+  useEffect(() => {
+    if (savedState.agentId && savedState.agentLabel) {
+      pinFilterAgent({ id: savedState.agentId, name: savedState.agentLabel });
+    }
+  }, [pinFilterAgent, savedState.agentId, savedState.agentLabel]);
 
   useEffect(() => {
     writePersistedCostListState({
       searchValue,
       soNumber,
       agentId,
+      agentLabel,
       clientId,
       vesselId,
       destination,
       bizCategory,
+      soDoneStatus,
+      clientCaseRef,
+      dateRanges,
+      sortBy,
+      sortOrder,
       page,
       pageSize,
       showAdvancedFilters,
@@ -257,10 +382,16 @@ export default function LedgerCost() {
     searchValue,
     soNumber,
     agentId,
+    agentLabel,
     clientId,
     vesselId,
     destination,
     bizCategory,
+    soDoneStatus,
+    clientCaseRef,
+    dateRanges,
+    sortBy,
+    sortOrder,
     page,
     pageSize,
     showAdvancedFilters,
@@ -276,10 +407,29 @@ export default function LedgerCost() {
       setSearchQuery(searchValue.trim());
       setSoNumberQuery(soNumber.trim());
       setDestinationQuery(destination.trim());
+      setClientCaseRefQuery(clientCaseRef.trim());
       setPage(1);
     }, 400);
     return () => clearTimeout(timer);
-  }, [searchValue, soNumber, destination]);
+  }, [searchValue, soNumber, destination, clientCaseRef]);
+
+  // Selection is cleared on any filter, search or sort change (not on page change)
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [
+    searchQuery,
+    soNumberQuery,
+    destinationQuery,
+    clientCaseRefQuery,
+    agentId,
+    clientId,
+    vesselId,
+    bizCategory,
+    soDoneStatus,
+    dateRanges,
+    sortBy,
+    sortOrder,
+  ]);
 
   const handleClearSearch = () => {
     setSearchValue("");
@@ -291,11 +441,45 @@ export default function LedgerCost() {
     setSoNumber("");
     setSoNumberQuery("");
     setAgentId("");
+    setAgentLabel("");
     setClientId("");
     setVesselId("");
     setDestination("");
     setDestinationQuery("");
     setBizCategory("");
+    setSoDoneStatus("");
+    setClientCaseRef("");
+    setClientCaseRefQuery("");
+    setDateRanges({});
+    setPage(1);
+  };
+
+  const handleSort = (key) => {
+    const next = nextSortState({ sortBy: appliedSort.sortBy, sortOrder: appliedSort.sortOrder }, key);
+    setSortBy(next.sortBy);
+    setSortOrder(next.sortOrder);
+    setPage(1);
+  };
+
+  const handleApplyDates = (ranges) => {
+    const next = sanitizeDateRanges(ranges, COST_DATE_FILTER_FIELDS);
+    if (JSON.stringify(next) === JSON.stringify(dateRanges)) {
+      onDateClose();
+      return;
+    }
+    dateApplyPendingRef.current = true;
+    setListError("");
+    setDateRanges(next);
+    setPage(1);
+  };
+
+  const handleClearDates = () => {
+    if (Object.keys(dateRanges).length === 0) {
+      onDateClose();
+      return;
+    }
+    dateApplyPendingRef.current = true;
+    setDateRanges({});
     setPage(1);
   };
 
@@ -335,9 +519,97 @@ export default function LedgerCost() {
     }
   };
 
-  const agentOptions = (Array.isArray(agents) ? agents : []).map((agent) => ({
+  // Bulk edit
+  const pageIds = records.map((row) => row.id);
+  const selectedOnPage = pageIds.filter((rowId) => selectedIds.includes(rowId));
+  const allOnPageSelected = pageIds.length > 0 && selectedOnPage.length === pageIds.length;
+  const someOnPageSelected = selectedOnPage.length > 0 && !allOnPageSelected;
+  const selectionError = validateBulkSelection(selectedIds);
+  const overBulkLimit = selectedIds.length > BULK_MAX_IDS;
+
+  const toggleRow = (rowId) => {
+    setSelectedIds((prev) => (prev.includes(rowId) ? prev.filter((x) => x !== rowId) : [...prev, rowId]));
+  };
+  const togglePage = () => {
+    setSelectedIds((prev) =>
+      allOnPageSelected
+        ? prev.filter((x) => !pageIds.includes(x))
+        : [...prev, ...pageIds.filter((x) => !prev.includes(x))]
+    );
+  };
+
+  const handleOpenBulk = () => {
+    setBulkError("");
+    onBulkOpen();
+  };
+
+  const handleBulkSubmit = async (enabledValues) => {
+    const invalid = validateBulkSelection(selectedIds);
+    if (invalid) {
+      setBulkError(invalid);
+      return;
+    }
+    setIsBulkSaving(true);
+    setBulkError("");
+    try {
+      const payload = buildBulkUpdatePayload(selectedIds, enabledValues, COST_BULK_FIELDS);
+      const result = await bulkUpdateLedgerCosts(payload);
+      toast({
+        title: "Success",
+        description: `Updated ${result.updated_count} records (${(result.updated_fields || []).join(", ")})`,
+        status: "success",
+        duration: 4000,
+        isClosable: true,
+      });
+      onBulkClose();
+      setSelectedIds([]);
+      await loadRecords();
+    } catch (error) {
+      setBulkError(extractApiMessage(error, "Bulk update failed."));
+    } finally {
+      setIsBulkSaving(false);
+    }
+  };
+
+  const renderBulkAgentPicker = (value, onChange, disabled) => (
+    <SimpleSearchableSelect
+      value={value === "" || value == null ? "" : String(value)}
+      onChange={(next) => {
+        const picked = bulkAgentPicker.options.find((a) => String(a.id) === String(next));
+        if (picked) bulkAgentPicker.pin(picked);
+        onChange(next || "");
+      }}
+      options={bulkAgentPicker.options.map((a) => ({ ...a, name: agentOptionLabel(a) }))}
+      placeholder="Select agent..."
+      serverSideSearch
+      onSearchChange={bulkAgentPicker.onSearchChange}
+      isLoading={bulkAgentPicker.isLoading}
+      formatOption={agentOptionLabel}
+      renderOption={renderAgentOption}
+      isDisabled={disabled}
+      size="sm"
+      bg={inputBg}
+    />
+  );
+
+  function renderAgentOption(option) {
+    return (
+      <Box>
+        <Text fontSize="sm" fontWeight="600" color={labelColor} noOfLines={1}>
+          {agentOptionLabel(option)}
+        </Text>
+        {agentOptionSecondary(option) ? (
+          <Text fontSize="xs" color={mutedColor} noOfLines={1}>
+            {agentOptionSecondary(option)}
+          </Text>
+        ) : null}
+      </Box>
+    );
+  }
+
+  const agentFilterOptions = agentPicker.options.map((agent) => ({
     ...agent,
-    name: agentDisplayName(agent),
+    name: agentOptionLabel(agent),
   }));
   const clientOptions = (Array.isArray(clients) ? clients : []).map((client) => ({
     ...client,
@@ -352,14 +624,11 @@ export default function LedgerCost() {
     name: item.name || item.destination || `Destination ${item.id}`,
   }));
 
-  const advancedFilterCount = [
-    soNumber,
-    agentId,
-    clientId,
-    vesselId,
-    destination,
-    bizCategory,
-  ].filter((value) => value != null && String(value).trim() !== "").length;
+  const activeDateCount = countActiveDateRanges(dateRanges, COST_DATE_FILTER_FIELDS);
+  const advancedFilterCount =
+    [soNumber, agentId, clientId, vesselId, destination, bizCategory, soDoneStatus, clientCaseRef].filter(
+      (value) => value != null && String(value).trim() !== ""
+    ).length + activeDateCount;
   const hasAdvancedFilters = advancedFilterCount > 0;
   const isAdvancedPanelOpen = showAdvancedFilters || hasAdvancedFilters;
 
@@ -410,6 +679,158 @@ export default function LedgerCost() {
     return "-";
   };
 
+  const dash = <Text color="gray.400">—</Text>;
+
+  // Cell content for COST_COLUMNS (the SO Number column is rendered separately, it is sticky)
+  const renderCell = (col, row) => {
+    switch (col.key) {
+      case "so_create_date":
+      case "date_agent_invoice": {
+        const text = prettyCostDate(row[col.key]);
+        return text ? <Text whiteSpace="nowrap">{text}</Text> : dash;
+      }
+      case "so_done_status":
+        return soDoneStatusLabel(row) === "-" ? (
+          dash
+        ) : (
+          <Badge
+            colorScheme={soDoneStatusColor(row.so_done_status)}
+            fontSize="2xs"
+            whiteSpace="nowrap"
+            variant="subtle"
+          >
+            {soDoneStatusLabel(row)}
+          </Badge>
+        );
+      case "agent": {
+        const name = row.agent || row.agent_detail?.name || getMany2oneName(row.agent_id) || "";
+        const second = agentOptionSecondary(row.agent_detail);
+        return (
+          <>
+            <TruncatedText value={name} maxW="180px" />
+            {second ? (
+              <Text fontSize="xs" color={mutedColor} noOfLines={1} maxW="180px" title={second}>
+                {second}
+              </Text>
+            ) : null}
+          </>
+        );
+      }
+      case "client":
+        return <TruncatedText value={row.client || getMany2oneName(row.client_id)} maxW="180px" />;
+      case "vessel_name":
+        return <TruncatedText value={row.vessel_name || getMany2oneName(row.vessel_id)} maxW="150px" />;
+      case "destination":
+        return <TruncatedText value={row.destination} maxW="170px" />;
+      case "biz_category": {
+        const bizKey = normalizeBizCategory(row.biz_category);
+        const bizLabel = bizCategoryDisplay(row.biz_category, row.biz_category_label);
+        return bizLabel && bizLabel !== "-" ? (
+          <Badge
+            colorScheme={bizKey === "bunker" ? "orange" : "purple"}
+            variant="subtle"
+            borderRadius="full"
+            px={2.5}
+            py={0.5}
+            fontSize="xs"
+            textTransform="none"
+          >
+            {bizLabel}
+          </Badge>
+        ) : (
+          dash
+        );
+      }
+      case "currency_code":
+        return <Text>{row.currency_code || getMany2oneName(row.currency_id) || "—"}</Text>;
+      case "currency_amount":
+        return (
+          <Text fontWeight="700" sx={{ fontVariantNumeric: "tabular-nums" }} whiteSpace="nowrap">
+            {formatCostNumber(row.currency_amount)}
+          </Text>
+        );
+      case "roe_invoice_date":
+        return row.roe_invoice_date ? (
+          <Flex align="center" justify="flex-end" whiteSpace="nowrap">
+            <Text sx={{ fontVariantNumeric: "tabular-nums" }}>{formatCostNumber(row.roe_invoice_date, 6)}</Text>
+            <LedgerAutoTag mode={row.roe_manual ? "manual" : "auto"} compact />
+          </Flex>
+        ) : (
+          dash
+        );
+      case "usd_cost":
+        return (
+          <Text fontWeight="600" sx={{ fontVariantNumeric: "tabular-nums" }} whiteSpace="nowrap">
+            {formatCostNumber(row.usd_cost, 4)}
+          </Text>
+        );
+      case "gst_input_tax":
+      case "gst_in_amount":
+        return (
+          <Text sx={{ fontVariantNumeric: "tabular-nums" }} whiteSpace="nowrap">
+            {formatCostNumber(row[col.key])}
+          </Text>
+        );
+      case "date_due_agent": {
+        const dueDate = prettyCostDate(row.date_due_agent);
+        if (!dueDate) return dash;
+        return (
+          <Flex align="center" whiteSpace="nowrap">
+            {isDueOverdue(row) ? (
+              <Badge colorScheme="red" variant="subtle" borderRadius="full" px={2} textTransform="none">
+                {dueDate}
+              </Badge>
+            ) : (
+              dueDate
+            )}
+            <LedgerAutoTag mode={row.date_due_manual ? "manual" : "auto"} compact />
+          </Flex>
+        );
+      }
+      case "date_agent_paid": {
+        const paidDate = prettyCostDate(row.date_agent_paid);
+        return paidDate ? (
+          <Badge colorScheme="green" variant="subtle" borderRadius="full" px={2} textTransform="none">
+            {paidDate}
+          </Badge>
+        ) : (
+          dash
+        );
+      }
+      case "invoice_link": {
+        const invoiceUrl =
+          row.invoice_link && row.invoice_link !== false ? String(row.invoice_link) : "";
+        if (!invoiceUrl) return dash;
+        return isProbablyUrl(invoiceUrl) ? (
+          <Button
+            as="a"
+            href={invoiceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            size="xs"
+            variant="outline"
+            colorScheme="blue"
+            rightIcon={<Icon as={MdOpenInNew} />}
+          >
+            Open
+          </Button>
+        ) : (
+          <TruncatedText value={invoiceUrl} maxW="120px" />
+        );
+      }
+      default:
+        // longtext (client case ref, invoices)
+        return <TruncatedText value={row[col.key]} maxW="200px" />;
+    }
+  };
+
+  const isNumericCol = (col) => col.type === "number" || col.type === "roe";
+  const listColumns = COST_COLUMNS.filter((col) => col.key !== "so_number");
+  const soColumn = COST_COLUMNS.find((col) => col.key === "so_number");
+  const tableMinW = `${
+    COST_COLUMNS.reduce((sum, col) => sum + parseInt(col.minW, 10), 0) + 160
+  }px`;
+
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }} bg={pageBg} minH="100vh">
       <Box px="25px" pb={8}>
@@ -436,7 +857,7 @@ export default function LedgerCost() {
                   <MdSearch color={searchIconColor} />
                 </InputLeftElement>
                 <Input
-                  placeholder="Search SO, invoices, destination, agent, client..."
+                  placeholder="Search SO, invoices, destination, agent, agent code, company, client, client case ref..."
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
                   autoComplete="off"
@@ -504,17 +925,29 @@ export default function LedgerCost() {
                 <Text fontSize="sm" fontWeight="600">
                   Filter by specific fields
                 </Text>
-                {hasAdvancedFilters && (
+                <HStack spacing={3} wrap="wrap">
                   <Button
                     size="sm"
-                    variant="outline"
-                    colorScheme="red"
                     h="40px"
-                    onClick={handleClearAdvancedFilters}
+                    variant={activeDateCount > 0 ? "solid" : "outline"}
+                    colorScheme={activeDateCount > 0 ? "blue" : "gray"}
+                    leftIcon={<Icon as={MdDateRange} />}
+                    onClick={onDateOpen}
                   >
-                    Clear All
+                    {activeDateCount > 0 ? "Edit Date Filter" : "Filter by Dates"}
                   </Button>
-                )}
+                  {hasAdvancedFilters && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      colorScheme="red"
+                      h="40px"
+                      onClick={handleClearAdvancedFilters}
+                    >
+                      Clear All
+                    </Button>
+                  )}
+                </HStack>
               </Flex>
               <SimpleGrid
                 columns={{ base: 1, md: 2, xl: 3 }}
@@ -537,11 +970,20 @@ export default function LedgerCost() {
                   <SimpleSearchableSelect
                     value={agentId}
                     onChange={(value) => {
-                      setAgentId(value || "");
+                      const picked = agentPicker.options.find((a) => String(a.id) === String(value));
+                      if (picked) agentPicker.pin(picked);
+                      setAgentId(value ? String(value) : "");
+                      setAgentLabel(picked ? agentOptionLabel(picked) : "");
                       setPage(1);
                     }}
-                    options={agentOptions}
+                    options={agentFilterOptions}
                     placeholder="All agents"
+                    serverSideSearch
+                    onSearchChange={agentPicker.onSearchChange}
+                    isLoading={agentPicker.isLoading}
+                    formatOption={agentOptionLabel}
+                    renderOption={renderAgentOption}
+                    fallbackDisplay={agentLabel}
                     {...controlProps}
                   />
                 </FormControl>
@@ -600,13 +1042,74 @@ export default function LedgerCost() {
                     ))}
                   </Select>
                 </FormControl>
+                <FormControl>
+                  <FormLabel {...filterLabelProps}>SO Status</FormLabel>
+                  <Select
+                    value={soDoneStatus}
+                    onChange={(e) => {
+                      setSoDoneStatus(e.target.value);
+                      setPage(1);
+                    }}
+                    {...controlProps}
+                  >
+                    <option value="">All</option>
+                    {SO_DONE_STATUS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl>
+                  <FormLabel {...filterLabelProps}>Client Case / Invoice Ref</FormLabel>
+                  <Input
+                    placeholder="Filter by client case / invoice ref"
+                    value={clientCaseRef}
+                    onChange={(e) => setClientCaseRef(e.target.value)}
+                    autoComplete="off"
+                    name="cost-filter-client-case-ref"
+                    {...controlProps}
+                  />
+                </FormControl>
               </SimpleGrid>
             </Box>
           </Collapse>
         </Box>
 
         <Box bg={cardBg} border="1px" borderColor={borderColor} borderRadius="lg" overflow="hidden">
-          {isLoading ? (
+          {selectedIds.length > 0 && (
+            <Flex
+              px={4}
+              py={3}
+              gap={3}
+              align="center"
+              wrap="wrap"
+              borderBottom="1px"
+              borderColor={tableBorderColor}
+            >
+              <Text fontSize="sm" fontWeight="600">
+                {selectedIds.length} item(s) selected
+              </Text>
+              <Button
+                size="sm"
+                colorScheme="red"
+                leftIcon={<Icon as={MdEdit} />}
+                onClick={handleOpenBulk}
+                isDisabled={Boolean(selectionError)}
+              >
+                Edit selected
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>
+                Clear Selection
+              </Button>
+              {overBulkLimit && (
+                <Text fontSize="xs" color="red.500">
+                  {selectionError}
+                </Text>
+              )}
+            </Flex>
+          )}
+          {isLoading && records.length === 0 ? (
             <Flex justify="center" align="center" py={16}>
               <Spinner />
             </Flex>
@@ -631,29 +1134,59 @@ export default function LedgerCost() {
             <>
               <Box
                 overflowX="auto"
+                opacity={isLoading ? 0.6 : 1}
+                aria-busy={isLoading}
                 sx={{
                   "&::-webkit-scrollbar": { height: "8px" },
                   "&::-webkit-scrollbar-thumb": { background: "gray.300", borderRadius: "4px" },
                 }}
               >
-                <Table size="sm" variant="simple" minW="1180px">
+                <Table size="sm" variant="simple" minW={tableMinW}>
                   <Thead>
                     <Tr>
-                      <Th {...thProps} position="sticky" left={0} zIndex={3} minW="120px">
-                        SO Number
+                      <Th {...thProps} position="sticky" left={0} zIndex={3} w={CHECKBOX_COL_W} minW={CHECKBOX_COL_W} px={3}>
+                        <Checkbox
+                          size="sm"
+                          colorScheme="blue"
+                          isChecked={allOnPageSelected}
+                          isIndeterminate={someOnPageSelected}
+                          onChange={togglePage}
+                          aria-label="Select all rows on this page"
+                        />
                       </Th>
-                      <Th {...thProps} minW="160px">Agent</Th>
-                      <Th {...thProps} minW="160px">Client</Th>
-                      <Th {...thProps} minW="140px">Vessel</Th>
-                      <Th {...thProps} minW="140px">Destination</Th>
-                      <Th {...thProps} isNumeric minW="120px">Amount</Th>
-                      <Th {...thProps} isNumeric minW="110px">USD Cost</Th>
-                      <Th {...thProps} isNumeric minW="90px">GST</Th>
-                      <Th {...thProps} minW="120px">Biz Category</Th>
-                      <Th {...thProps} minW="110px">Invoice Date</Th>
-                      <Th {...thProps} minW="110px">Due</Th>
-                      <Th {...thProps} minW="110px">Paid</Th>
-                      <Th {...thProps} minW="90px">Invoice</Th>
+                      <LedgerSortableHeader
+                        {...thProps}
+                        position="sticky"
+                        left={CHECKBOX_COL_W}
+                        zIndex={3}
+                        minW={soColumn.minW}
+                        label={soColumn.label}
+                        sortKey={soColumn.sortKey}
+                        sortBy={appliedSort.sortBy}
+                        sortOrder={appliedSort.sortOrder}
+                        onSort={handleSort}
+                        isPending={isLoading}
+                      />
+                      {listColumns.map((col) =>
+                        col.sortKey ? (
+                          <LedgerSortableHeader
+                            key={col.key}
+                            {...thProps}
+                            isNumeric={isNumericCol(col)}
+                            minW={col.minW}
+                            label={col.label}
+                            sortKey={col.sortKey}
+                            sortBy={appliedSort.sortBy}
+                            sortOrder={appliedSort.sortOrder}
+                            onSort={handleSort}
+                            isPending={isLoading}
+                          />
+                        ) : (
+                          <Th key={col.key} {...thProps} isNumeric={isNumericCol(col)} minW={col.minW}>
+                            {col.label}
+                          </Th>
+                        )
+                      )}
                       <Th {...thProps} position="sticky" right={0} zIndex={3} minW="108px" textAlign="center">
                         Actions
                       </Th>
@@ -662,29 +1195,35 @@ export default function LedgerCost() {
                   <Tbody>
                     {records.map((row, index) => {
                       const rowBg = index % 2 === 0 ? tableRowBg : tableRowBgAlt;
-                      const agentName = row.agent || getMany2oneName(row.agent_id) || "";
-                      const clientName = row.client || getMany2oneName(row.client_id) || "";
-                      const vesselName = row.vessel_name || getMany2oneName(row.vessel_id) || "";
-                      const currencyCode = row.currency_code || getMany2oneName(row.currency_id) || "";
-                      const bizKey = normalizeBizCategory(row.biz_category);
-                      const bizLabel = bizCategoryDisplay(row.biz_category, row.biz_category_label);
-                      const invoiceDate = prettyCostDate(row.date_agent_invoice);
-                      const dueDate = prettyCostDate(row.date_due_agent);
-                      const paidDate = prettyCostDate(row.date_agent_paid);
-                      const overdue = isDueOverdue(row);
-                      const invoiceUrl =
-                        row.invoice_link && row.invoice_link !== false ? String(row.invoice_link) : "";
+                      const isSelected = selectedIds.includes(row.id);
                       return (
                         <Tr
                           key={row.id}
-                          bg={rowBg}
+                          bg={isSelected ? hoverBg : rowBg}
                           _hover={{ bg: hoverBg }}
                           sx={{ "& td": { bg: "inherit" } }}
                         >
                           <Td
                             {...tdProps}
+                            px={3}
                             position="sticky"
                             left={0}
+                            zIndex={1}
+                            w={CHECKBOX_COL_W}
+                            minW={CHECKBOX_COL_W}
+                          >
+                            <Checkbox
+                              size="sm"
+                              colorScheme="blue"
+                              isChecked={isSelected}
+                              onChange={() => toggleRow(row.id)}
+                              aria-label={`Select row ${displaySo(row)}`}
+                            />
+                          </Td>
+                          <Td
+                            {...tdProps}
+                            position="sticky"
+                            left={CHECKBOX_COL_W}
                             zIndex={1}
                             boxShadow="inset -1px 0 0 var(--chakra-colors-gray-200)"
                           >
@@ -699,96 +1238,11 @@ export default function LedgerCost() {
                               {displaySo(row)}
                             </Button>
                           </Td>
-                          <Td {...tdProps}>
-                            <TruncatedText value={agentName} maxW="180px" />
-                          </Td>
-                          <Td {...tdProps}>
-                            <TruncatedText value={clientName} maxW="180px" />
-                          </Td>
-                          <Td {...tdProps}>
-                            <TruncatedText value={vesselName} maxW="150px" />
-                          </Td>
-                          <Td {...tdProps}>
-                            <TruncatedText value={row.destination} maxW="150px" />
-                          </Td>
-                          <Td {...tdProps} isNumeric>
-                            <Text fontWeight="700" fontVariantNumeric="tabular-nums" whiteSpace="nowrap">
-                              {formatCostNumber(row.currency_amount)}
-                            </Text>
-                            <Text fontSize="xs" color={mutedColor} whiteSpace="nowrap">
-                              {currencyCode || "—"}
-                            </Text>
-                          </Td>
-                          <Td {...tdProps} isNumeric fontWeight="600" fontVariantNumeric="tabular-nums" whiteSpace="nowrap">
-                            {formatCostNumber(row.usd_cost, 4)}
-                          </Td>
-                          <Td {...tdProps} isNumeric fontVariantNumeric="tabular-nums" whiteSpace="nowrap">
-                            {formatCostNumber(row.gst_in_amount)}
-                          </Td>
-                          <Td {...tdProps}>
-                            {bizLabel && bizLabel !== "-" ? (
-                              <Badge
-                                colorScheme={bizKey === "bunker" ? "orange" : "purple"}
-                                variant="subtle"
-                                borderRadius="full"
-                                px={2.5}
-                                py={0.5}
-                                fontSize="xs"
-                                textTransform="none"
-                              >
-                                {bizLabel}
-                              </Badge>
-                            ) : (
-                              <Text color="gray.400">—</Text>
-                            )}
-                          </Td>
-                          <Td {...tdProps} whiteSpace="nowrap" color={invoiceDate ? "inherit" : "gray.400"}>
-                            {invoiceDate || "—"}
-                          </Td>
-                          <Td {...tdProps} whiteSpace="nowrap">
-                            {dueDate ? (
-                              overdue ? (
-                                <Badge colorScheme="red" variant="subtle" borderRadius="full" px={2} textTransform="none">
-                                  {dueDate}
-                                </Badge>
-                              ) : (
-                                dueDate
-                              )
-                            ) : (
-                              <Text color="gray.400">—</Text>
-                            )}
-                          </Td>
-                          <Td {...tdProps} whiteSpace="nowrap">
-                            {paidDate ? (
-                              <Badge colorScheme="green" variant="subtle" borderRadius="full" px={2} textTransform="none">
-                                {paidDate}
-                              </Badge>
-                            ) : (
-                              <Text color="gray.400">—</Text>
-                            )}
-                          </Td>
-                          <Td {...tdProps}>
-                            {invoiceUrl ? (
-                              isProbablyUrl(invoiceUrl) ? (
-                                <Button
-                                  as="a"
-                                  href={invoiceUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  size="xs"
-                                  variant="outline"
-                                  colorScheme="blue"
-                                  rightIcon={<Icon as={MdOpenInNew} />}
-                                >
-                                  Open
-                                </Button>
-                              ) : (
-                                <TruncatedText value={invoiceUrl} maxW="120px" />
-                              )
-                            ) : (
-                              <Text color="gray.400">—</Text>
-                            )}
-                          </Td>
+                          {listColumns.map((col) => (
+                            <Td key={col.key} {...tdProps} isNumeric={isNumericCol(col)}>
+                              {renderCell(col, row)}
+                            </Td>
+                          ))}
                           <Td
                             {...tdProps}
                             position="sticky"
@@ -892,6 +1346,32 @@ export default function LedgerCost() {
           )}
         </Box>
       </Box>
+
+      <LedgerDateRangeFilterModal
+        isOpen={isDateOpen}
+        onClose={onDateClose}
+        fields={COST_DATE_FILTER_FIELDS}
+        value={dateRanges}
+        onApply={handleApplyDates}
+        onClear={handleClearDates}
+        isLoading={isLoading && dateApplyPendingRef.current}
+        error={isDateOpen ? listError : ""}
+      />
+
+      <LedgerBulkEditModal
+        isOpen={isBulkOpen}
+        onClose={onBulkClose}
+        fields={COST_BULK_FIELDS}
+        count={selectedIds.length}
+        onSubmit={handleBulkSubmit}
+        isSubmitting={isBulkSaving}
+        error={bulkError}
+        renderAgentPicker={renderBulkAgentPicker}
+        currencyOptions={(Array.isArray(currencies) ? currencies : []).map((c) => ({
+          id: c.id,
+          name: c.name || c.code || `Currency ${c.id}`,
+        }))}
+      />
 
       <AlertDialog
         isOpen={isDeleteOpen}

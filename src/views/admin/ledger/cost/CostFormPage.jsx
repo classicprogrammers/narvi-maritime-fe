@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Badge,
   Box,
   Button,
   Flex,
@@ -19,16 +20,39 @@ import {
   useColorModeValue,
   useToast,
 } from "@chakra-ui/react";
-import { MdArrowBack, MdCheckCircle, MdCloudQueue, MdInfoOutline } from "react-icons/md";
+import {
+  MdArrowBack,
+  MdCheckCircle,
+  MdCloudQueue,
+  MdInfoOutline,
+  MdTableChart,
+  MdViewList,
+} from "react-icons/md";
 import { useHistory, useParams } from "react-router-dom";
 import RemoteSearchableSelect from "components/forms/RemoteSearchableSelect";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import LedgerDuplicateInvoiceModal from "components/ledger/LedgerDuplicateInvoiceModal";
 import { getShippingOrders } from "api/shippingOrders";
-import { createLedgerCost, getLedgerCostById, updateLedgerCost } from "api/ledgerCost";
+import {
+  checkLedgerCostInvoices,
+  createLedgerCost,
+  getLedgerCostById,
+  updateLedgerCost,
+} from "api/ledgerCost";
 import { useMasterData } from "hooks/useMasterData";
+import useLedgerAgentOptions from "hooks/useLedgerAgentOptions";
 import { getCached, MASTER_KEYS } from "utils/masterDataCache";
 import {
-  agentDisplayName,
+  agentOptionLabel,
+  agentOptionSecondary,
+  destinationParts,
+  soDoneStatusColor,
+  soDoneStatusLabel,
+} from "utils/ledgerDisplay";
+import { shouldPrecheckInvoices, splitInvoiceNumbers } from "utils/ledgerInvoiceNumbers";
+import CostEntryTableView from "./CostEntryTableView";
+import { CostDueField, CostRoeField } from "./CostAutoFields";
+import {
   applyComputedFromRecord,
   BIZ_CATEGORY_OPTIONS,
   buildCreatePayload,
@@ -36,6 +60,7 @@ import {
   emptyCostForm,
   extractApiMessage,
   extractLedgerCostRecord,
+  fillCostFromShippingOrder,
   formatCostNumber,
   formatSoLabel,
   getMany2oneName,
@@ -50,8 +75,24 @@ const SO_PAGE_SIZE = 50;
 const LIST_PATH = "/admin/ledger/cost";
 const FORM_PATH = "/admin/ledger/cost/form";
 const AUTOSAVE_DELAY_MS = 700;
+const LAYOUT_STORAGE_KEY = "narvi_cost_form_layout";
 
-function CostAutosaveBadge({ mode, savedCaption, pulse }) {
+const readLayout = () => {
+  try {
+    return localStorage.getItem(LAYOUT_STORAGE_KEY) === "table" ? "table" : "form";
+  } catch {
+    return "form";
+  }
+};
+
+// Agent + normalised invoice numbers: a duplicate block lasts until either changes
+const invoiceCheckKey = (form) =>
+  `${form.agent_id}|${splitInvoiceNumbers(form.invoices)
+    .map((n) => n.toLowerCase())
+    .sort()
+    .join("|")}`;
+
+function CostAutosaveBadge({ mode, savedCaption, pulse, blockedCaption }) {
   const palettes = {
     saved: {
       bg: useColorModeValue("green.50", "green.900"),
@@ -88,7 +129,7 @@ function CostAutosaveBadge({ mode, savedCaption, pulse }) {
         : mode === "pending"
           ? "Saving soon…"
           : mode === "blocked"
-            ? "Required fields missing"
+            ? blockedCaption || "Required fields missing"
             : "Fill required fields to save";
 
   return (
@@ -128,8 +169,17 @@ export default function CostFormPage() {
   const toast = useToast();
   const isEditRoute = Boolean(id);
 
-  const { refreshAgents, refreshCurrencies } = useMasterData();
-  const [agents, setAgents] = useState(() => getCached(MASTER_KEYS.AGENTS) ?? []);
+  const { refreshCurrencies } = useMasterData();
+  const agents = useLedgerAgentOptions();
+  const { pin: pinAgent } = agents;
+  const [layout, setLayout] = useState(readLayout);
+  const [duplicateKey, setDuplicateKey] = useState("");
+  const [duplicates, setDuplicates] = useState([]);
+  const [isDuplicateOpen, setIsDuplicateOpen] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
+  const [precheckFailed, setPrecheckFailed] = useState(false);
+  const invoicesRef = useRef(null);
+  const checkedOkKeyRef = useRef("");
   const [currencies, setCurrencies] = useState(() => getCached(MASTER_KEYS.CURRENCIES) ?? []);
   const [editingRecord, setEditingRecord] = useState(null);
   const [isLoadingRecord, setIsLoadingRecord] = useState(isEditRoute);
@@ -151,6 +201,18 @@ export default function CostFormPage() {
   const createInFlightRef = useRef(false);
   const lastValidationErrorRef = useRef(null);
   const firstSaveToastShownRef = useRef(false);
+
+  const hasSavedRecord = Boolean(id || editingRecord?.id);
+  // Table view is for new records only; the toggle is hidden on the edit route
+  const isTableView = layout === "table" && !hasSavedRecord;
+  const handleLayoutChange = (next) => {
+    setLayout(next);
+    try {
+      localStorage.setItem(LAYOUT_STORAGE_KEY, next);
+    } catch {
+      // Ignore storage failures.
+    }
+  };
 
   const pageBg = useColorModeValue("gray.50", "gray.900");
   const cardBg = useColorModeValue("white", "gray.800");
@@ -193,18 +255,12 @@ export default function CostFormPage() {
     setForm((prev) => {
       const next = { ...prev, [field]: value };
       if (field === "sale_order_id") {
-        next.so_number = "";
-        next.client = "";
-        next.vessel_name = "";
-        next.destination = "";
-        next.so_create_date = "";
-        next.so_status = "";
-        next.so_status_label = "";
+        Object.assign(next, fillCostFromShippingOrder(null));
       }
       if (field === "currency_id") {
         next.currency_code = "";
       }
-      if (field === "currency_amount" || field === "roe_invoice_date") {
+      if (field === "currency_amount") {
         next.usd_cost = "";
       }
       if (field === "currency_amount" || field === "gst_input_tax") {
@@ -262,17 +318,25 @@ export default function CostFormPage() {
       } else {
         pinnedSoRef.current = null;
       }
+      if (record && nextForm.agent_id !== "") {
+        const detail = record.agent_detail || {};
+        pinAgent({
+          id: nextForm.agent_id,
+          name: record.agent || detail.name || getMany2oneName(record.agent_id),
+          agent_code: detail.agent_code,
+          company: detail.company,
+        });
+      }
       fetchShippingOrders("");
     },
-    [fetchShippingOrders]
+    [fetchShippingOrders, pinAgent]
   );
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([refreshAgents(), refreshCurrencies()])
-      .then(([agentList, currencyList]) => {
+    refreshCurrencies()
+      .then((currencyList) => {
         if (cancelled) return;
-        setAgents(Array.isArray(agentList) ? agentList : getCached(MASTER_KEYS.AGENTS) ?? []);
         setCurrencies(
           Array.isArray(currencyList) ? currencyList : getCached(MASTER_KEYS.CURRENCIES) ?? []
         );
@@ -281,7 +345,7 @@ export default function CostFormPage() {
     return () => {
       cancelled = true;
     };
-  }, [refreshAgents, refreshCurrencies]);
+  }, [refreshCurrencies]);
 
   useEffect(() => {
     skipAutosaveRef.current = true;
@@ -360,6 +424,8 @@ export default function CostFormPage() {
         pinnedSoRef.current = order;
       }
       setField("sale_order_id", value);
+      // Show the SO-derived read-only fields right away (the server refreshes them after save)
+      if (order) setForm((prev) => ({ ...prev, ...fillCostFromShippingOrder(order) }));
     },
     [setField, shippingOrders]
   );
@@ -367,6 +433,58 @@ export default function CostFormPage() {
   const handleCurrencyChange = useCallback((value) => {
     setField("currency_id", value || "");
   }, [setField]);
+
+  const patchForm = useCallback((patch) => {
+    setForm((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const handleAgentChange = useCallback(
+    (value) => {
+      const picked = agents.options.find((a) => String(a.id) === String(value));
+      if (picked) pinAgent(picked);
+      setField("agent_id", value || "");
+    },
+    [agents.options, pinAgent, setField]
+  );
+
+  // Duplicate invoice pre-check. Returns true when saving must be blocked.
+  const runInvoicePrecheck = useCallback(
+    async (snapshot) => {
+      const recordId = recordIdRef.current;
+      if (!shouldPrecheckInvoices(snapshot, recordId ? originalFormRef.current : null)) return false;
+      const key = invoiceCheckKey(snapshot);
+      if (checkedOkKeyRef.current === key) return false;
+      setIsChecking(true);
+      setPrecheckFailed(false);
+      try {
+        const result = await checkLedgerCostInvoices({
+          agent_id: Number(snapshot.agent_id),
+          invoices: snapshot.invoices,
+          exclude_id: recordId || undefined,
+        });
+        if (result.has_duplicates) {
+          setDuplicates(result.duplicates);
+          setDuplicateKey(key);
+          setIsDuplicateOpen(true);
+          return true;
+        }
+        checkedOkKeyRef.current = key;
+        return false;
+      } catch (error) {
+        // The server is the gate when the pre-check itself fails
+        setPrecheckFailed(true);
+        return false;
+      } finally {
+        setIsChecking(false);
+      }
+    },
+    []
+  );
+
+  const closeDuplicateModal = useCallback(() => {
+    setIsDuplicateOpen(false);
+    setTimeout(() => invoicesRef.current?.focus(), 0);
+  }, []);
 
   const soOptions = useMemo(
     () =>
@@ -378,12 +496,8 @@ export default function CostFormPage() {
   );
 
   const agentOptions = useMemo(
-    () =>
-      (Array.isArray(agents) ? agents : []).map((agent) => ({
-        ...agent,
-        name: agentDisplayName(agent),
-      })),
-    [agents]
+    () => agents.options.map((agent) => ({ ...agent, name: agentOptionLabel(agent) })),
+    [agents.options]
   );
 
   const selectedSoFallback = editingRecord
@@ -391,7 +505,10 @@ export default function CostFormPage() {
       (editingRecord.so_number ? `SO-${editingRecord.so_number}` : "")
     : "";
   const selectedAgentFallback = editingRecord
-    ? getMany2oneName(editingRecord.agent_id) || editingRecord.agent || ""
+    ? editingRecord.agent ||
+      editingRecord.agent_detail?.name ||
+      getMany2oneName(editingRecord.agent_id) ||
+      ""
     : "";
   const selectedCurrencyFallback = editingRecord
     ? getMany2oneName(editingRecord.currency_id) || editingRecord.currency_code || ""
@@ -412,7 +529,9 @@ export default function CostFormPage() {
   );
 
   useEffect(() => {
-    if (isLoadingRecord || skipAutosaveRef.current) return;
+    if (isLoadingRecord || skipAutosaveRef.current || isTableView) return;
+    // Blocked by a duplicate invoice number until invoices or agent change
+    if (duplicateKey && duplicateKey === invoiceCheckKey(form)) return;
 
     const signature = getWritableCostSignature(form);
     if (signature === lastSavedSignatureRef.current) return;
@@ -439,6 +558,7 @@ export default function CostFormPage() {
       let ownsCreate = false;
       let started = false;
       try {
+        if (await runInvoicePrecheck(snapshot)) return;
         if (!recordIdRef.current) {
           if (createInFlightRef.current) return;
           createInFlightRef.current = true;
@@ -502,14 +622,16 @@ export default function CostFormPage() {
     }, AUTOSAVE_DELAY_MS);
 
     return () => clearTimeout(timer);
-  }, [form, isLoadingRecord, history, showError, markSaved]);
+  }, [form, isLoadingRecord, isTableView, duplicateKey, history, showError, markSaved, runInvoicePrecheck]);
 
-  const hasSavedRecord = Boolean(id || editingRecord?.id);
   const requiredError = validateCostForm(form);
   const isDirty = getWritableCostSignature(form) !== lastSavedSignatureRef.current;
+  const isDuplicateBlocked = Boolean(duplicateKey) && duplicateKey === invoiceCheckKey(form);
   const saveMode = isSaving
     ? "saving"
-    : !hasSavedRecord && requiredError
+    : isDuplicateBlocked
+      ? "blocked"
+      : !hasSavedRecord && requiredError
       ? "idle"
       : isDirty && requiredError
         ? "blocked"
@@ -518,6 +640,18 @@ export default function CostFormPage() {
           : hasSavedRecord
             ? "saved"
             : "idle";
+
+  const mutedColor = useColorModeValue("gray.500", "gray.400");
+  const destinationInfo = destinationParts(form);
+  const soStatusText = soDoneStatusLabel(form);
+  const selectedCurrencyLabel =
+    (currencies || []).find((c) => String(c.id) === String(form.currency_id))?.name ||
+    form.currency_code ||
+    "";
+  const selectedAgentLabel = (() => {
+    const match = agents.options.find((a) => String(a.id) === String(form.agent_id));
+    return match ? agentOptionLabel(match) : selectedAgentFallback;
+  })();
 
   const fieldLabelProps = {
     fontSize: "sm",
@@ -549,15 +683,49 @@ export default function CostFormPage() {
                 {hasSavedRecord ? "Edit Cost" : "New Cost"}
               </Heading>
               <Text fontSize="sm" color="gray.500">
-                Changes save automatically after required fields are filled
+                {isTableView
+                  ? "Fill the rows, then Save all to create each cost"
+                  : "Changes save automatically after required fields are filled"}
               </Text>
             </Box>
           </Flex>
-          {!isLoadingRecord && (
-            <CostAutosaveBadge mode={saveMode} savedCaption={savedCaption} pulse={savePulse} />
+          {!hasSavedRecord && (
+            <HStack spacing="2" w={{ base: "100%", md: "auto" }}>
+              <Button
+                size="sm"
+                leftIcon={<Icon as={MdTableChart} />}
+                colorScheme={layout === "table" ? "blue" : "gray"}
+                variant={layout === "table" ? "solid" : "outline"}
+                aria-pressed={layout === "table"}
+                onClick={() => handleLayoutChange("table")}
+              >
+                Table view
+              </Button>
+              <Button
+                size="sm"
+                leftIcon={<Icon as={MdViewList} />}
+                colorScheme={layout === "form" ? "blue" : "gray"}
+                variant={layout === "form" ? "solid" : "outline"}
+                aria-pressed={layout === "form"}
+                onClick={() => handleLayoutChange("form")}
+              >
+                Form view
+              </Button>
+            </HStack>
+          )}
+          {!isLoadingRecord && !isTableView && (
+            <CostAutosaveBadge
+              mode={saveMode}
+              savedCaption={savedCaption}
+              pulse={savePulse}
+              blockedCaption={isDuplicateBlocked ? "Duplicate invoice number" : undefined}
+            />
           )}
         </Flex>
 
+        {isTableView ? (
+          <CostEntryTableView currencies={currencies} />
+        ) : (
         <Box bg={cardBg} border="1px" borderColor={borderColor} borderRadius="lg" p={{ base: 4, md: 6 }}>
           {isLoadingRecord ? (
             <Flex justify="center" align="center" py={16}>
@@ -589,12 +757,39 @@ export default function CostFormPage() {
                   <FormLabel {...fieldLabelProps}>Agent</FormLabel>
                   <SimpleSearchableSelect
                     value={form.agent_id === "" ? "" : String(form.agent_id)}
-                    onChange={(value) => setField("agent_id", value || "")}
+                    onChange={handleAgentChange}
                     options={agentOptions}
                     placeholder="Select agent..."
+                    serverSideSearch
+                    onSearchChange={agents.onSearchChange}
+                    isLoading={agents.isLoading}
+                    formatOption={agentOptionLabel}
+                    renderOption={(option) => (
+                      <Box>
+                        <Text fontSize="sm" fontWeight="600" color={labelColor} noOfLines={1}>
+                          {agentOptionLabel(option)}
+                        </Text>
+                        {agentOptionSecondary(option) ? (
+                          <Text fontSize="xs" color={mutedColor} noOfLines={1}>
+                            {agentOptionSecondary(option)}
+                          </Text>
+                        ) : null}
+                      </Box>
+                    )}
                     fallbackDisplay={selectedAgentFallback}
                     {...selectControlProps}
                   />
+                  <Text fontSize="xs" color={mutedColor} mt={1}>
+                    Search by Agent ID, agent code or company.
+                  </Text>
+                  {agents.error ? (
+                    <Text fontSize="xs" color="red.500" mt={1}>
+                      Could not load agents.{" "}
+                      <Button variant="link" size="xs" colorScheme="blue" onClick={agents.retry}>
+                        Retry
+                      </Button>
+                    </Text>
+                  ) : null}
                 </FormControl>
 
                 <FormControl>
@@ -620,14 +815,14 @@ export default function CostFormPage() {
                   />
                 </FormControl>
 
-                <FormControl isRequired>
-                  <FormLabel {...fieldLabelProps}>Rate of Exchange on Invoice Date</FormLabel>
-                  <Input
-                    type="number"
-                    step="any"
-                    value={form.roe_invoice_date}
-                    onChange={(e) => setField("roe_invoice_date", e.target.value)}
-                    {...controlProps}
+                <FormControl>
+                  <CostRoeField
+                    values={form}
+                    onPatch={patchForm}
+                    currencyLabel={selectedCurrencyLabel}
+                    label="Rate of Exchange on Invoice Date"
+                    labelProps={fieldLabelProps}
+                    controlProps={controlProps}
                   />
                 </FormControl>
 
@@ -665,11 +860,36 @@ export default function CostFormPage() {
                 </FormControl>
 
                 <FormControl>
+                  <FormLabel {...fieldLabelProps}>Destination Type</FormLabel>
+                  <Input
+                    isReadOnly
+                    value={destinationInfo.type}
+                    placeholder="-"
+                    title={destinationInfo.type}
+                    {...controlProps}
+                    bg={readonlyBg}
+                  />
+                </FormControl>
+
+                <FormControl>
                   <FormLabel {...fieldLabelProps}>Destination</FormLabel>
                   <Input
                     isReadOnly
-                    value={form.destination}
+                    value={destinationInfo.name || form.destination}
                     placeholder="Filled by server"
+                    title={destinationInfo.name || form.destination}
+                    {...controlProps}
+                    bg={readonlyBg}
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel {...fieldLabelProps}>Country</FormLabel>
+                  <Input
+                    isReadOnly
+                    value={destinationInfo.country}
+                    placeholder="-"
+                    title={destinationInfo.country}
                     {...controlProps}
                     bg={readonlyBg}
                   />
@@ -688,10 +908,24 @@ export default function CostFormPage() {
 
                 <FormControl>
                   <FormLabel {...fieldLabelProps}>SO Status</FormLabel>
+                  <Flex align="center" h="40px">
+                    {soStatusText === "-" ? (
+                      <Text color={mutedColor}>-</Text>
+                    ) : (
+                      <Badge colorScheme={soDoneStatusColor(form.so_done_status)} whiteSpace="nowrap">
+                        {soStatusText}
+                      </Badge>
+                    )}
+                  </Flex>
+                </FormControl>
+
+                <FormControl gridColumn={{ md: "span 2" }}>
+                  <FormLabel {...fieldLabelProps}>Client Case / Invoice Ref</FormLabel>
                   <Input
                     isReadOnly
-                    value={form.so_status_label || form.so_status}
+                    value={form.client_case_invoice_ref}
                     placeholder="Filled by server"
+                    title={form.client_case_invoice_ref}
                     {...controlProps}
                     bg={readonlyBg}
                   />
@@ -711,12 +945,26 @@ export default function CostFormPage() {
                 <FormControl gridColumn={{ md: "span 2" }}>
                   <FormLabel {...fieldLabelProps}>Invoices</FormLabel>
                   <Textarea
+                    ref={invoicesRef}
                     value={form.invoices}
                     onChange={(e) => setField("invoices", e.target.value)}
+                    onBlur={() => runInvoicePrecheck(form)}
                     bg={inputBg}
                     minH="80px"
                     rows={3}
                   />
+                  {isChecking ? (
+                    <Flex align="center" gap={2} mt={1}>
+                      <Spinner size="xs" />
+                      <Text fontSize="xs" color={mutedColor}>
+                        Checking invoice numbers...
+                      </Text>
+                    </Flex>
+                  ) : precheckFailed ? (
+                    <Text fontSize="xs" color={mutedColor} mt={1}>
+                      Could not check for duplicates. The server will check when you save.
+                    </Text>
+                  ) : null}
                 </FormControl>
 
                 <FormControl>
@@ -752,12 +1000,12 @@ export default function CostFormPage() {
                 </FormControl>
 
                 <FormControl>
-                  <FormLabel {...fieldLabelProps}>Date Due Agent</FormLabel>
-                  <Input
-                    type="date"
-                    value={form.date_due_agent}
-                    onChange={(e) => setField("date_due_agent", e.target.value)}
-                    {...controlProps}
+                  <CostDueField
+                    values={form}
+                    onPatch={patchForm}
+                    label="Date Due Agent"
+                    labelProps={fieldLabelProps}
+                    controlProps={controlProps}
                   />
                 </FormControl>
 
@@ -806,14 +1054,22 @@ export default function CostFormPage() {
               </SimpleGrid>
 
               <Text fontSize="xs" color="gray.500" mt={5}>
-                Required to create: SO Number, Agent, Currency Amount, and Rate of Exchange. After that,
-                changes save automatically. USD Cost, GST in Amount, client, vessel, destination, SO
-                dates/status, and currency code are filled by the server after save.
+                Required to create: SO Number, Agent and Currency Amount. The rate of exchange and due date
+                are filled automatically unless you type them. After that, changes save automatically. USD
+                Cost, GST in Amount, client, vessel, destination, SO dates/status, and currency code are
+                filled by the server after save.
               </Text>
             </>
           )}
         </Box>
+        )}
       </Box>
+      <LedgerDuplicateInvoiceModal
+        isOpen={isDuplicateOpen}
+        onClose={closeDuplicateModal}
+        duplicates={duplicates}
+        agentLabel={selectedAgentLabel}
+      />
     </Box>
   );
 }

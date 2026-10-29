@@ -1,3 +1,11 @@
+import {
+  applyManualInput,
+  diffAutoDate,
+  diffAutoNumber,
+  readAutoField,
+  writableAutoValue,
+} from "utils/ledgerAutoFields";
+
 export const BIZ_CATEGORY_OPTIONS = [
   { value: "Shipspares", label: "Shipspares" },
   { value: "bunker", label: "Bunker" },
@@ -27,20 +35,31 @@ export const emptyCostForm = () => ({
   currency_id: "",
   currency_amount: "",
   roe_invoice_date: "",
+  roe_manual: false,
+  roe_date: "",
   gst_input_tax: "",
   invoices: "",
   date_agent_invoice: "",
   date_due_agent: "",
+  date_due_manual: false,
   date_agent_paid: "",
   invoice_link: "",
-  biz_category: "",
+  biz_category: "Shipspares",
   so_number: "",
   client: "",
   vessel_name: "",
   destination: "",
+  destination_type: "",
+  destination_type_label: "",
+  destination_name: "",
+  destination_country: "",
   so_create_date: "",
   so_status: "",
   so_status_label: "",
+  so_done_status: "",
+  so_done_status_label: "",
+  client_case_invoice_ref: "",
+  agent_detail: null,
   currency_code: "",
   usd_cost: "",
   gst_in_amount: "",
@@ -149,21 +168,63 @@ export const agentDisplayName = (agent) =>
   agent?.agentsdb_id ||
   (agent?.id != null ? `Agent ${agent.id}` : "");
 
+const textOrEmpty = (value) =>
+  value && value !== false ? String(value) : "";
+
+// SO-derived read-only fields from a shipping order picked in the SO select (null clears them)
+export const fillCostFromShippingOrder = (order) => {
+  const o = order || {};
+  return {
+    so_number: order
+      ? o.so_id != null && o.so_id !== false
+        ? String(o.so_id)
+        : String(o.so_number || "").replace(/^SO[- ]?/i, "")
+      : "",
+    client: order
+      ? getMany2oneName(o.client_id || o.partner_id) || o.client || o.client_name || ""
+      : "",
+    vessel_name: order
+      ? getMany2oneName(o.vessel_id) || o.vessel_name || o.vessel || ""
+      : "",
+    destination: order
+      ? o.destination || o.destination_name || getMany2oneName(o.destination_id) || ""
+      : "",
+    destination_type: textOrEmpty(o.destination_type),
+    destination_type_label: textOrEmpty(o.destination_type_label),
+    destination_name: textOrEmpty(o.destination_name),
+    destination_country: textOrEmpty(o.destination_country),
+    so_create_date: toDateOnly(
+      o.so_create_date || o.create_date || o.date_created || o.date_order
+    ),
+    so_status: textOrEmpty(o.so_status),
+    so_status_label: textOrEmpty(o.so_status_label),
+    so_done_status: textOrEmpty(o.so_done_status),
+    so_done_status_label: textOrEmpty(o.so_done_status_label),
+    client_case_invoice_ref: textOrEmpty(o.client_case_invoice_ref),
+  };
+};
+
 export const recordToForm = (record) => {
   if (!record) return emptyCostForm();
+  const roe = readAutoField(record, "roe_invoice_date", "roe_manual");
+  const dueDate = toDateOnly(record.date_due_agent);
+  const dueManual = Boolean(record.date_due_manual) && Boolean(dueDate);
   return {
     sale_order_id: getMany2oneId(record.sale_order_id) ?? "",
     agent_id: getMany2oneId(record.agent_id) ?? "",
     currency_id: getMany2oneId(record.currency_id) ?? "",
     currency_amount: toNumericOrEmpty(record.currency_amount),
-    roe_invoice_date: toNumericOrEmpty(record.roe_invoice_date),
+    roe_invoice_date: roe.value,
+    roe_manual: roe.manual,
+    roe_date: toDateOnly(record.roe_date),
     gst_input_tax: toNumericOrEmpty(record.gst_input_tax),
     invoices:
       record.invoices && record.invoices !== false
         ? String(record.invoices)
         : "",
     date_agent_invoice: toDateOnly(record.date_agent_invoice),
-    date_due_agent: toDateOnly(record.date_due_agent),
+    date_due_agent: dueDate,
+    date_due_manual: dueManual,
     date_agent_paid: toDateOnly(record.date_agent_paid),
     invoice_link:
       record.invoice_link && record.invoice_link !== false
@@ -180,7 +241,18 @@ export const recordToForm = (record) => {
       record.destination && record.destination !== false
         ? String(record.destination)
         : "",
+    destination_type: textOrEmpty(record.destination_type),
+    destination_type_label: textOrEmpty(record.destination_type_label),
+    destination_name: textOrEmpty(record.destination_name),
+    destination_country: textOrEmpty(record.destination_country),
     so_create_date: toDateOnly(record.so_create_date),
+    so_done_status: textOrEmpty(record.so_done_status),
+    so_done_status_label: textOrEmpty(record.so_done_status_label),
+    client_case_invoice_ref: textOrEmpty(record.client_case_invoice_ref),
+    agent_detail:
+      record.agent_detail && typeof record.agent_detail === "object"
+        ? record.agent_detail
+        : null,
     so_status:
       record.so_status && record.so_status !== false
         ? String(record.so_status)
@@ -223,8 +295,10 @@ export const buildCreatePayload = (form) => {
     sale_order_id: toIdOrNull(form.sale_order_id),
     agent_id: toIdOrNull(form.agent_id),
     currency_amount: toNumberOrNull(form.currency_amount),
-    roe_invoice_date: toNumberOrNull(form.roe_invoice_date),
   };
+  // Automatic ROE / due date are never sent: the server fills them
+  const roe = toNumberOrNull(writableAutoValue(form, "roe_invoice_date", "roe_manual"));
+  if (roe != null) payload.roe_invoice_date = roe;
   const currencyId = toIdOrNull(form.currency_id);
   if (currencyId != null) payload.currency_id = currencyId;
   const gst = toNumberOrNull(form.gst_input_tax);
@@ -232,7 +306,8 @@ export const buildCreatePayload = (form) => {
   if (form.invoices) payload.invoices = form.invoices;
   if (form.date_agent_invoice)
     payload.date_agent_invoice = form.date_agent_invoice;
-  if (form.date_due_agent) payload.date_due_agent = form.date_due_agent;
+  const due = writableAutoValue(form, "date_due_agent", "date_due_manual");
+  if (due) payload.date_due_agent = due;
   if (form.date_agent_paid) payload.date_agent_paid = form.date_agent_paid;
   if (form.invoice_link) payload.invoice_link = form.invoice_link.trim();
   if (form.biz_category) payload.biz_category = normalizeBizCategory(form.biz_category);
@@ -253,9 +328,8 @@ export const buildUpdatePayload = (form, originalForm, recordId) => {
   if (!sameNumber(form.currency_amount, originalForm.currency_amount)) {
     payload.currency_amount = toNumberOrNull(form.currency_amount);
   }
-  if (!sameNumber(form.roe_invoice_date, originalForm.roe_invoice_date)) {
-    payload.roe_invoice_date = toNumberOrNull(form.roe_invoice_date);
-  }
+  const roeDiff = diffAutoNumber(form, originalForm, "roe_invoice_date", "roe_manual");
+  if (roeDiff !== undefined) payload.roe_invoice_date = roeDiff;
   if (!sameNumber(form.gst_input_tax, originalForm.gst_input_tax)) {
     payload.gst_input_tax = toNumberOrNull(form.gst_input_tax);
   }
@@ -265,9 +339,8 @@ export const buildUpdatePayload = (form, originalForm, recordId) => {
   if (!sameValue(form.date_agent_invoice, originalForm.date_agent_invoice)) {
     payload.date_agent_invoice = form.date_agent_invoice || false;
   }
-  if (!sameValue(form.date_due_agent, originalForm.date_due_agent)) {
-    payload.date_due_agent = form.date_due_agent || false;
-  }
+  const dueDiff = diffAutoDate(form, originalForm, "date_due_agent", "date_due_manual");
+  if (dueDiff !== undefined) payload.date_due_agent = dueDiff;
   if (!sameValue(form.date_agent_paid, originalForm.date_agent_paid)) {
     payload.date_agent_paid = form.date_agent_paid || false;
   }
@@ -290,12 +363,6 @@ export const validateCostForm = (form) => {
   if (toNumberOrNull(form.currency_amount) == null) {
     return "Currency Amount is required.";
   }
-  if (toNumberOrNull(form.roe_invoice_date) == null) {
-    return "Rate of Exchange on Invoice Date is required.";
-  }
-  if (Number(form.roe_invoice_date) === 0) {
-    return "Rate of Exchange on Invoice Date cannot be zero.";
-  }
   return null;
 };
 
@@ -304,11 +371,14 @@ export const getWritableCostFields = (form) => ({
   agent_id: toIdOrNull(form?.agent_id) ?? "",
   currency_id: toIdOrNull(form?.currency_id) ?? "",
   currency_amount: toNumberOrNull(form?.currency_amount) ?? "",
-  roe_invoice_date: toNumberOrNull(form?.roe_invoice_date) ?? "",
+  roe_invoice_date:
+    toNumberOrNull(writableAutoValue(form, "roe_invoice_date", "roe_manual")) ?? "",
+  roe_manual: Boolean(form?.roe_manual),
   gst_input_tax: toNumberOrNull(form?.gst_input_tax) ?? "",
   invoices: String(form?.invoices || "").trim(),
   date_agent_invoice: form?.date_agent_invoice || "",
-  date_due_agent: form?.date_due_agent || "",
+  date_due_agent: writableAutoValue(form, "date_due_agent", "date_due_manual") || "",
+  date_due_manual: Boolean(form?.date_due_manual),
   date_agent_paid: form?.date_agent_paid || "",
   invoice_link: String(form?.invoice_link || "").trim(),
   biz_category: normalizeBizCategory(form?.biz_category),
@@ -320,19 +390,48 @@ export const getWritableCostSignature = (form) =>
 export const applyComputedFromRecord = (form, record) => {
   if (!record) return form;
   const fromApi = recordToForm(record);
+  // A value the user typed (manual) wins over what the server echoes back
+  const roe = form.roe_manual
+    ? {}
+    : { roe_invoice_date: fromApi.roe_invoice_date, roe_manual: fromApi.roe_manual };
+  const due = form.date_due_manual
+    ? {}
+    : { date_due_agent: fromApi.date_due_agent, date_due_manual: fromApi.date_due_manual };
   return {
     ...form,
+    ...roe,
+    ...due,
+    roe_date: fromApi.roe_date,
     so_number: fromApi.so_number,
     client: fromApi.client,
     vessel_name: fromApi.vessel_name,
     destination: fromApi.destination,
+    destination_type: fromApi.destination_type,
+    destination_type_label: fromApi.destination_type_label,
+    destination_name: fromApi.destination_name,
+    destination_country: fromApi.destination_country,
     so_create_date: fromApi.so_create_date,
     so_status: fromApi.so_status,
     so_status_label: fromApi.so_status_label,
+    so_done_status: fromApi.so_done_status,
+    so_done_status_label: fromApi.so_done_status_label,
+    client_case_invoice_ref: fromApi.client_case_invoice_ref,
+    agent_detail: fromApi.agent_detail,
     currency_code: fromApi.currency_code,
     usd_cost: fromApi.usd_cost,
     gst_in_amount: fromApi.gst_in_amount,
   };
+};
+
+// Typed ROE / due text -> form patch (empty or 0 returns the field to automatic)
+export const roeInputPatch = (text) => {
+  const { value, manual } = applyManualInput(text);
+  return { roe_invoice_date: value, roe_manual: manual, usd_cost: "" };
+};
+
+export const dueInputPatch = (text) => {
+  const value = String(text ?? "").trim();
+  return { date_due_agent: value, date_due_manual: Boolean(value) };
 };
 
 export const extractLedgerCostRecord = (response) => {

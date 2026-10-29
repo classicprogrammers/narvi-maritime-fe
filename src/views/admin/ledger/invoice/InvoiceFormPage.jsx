@@ -20,18 +20,33 @@ import {
   useColorModeValue,
   useToast,
 } from "@chakra-ui/react";
-import { MdArrowBack, MdCheckCircle, MdCloudQueue, MdInfoOutline } from "react-icons/md";
+import {
+  MdArrowBack,
+  MdCheckCircle,
+  MdCloudQueue,
+  MdInfoOutline,
+  MdTableChart,
+  MdViewList,
+} from "react-icons/md";
 import { useHistory, useParams } from "react-router-dom";
 import RemoteSearchableSelect from "components/forms/RemoteSearchableSelect";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import LedgerAutoTag from "components/ledger/LedgerAutoTag";
 import { getShippingOrders } from "api/shippingOrders";
 import { getLedgerCosts } from "api/ledgerCost";
 import { createLedgerInvoice, getLedgerInvoiceById, updateLedgerInvoice } from "api/ledgerInvoice";
 import { useMasterData } from "hooks/useMasterData";
+import { useLedgerDueDatePreview, useLedgerRoePreview } from "hooks/useLedgerPreviews";
 import { getCached, MASTER_KEYS } from "utils/masterDataCache";
+import { describeDueRule } from "utils/ledgerAutoFields";
+import { soDoneStatusColor, soDoneStatusLabel } from "utils/ledgerDisplay";
+import InvoiceTableView from "./InvoiceTableView";
 import {
   applyComputedFromRecord,
+  applyDueDateInput,
+  applyRoeInput,
   buildCreatePayload,
+  DEFAULT_INVOICE_BIZ_CATEGORY,
   buildUpdatePayload,
   computeInvoicePreview,
   emptyInvoiceForm,
@@ -55,6 +70,23 @@ const SO_PAGE_SIZE = 50;
 const LIST_PATH = "/admin/ledger/invoice";
 const FORM_PATH = "/admin/ledger/invoice/form";
 const AUTOSAVE_DELAY_MS = 700;
+const LAYOUT_STORAGE_KEY = "narvi_invoice_form_layout";
+
+const readStoredLayout = () => {
+  try {
+    return localStorage.getItem(LAYOUT_STORAGE_KEY) === "table" ? "table" : "form";
+  } catch (error) {
+    return "form";
+  }
+};
+
+const formatRateDate = (iso) => {
+  const parts = String(iso || "").split("-");
+  if (parts.length !== 3) return "";
+  const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  if (Number.isNaN(dt.getTime())) return "";
+  return dt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+};
 
 function InvoiceAutosaveBadge({ mode, savedCaption, pulse }) {
   const palettes = {
@@ -147,6 +179,9 @@ export default function InvoiceFormPage() {
   const [savePulse, setSavePulse] = useState(0);
   const [savedCaption, setSavedCaption] = useState("All changes saved");
 
+  const [layout, setLayout] = useState(readStoredLayout);
+  const [roeServerError, setRoeServerError] = useState(null);
+  const roeInputRef = useRef(null);
   const [form, setForm] = useState(emptyInvoiceForm());
   const [originalForm, setOriginalForm] = useState(emptyInvoiceForm());
   const [shippingOrders, setShippingOrders] = useState([]);
@@ -199,6 +234,15 @@ export default function InvoiceFormPage() {
   const goBackToList = useCallback(() => {
     history.push(LIST_PATH);
   }, [history]);
+
+  const handleLayoutChange = useCallback((next) => {
+    setLayout(next);
+    try {
+      localStorage.setItem(LAYOUT_STORAGE_KEY, next);
+    } catch (error) {
+      // Ignore storage failures.
+    }
+  }, []);
 
   const setField = useCallback((field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -342,10 +386,12 @@ export default function InvoiceFormPage() {
       if (gen !== soBizRequestGenRef.current) return;
       const list = Array.isArray(data.data) ? data.data : [];
       const withBiz = list.find((row) => normalizeBizCategory(row?.biz_category));
-      const biz_category = withBiz ? normalizeBizCategory(withBiz.biz_category) : "";
+      const biz_category = withBiz
+        ? normalizeBizCategory(withBiz.biz_category)
+        : DEFAULT_INVOICE_BIZ_CATEGORY;
       const biz_category_label = withBiz
         ? bizCategoryDisplay(withBiz.biz_category, withBiz.biz_category_label)
-        : "";
+        : DEFAULT_INVOICE_BIZ_CATEGORY;
       setForm((prev) => ({
         ...prev,
         biz_category,
@@ -365,6 +411,7 @@ export default function InvoiceFormPage() {
           ...prev,
           sale_order_id: "",
           ...fillFromShippingOrder(null),
+          date_due: prev.date_due_manual ? prev.date_due : "",
         }));
         return;
       }
@@ -414,7 +461,43 @@ export default function InvoiceFormPage() {
     ? getMany2oneName(editingRecord.currency_id) || editingRecord.currency_code || ""
     : "";
 
-  const preview = useMemo(() => computeInvoicePreview(form), [form]);
+  const isTableView = !isEditRoute && layout === "table";
+
+  // Automatic ROE: preview only when the rate could change (new record, or currency / invoice date edited)
+  const original = originalForm;
+  const roeInputsChanged =
+    String(form.currency_id) !== String(original.currency_id) ||
+    form.date_sales_invoice !== original.date_sales_invoice;
+  const roePreview = useLedgerRoePreview({
+    kind: "invoice",
+    currencyId: form.currency_id,
+    date: form.date_sales_invoice,
+    enabled: !isTableView && !isLoadingRecord && !form.roe_manual && (form.roe === "" || roeInputsChanged),
+  });
+  const roeIsManual = Boolean(form.roe_manual);
+  const roeShown = roeIsManual ? form.roe : roePreview.data ? roePreview.data.roe ?? "" : form.roe;
+  const roeDateShown = roeIsManual ? "" : formatRateDate(roePreview.data?.roe_date || form.roe_date);
+  const roeSourceKey = `${form.currency_id}|${form.date_sales_invoice}`;
+  const roeNoRate =
+    !roeIsManual &&
+    Boolean(form.currency_id) &&
+    ((roePreview.data && roePreview.data.roe == null) || roeServerError?.key === roeSourceKey);
+
+  // Automatic due date from the client's payment terms
+  const dueInputsChanged =
+    String(form.client_id) !== String(original.client_id) ||
+    form.date_sales_invoice !== original.date_sales_invoice;
+  const duePreview = useLedgerDueDatePreview({
+    partnerId: form.client_id,
+    date: form.date_sales_invoice,
+    enabled:
+      !isTableView && !isLoadingRecord && !form.date_due_manual && (form.date_due === "" || dueInputsChanged),
+  });
+  const dueIsManual = Boolean(form.date_due_manual);
+  const dueShown = dueIsManual ? form.date_due : duePreview.data ? duePreview.data.due_date || "" : form.date_due;
+  const dueUnreadable = !dueIsManual && duePreview.data && !duePreview.data.due_date;
+
+  const preview = useMemo(() => computeInvoicePreview({ ...form, roe: roeShown }), [form, roeShown]);
   const statusValue = preview.payment_status || form.payment_status;
   const statusLabel = paymentStatusDisplay(
     preview.payment_status || form.payment_status,
@@ -516,9 +599,15 @@ export default function InvoiceFormPage() {
         originalFormRef.current = savedBaseline;
         markSaved();
       } catch (error) {
-        showError(
-          extractApiMessage(error, recordIdRef.current ? "Failed to update invoice." : "Failed to create invoice.")
+        const message = extractApiMessage(
+          error,
+          recordIdRef.current ? "Failed to update invoice." : "Failed to create invoice."
         );
+        if (/no exchange rate/i.test(message)) {
+          setRoeServerError({ message, key: `${snapshot.currency_id}|${snapshot.date_sales_invoice}` });
+          if (roeInputRef.current) roeInputRef.current.focus();
+        }
+        showError(message);
       } finally {
         if (ownsCreate) createInFlightRef.current = false;
         if (started) setIsSaving(false);
@@ -577,12 +666,55 @@ export default function InvoiceFormPage() {
               </Text>
             </Box>
           </Flex>
-          {!isLoadingRecord && (
+          {!isEditRoute && (
+            <HStack spacing="2">
+              <Button
+                size="sm"
+                leftIcon={<Icon as={MdTableChart} />}
+                colorScheme={isTableView ? "blue" : "gray"}
+                variant={isTableView ? "solid" : "outline"}
+                aria-pressed={isTableView}
+                onClick={() => handleLayoutChange("table")}
+              >
+                Table view
+              </Button>
+              <Button
+                size="sm"
+                leftIcon={<Icon as={MdViewList} />}
+                colorScheme={!isTableView ? "blue" : "gray"}
+                variant={!isTableView ? "solid" : "outline"}
+                aria-pressed={!isTableView}
+                onClick={() => handleLayoutChange("form")}
+              >
+                Form view
+              </Button>
+            </HStack>
+          )}
+          {!isLoadingRecord && !isTableView && (
             <InvoiceAutosaveBadge mode={saveMode} savedCaption={savedCaption} pulse={savePulse} />
           )}
         </Flex>
 
-        <Box bg={cardBg} border="1px" borderColor={borderColor} borderRadius="lg" p={{ base: 4, md: 6 }}>
+        {!isEditRoute && (
+          <Box display={isTableView ? "block" : "none"}>
+            <InvoiceTableView
+              currencies={currencies}
+              soOptions={soOptions}
+              shippingOrders={shippingOrders}
+              isLoadingSo={isLoadingSo}
+              onSoSearchChange={handleSoSearchChange}
+            />
+          </Box>
+        )}
+
+        <Box
+          bg={cardBg}
+          border="1px"
+          borderColor={borderColor}
+          borderRadius="lg"
+          p={{ base: 4, md: 6 }}
+          display={isTableView ? "none" : "block"}
+        >
           {isLoadingRecord ? (
             <Flex justify="center" align="center" py={16}>
               <Spinner />
@@ -607,6 +739,11 @@ export default function InvoiceFormPage() {
                     fallbackDisplay={selectedSoFallback}
                     {...selectControlProps}
                   />
+                  {!form.sale_order_id && (
+                    <Text fontSize="xs" color="gray.500" mt={1}>
+                      Choose an SO to fill the fields from it.
+                    </Text>
+                  )}
                 </FormControl>
 
                 <FormControl>
@@ -616,13 +753,23 @@ export default function InvoiceFormPage() {
 
                 <FormControl>
                   <FormLabel {...fieldLabelProps}>SO Status</FormLabel>
-                  <Input
-                    isReadOnly
-                    value={form.so_status_label || form.so_status}
-                    placeholder="Filled from SO"
-                    {...controlProps}
-                    bg={readonlyBg}
-                  />
+                  {soDoneStatusLabel(form) !== "-" ? (
+                    <Flex align="center" h="40px">
+                      <Badge
+                        colorScheme={soDoneStatusColor(form.so_done_status)}
+                        variant="subtle"
+                        borderRadius="full"
+                        px={3}
+                        py={1}
+                        fontSize="sm"
+                        textTransform="none"
+                      >
+                        {soDoneStatusLabel(form)}
+                      </Badge>
+                    </Flex>
+                  ) : (
+                    <Input isReadOnly value="" placeholder="Filled from SO" {...controlProps} bg={readonlyBg} />
+                  )}
                 </FormControl>
 
                 <FormControl>
@@ -636,8 +783,51 @@ export default function InvoiceFormPage() {
                 </FormControl>
 
                 <FormControl>
+                  <FormLabel {...fieldLabelProps}>Destination Type</FormLabel>
+                  <Input
+                    isReadOnly
+                    value={form.destination_type_label || form.destination_type}
+                    placeholder="-"
+                    title={form.destination_type_label}
+                    {...controlProps}
+                    bg={readonlyBg}
+                  />
+                </FormControl>
+
+                <FormControl>
                   <FormLabel {...fieldLabelProps}>Destination</FormLabel>
-                  <Input isReadOnly value={form.destination} placeholder="Filled from SO" {...controlProps} bg={readonlyBg} />
+                  <Input
+                    isReadOnly
+                    value={form.destination_name || form.destination}
+                    placeholder="Filled from SO"
+                    title={form.destination_name || form.destination}
+                    {...controlProps}
+                    bg={readonlyBg}
+                  />
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel {...fieldLabelProps}>Country</FormLabel>
+                  <Input
+                    isReadOnly
+                    value={form.destination_country}
+                    placeholder="-"
+                    title={form.destination_country}
+                    {...controlProps}
+                    bg={readonlyBg}
+                  />
+                </FormControl>
+
+                <FormControl gridColumn={{ md: "span 2" }}>
+                  <FormLabel {...fieldLabelProps}>Client Case / Invoice Ref</FormLabel>
+                  <Input
+                    isReadOnly
+                    value={form.client_case_invoice_ref}
+                    placeholder="Filled from SO"
+                    title={form.client_case_invoice_ref}
+                    {...controlProps}
+                    bg={readonlyBg}
+                  />
                 </FormControl>
 
                 <FormControl>
@@ -694,14 +884,45 @@ export default function InvoiceFormPage() {
                   />
                 </FormControl>
 
-                <FormControl isRequired>
-                  <FormLabel {...fieldLabelProps}>ROE</FormLabel>
+                <FormControl>
+                  <FormLabel {...fieldLabelProps}>
+                    ROE
+                    {form.currency_id ? (
+                      <LedgerAutoTag
+                        mode={roeIsManual ? "manual" : "auto"}
+                        isLoading={roePreview.isLoading}
+                        onUseAutomatic={() => setForm((prev) => ({ ...prev, ...applyRoeInput("") }))}
+                      />
+                    ) : null}
+                  </FormLabel>
                   <Input
+                    ref={roeInputRef}
                     type="number"
                     step="any"
-                    value={form.roe}
-                    onChange={(e) => setField("roe", e.target.value)}
+                    value={roeShown}
+                    onChange={(e) => setForm((prev) => ({ ...prev, ...applyRoeInput(e.target.value) }))}
                     {...controlProps}
+                  />
+                  <LedgerAutoTag.Notes
+                    hint={
+                      roePreview.isLoading
+                        ? "Looking up rate..."
+                        : roeIsManual
+                          ? "Clear the field to return to automatic."
+                          : !form.currency_id
+                            ? "Pick a currency to get the automatic rate."
+                            : roeDateShown
+                              ? `Rate of ${roeDateShown}`
+                              : ""
+                    }
+                    error={roePreview.error ? "Could not look up the rate. You can enter it manually." : ""}
+                    warning={
+                      roeNoRate
+                        ? `No exchange rate is available for ${form.currency_code || "this currency"} on ${
+                            formatRateDate(form.date_sales_invoice) || "today"
+                          }. Enter the rate manually.`
+                        : ""
+                    }
                   />
                 </FormControl>
 
@@ -722,12 +943,36 @@ export default function InvoiceFormPage() {
                 </FormControl>
 
                 <FormControl>
-                  <FormLabel {...fieldLabelProps}>Date Due</FormLabel>
+                  <FormLabel {...fieldLabelProps}>
+                    Date Due
+                    {form.client_id && form.date_sales_invoice ? (
+                      <LedgerAutoTag
+                        mode={dueIsManual ? "manual" : "auto"}
+                        isLoading={duePreview.isLoading}
+                        onUseAutomatic={() => setForm((prev) => ({ ...prev, ...applyDueDateInput("") }))}
+                      />
+                    ) : null}
+                  </FormLabel>
                   <Input
                     type="date"
-                    value={form.date_due}
-                    onChange={(e) => setField("date_due", e.target.value)}
+                    value={dueShown || ""}
+                    onChange={(e) => setForm((prev) => ({ ...prev, ...applyDueDateInput(e.target.value) }))}
                     {...controlProps}
+                  />
+                  <LedgerAutoTag.Notes
+                    hint={
+                      duePreview.isLoading
+                        ? "Working out due date..."
+                        : dueIsManual
+                          ? "Clear the field to return to automatic."
+                          : !form.date_sales_invoice || !form.client_id
+                            ? "Set invoice date and choose an SO to get the due date."
+                            : duePreview.data && !dueUnreadable
+                              ? describeDueRule(duePreview.data)
+                              : ""
+                    }
+                    error={duePreview.error ? "Could not work out the due date. You can enter it manually." : ""}
+                    warning={dueUnreadable ? describeDueRule(duePreview.data) : ""}
                   />
                 </FormControl>
 
@@ -882,9 +1127,10 @@ export default function InvoiceFormPage() {
               </SimpleGrid>
 
               <Text fontSize="xs" color="gray.500" mt={5}>
-                Required to create: SO Number, Invoice Number, Currency Amount, and ROE. After that, changes
-                save automatically. USD Amount, balances, payment status, and SO details are calculated or
-                filled by the server after save. Payment status is never sent from the form.
+                Required to create: SO Number, Invoice Number, and Currency Amount. ROE and Date Due are filled
+                automatically unless you type a value. After that, changes save automatically. USD Amount,
+                balances, payment status, and SO details are calculated or filled by the server after save.
+                Payment status is never sent from the form.
               </Text>
             </>
           )}

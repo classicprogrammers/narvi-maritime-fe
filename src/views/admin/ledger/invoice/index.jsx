@@ -9,6 +9,7 @@ import {
   Badge,
   Box,
   Button,
+  Checkbox,
   Collapse,
   Flex,
   FormControl,
@@ -37,23 +38,51 @@ import {
   useDisclosure,
   useToast,
 } from "@chakra-ui/react";
-import { MdAdd, MdClear, MdDelete, MdDescription, MdEdit, MdFilterList, MdSearch } from "react-icons/md";
+import {
+  MdAdd,
+  MdClear,
+  MdDateRange,
+  MdDelete,
+  MdDescription,
+  MdEdit,
+  MdFilterList,
+  MdSearch,
+} from "react-icons/md";
 import { useHistory } from "react-router-dom";
-import { deleteLedgerInvoice, getLedgerInvoices } from "api/ledgerInvoice";
+import { bulkUpdateLedgerInvoices, deleteLedgerInvoice, getLedgerInvoices } from "api/ledgerInvoice";
 import { useMasterData } from "hooks/useMasterData";
 import { getCached, MASTER_KEYS } from "utils/masterDataCache";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import LedgerBulkEditModal from "components/ledger/LedgerBulkEditModal";
+import LedgerDateRangeFilterModal from "components/ledger/LedgerDateRangeFilterModal";
+import LedgerSortableHeader from "components/ledger/LedgerSortableHeader";
+import { buildBulkUpdatePayload, validateBulkSelection } from "utils/ledgerBulkEdit";
+import { INVOICE_COLUMNS } from "utils/ledgerColumns";
+import { SO_DONE_STATUS_OPTIONS, soDoneStatusColor, soDoneStatusLabel } from "utils/ledgerDisplay";
+import {
+  buildDateRangeParams,
+  countActiveDateRanges,
+  DEFAULT_LEDGER_SORT,
+  INVOICE_DATE_FILTER_FIELDS,
+  isSortableKey,
+  nextSortState,
+  sanitizeDateRanges,
+} from "utils/ledgerListQuery";
 import {
   bizCategoryDisplay,
   extractApiMessage,
   formatCostDate,
   formatCostNumber,
   getMany2oneName,
+  gstOutputDisplay,
+  INVOICE_BULK_FIELDS_UI,
+  normalizeInvoiceBulkValues,
   PAYMENT_STATUS_OPTIONS,
   paymentStatusDisplay,
 } from "./ledgerInvoiceUtils";
 
 const INVOICE_LIST_STORAGE_KEY = "narvi_invoice_list_state";
+const SELECT_COL_W = 44;
 
 const defaultInvoiceListState = {
   searchValue: "",
@@ -62,6 +91,11 @@ const defaultInvoiceListState = {
   clientId: "",
   destination: "",
   paymentStatus: "",
+  soDoneStatus: "",
+  clientCaseRef: "",
+  dateRanges: {},
+  sortBy: DEFAULT_LEDGER_SORT.sortBy,
+  sortOrder: DEFAULT_LEDGER_SORT.sortOrder,
   page: 1,
   pageSize: 50,
   showAdvancedFilters: false,
@@ -72,7 +106,13 @@ function readPersistedInvoiceListState() {
     const raw = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(INVOICE_LIST_STORAGE_KEY) : null;
     if (!raw) return { ...defaultInvoiceListState };
     const parsed = JSON.parse(raw);
-    return { ...defaultInvoiceListState, ...(parsed && typeof parsed === "object" ? parsed : {}) };
+    const merged = { ...defaultInvoiceListState, ...(parsed && typeof parsed === "object" ? parsed : {}) };
+    merged.dateRanges = sanitizeDateRanges(merged.dateRanges, INVOICE_DATE_FILTER_FIELDS);
+    if (!isSortableKey("invoice", merged.sortBy) || !["asc", "desc"].includes(merged.sortOrder)) {
+      merged.sortBy = DEFAULT_LEDGER_SORT.sortBy;
+      merged.sortOrder = DEFAULT_LEDGER_SORT.sortOrder;
+    }
+    return merged;
   } catch (error) {
     return { ...defaultInvoiceListState };
   }
@@ -119,8 +159,9 @@ function TruncatedText({ value, maxW = "160px", fontWeight, color, fontSize = "s
 export default function LedgerInvoice() {
   const toast = useToast();
   const history = useHistory();
-  const { refreshClients, refreshDestinations } = useMasterData();
+  const { refreshClients, refreshDestinations, refreshCurrencies } = useMasterData();
   const savedState = useRef(readPersistedInvoiceListState()).current;
+  const [currencies, setCurrencies] = useState(() => getCached(MASTER_KEYS.CURRENCIES) ?? []);
   const [clients, setClients] = useState(() => getCached(MASTER_KEYS.CLIENTS) ?? []);
   const [destinations, setDestinations] = useState(() => getCached(MASTER_KEYS.DESTINATIONS) ?? []);
   const [records, setRecords] = useState([]);
@@ -136,6 +177,18 @@ export default function LedgerInvoice() {
   const [destination, setDestination] = useState(savedState.destination);
   const [destinationQuery, setDestinationQuery] = useState(String(savedState.destination || "").trim());
   const [paymentStatus, setPaymentStatus] = useState(savedState.paymentStatus);
+  const [soDoneStatus, setSoDoneStatus] = useState(savedState.soDoneStatus);
+  const [clientCaseRef, setClientCaseRef] = useState(savedState.clientCaseRef);
+  const [clientCaseRefQuery, setClientCaseRefQuery] = useState(String(savedState.clientCaseRef || "").trim());
+  const [dateRanges, setDateRanges] = useState(savedState.dateRanges);
+  const [sortBy, setSortBy] = useState(savedState.sortBy);
+  const [sortOrder, setSortOrder] = useState(savedState.sortOrder);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
+  const [bulkError, setBulkError] = useState("");
+  const [dateError, setDateError] = useState("");
+  const lastGoodSortRef = useRef({ sortBy: savedState.sortBy, sortOrder: savedState.sortOrder });
+  const dateApplyRef = useRef(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(savedState.showAdvancedFilters);
   const [page, setPage] = useState(savedState.page);
   const [pageSize, setPageSize] = useState(savedState.pageSize);
@@ -146,6 +199,8 @@ export default function LedgerInvoice() {
   const [deleteId, setDeleteId] = useState(null);
 
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
+  const { isOpen: isBulkOpen, onOpen: onBulkOpen, onClose: onBulkClose } = useDisclosure();
+  const { isOpen: isDateOpen, onOpen: onDateOpen, onClose: onDateClose } = useDisclosure();
   const cancelDeleteRef = useRef(null);
 
   const pageBg = useColorModeValue("gray.50", "gray.900");
@@ -174,20 +229,50 @@ export default function LedgerInvoice() {
         client_id: clientId,
         destination: destinationQuery,
         payment_status: paymentStatus,
+        so_done_status: soDoneStatus,
+        client_case_invoice_ref: clientCaseRefQuery,
+        sort_by: sortBy,
+        sort_order: sortOrder,
+        ...buildDateRangeParams(dateRanges, INVOICE_DATE_FILTER_FIELDS),
       });
       setRecords(Array.isArray(data.data) ? data.data : []);
       setTotalCount(data.total_count || 0);
       setTotalPages(data.total_pages || 0);
       setHasNext(Boolean(data.has_next));
       setHasPrevious(Boolean(data.has_previous));
+      // The server is the truth for the applied sort
+      const appliedSortBy = data.sort_by && isSortableKey("invoice", data.sort_by) ? data.sort_by : sortBy;
+      const appliedSortOrder = data.sort_order === "asc" || data.sort_order === "desc" ? data.sort_order : sortOrder;
+      lastGoodSortRef.current = { sortBy: appliedSortBy, sortOrder: appliedSortOrder };
+      if (appliedSortBy !== sortBy) setSortBy(appliedSortBy);
+      if (appliedSortOrder !== sortOrder) setSortOrder(appliedSortOrder);
+      if (dateApplyRef.current) {
+        dateApplyRef.current = null;
+        setDateError("");
+        onDateClose();
+      }
     } catch (error) {
+      const message = extractApiMessage(error, "Failed to load invoice records.");
       toast({
         title: "Error",
-        description: extractApiMessage(error, "Failed to load invoice records."),
+        description: message,
         status: "error",
         duration: 5000,
         isClosable: true,
       });
+      // Keep the date modal open with the server message and go back to the previous filters
+      if (dateApplyRef.current) {
+        const previous = dateApplyRef.current.previous;
+        dateApplyRef.current = null;
+        setDateError(message);
+        setDateRanges(previous);
+      }
+      // Restore the previous sort if the request failed
+      const lastGood = lastGoodSortRef.current;
+      if (lastGood.sortBy !== sortBy || lastGood.sortOrder !== sortOrder) {
+        setSortBy(lastGood.sortBy);
+        setSortOrder(lastGood.sortOrder);
+      }
       setRecords([]);
       setTotalCount(0);
       setTotalPages(0);
@@ -205,6 +290,12 @@ export default function LedgerInvoice() {
     clientId,
     destinationQuery,
     paymentStatus,
+    soDoneStatus,
+    clientCaseRefQuery,
+    sortBy,
+    sortOrder,
+    dateRanges,
+    onDateClose,
     toast,
   ]);
 
@@ -214,9 +305,10 @@ export default function LedgerInvoice() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([refreshClients(), refreshDestinations()])
-      .then(([clientList, destinationList]) => {
+    Promise.all([refreshClients(), refreshDestinations(), refreshCurrencies()])
+      .then(([clientList, destinationList, currencyList]) => {
         if (cancelled) return;
+        setCurrencies(Array.isArray(currencyList) ? currencyList : getCached(MASTER_KEYS.CURRENCIES) ?? []);
         setClients(Array.isArray(clientList) ? clientList : getCached(MASTER_KEYS.CLIENTS) ?? []);
         setDestinations(
           Array.isArray(destinationList) ? destinationList : getCached(MASTER_KEYS.DESTINATIONS) ?? []
@@ -226,7 +318,7 @@ export default function LedgerInvoice() {
     return () => {
       cancelled = true;
     };
-  }, [refreshClients, refreshDestinations]);
+  }, [refreshClients, refreshDestinations, refreshCurrencies]);
 
   useEffect(() => {
     writePersistedInvoiceListState({
@@ -236,6 +328,11 @@ export default function LedgerInvoice() {
       clientId,
       destination,
       paymentStatus,
+      soDoneStatus,
+      clientCaseRef,
+      dateRanges,
+      sortBy,
+      sortOrder,
       page,
       pageSize,
       showAdvancedFilters,
@@ -247,9 +344,32 @@ export default function LedgerInvoice() {
     clientId,
     destination,
     paymentStatus,
+    soDoneStatus,
+    clientCaseRef,
+    dateRanges,
+    sortBy,
+    sortOrder,
     page,
     pageSize,
     showAdvancedFilters,
+  ]);
+
+  // Selection is cleared on any search, filter or sort change
+  const dateRangesKey = JSON.stringify(dateRanges);
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [
+    searchQuery,
+    soNumberQuery,
+    invoiceNumberQuery,
+    clientId,
+    destinationQuery,
+    paymentStatus,
+    soDoneStatus,
+    clientCaseRefQuery,
+    dateRangesKey,
+    sortBy,
+    sortOrder,
   ]);
 
   const isFirstSearchRun = useRef(true);
@@ -263,10 +383,11 @@ export default function LedgerInvoice() {
       setSoNumberQuery(soNumber.trim());
       setInvoiceNumberQuery(invoiceNumber.trim());
       setDestinationQuery(destination.trim());
+      setClientCaseRefQuery(clientCaseRef.trim());
       setPage(1);
     }, 400);
     return () => clearTimeout(timer);
-  }, [searchValue, soNumber, invoiceNumber, destination]);
+  }, [searchValue, soNumber, invoiceNumber, destination, clientCaseRef]);
 
   const handleClearSearch = () => {
     setSearchValue("");
@@ -283,7 +404,91 @@ export default function LedgerInvoice() {
     setDestination("");
     setDestinationQuery("");
     setPaymentStatus("");
+    setSoDoneStatus("");
+    setClientCaseRef("");
+    setClientCaseRefQuery("");
+    setDateRanges({});
     setPage(1);
+  };
+
+  const handleSort = (key) => {
+    if (isLoading || isBulkOpen || !isSortableKey("invoice", key)) return;
+    const next = nextSortState({ sortBy, sortOrder }, key);
+    setSortBy(next.sortBy);
+    setSortOrder(next.sortOrder);
+    setPage(1);
+  };
+
+  const handleApplyDates = (ranges) => {
+    const next = sanitizeDateRanges(ranges, INVOICE_DATE_FILTER_FIELDS);
+    setDateError("");
+    dateApplyRef.current = { previous: dateRanges };
+    if (JSON.stringify(next) === JSON.stringify(dateRanges)) {
+      dateApplyRef.current = null;
+      onDateClose();
+      return;
+    }
+    setDateRanges(next);
+    setPage(1);
+  };
+
+  const handleClearDates = () => {
+    setDateError("");
+    dateApplyRef.current = null;
+    setDateRanges({});
+    setPage(1);
+    onDateClose();
+  };
+
+  const pageIds = records.map((row) => row.id);
+  const allPageSelected = pageIds.length > 0 && pageIds.every((rowId) => selectedIds.includes(rowId));
+  const somePageSelected = pageIds.some((rowId) => selectedIds.includes(rowId));
+  const selectionError = validateBulkSelection(selectedIds);
+  const isOverBulkLimit = selectedIds.length > 0 && Boolean(selectionError);
+
+  const toggleRow = (rowId) =>
+    setSelectedIds((prev) => (prev.includes(rowId) ? prev.filter((x) => x !== rowId) : [...prev, rowId]));
+
+  const toggleAllOnPage = () =>
+    setSelectedIds((prev) =>
+      allPageSelected
+        ? prev.filter((rowId) => !pageIds.includes(rowId))
+        : [...prev, ...pageIds.filter((rowId) => !prev.includes(rowId))]
+    );
+
+  const handleOpenBulk = () => {
+    setBulkError("");
+    onBulkOpen();
+  };
+
+  const handleBulkSubmit = async (enabledValues) => {
+    const problem = validateBulkSelection(selectedIds);
+    if (problem) {
+      setBulkError(problem);
+      return;
+    }
+    const payload = buildBulkUpdatePayload(selectedIds, enabledValues, INVOICE_BULK_FIELDS_UI);
+    payload.values = normalizeInvoiceBulkValues(payload.values);
+    setIsBulkSubmitting(true);
+    setBulkError("");
+    try {
+      const result = await bulkUpdateLedgerInvoices(payload);
+      const fields = Array.isArray(result.updated_fields) ? result.updated_fields.join(", ") : "";
+      toast({
+        title: "Success",
+        description: `Updated ${result.updated_count} records${fields ? ` (${fields})` : ""}`,
+        status: "success",
+        duration: 4000,
+        isClosable: true,
+      });
+      onBulkClose();
+      setSelectedIds([]);
+      await loadRecords();
+    } catch (error) {
+      setBulkError(extractApiMessage(error, "Bulk update failed."));
+    } finally {
+      setIsBulkSubmitting(false);
+    }
   };
 
   const handleOpenCreate = () => {
@@ -331,9 +536,11 @@ export default function LedgerInvoice() {
     name: item.name || item.destination || `Destination ${item.id}`,
   }));
 
-  const advancedFilterCount = [soNumber, invoiceNumber, clientId, destination, paymentStatus].filter(
-    (value) => value != null && String(value).trim() !== ""
-  ).length;
+  const activeDateCount = countActiveDateRanges(dateRanges, INVOICE_DATE_FILTER_FIELDS);
+  const advancedFilterCount =
+    [soNumber, invoiceNumber, clientId, destination, paymentStatus, soDoneStatus, clientCaseRef].filter(
+      (value) => value != null && String(value).trim() !== ""
+    ).length + activeDateCount;
   const hasAdvancedFilters = advancedFilterCount > 0;
   const isAdvancedPanelOpen = showAdvancedFilters || hasAdvancedFilters;
 
@@ -383,6 +590,134 @@ export default function LedgerInvoice() {
     return "-";
   };
 
+  const tableMinW =
+    SELECT_COL_W + 108 + INVOICE_COLUMNS.reduce((sum, column) => sum + (parseInt(column.minW, 10) || 120), 0);
+
+  const renderCell = (column, row) => {
+    const value = row[column.key];
+    switch (column.key) {
+      case "so_number":
+        return (
+          <Button
+            variant="link"
+            color={soColor}
+            fontWeight="800"
+            fontSize="sm"
+            whiteSpace="nowrap"
+            onClick={() => handleOpenEdit(row)}
+          >
+            {displaySo(row)}
+          </Button>
+        );
+      case "so_done_status": {
+        const label = soDoneStatusLabel(row);
+        return label === "-" ? (
+          <Text color="gray.400">—</Text>
+        ) : (
+          <Badge colorScheme={soDoneStatusColor(row.so_done_status)} fontSize="2xs" whiteSpace="nowrap" textTransform="none">
+            {label}
+          </Badge>
+        );
+      }
+      case "client":
+        return <TruncatedText value={row.client || getMany2oneName(row.client_id)} maxW="180px" />;
+      case "vessel_name":
+        return <TruncatedText value={row.vessel_name || getMany2oneName(row.vessel_id)} maxW="150px" />;
+      case "biz_category":
+        return <TruncatedText value={bizCategoryDisplay(row.biz_category, row.biz_category_label)} maxW="130px" />;
+      case "invoice_number":
+        return <TruncatedText value={value} maxW="160px" fontWeight="600" />;
+      case "currency_code":
+        return <TruncatedText value={value || getMany2oneName(row.currency_id)} maxW="90px" />;
+      case "gst_output_tax":
+        return <TruncatedText value={gstOutputDisplay(value) === "-" ? "" : gstOutputDisplay(value)} maxW="110px" />;
+      case "payment_status": {
+        const status = String(value || "").toLowerCase();
+        return status ? (
+          <Badge
+            colorScheme={status === "paid" ? "green" : "orange"}
+            variant="subtle"
+            borderRadius="full"
+            px={2.5}
+            py={0.5}
+            fontSize="xs"
+            textTransform="none"
+          >
+            {paymentStatusDisplay(value, row.payment_status_label)}
+          </Badge>
+        ) : (
+          <Text color="gray.400">—</Text>
+        );
+      }
+      case "date_paid": {
+        const paidDate = prettyInvoiceDate(value);
+        return paidDate ? (
+          <Badge colorScheme="green" variant="subtle" borderRadius="full" px={2} textTransform="none">
+            {paidDate}
+          </Badge>
+        ) : (
+          <Text color="gray.400">—</Text>
+        );
+      }
+      default:
+        break;
+    }
+    switch (column.type) {
+      case "date": {
+        const date = prettyInvoiceDate(value);
+        return (
+          <Text whiteSpace="nowrap" color={date ? "inherit" : "gray.400"}>
+            {date || "—"}
+          </Text>
+        );
+      }
+      case "due": {
+        const date = prettyInvoiceDate(value);
+        return (
+          <HStack spacing={1} whiteSpace="nowrap">
+            <Text color={date ? "inherit" : "gray.400"}>{date || "—"}</Text>
+            {date ? (
+              <Badge colorScheme={row.date_due_manual ? "orange" : "blue"} fontSize="2xs" textTransform="lowercase">
+                {row.date_due_manual ? "manual" : "auto"}
+              </Badge>
+            ) : null}
+          </HStack>
+        );
+      }
+      case "roe": {
+        const hasValue = value != null && value !== false && value !== "";
+        return (
+          <HStack spacing={1} justify="flex-start" whiteSpace="nowrap">
+            <Text sx={{ fontVariantNumeric: "tabular-nums" }}>{formatCostNumber(value, 6)}</Text>
+            {hasValue ? (
+              <Badge colorScheme={row.roe_manual ? "orange" : "blue"} fontSize="2xs" textTransform="lowercase">
+                {row.roe_manual ? "manual" : "auto"}
+              </Badge>
+            ) : null}
+          </HStack>
+        );
+      }
+      case "number":
+        return (
+          <Text sx={{ fontVariantNumeric: "tabular-nums" }} whiteSpace="nowrap">
+            {formatCostNumber(value, column.key === "currency_amount" ? 2 : 4)}
+          </Text>
+        );
+      case "bool": {
+        const on = value === true || value === "true";
+        return (
+          <Badge colorScheme={on ? "green" : "gray"} variant="subtle" textTransform="none">
+            {on ? "Yes" : "No"}
+          </Badge>
+        );
+      }
+      case "longtext":
+        return <TruncatedText value={value} maxW="200px" />;
+      default:
+        return <TruncatedText value={value} maxW="160px" />;
+    }
+  };
+
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }} bg={pageBg} minH="100vh">
       <Box px="25px" pb={8}>
@@ -409,7 +744,7 @@ export default function LedgerInvoice() {
                   <MdSearch color={searchIconColor} />
                 </InputLeftElement>
                 <Input
-                  placeholder="Search invoice #, SO, destination, client, vessel..."
+                  placeholder="Search invoice #, SO, destination, client, vessel, client case ref..."
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
                   autoComplete="off"
@@ -540,6 +875,50 @@ export default function LedgerInvoice() {
                     ))}
                   </Select>
                 </FormControl>
+                <FormControl>
+                  <FormLabel {...filterLabelProps}>SO Status</FormLabel>
+                  <Select
+                    value={soDoneStatus}
+                    onChange={(e) => {
+                      setSoDoneStatus(e.target.value);
+                      setPage(1);
+                    }}
+                    {...controlProps}
+                  >
+                    <option value="">All</option>
+                    {SO_DONE_STATUS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl>
+                  <FormLabel {...filterLabelProps}>Client Case / Invoice Ref</FormLabel>
+                  <Input
+                    placeholder="Filter by client case / invoice ref"
+                    value={clientCaseRef}
+                    onChange={(e) => setClientCaseRef(e.target.value)}
+                    autoComplete="off"
+                    {...controlProps}
+                  />
+                </FormControl>
+                <FormControl>
+                  <FormLabel {...filterLabelProps}>Dates</FormLabel>
+                  <Button
+                    w="100%"
+                    leftIcon={<Icon as={MdDateRange} />}
+                    variant={activeDateCount > 0 ? "solid" : "outline"}
+                    colorScheme={activeDateCount > 0 ? "blue" : "gray"}
+                    onClick={() => {
+                      setDateError("");
+                      onDateOpen();
+                    }}
+                    h="40px"
+                  >
+                    {activeDateCount > 0 ? "Edit Date Filter" : "Filter by Dates"}
+                  </Button>
+                </FormControl>
               </SimpleGrid>
             </Box>
           </Collapse>
@@ -569,6 +948,30 @@ export default function LedgerInvoice() {
             </VStack>
           ) : (
             <>
+              {selectedIds.length > 0 && (
+                <Flex px={4} py={3} wrap="wrap" gap={3} align="center" borderBottom="1px" borderColor={tableBorderColor}>
+                  <Text fontSize="sm" fontWeight="600">
+                    {selectedIds.length} item(s) selected
+                  </Text>
+                  <Button
+                    size="sm"
+                    colorScheme="red"
+                    leftIcon={<Icon as={MdEdit} />}
+                    onClick={handleOpenBulk}
+                    isDisabled={isOverBulkLimit}
+                  >
+                    Edit selected
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>
+                    Clear Selection
+                  </Button>
+                  {isOverBulkLimit && (
+                    <Text fontSize="xs" color="red.500">
+                      {selectionError}
+                    </Text>
+                  )}
+                </Flex>
+              )}
               <Box
                 overflowX="auto"
                 sx={{
@@ -576,25 +979,53 @@ export default function LedgerInvoice() {
                   "&::-webkit-scrollbar-thumb": { background: "gray.300", borderRadius: "4px" },
                 }}
               >
-                <Table size="sm" variant="simple" minW="1180px">
+                <Table size="sm" variant="simple" minW={`${tableMinW}px`} aria-busy={isLoading}>
                   <Thead>
                     <Tr>
-                      <Th {...thProps} position="sticky" left={0} zIndex={3} minW="120px">
-                        SO Number
+                      <Th
+                        {...thProps}
+                        position="sticky"
+                        left={0}
+                        zIndex={3}
+                        w={`${SELECT_COL_W}px`}
+                        minW={`${SELECT_COL_W}px`}
+                        px={3}
+                      >
+                        <Checkbox
+                          size="sm"
+                          colorScheme="blue"
+                          isChecked={allPageSelected}
+                          isIndeterminate={somePageSelected && !allPageSelected}
+                          onChange={toggleAllOnPage}
+                          aria-label="Select all rows on this page"
+                        />
                       </Th>
-                      <Th {...thProps} minW="140px">Invoice #</Th>
-                      <Th {...thProps} minW="160px">Client</Th>
-                      <Th {...thProps} minW="140px">Vessel</Th>
-                      <Th {...thProps} minW="140px">Destination</Th>
-                      <Th {...thProps} isNumeric minW="120px">Amount</Th>
-                      <Th {...thProps} isNumeric minW="110px">USD Amount</Th>
-                      <Th {...thProps} isNumeric minW="110px">Paid</Th>
-                      <Th {...thProps} isNumeric minW="110px">Balance</Th>
-                      <Th {...thProps} minW="110px">Status</Th>
-                      <Th {...thProps} minW="110px">Invoice Date</Th>
-                      <Th {...thProps} minW="110px">Due</Th>
-                      <Th {...thProps} minW="110px">Paid Date</Th>
-                      <Th {...thProps} minW="120px">Biz Category</Th>
+                      {INVOICE_COLUMNS.map((column) => {
+                        const isSo = column.key === "so_number";
+                        const colProps = {
+                          ...thProps,
+                          minW: column.minW,
+                          isNumeric: column.type === "number",
+                          ...(isSo ? { position: "sticky", left: `${SELECT_COL_W}px`, zIndex: 3 } : {}),
+                        };
+                        return column.sortKey ? (
+                          <LedgerSortableHeader
+                            key={column.key}
+                            label={column.label}
+                            sortKey={column.sortKey}
+                            sortBy={sortBy}
+                            sortOrder={sortOrder}
+                            onSort={handleSort}
+                            isPending={isLoading}
+                            isDisabled={isBulkOpen}
+                            {...colProps}
+                          />
+                        ) : (
+                          <Th key={column.key} {...colProps}>
+                            {column.label}
+                          </Th>
+                        );
+                      })}
                       <Th {...thProps} position="sticky" right={0} zIndex={3} minW="108px" textAlign="center">
                         Actions
                       </Th>
@@ -602,99 +1033,47 @@ export default function LedgerInvoice() {
                   </Thead>
                   <Tbody>
                     {records.map((row, index) => {
-                      const rowBg = index % 2 === 0 ? tableRowBg : tableRowBgAlt;
-                      const status = String(row.payment_status || "").toLowerCase();
-                      const currencyCode = row.currency_code || getMany2oneName(row.currency_id) || "";
-                      const invoiceDate = prettyInvoiceDate(row.date_sales_invoice);
-                      const dueDate = prettyInvoiceDate(row.date_due);
-                      const paidDate = prettyInvoiceDate(row.date_paid);
+                      const isSelected = selectedIds.includes(row.id);
+                      const rowBg = isSelected ? hoverBg : index % 2 === 0 ? tableRowBg : tableRowBgAlt;
                       return (
                         <Tr key={row.id} bg={rowBg} _hover={{ bg: hoverBg }} sx={{ "& td": { bg: "inherit" } }}>
                           <Td
                             {...tdProps}
+                            px={3}
                             position="sticky"
                             left={0}
                             zIndex={1}
-                            boxShadow="inset -1px 0 0 var(--chakra-colors-gray-200)"
+                            w={`${SELECT_COL_W}px`}
+                            minW={`${SELECT_COL_W}px`}
                           >
-                            <Button
-                              variant="link"
-                              color={soColor}
-                              fontWeight="800"
-                              fontSize="sm"
-                              whiteSpace="nowrap"
-                              onClick={() => handleOpenEdit(row)}
-                            >
-                              {displaySo(row)}
-                            </Button>
-                          </Td>
-                          <Td {...tdProps}>
-                            <TruncatedText value={row.invoice_number} maxW="160px" fontWeight="600" />
-                          </Td>
-                          <Td {...tdProps}>
-                            <TruncatedText value={row.client || getMany2oneName(row.client_id)} maxW="180px" />
-                          </Td>
-                          <Td {...tdProps}>
-                            <TruncatedText value={row.vessel_name || getMany2oneName(row.vessel_id)} maxW="150px" />
-                          </Td>
-                          <Td {...tdProps}>
-                            <TruncatedText value={row.destination} maxW="150px" />
-                          </Td>
-                          <Td {...tdProps} isNumeric>
-                            <Text fontWeight="700" fontVariantNumeric="tabular-nums" whiteSpace="nowrap">
-                              {formatCostNumber(row.currency_amount)}
-                            </Text>
-                            <Text fontSize="xs" color={mutedColor} whiteSpace="nowrap">
-                              {currencyCode || "—"}
-                            </Text>
-                          </Td>
-                          <Td {...tdProps} isNumeric fontWeight="600" fontVariantNumeric="tabular-nums" whiteSpace="nowrap">
-                            {formatCostNumber(row.usd_amount, 4)}
-                          </Td>
-                          <Td {...tdProps} isNumeric fontVariantNumeric="tabular-nums" whiteSpace="nowrap">
-                            {formatCostNumber(row.client_amount_paid, 4)}
-                          </Td>
-                          <Td {...tdProps} isNumeric fontWeight="600" fontVariantNumeric="tabular-nums" whiteSpace="nowrap">
-                            {formatCostNumber(row.invoice_balance, 4)}
-                          </Td>
-                          <Td {...tdProps}>
-                            {status ? (
-                              <Badge
-                                colorScheme={status === "paid" ? "green" : "orange"}
-                                variant="subtle"
-                                borderRadius="full"
-                                px={2.5}
-                                py={0.5}
-                                fontSize="xs"
-                                textTransform="none"
-                              >
-                                {paymentStatusDisplay(row.payment_status, row.payment_status_label)}
-                              </Badge>
-                            ) : (
-                              <Text color="gray.400">—</Text>
-                            )}
-                          </Td>
-                          <Td {...tdProps} whiteSpace="nowrap" color={invoiceDate ? "inherit" : "gray.400"}>
-                            {invoiceDate || "—"}
-                          </Td>
-                          <Td {...tdProps} whiteSpace="nowrap" color={dueDate ? "inherit" : "gray.400"}>
-                            {dueDate || "—"}
-                          </Td>
-                          <Td {...tdProps} whiteSpace="nowrap">
-                            {paidDate ? (
-                              <Badge colorScheme="green" variant="subtle" borderRadius="full" px={2} textTransform="none">
-                                {paidDate}
-                              </Badge>
-                            ) : (
-                              <Text color="gray.400">—</Text>
-                            )}
-                          </Td>
-                          <Td {...tdProps}>
-                            <TruncatedText
-                              value={bizCategoryDisplay(row.biz_category, row.biz_category_label)}
-                              maxW="130px"
+                            <Checkbox
+                              size="sm"
+                              colorScheme="blue"
+                              isChecked={isSelected}
+                              onChange={() => toggleRow(row.id)}
+                              aria-label={`Select row ${displaySo(row)}`}
                             />
                           </Td>
+                          {INVOICE_COLUMNS.map((column) => {
+                            const isSo = column.key === "so_number";
+                            return (
+                              <Td
+                                key={column.key}
+                                {...tdProps}
+                                isNumeric={column.type === "number"}
+                                {...(isSo
+                                  ? {
+                                      position: "sticky",
+                                      left: `${SELECT_COL_W}px`,
+                                      zIndex: 1,
+                                      boxShadow: "inset -1px 0 0 var(--chakra-colors-gray-200)",
+                                    }
+                                  : {})}
+                              >
+                                {renderCell(column, row)}
+                              </Td>
+                            );
+                          })}
                           <Td
                             {...tdProps}
                             position="sticky"
@@ -793,6 +1172,28 @@ export default function LedgerInvoice() {
           )}
         </Box>
       </Box>
+
+      <LedgerDateRangeFilterModal
+        isOpen={isDateOpen}
+        onClose={onDateClose}
+        fields={INVOICE_DATE_FILTER_FIELDS}
+        value={dateRanges}
+        onApply={handleApplyDates}
+        onClear={handleClearDates}
+        isLoading={isLoading && Boolean(dateApplyRef.current)}
+        error={dateError}
+      />
+
+      <LedgerBulkEditModal
+        isOpen={isBulkOpen}
+        onClose={onBulkClose}
+        fields={INVOICE_BULK_FIELDS_UI}
+        count={selectedIds.length}
+        onSubmit={handleBulkSubmit}
+        isSubmitting={isBulkSubmitting}
+        error={bulkError}
+        currencyOptions={currencies}
+      />
 
       <AlertDialog
         isOpen={isDeleteOpen}

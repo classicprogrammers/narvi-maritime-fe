@@ -26,6 +26,8 @@ const SimpleSearchableSelect = ({
   displayKey = "name",
   valueKey = "id",
   formatOption = (option) => option[displayKey] || option.name || `Option ${option[valueKey]}`,
+  // Optional custom dropdown row; formatOption still drives filtering and the selected label
+  renderOption,
   isLoading = false,
   isDisabled = false,
   isClearable = true,
@@ -371,7 +373,7 @@ const SimpleSearchableSelect = ({
                   onClick={(e) => handleSelect(e, option)}
                   onMouseDown={(e) => e.preventDefault()}
                 >
-                  {formatOption(option)}
+                  {renderOption ? renderOption(option) : formatOption(option)}
                 </Box>
                 {canDeleteOption?.(option) ? (
                   <IconButton

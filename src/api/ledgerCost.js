@@ -35,6 +35,16 @@ export const getLedgerCosts = async (params = {}) => {
     "biz_category",
     "destination",
     "search",
+    "sort_by",
+    "sort_order",
+    "so_done_status",
+    "client_case_invoice_ref",
+    "date_agent_invoice_from",
+    "date_agent_invoice_to",
+    "date_due_agent_from",
+    "date_due_agent_to",
+    "date_agent_paid_from",
+    "date_agent_paid_to",
   ];
   optionalKeys.forEach((key) => {
     const value = params[key];
@@ -72,6 +82,8 @@ export const getLedgerCosts = async (params = {}) => {
     total_pages: data.total_pages ?? 1,
     has_next: data.has_next ?? false,
     has_previous: data.has_previous ?? false,
+    sort_by: data.sort_by ?? null,
+    sort_order: data.sort_order ?? null,
   };
 };
 
@@ -104,10 +116,35 @@ export const deleteLedgerCost = async (id) => {
   return data;
 };
 
+export const bulkUpdateLedgerCosts = async ({ ids, values }) => {
+  const response = await api.post("/api/ledger/cost/bulk-update", { ids, values });
+  const data = response.data || response;
+  unwrapError(data, "Failed to update selected records");
+  const payload = data?.result && data.result.updated_count != null ? data.result : data;
+  return {
+    updated_count: payload.updated_count ?? 0,
+    ids: payload.ids ?? ids,
+    updated_fields: payload.updated_fields ?? [],
+  };
+};
+
+export const checkLedgerCostInvoices = async ({ agent_id, invoices, exclude_id }) => {
+  const body = { agent_id, invoices };
+  if (exclude_id != null && exclude_id !== "") body.exclude_id = exclude_id;
+  const response = await api.post("/api/ledger/cost/check-invoice", body);
+  const data = response.data || response;
+  unwrapError(data, "Failed to check invoice numbers");
+  const payload = data?.result && data.result.has_duplicates != null ? data.result : data;
+  const duplicates = Array.isArray(payload.duplicates) ? payload.duplicates : [];
+  return { has_duplicates: Boolean(payload.has_duplicates) || duplicates.length > 0, duplicates };
+};
+
 export default {
   getLedgerCosts,
   getLedgerCostById,
   createLedgerCost,
   updateLedgerCost,
   deleteLedgerCost,
+  bulkUpdateLedgerCosts,
+  checkLedgerCostInvoices,
 };

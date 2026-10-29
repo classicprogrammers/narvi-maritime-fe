@@ -12,6 +12,14 @@ import {
   toNumberOrNull,
   toNumericOrEmpty,
 } from "../cost/ledgerCostUtils";
+import {
+  applyManualInput,
+  diffAutoDate,
+  diffAutoNumber,
+  readAutoField,
+  writableAutoValue,
+} from "utils/ledgerAutoFields";
+import { INVOICE_BULK_FIELDS } from "utils/ledgerBulkEdit";
 
 export {
   bizCategoryDisplay,
@@ -34,6 +42,8 @@ export const PAYMENT_STATUS_OPTIONS = [
   { value: "paid", label: "Paid" },
 ];
 
+export const DEFAULT_INVOICE_BIZ_CATEGORY = "Shipspares";
+
 export const emptyInvoiceForm = () => ({
   sale_order_id: "",
   invoice_number: "",
@@ -41,7 +51,10 @@ export const emptyInvoiceForm = () => ({
   currency_id: "",
   currency_amount: "",
   roe: "",
+  roe_manual: false,
+  roe_date: "",
   date_due: "",
+  date_due_manual: false,
   date_paid: "",
   client_amount_paid: "",
   bank_change_usd: "",
@@ -55,11 +68,19 @@ export const emptyInvoiceForm = () => ({
   so_create_date: "",
   so_status: "",
   so_status_label: "",
+  so_done_status: "",
+  so_done_status_label: "",
+  client_id: "",
   client: "",
   vessel_name: "",
   destination: "",
-  biz_category: "",
-  biz_category_label: "",
+  destination_type: "",
+  destination_type_label: "",
+  destination_name: "",
+  destination_country: "",
+  client_case_invoice_ref: "",
+  biz_category: DEFAULT_INVOICE_BIZ_CATEGORY,
+  biz_category_label: DEFAULT_INVOICE_BIZ_CATEGORY,
   currency_code: "",
   usd_amount: "",
   invoice_balance: "",
@@ -82,6 +103,9 @@ export const paymentStatusDisplay = (value, apiLabel) => {
   return apiLabel || value || "-";
 };
 
+const cleanText = (value) =>
+  value == null || value === false || value === "" ? "" : String(value);
+
 export const fillFromShippingOrder = (order) => {
   if (!order) {
     return {
@@ -89,11 +113,19 @@ export const fillFromShippingOrder = (order) => {
       so_create_date: "",
       so_status: "",
       so_status_label: "",
+      so_done_status: "",
+      so_done_status_label: "",
+      client_id: "",
       client: "",
       vessel_name: "",
       destination: "",
-      biz_category: "",
-      biz_category_label: "",
+      destination_type: "",
+      destination_type_label: "",
+      destination_name: "",
+      destination_country: "",
+      client_case_invoice_ref: "",
+      biz_category: DEFAULT_INVOICE_BIZ_CATEGORY,
+      biz_category_label: DEFAULT_INVOICE_BIZ_CATEGORY,
     };
   }
   const soStatus = order.so_status || "";
@@ -109,6 +141,9 @@ export const fillFromShippingOrder = (order) => {
     so_status_label:
       order.so_status_label ||
       (String(soStatus).toLowerCase() === "shipping" ? "Shipping Order" : soStatus),
+    so_done_status: cleanText(order.so_done_status),
+    so_done_status_label: cleanText(order.so_done_status_label),
+    client_id: getMany2oneId(order.client_id || order.partner_id) ?? "",
     client:
       getMany2oneName(order.client_id || order.partner_id) ||
       order.client ||
@@ -121,8 +156,15 @@ export const fillFromShippingOrder = (order) => {
       order.destination_name ||
       getMany2oneName(order.destination_id) ||
       "",
-    biz_category: normalizeBizCategory(order.biz_category),
-    biz_category_label: bizCategoryDisplay(order.biz_category, order.biz_category_label),
+    destination_type: cleanText(order.destination_type),
+    destination_type_label: cleanText(order.destination_type_label),
+    destination_name: cleanText(order.destination_name),
+    destination_country: cleanText(order.destination_country),
+    client_case_invoice_ref: cleanText(order.client_case_invoice_ref),
+    biz_category: normalizeBizCategory(order.biz_category) || DEFAULT_INVOICE_BIZ_CATEGORY,
+    biz_category_label: order.biz_category
+      ? bizCategoryDisplay(order.biz_category, order.biz_category_label)
+      : DEFAULT_INVOICE_BIZ_CATEGORY,
   };
 };
 
@@ -139,7 +181,8 @@ export const computeInvoicePreview = (form) => {
       payment_status_label: "",
     };
   }
-  const usdAmount = amount / roe;
+  // Invoice ROE = USD per 1 unit of currency
+  const usdAmount = amount * roe;
   const invoiceBalance = usdAmount - (paid == null ? 0 : paid);
   const invoiceBalanceUsd = invoiceBalance * roe;
   const isPaid = Math.round(invoiceBalance * 100) / 100 === 0;
@@ -154,14 +197,23 @@ export const computeInvoicePreview = (form) => {
 
 export const recordToForm = (record) => {
   if (!record) return emptyInvoiceForm();
+  const roeField = readAutoField(record, "roe", "roe_manual");
+  const dueField = readAutoField(
+    { date_due: toDateOnly(record.date_due), date_due_manual: record.date_due_manual },
+    "date_due",
+    "date_due_manual"
+  );
   return {
     sale_order_id: getMany2oneId(record.sale_order_id) ?? "",
     invoice_number: record.invoice_number && record.invoice_number !== false ? String(record.invoice_number) : "",
     date_sales_invoice: toDateOnly(record.date_sales_invoice),
     currency_id: getMany2oneId(record.currency_id) ?? "",
     currency_amount: toNumericOrEmpty(record.currency_amount),
-    roe: toNumericOrEmpty(record.roe),
-    date_due: toDateOnly(record.date_due),
+    roe: roeField.value,
+    roe_manual: roeField.manual,
+    roe_date: toDateOnly(record.roe_date),
+    date_due: dueField.value,
+    date_due_manual: dueField.manual,
     date_paid: toDateOnly(record.date_paid),
     client_amount_paid: toNumericOrEmpty(record.client_amount_paid),
     bank_change_usd: toNumericOrEmpty(record.bank_change_usd),
@@ -181,11 +233,21 @@ export const recordToForm = (record) => {
     so_status: record.so_status && record.so_status !== false ? String(record.so_status) : "",
     so_status_label:
       record.so_status_label && record.so_status_label !== false ? String(record.so_status_label) : "",
+    so_done_status: cleanText(record.so_done_status),
+    so_done_status_label: cleanText(record.so_done_status_label),
+    client_id: getMany2oneId(record.client_id) ?? "",
     client: record.client || getMany2oneName(record.client_id) || "",
     vessel_name: record.vessel_name || getMany2oneName(record.vessel_id) || "",
     destination: record.destination && record.destination !== false ? String(record.destination) : "",
-    biz_category: normalizeBizCategory(record.biz_category),
-    biz_category_label: bizCategoryDisplay(record.biz_category, record.biz_category_label),
+    destination_type: cleanText(record.destination_type),
+    destination_type_label: cleanText(record.destination_type_label),
+    destination_name: cleanText(record.destination_name),
+    destination_country: cleanText(record.destination_country),
+    client_case_invoice_ref: cleanText(record.client_case_invoice_ref),
+    biz_category: normalizeBizCategory(record.biz_category) || DEFAULT_INVOICE_BIZ_CATEGORY,
+    biz_category_label: record.biz_category
+      ? bizCategoryDisplay(record.biz_category, record.biz_category_label)
+      : DEFAULT_INVOICE_BIZ_CATEGORY,
     currency_code: record.currency_code || getMany2oneName(record.currency_id) || "",
     usd_amount: toNumericOrEmpty(record.usd_amount),
     invoice_balance: toNumericOrEmpty(record.invoice_balance),
@@ -228,12 +290,15 @@ export const buildCreatePayload = (form) => {
     sale_order_id: toIdOrNull(form.sale_order_id),
     invoice_number: String(form.invoice_number || "").trim(),
     currency_amount: toNumberOrNull(form.currency_amount),
-    roe: toNumberOrNull(form.roe),
   };
+  // Automatic ROE / due date are left out so the server fills them
+  const roe = toNumberOrNull(writableAutoValue(form, "roe", "roe_manual"));
+  if (roe != null && roe !== 0) payload.roe = roe;
   const currencyId = toIdOrNull(form.currency_id);
   if (currencyId != null) payload.currency_id = currencyId;
   if (form.date_sales_invoice) payload.date_sales_invoice = form.date_sales_invoice;
-  if (form.date_due) payload.date_due = form.date_due;
+  const dueDate = writableAutoValue(form, "date_due", "date_due_manual");
+  if (dueDate) payload.date_due = dueDate;
   if (form.date_paid) payload.date_paid = form.date_paid;
   const paid = toNumberOrNull(form.client_amount_paid);
   if (paid != null) payload.client_amount_paid = paid;
@@ -266,12 +331,10 @@ export const buildUpdatePayload = (form, originalForm, recordId) => {
   if (!sameNumber(form.currency_amount, originalForm.currency_amount)) {
     payload.currency_amount = toNumberOrNull(form.currency_amount);
   }
-  if (!sameNumber(form.roe, originalForm.roe)) {
-    payload.roe = toNumberOrNull(form.roe);
-  }
-  if (!sameValue(form.date_due, originalForm.date_due)) {
-    payload.date_due = form.date_due || false;
-  }
+  const roeChange = diffAutoNumber(form, originalForm, "roe", "roe_manual");
+  if (roeChange !== undefined) payload.roe = roeChange;
+  const dueChange = diffAutoDate(form, originalForm, "date_due", "date_due_manual");
+  if (dueChange !== undefined) payload.date_due = dueChange;
   if (!sameValue(form.date_paid, originalForm.date_paid)) {
     payload.date_paid = form.date_paid || false;
   }
@@ -312,12 +375,6 @@ export const validateInvoiceForm = (form) => {
   if (toNumberOrNull(form.currency_amount) == null) {
     return "Currency Amount is required.";
   }
-  if (toNumberOrNull(form.roe) == null) {
-    return "ROE is required.";
-  }
-  if (Number(form.roe) === 0) {
-    return "ROE cannot be zero.";
-  }
   return null;
 };
 
@@ -327,8 +384,10 @@ export const getWritableInvoiceFields = (form) => ({
   date_sales_invoice: form?.date_sales_invoice || "",
   currency_id: toIdOrNull(form?.currency_id) ?? "",
   currency_amount: toNumberOrNull(form?.currency_amount) ?? "",
-  roe: toNumberOrNull(form?.roe) ?? "",
-  date_due: form?.date_due || "",
+  roe: toNumberOrNull(writableAutoValue(form, "roe", "roe_manual")) ?? "",
+  roe_manual: Boolean(form?.roe_manual),
+  date_due: writableAutoValue(form, "date_due", "date_due_manual") || "",
+  date_due_manual: Boolean(form?.date_due_manual),
   date_paid: form?.date_paid || "",
   client_amount_paid: toNumberOrNull(form?.client_amount_paid) ?? "",
   bank_change_usd: toNumberOrNull(form?.bank_change_usd) ?? "",
@@ -351,9 +410,23 @@ export const applyComputedFromRecord = (form, record) => {
     so_create_date: fromApi.so_create_date,
     so_status: fromApi.so_status,
     so_status_label: fromApi.so_status_label,
+    so_done_status: fromApi.so_done_status,
+    so_done_status_label: fromApi.so_done_status_label,
+    client_id: fromApi.client_id,
     client: fromApi.client,
     vessel_name: fromApi.vessel_name,
     destination: fromApi.destination,
+    destination_type: fromApi.destination_type,
+    destination_type_label: fromApi.destination_type_label,
+    destination_name: fromApi.destination_name,
+    destination_country: fromApi.destination_country,
+    client_case_invoice_ref: fromApi.client_case_invoice_ref,
+    // A manual value typed in the form wins over the server auto value
+    roe: form.roe_manual ? form.roe : fromApi.roe,
+    roe_manual: form.roe_manual ? true : fromApi.roe_manual,
+    roe_date: fromApi.roe_date,
+    date_due: form.date_due_manual ? form.date_due : fromApi.date_due,
+    date_due_manual: form.date_due_manual ? true : fromApi.date_due_manual,
     biz_category: fromApi.biz_category,
     biz_category_label: fromApi.biz_category_label,
     currency_code: fromApi.currency_code,
@@ -381,3 +454,33 @@ export const extractApiMessage = (error, fallback) =>
   error?.response?.data?.message ||
   error?.message ||
   fallback;
+
+// Typing into ROE: empty returns to automatic, any text is manual.
+// (A typed 0 stays manual here so values like 0.27 can be entered; 0 is treated as automatic on save.)
+export const applyRoeInput = (text) => {
+  if (String(text ?? "") === "") return { roe: "", roe_manual: false };
+  return { roe: String(text), roe_manual: true };
+};
+
+export const applyDueDateInput = (text) => {
+  const { value, manual } = applyManualInput(text);
+  return { date_due: value, date_due_manual: manual };
+};
+
+export const SOA_BULK_OPTIONS = [
+  { value: "true", label: "Yes" },
+  { value: "false", label: "No" },
+];
+
+// Bulk edit fields as the Invoices DB needs them (GST output and SOA are choices, not free text)
+export const INVOICE_BULK_FIELDS_UI = INVOICE_BULK_FIELDS.map((field) => {
+  if (field.key === "gst_output_tax") return { ...field, type: "select", options: GST_OUTPUT_OPTIONS };
+  if (field.key === "invoice_soa") return { ...field, type: "select", options: SOA_BULK_OPTIONS };
+  return field;
+});
+
+// invoice_soa is boolean on the backend; the select yields "true" / "false" (empty / false clears it)
+export const normalizeInvoiceBulkValues = (values) => {
+  if (!values || !("invoice_soa" in values)) return values;
+  return { ...values, invoice_soa: values.invoice_soa === true || values.invoice_soa === "true" };
+};
