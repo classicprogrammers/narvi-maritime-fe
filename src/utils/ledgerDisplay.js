@@ -27,10 +27,16 @@ export const destinationParts = (record) => ({
   country: clean(record?.destination_country),
 });
 
-// Plain string for the select (filtering and selected label): the Agent ID
+// Plain string for the select (filtering and selected label): the agent name
 export const agentOptionLabel = (opt) =>
-  clean(opt?.name) || clean(opt?.agent_code) || (opt?.id != null ? `Agent ${opt.id}` : "");
+  clean(opt?.name) || (opt?.id != null ? `Agent ${opt.id}` : "");
 
 // Smaller second line: "agent_code · company"
-export const agentOptionSecondary = (opt) =>
-  [clean(opt?.agent_code), clean(opt?.company)].filter(Boolean).join(" · ");
+export const agentOptionSecondary = (opt) => {
+  const label = agentOptionLabel(opt);
+  const parts = [];
+  [clean(opt?.agent_code), clean(opt?.company)].forEach((p) => {
+    if (p && p !== label && !parts.includes(p)) parts.push(p);
+  });
+  return parts.join(" · ");
+};

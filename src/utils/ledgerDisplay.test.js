@@ -28,10 +28,11 @@ describe("ledgerDisplay", () => {
   });
 
   test("agent option label and secondary line", () => {
-    expect(agentOptionLabel({ id: 3, name: "Jady PVG" })).toBe("Jady PVG");
+    expect(agentOptionLabel({ id: 3, name: "Jady PVG", agent_code: "A1" })).toBe("Jady PVG");
     expect(agentOptionLabel({ id: 3 })).toBe("Agent 3");
     expect(agentOptionSecondary({ agent_code: "A1", company: "Co" })).toBe("A1 · Co");
     expect(agentOptionSecondary({ agent_code: "A1", company: false })).toBe("A1");
+    expect(agentOptionSecondary({ agent_code: "A1", company: "A1" })).toBe("A1");
     expect(agentOptionSecondary({})).toBe("");
   });
 });
