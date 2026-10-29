@@ -1919,69 +1919,6 @@ const SoNumberTab = () => {
               </Tag>
             </WrapItem>
 
-            {/* Orders the client changed that staff have not opened yet */}
-            <WrapItem>
-              <Tag
-                size="md"
-                borderRadius="full"
-                variant={activeFilters.clientUpdates ? "solid" : "outline"}
-                colorScheme={activeFilters.clientUpdates || unseenClientUpdateCount > 0 ? "orange" : "gray"}
-                cursor="pointer"
-                onClick={() => toggleFilter("clientUpdates")}
-              >
-                <TagLabel>Client updates</TagLabel>
-                {unseenClientUpdateCount > 0 && (
-                  <Flex
-                    as="span"
-                    ml="2"
-                    minW="20px"
-                    h="20px"
-                    px="1.5"
-                    align="center"
-                    justify="center"
-                    borderRadius="full"
-                    fontSize="xs"
-                    fontWeight="700"
-                    lineHeight="1"
-                    bg={activeFilters.clientUpdates ? "white" : "orange.500"}
-                    color={activeFilters.clientUpdates ? "orange.600" : "white"}
-                  >
-                    {unseenClientUpdateCount}
-                  </Flex>
-                )}
-                {activeFilters.clientUpdates && (
-                  <TagCloseButton
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleFilter("clientUpdates");
-                    }}
-                  />
-                )}
-              </Tag>
-            </WrapItem>
-
-            {/* Every order the client ever changed, even if staff already opened it */}
-            <WrapItem>
-              <Tag
-                size="md"
-                borderRadius="full"
-                variant={activeFilters.clientEdited ? "solid" : "outline"}
-                colorScheme={activeFilters.clientEdited ? "orange" : "gray"}
-                cursor="pointer"
-                onClick={() => toggleFilter("clientEdited")}
-              >
-                <TagLabel>Edited by client</TagLabel>
-                {activeFilters.clientEdited && (
-                  <TagCloseButton
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleFilter("clientEdited");
-                    }}
-                  />
-                )}
-              </Tag>
-            </WrapItem>
-
             {/* Ready for Invoice Client Filter */}
             <WrapItem>
               <Tag
@@ -2113,24 +2050,94 @@ const SoNumberTab = () => {
             </HStack>
           </Flex>
 
-          {activeFilters.clientEdited && (
-            <Box w="100%" maxW="260px">
-              <FormControl>
-                <FormLabel fontSize="xs" mb="1" color={textColor}>
-                  Edited by client since (optional)
-                </FormLabel>
-                <Input
-                  size="sm"
-                  type="date"
-                  value={clientUpdatedSince}
-                  onChange={(e) => {
-                    setClientUpdatedSince(e.target.value);
-                    setPage(1);
-                  }}
-                />
-              </FormControl>
-            </Box>
-          )}
+          {/* Client changes: kept apart from the operators' everyday filters */}
+          <Flex align="center" gap="3" flexWrap="wrap" w="100%">
+            <Text fontSize="xs" fontWeight="700" textTransform="uppercase" letterSpacing="0.04em" color={textColor}>
+              Client changes
+            </Text>
+            <Wrap spacing="3">
+            {/* Orders the client changed that staff have not opened yet */}
+            <WrapItem>
+              <Tag
+                size="md"
+                borderRadius="full"
+                variant={activeFilters.clientUpdates ? "solid" : "outline"}
+                colorScheme={activeFilters.clientUpdates || unseenClientUpdateCount > 0 ? "orange" : "gray"}
+                cursor="pointer"
+                onClick={() => toggleFilter("clientUpdates")}
+              >
+                <TagLabel>Client updates</TagLabel>
+                {unseenClientUpdateCount > 0 && (
+                  <Flex
+                    as="span"
+                    ml="2"
+                    minW="20px"
+                    h="20px"
+                    px="1.5"
+                    align="center"
+                    justify="center"
+                    borderRadius="full"
+                    fontSize="xs"
+                    fontWeight="700"
+                    lineHeight="1"
+                    bg={activeFilters.clientUpdates ? "white" : "orange.500"}
+                    color={activeFilters.clientUpdates ? "orange.600" : "white"}
+                  >
+                    {unseenClientUpdateCount}
+                  </Flex>
+                )}
+                {activeFilters.clientUpdates && (
+                  <TagCloseButton
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFilter("clientUpdates");
+                    }}
+                  />
+                )}
+              </Tag>
+            </WrapItem>
+
+            {/* Every order the client ever changed, even if staff already opened it */}
+            <WrapItem>
+              <Tag
+                size="md"
+                borderRadius="full"
+                variant={activeFilters.clientEdited ? "solid" : "outline"}
+                colorScheme={activeFilters.clientEdited ? "orange" : "gray"}
+                cursor="pointer"
+                onClick={() => toggleFilter("clientEdited")}
+              >
+                <TagLabel>Edited by client</TagLabel>
+                {activeFilters.clientEdited && (
+                  <TagCloseButton
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFilter("clientEdited");
+                    }}
+                  />
+                )}
+              </Tag>
+            </WrapItem>
+            </Wrap>
+            {activeFilters.clientEdited && (
+              <Box w="100%" maxW="220px">
+                <FormControl>
+                  <FormLabel fontSize="xs" mb="1" color={textColor}>
+                    Edited by client since (optional)
+                  </FormLabel>
+                  <Input
+                    size="sm"
+                    type="date"
+                    value={clientUpdatedSince}
+                    onChange={(e) => {
+                      setClientUpdatedSince(e.target.value);
+                      setPage(1);
+                    }}
+                  />
+                </FormControl>
+              </Box>
+            )}
+          </Flex>
 
           {/* Client selection when Active Client or Ready for Invoice Client chip is on */}
           {(activeFilters.activeClient || activeFilters.readyForInvoiceClient) && (
