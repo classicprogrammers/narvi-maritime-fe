@@ -1,5 +1,5 @@
 import React from "react";
-import { Box, Tab, TabList, TabPanel, TabPanels, Tabs } from "@chakra-ui/react";
+import { Badge, Box, Tab, TabList, TabPanel, TabPanels, Tabs } from "@chakra-ui/react";
 import { useHistory, useLocation } from "react-router-dom";
 import SoNumberTab from "./SoNumberTab";
 import MsoTab from "./MsoTab";
@@ -24,7 +24,12 @@ export default function ShippingOrder() {
             <Tabs variant="enclosed" colorScheme="blue" index={tabIndex} onChange={handleTabChange} isLazy>
                 <TabList>
                     <Tab fontWeight="semibold">Shipping Orders</Tab>
-                    <Tab fontWeight="semibold">MSO</Tab>
+                    <Tab fontWeight="semibold" gap={2}>
+                        MSO
+                        <Badge colorScheme="orange" variant="solid" borderRadius="full" px={2} fontSize="2xs">
+                            In progress
+                        </Badge>
+                    </Tab>
                 </TabList>
                 <TabPanels>
                     <TabPanel px={0} pt={4}>

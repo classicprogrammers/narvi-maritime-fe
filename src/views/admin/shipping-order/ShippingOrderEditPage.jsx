@@ -1,5 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  Alert,
+  AlertDescription,
+  AlertIcon,
+  AlertTitle,
+  Badge,
   Box,
   Button,
   Flex,
@@ -26,7 +31,7 @@ import {
   applyShippingOrderFilesToPayload,
   notifyShippingOrderSaveResult,
 } from "../../../utils/shippingOrderAttachments";
-import { getMsoApiError } from "../../../utils/shippingOrderMso";
+import { getMsoApiError, isMsoOrder } from "../../../utils/shippingOrderMso";
 import ShippingOrderFormFields from "./ShippingOrderFormFields";
 import ShippingOrderStockList from "../../../components/shipping-order/ShippingOrderStockList";
 import EditModeNotice, { useEditModeColors } from "../../../components/forms/EditModeNotice";
@@ -110,6 +115,8 @@ export default function ShippingOrderEditPage() {
 
   const [formData, setFormData] = useState(null);
   const [originalOrder, setOriginalOrder] = useState(null);
+  const isEditMso = !isCreate && isMsoOrder(originalOrder?._raw || originalOrder);
+  const isMsoPage = isCreateMso || isEditMso;
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingOrder, setIsLoadingOrder] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -368,8 +375,17 @@ export default function ShippingOrderEditPage() {
               Back
             </Button>
             <Text fontSize="xl" fontWeight="bold">
-              {isCreateMso ? "Create MSO" : isCreate ? "Create SO" : `Edit SO — ${formData.so_number || `SO-${id}`}`}
+              {isCreateMso
+                ? "Create MSO"
+                : isCreate
+                  ? "Create SO"
+                  : `Edit ${isEditMso ? "MSO" : "SO"} — ${formData.so_number || `SO-${id}`}`}
             </Text>
+            {isMsoPage && (
+              <Badge colorScheme="orange" variant="solid" borderRadius="full" px={2} fontSize="xs" textTransform="none">
+                In progress
+              </Badge>
+            )}
           </Flex>
           <Flex gap={2}>
             <Button variant="outline" onClick={handleCancel}>
@@ -380,6 +396,18 @@ export default function ShippingOrderEditPage() {
             </Button>
           </Flex>
         </Flex>
+
+        {isMsoPage && (
+          <Alert status="warning" variant="left-accent" borderRadius="md" mb={6} alignItems="flex-start">
+            <AlertIcon />
+            <Box>
+              <AlertTitle fontSize="sm">MSO is still in progress</AlertTitle>
+              <AlertDescription fontSize="sm">
+                This feature is not complete yet and may change. Please use test SOs only. Master Ledger MSO totals are not available yet.
+              </AlertDescription>
+            </Box>
+          </Alert>
+        )}
 
         <ShippingOrderFormFields
           formData={formData}

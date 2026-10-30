@@ -1,5 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  Alert,
+  AlertDescription,
+  AlertIcon,
+  AlertTitle,
   Badge,
   Box,
   Button,
@@ -291,9 +295,23 @@ export default function MsoTab() {
 
   return (
     <Card bg={cardBg} borderWidth="1px" borderColor={borderColor} p={4}>
+      <Alert status="warning" variant="left-accent" borderRadius="md" mb={4} alignItems="flex-start">
+        <AlertIcon />
+        <Box>
+          <AlertTitle fontSize="sm">MSO is still in progress</AlertTitle>
+          <AlertDescription fontSize="sm">
+            This feature is not complete yet and may change. Please use test SOs only. Master Ledger MSO totals are not available yet.
+          </AlertDescription>
+        </Box>
+      </Alert>
       <Flex justify="space-between" align={{ base: "stretch", md: "center" }} gap={3} mb={4} direction={{ base: "column", md: "row" }}>
         <Box flex="1" minW={0}>
-          <Text fontSize="lg" fontWeight="bold">Master Shipping Orders</Text>
+          <HStack spacing={2} align="center">
+            <Text fontSize="lg" fontWeight="bold">Master Shipping Orders</Text>
+            <Badge colorScheme="orange" variant="subtle" borderRadius="full" px={2} fontSize="xs" textTransform="none">
+              Work in progress
+            </Badge>
+          </HStack>
           <Text fontSize="sm" color={mutedText}>
             Consolidate several vessel SOs moving hub to hub. Hub costs go on the MSO, delivery costs and invoices on each vessel SO.
           </Text>
