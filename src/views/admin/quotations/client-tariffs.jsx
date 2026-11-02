@@ -39,6 +39,12 @@ import {
   withFetchAll,
 } from "../../../api/rate";
 import { getAgentByIdQueryApi } from "../../../api/vendor";
+import {
+  TARIFF_SHIPMENT_TYPE_OPTIONS,
+  shipmentTypeLabel,
+  shipmentTypeScope,
+  shipmentTypeSheetLabel,
+} from "../../../utils/shipmentType";
 import CopyTariffModal from "./CopyTariffModal";
 import FetchAllSwitch from "./FetchAllSwitch";
 import TariffTable from "./TariffTable";
@@ -59,14 +65,25 @@ import {
 } from "./tariffScreenUtils";
 
 // In Tariff defaults to Yes on the backend: it is only sent when the user picks "No".
-const DEFAULT_FILTERS = { client_id: "", location: "", agent_id: "", incl_in_tariff: "true" };
+const DEFAULT_FILTERS = { client_id: "", location: "", agent_id: "", incl_in_tariff: "true", shipment_type: "" };
 const EMPTY_OPTIONS = { clients: [], locations: [], agents: [], inTariff: normalizeYesNoOptions() };
+const shipmentTypeOptions = TARIFF_SHIPMENT_TYPE_OPTIONS;
 
 const COLUMNS = [
   { key: "rate_name", label: "Rate Name" },
   { key: "charge_category_label", label: "Standard / If Apply" },
   { key: "currency", label: "Currency", render: (row) => row.currency ?? row.currency_id?.name },
   { key: "sales", label: "Charges", isNumeric: true },
+];
+
+// On screen the tariff also shows each rate's shipment type; the exports are per type instead.
+const SCREEN_COLUMNS = [
+  ...COLUMNS,
+  {
+    key: "shipment_type_label",
+    label: "Shipment Type",
+    render: (row) => shipmentTypeLabel(row.shipment_type, row.shipment_type_label),
+  },
 ];
 
 // Columns of the grouped PDF, where the Standard / If Apply split is the section heading instead.
@@ -136,8 +153,9 @@ export default function ClientTariffs() {
       location: filters.location || undefined,
       agent_id: intParam(filters.agent_id),
       incl_in_tariff: filters.incl_in_tariff === "false" ? false : undefined,
+      shipment_type: filters.shipment_type || undefined,
     }),
-    [filters.client_id, filters.location, filters.agent_id, filters.incl_in_tariff]
+    [filters.client_id, filters.location, filters.agent_id, filters.incl_in_tariff, filters.shipment_type]
   );
 
   const { options, loading: optionsLoading, onSearch } = useTariffOptions({
@@ -154,6 +172,7 @@ export default function ClientTariffs() {
       filters.client_id ||
       filters.location ||
       filters.agent_id ||
+      filters.shipment_type ||
       filters.incl_in_tariff !== "true"
   );
   const usesFetchAll = fetchAll && hasAnyFilter;
@@ -233,6 +252,11 @@ export default function ClientTariffs() {
     return parts.join(" · ");
   }, [options.clients, options.agents, filters, pins]);
 
+  // Export and Import / DOB tariffs are separate documents: the selected type names the PDF and file.
+  const typeScope = shipmentTypeScope(filters.shipment_type);
+  const pdfTitle = typeScope ? `Client Tariff - ${typeScope}` : "Client Tariff";
+  const fileSuffix = typeScope ? `-${filters.shipment_type.replace("_", "-")}` : "";
+
   const sourceClient = useMemo(
     () => options.clients.find((o) => String(o.id) === String(filters.client_id)) || pins.client_id || null,
     [options.clients, filters.client_id, pins.client_id]
@@ -265,8 +289,8 @@ export default function ClientTariffs() {
       downloadSheetAsExcel({
         headers: COLUMNS.map((column) => column.label),
         rows: [...toTableRows(COLUMNS, all), ...remarksRows],
-        filePrefix: "client-tariff",
-        sheetName: "Client Tariff",
+        filePrefix: `client-tariff${fileSuffix}`,
+        sheetName: typeScope ? `Client Tariff - ${shipmentTypeSheetLabel(filters.shipment_type)}` : "Client Tariff",
         colWidths: [44, 20, 14, 14],
       });
       toast({
@@ -287,7 +311,7 @@ export default function ClientTariffs() {
     } finally {
       setIsExcelLoading(false);
     }
-  }, [fetchAllRows, filters.agent_id, remarks, toast]);
+  }, [fetchAllRows, filters.agent_id, filters.shipment_type, remarks, fileSuffix, typeScope, toast]);
 
   const handleExportPdf = useCallback(async (grouped) => {
     setIsPdfLoading(true);
@@ -312,11 +336,11 @@ export default function ClientTariffs() {
             }))
         : [{ head: COLUMNS.map((column) => column.label), body: toTableRows(COLUMNS, all) }];
       const model = buildPdfModel({
-        title: "Client Tariff",
+        title: pdfTitle,
         scopeLabel: exportScope,
         sections,
         footerBlocks: [consignee, remarks.trim() ? `Remarks: ${remarks.trim()}` : ""],
-        filenameSuffix: grouped ? "client-tariff-grouped" : "client-tariff",
+        filenameSuffix: `${grouped ? "client-tariff-grouped" : "client-tariff"}${fileSuffix}`,
       });
       await openPdf(model);
     } catch (error) {
@@ -330,7 +354,7 @@ export default function ClientTariffs() {
     } finally {
       setIsPdfLoading(false);
     }
-  }, [fetchAllRows, filters.agent_id, remarks, exportScope, openPdf, toast]);
+  }, [fetchAllRows, filters.agent_id, remarks, exportScope, pdfTitle, fileSuffix, openPdf, toast]);
 
   const selectProps = { size: "sm", bg: inputBg, color: inputText, borderColor, prefillOnFocus: false };
 
@@ -499,6 +523,17 @@ export default function ClientTariffs() {
           />
         )}
         {field(
+          "Shipment Type",
+          <SimpleSearchableSelect
+            {...selectProps}
+            value={filters.shipment_type}
+            options={shipmentTypeOptions}
+            placeholder="All (Export + Import / DOB)"
+            formatOption={(option) => option.name}
+            onChange={(value) => handleFilterChange("shipment_type", value, shipmentTypeOptions)}
+          />
+        )}
+        {field(
           "In Tariff",
           <SimpleSearchableSelect
             {...selectProps}
@@ -530,7 +565,7 @@ export default function ClientTariffs() {
       </FormControl>
 
       <TariffTable
-        columns={COLUMNS}
+        columns={SCREEN_COLUMNS}
         rows={rows}
         loading={loading}
         emptyText="No client tariffs found. Try changing or clearing the filters."

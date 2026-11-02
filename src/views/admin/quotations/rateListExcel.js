@@ -13,6 +13,7 @@ const FIELD_LABELS = {
   rate_name: "Rate Name",
   charge_category: "Charge Category",
   charge_category_label: "Charge Category",
+  shipment_type_label: "Shipment Type",
   rate_text: "Rate Text",
   rate_calculation: "Rate Calculation",
   rate_float: "Rate Cost",
@@ -29,7 +30,7 @@ const RATE_TYPE_LABELS = { general: "General", client_specific: "Client Specific
 const BOOLEAN_FIELDS = new Set(["incl_in_tariff", "active"]);
 
 // Same field shown twice when the API returns both a code and its label.
-const SKIPPED_FIELDS = new Set(["charge_category", "charge_category_id"]);
+const SKIPPED_FIELDS = new Set(["charge_category", "charge_category_id", "shipment_type"]);
 
 function humanizeKey(key) {
   return key

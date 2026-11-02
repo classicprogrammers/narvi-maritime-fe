@@ -112,7 +112,27 @@ export function buildRateListPdfModel({ items = [], scopeLabel = "" } = {}) {
   });
 }
 
+let letterheadCache = null;
+
+/** Loads the letterhead once per session, retrying a failed image load so a PDF never goes out without it. */
 async function loadLetterheadDataUrl() {
+  if (letterheadCache) return letterheadCache;
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      letterheadCache = await readLetterheadDataUrl();
+      return letterheadCache;
+    } catch (error) {
+      lastError = error;
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+  }
+  throw lastError;
+}
+
+function readLetterheadDataUrl() {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
@@ -156,6 +176,8 @@ export async function buildRateListPdf(model) {
     drawLetterhead();
   } catch (error) {
     console.error("Failed to load letterhead for rate list PDF:", error);
+    // A tariff sent to a client must carry the letterhead, so fail visibly instead of printing without it.
+    throw new Error("Could not load the Narvi letterhead. Please try again.");
   }
 
   doc.setFont("helvetica", "bold");

@@ -16,6 +16,7 @@ export const DEFAULT_RATE_FORM_ROW = {
   charge_category_label: "",
   incl_in_tariff: false,
   import_group: "",
+  shipment_type: "both",
   last_update: "",
   active: true,
   rate_id: "",
@@ -38,6 +39,7 @@ export const RATE_API_FIELDS = [
   "sort_order",
   "charge_category_id",
   "import_group",
+  "shipment_type",
   "incl_in_tariff",
   "active",
   "remarks",
@@ -136,6 +138,7 @@ export function mapRateItemToFormRow(item) {
     charge_category_label: item.charge_category_id?.name || item.charge_category_label || "",
     incl_in_tariff: Boolean(item.incl_in_tariff),
     import_group: item.import_group || "",
+    shipment_type: item.shipment_type || "both",
     last_update: toDateInputValue(item.last_update),
     active: item.active !== false,
   };
@@ -206,6 +209,7 @@ export function buildRateApiPayload(formRow, { forCreate = false } = {}) {
     payload.sort_order = sortOrder;
   }
 
+  payload.shipment_type = formRow.shipment_type || "both";
   payload.incl_in_tariff = Boolean(formRow.incl_in_tariff);
   payload.active = formRow.active !== false;
   // On create an empty category defaults to Standard server-side; on update it would be an error.

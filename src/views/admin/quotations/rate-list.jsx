@@ -73,6 +73,7 @@ import {
 } from "./rateListPdf";
 import { downloadRateListExcel } from "./rateListExcel";
 import { chargeCategoryLabel } from "../../../utils/rateListForm";
+import { SHIPMENT_TYPE_OPTIONS, shipmentTypeLabel } from "../../../utils/shipmentType";
 
 const RATE_TYPE_FILTER_OPTIONS = [
   { id: "general", name: "General" },
@@ -92,6 +93,7 @@ const DEFAULT_FILTERS = {
   active: "",
   incl_in_tariff: "",
   charge_category_id: "",
+  shipment_type: "",
 };
 
 const BOOLEAN_FILTER_OPTIONS = [
@@ -238,6 +240,7 @@ const RATE_LIST_COLUMNS = [
   { label: "Rate Name", sortKey: "rate_name", minW: "240px" },
   { label: "Rate Text", sortKey: "rate_text", minW: "280px" },
   { label: "Charge Category", sortKey: "charge_category", aliases: ["charge_category_label"], minW: "160px" },
+  { label: "Shipment Type", sortKey: "shipment_type", aliases: ["shipment_type_label"], minW: "140px" },
   { label: "Rate Calculation", sortKey: "rate_calculation", minW: "180px" },
   { label: "Rate Cost", sortKey: "rate_float", minW: "110px", isNumeric: true },
   { label: "Sales", sortKey: "fixed_sales_rate", minW: "110px", isNumeric: true },
@@ -404,7 +407,8 @@ export default function RateList() {
     filters.import_group ||
     filters.active ||
     filters.incl_in_tariff ||
-    filters.charge_category_id
+    filters.charge_category_id ||
+    filters.shipment_type
   );
   const hasAnyFilter = Boolean(search || hasAnyAdvanceFilter);
   // As in the stock list, fetch all is only available while a filter or search is applied.
@@ -442,6 +446,7 @@ export default function RateList() {
       charge_category_id: intFilterToParam(filters.charge_category_id),
       rate_name: filters.rate_name.trim() || undefined,
       import_group: filters.import_group.trim() || undefined,
+      shipment_type: filters.shipment_type || undefined,
       active: filters.active === "" ? undefined : filters.active === "true",
       incl_in_tariff: filters.incl_in_tariff === "" ? undefined : filters.incl_in_tariff === "true",
       sort_by: sort.sort_by || undefined,
@@ -1409,6 +1414,19 @@ export default function RateList() {
               />
             )}
             {renderFilterField(
+              "Shipment Type",
+              <SimpleSearchableSelect
+                value={filters.shipment_type}
+                onChange={(value) => handleFilterChange("shipment_type", value || "")}
+                options={SHIPMENT_TYPE_OPTIONS}
+                placeholder="All"
+                displayKey="name"
+                valueKey="id"
+                formatOption={(option) => option.name}
+                {...searchableSelectProps}
+              />
+            )}
+            {renderFilterField(
               "Active",
               <SimpleSearchableSelect
                 value={filters.active}
@@ -1652,6 +1670,10 @@ export default function RateList() {
                         <RateCell value={displayText(item.rate_text)} cellProps={tableCellProps} noOfLines={3} />
                         <RateCell
                           value={chargeCategoryLabel(item.charge_category, item.charge_category_label)}
+                          cellProps={tableCellProps}
+                        />
+                        <RateCell
+                          value={shipmentTypeLabel(item.shipment_type, item.shipment_type_label)}
                           cellProps={tableCellProps}
                         />
                         <RateCell

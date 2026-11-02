@@ -43,6 +43,7 @@ import { CellWithAssignMenu } from "components/forms/AssignToRowsBelowMenu";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import { createRateListApi, deleteRateListApi, updateRateListApi } from "../../../api/rate";
 import { getAllChargeCategoriesApi } from "../../../api/chargeCategory";
+import { SHIPMENT_TYPE_OPTIONS, shipmentTypeLabel } from "../../../utils/shipmentType";
 import { useMasterData } from "../../../hooks/useMasterData";
 import {
   buildRateCreatePayload,
@@ -89,6 +90,7 @@ const FORM_SORT_COLUMNS = [
   { label: "Rate Name", sortKey: "rate_name", type: "text" },
   { label: "Rate Text", sortKey: "rate_text", type: "text" },
   { label: "Charge Category", sortKey: "charge_category_id", type: "charge_category" },
+  { label: "Shipment Type", sortKey: "shipment_type", type: "shipment_type" },
   { label: "Rate Cost", sortKey: "rate_float", type: "number" },
   { label: "Rate Fixed", sortKey: "fixed_sales_rate", type: "number" },
   { label: "Rate Calculation", sortKey: "rate_calculation", type: "text" },
@@ -123,6 +125,9 @@ function getRowSortValue(row, oldIndex, column, ctx) {
   }
   if (type === "rate_type") {
     return RATE_TYPE_OPTIONS.find((option) => option.id === row.rate_type)?.name || row.rate_type || "";
+  }
+  if (type === "shipment_type") {
+    return shipmentTypeLabel(row.shipment_type);
   }
   if (type === "charge_category") {
     // Categories sort by their configured sequence, which is the order of the fetched list.
@@ -1317,6 +1322,26 @@ export default function RateListForm() {
                               </option>
                             )}
                             {chargeCategories.map((option) => (
+                              <option key={option.id} value={option.id}>
+                                {option.name}
+                              </option>
+                            ))}
+                          </Select>
+                        </Box>
+                      )}
+                    </Td>
+                    <Td {...tdProps}>
+                      {assignCell(
+                        index,
+                        "shipment_type",
+                        <Box minW="140px">
+                          <Select
+                            value={row.shipment_type || "both"}
+                            onChange={(e) => updateRow(index, "shipment_type", e.target.value)}
+                            {...cellInputProps}
+                            w="100%"
+                          >
+                            {SHIPMENT_TYPE_OPTIONS.map((option) => (
                               <option key={option.id} value={option.id}>
                                 {option.name}
                               </option>

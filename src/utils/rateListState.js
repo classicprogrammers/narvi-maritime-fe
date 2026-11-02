@@ -20,6 +20,7 @@ export const defaultRateListState = {
     active: "",
     incl_in_tariff: "",
     charge_category_id: "",
+    shipment_type: "",
   },
   page: 1,
   sort: { ...RATE_LIST_DEFAULT_SORT },
@@ -71,6 +72,10 @@ export function buildRateListFilterSnapshot(state = {}) {
           ? state.filters.incl_in_tariff
           : defaultFilters.incl_in_tariff,
       charge_category_id: state.filters?.charge_category_id ?? defaultFilters.charge_category_id,
+      shipment_type:
+        typeof state.filters?.shipment_type === "string"
+          ? state.filters.shipment_type
+          : defaultFilters.shipment_type,
     },
     page: typeof state.page === "number" && state.page >= 1 ? state.page : 1,
     sort: normalizeRateListSort(state.sort),
