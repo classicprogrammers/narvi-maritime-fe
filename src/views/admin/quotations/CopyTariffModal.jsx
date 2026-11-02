@@ -19,13 +19,17 @@ import {
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import { createRateListApi, getRateListApi, getRateListOptionsApi } from "../../../api/rate";
 import { buildRateCreatePayload, mapRateItemToFormRow } from "../../../utils/rateListForm";
+import { filterNewRates } from "../../../utils/rateCopy";
 import { normalizeIdOptions, tariffErrorMessage } from "./tariffScreenUtils";
 
 /**
  * Copies every rate of the selected client tariff (same filters as the list) to another client,
  * so a tariff does not have to be rebuilt rate by rate. Copies are new client specific rates.
+ * With source="general" the copied rates are the selected agent's general rates instead, which
+ * lets a new client's tariff start without an existing client to copy from.
  */
-export default function CopyTariffModal({ isOpen, onClose, sourceClient, filterParams, onCopied }) {
+export default function CopyTariffModal({ isOpen, onClose, sourceClient, filterParams, onCopied, source = "client" }) {
+  const fromGeneral = source === "general";
   const toast = useToast();
   const [targetId, setTargetId] = useState("");
   const [targetPin, setTargetPin] = useState(null);
@@ -64,22 +68,33 @@ export default function CopyTariffModal({ isOpen, onClose, sourceClient, filterP
   }
 
   const handleCopy = async () => {
-    if (!targetId || !sourceId) return;
+    if (!targetId || (!fromGeneral && !sourceId)) return;
     setRunning(true);
     try {
       const { client_id, location, agent_id, incl_in_tariff } = filterParams;
       const result = await getRateListApi({
-        rate_type: "client_specific",
-        client_id,
+        rate_type: fromGeneral ? "general" : "client_specific",
+        client_id: fromGeneral ? undefined : client_id,
         location_text: location,
         agent_id,
         // The tariff screen omits In Tariff for "Yes" (backend default); the rate list does not default.
         incl_in_tariff: incl_in_tariff ?? true,
         fetch_all: true,
       });
-      const sourceRates = Array.isArray(result.data) ? result.data : [];
+      let sourceRates = Array.isArray(result.data) ? result.data : [];
+      if (fromGeneral && sourceRates.length) {
+        // Skip what the client already has for this agent, so a repeat copy does not duplicate rates.
+        const existing = await getRateListApi({
+          rate_type: "client_specific",
+          client_id: targetId,
+          location_text: location,
+          agent_id,
+          fetch_all: true,
+        });
+        sourceRates = filterNewRates(sourceRates, Array.isArray(existing.data) ? existing.data : []);
+      }
       if (!sourceRates.length) {
-        toast({ title: "No rates to copy", status: "info", duration: 3000, isClosable: true });
+        toast({ title: fromGeneral ? "No new rates to copy" : "No rates to copy", status: "info", duration: 3000, isClosable: true });
         return;
       }
       setProgress({ done: 0, total: sourceRates.length });
@@ -132,13 +147,23 @@ export default function CopyTariffModal({ isOpen, onClose, sourceClient, filterP
     <Modal isOpen={isOpen} onClose={running ? () => {} : onClose} isCentered>
       <ModalOverlay />
       <ModalContent>
-        <ModalHeader>Copy tariff to another client</ModalHeader>
+        <ModalHeader>{fromGeneral ? "Copy general rates to a client" : "Copy tariff to another client"}</ModalHeader>
         {!running && <ModalCloseButton />}
         <ModalBody>
           <Text fontSize="sm" mb="3">
-            Copies all rates currently filtered for <b>{sourceClient?.name}</b> (including the Location,
-            Agent and In Tariff filters) as new rates for the client chosen below. You can then adjust the
-            copied rates in the Rate List.
+            {fromGeneral ? (
+              <>
+                Copies the <b>general</b> rates of the selected agent (including the Location and In Tariff
+                filters) as new client specific rates for the client chosen below. You can then adjust the
+                copied rates in the Rate List.
+              </>
+            ) : (
+              <>
+                Copies all rates currently filtered for <b>{sourceClient?.name}</b> (including the Location,
+                Agent and In Tariff filters) as new rates for the client chosen below. You can then adjust the
+                copied rates in the Rate List.
+              </>
+            )}
           </Text>
           <FormControl>
             <FormLabel fontSize="sm">New client name</FormLabel>
@@ -170,7 +195,9 @@ export default function CopyTariffModal({ isOpen, onClose, sourceClient, filterP
           )}
           <Alert status="info" mt="4" fontSize="xs" borderRadius="md">
             <AlertIcon />
-            Rates already existing for the new client are not checked; copy a tariff once per client.
+            {fromGeneral
+              ? "Rates the client already has (same name, location and category) are skipped."
+              : "Rates already existing for the new client are not checked; copy a tariff once per client."}
           </Alert>
         </ModalBody>
         <ModalFooter>
@@ -178,7 +205,7 @@ export default function CopyTariffModal({ isOpen, onClose, sourceClient, filterP
             Cancel
           </Button>
           <Button colorScheme="blue" onClick={handleCopy} isDisabled={!targetId} isLoading={running} loadingText="Copying...">
-            Copy tariff
+            {fromGeneral ? "Copy general rates" : "Copy tariff"}
           </Button>
         </ModalFooter>
       </ModalContent>

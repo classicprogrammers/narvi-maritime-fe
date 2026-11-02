@@ -99,6 +99,7 @@ export default function ClientTariffs() {
   const toast = useToast();
   const { openPdf, pdfPreviewModal } = usePdfPreview();
   const copyModal = useDisclosure();
+  const copyGeneralModal = useDisclosure();
 
   const textColor = useColorModeValue("gray.700", "white");
   const borderColor = useColorModeValue("gray.200", "gray.700");
@@ -401,6 +402,20 @@ export default function ClientTariffs() {
               Copy Tariff
             </Button>
           </Tooltip>
+          <Tooltip
+            label={filters.agent_id ? "Copy this agent's general rates to a client" : "Select an agent first"}
+            hasArrow
+          >
+            <Button
+              size="sm"
+              variant="outline"
+              leftIcon={<Icon as={MdContentCopy} />}
+              onClick={copyGeneralModal.onOpen}
+              isDisabled={!filters.agent_id}
+            >
+              Copy General Rates
+            </Button>
+          </Tooltip>
           <Menu>
             <MenuButton
               as={Button}
@@ -533,6 +548,13 @@ export default function ClientTariffs() {
         isOpen={copyModal.isOpen}
         onClose={copyModal.onClose}
         sourceClient={sourceClient}
+        filterParams={filterParams}
+        onCopied={handleCopied}
+      />
+      <CopyTariffModal
+        source="general"
+        isOpen={copyGeneralModal.isOpen}
+        onClose={copyGeneralModal.onClose}
         filterParams={filterParams}
         onCopied={handleCopied}
       />
