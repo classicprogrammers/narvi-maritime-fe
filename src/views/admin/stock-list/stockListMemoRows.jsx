@@ -141,6 +141,10 @@ export function getDisplayName(val) {
     return String(val);
 }
 
+export function getStockPicDisplay(item) {
+    return getDisplayName(item.pic_new || item.pic_id || item.pic);
+}
+
 export function ensureSoPrefix(val) {
     if (val == null || val === "" || val === false) return "-";
     const str = String(val).replace(/^SO[- ]?/i, "").trim();
@@ -230,6 +234,7 @@ function getClientViewFieldValues(item, shippingOrders) {
         vessel: getDisplayName(item.vessel_id || item.vessel) || "-",
         warning: item.warning || "-",
         supplier: getDisplayName(item.supplier_id || item.supplier) || "-",
+        pic: getStockPicDisplay(item),
         po: item.po_text || "-",
         req_no: item.req_no || "-",
         stock_status: getStockRowStatusStyle(item.stock_status).label || "-",
@@ -368,6 +373,9 @@ function StockViewTableRowInner({
                 <StockCellText {...textProps}>
                     {getDisplayName(item.supplier_id || item.supplier)}
                 </StockCellText>
+            </Td>
+            <Td {...cellProps} minW="160px" w="160px" maxW="160px">
+                <StockCellText {...textProps}>{getStockPicDisplay(item)}</StockCellText>
             </Td>
             <Td {...cellProps}>{renderMultiLineLabels(item.req_no)}</Td>
             <Td {...cellProps}>{renderMultiLineLabels(item.po_text)}</Td>
@@ -667,6 +675,7 @@ const STOCK_VIEW_HEADER_COLUMNS = [
     { label: "VESSEL", stickyIndex: 1 },
     { label: "Warning ‼️⛔", stickyIndex: 2 },
     { label: "SUPPLIER", stickyIndex: 3 },
+    { label: "PIC", width: "160px" },
     { label: "REQ NO" },
     { label: "PO NUMBER" },
     { label: "SO NUMBER" },
