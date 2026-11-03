@@ -34,6 +34,10 @@ export const getVessels = async (params = {}) => {
     if (vesselTypeSelec != null && vesselTypeSelec !== "") {
       requestParams.vessel_type_selec = String(vesselTypeSelec).trim();
     }
+    const showOnClientPortal = params.show_on_client_portal;
+    if (showOnClientPortal === true || showOnClientPortal === false) {
+      requestParams.show_on_client_portal = showOnClientPortal;
+    }
     requestParams.is_client = true;
 
     const response = await axios.get('/api/vessels', { params: requestParams });
@@ -198,6 +202,7 @@ export const createVessel = async (vesselData) => {
       vessel_type_selec: vesselData.vessel_type_selec || false,
       // Ensure status is always sent; default to "active" if missing
       status: vesselData.status || "active",
+      show_on_client_portal: vesselData.show_on_client_portal !== false,
       procurement_person_id:
         vesselData.procurement_person_id != null && vesselData.procurement_person_id !== ""
           ? Number(vesselData.procurement_person_id)
@@ -402,6 +407,7 @@ const VESSEL_FIELD_NORMALIZERS = {
   name: (value) => (value == null ? "" : String(value).trim()),
   client_id: (value) => (value == null || value === "" ? false : Number(value)),
   status: (value) => value || "active",
+  show_on_client_portal: (value) => value !== false,
   imo: (value) => value || "",
   vessel_type: (value) => value || "",
   vessel_type_selec: (value) => value || false,
@@ -463,6 +469,21 @@ export const bulkUpdateVesselItems = async (items = []) => {
 };
 
 /**
+ * Show or hide several vessels on the client portal with one value.
+ * POST /api/vessel/update with { vessel_ids: [...], show_on_client_portal }
+ */
+export const setVesselsClientPortalVisibility = async (vesselIds = [], show = true) => {
+  const payload = {
+    current_user: getCurrentUserId(),
+    is_client: true,
+    vessel_ids: vesselIds.map(Number),
+    show_on_client_portal: Boolean(show),
+  };
+  const response = await axios.post(`/api/vessel/update`, payload);
+  return { result: response.data };
+};
+
+/**
  * Delete several vessels one by one. Not atomic: returns which ids failed.
  * @param {Array<number>} vesselIds
  */
@@ -496,6 +517,7 @@ export const deleteVessels = async (vesselIds) => {
 const vessels = {
   bulkCreateVessels,
   bulkUpdateVesselItems,
+  setVesselsClientPortalVisibility,
   deleteVessels,
   getVessels,
   getVessel,

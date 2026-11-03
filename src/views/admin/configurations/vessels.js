@@ -69,10 +69,18 @@ const defaultVesselsListState = {
   clientFilter: "",
   clientFilterLabel: "",
   vesselTypeFilter: "",
+  portalFilter: "",
   page: 1,
   sortBy: "name",
   sortOrder: "asc",
 };
+
+const PORTAL_FILTER_OPTIONS = [
+  { value: "true", label: "Shown on client portal" },
+  { value: "false", label: "Hidden from client portal" },
+];
+
+const portalFilterToParam = (value) => (value === "true" ? true : value === "false" ? false : undefined);
 
 function normalizeFilterId(value) {
   if (value == null || value === "") return "";
@@ -93,6 +101,7 @@ function readPersistedVesselsListState() {
       clientFilter: normalizeFilterId(parsed.clientFilter),
       clientFilterLabel: typeof parsed.clientFilterLabel === "string" ? parsed.clientFilterLabel : "",
       vesselTypeFilter: typeof parsed.vesselTypeFilter === "string" ? parsed.vesselTypeFilter : "",
+      portalFilter: parsed.portalFilter === "true" || parsed.portalFilter === "false" ? parsed.portalFilter : "",
       page: typeof parsed.page === "number" && parsed.page >= 1 ? parsed.page : 1,
       sortBy: typeof parsed.sortBy === "string" ? parsed.sortBy : "name",
       sortOrder: parsed.sortOrder === "desc" ? "desc" : "asc",
@@ -164,6 +173,7 @@ export default function Vessels() {
   const [clientFilter, setClientFilter] = useState(savedListState.clientFilter);
   const [clientFilterLabel, setClientFilterLabel] = useState(savedListState.clientFilterLabel);
   const [vesselTypeFilter, setVesselTypeFilter] = useState(savedListState.vesselTypeFilter);
+  const [portalFilter, setPortalFilter] = useState(savedListState.portalFilter);
   const [vesselTypeSelecOptions, setVesselTypeSelecOptions] = useState(VESSEL_TYPE_SELEC_OPTIONS);
   const [page, setPage] = useState(savedListState.page);
   const pageSize = 80;
@@ -310,6 +320,7 @@ export default function Vessels() {
         search: searchQuery,
         client_id: clientFilter || undefined,
         vessel_type_selec: vesselTypeFilter || undefined,
+        show_on_client_portal: portalFilterToParam(portalFilter),
       });
       if (response.vessels && Array.isArray(response.vessels)) {
         setVessels(response.vessels);
@@ -347,7 +358,7 @@ export default function Vessels() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, sortBy, sortOrder, searchQuery, clientFilter, vesselTypeFilter, toast]);
+  }, [page, pageSize, sortBy, sortOrder, searchQuery, clientFilter, vesselTypeFilter, portalFilter, toast]);
 
   useEffect(() => {
     fetchVessels();
@@ -360,11 +371,12 @@ export default function Vessels() {
       clientFilter,
       clientFilterLabel,
       vesselTypeFilter,
+      portalFilter,
       page,
       sortBy,
       sortOrder,
     });
-  }, [searchValue, searchQuery, clientFilter, clientFilterLabel, vesselTypeFilter, page, sortBy, sortOrder]);
+  }, [searchValue, searchQuery, clientFilter, clientFilterLabel, vesselTypeFilter, portalFilter, page, sortBy, sortOrder]);
 
   const isFirstFilterPageReset = useRef(true);
   useEffect(() => {
@@ -373,7 +385,7 @@ export default function Vessels() {
       return;
     }
     setPage(1);
-  }, [searchQuery, clientFilter, vesselTypeFilter]);
+  }, [searchQuery, clientFilter, vesselTypeFilter, portalFilter]);
 
   // Search on change (debounced) â€“ skip initial mount
   const isFirstSearchRun = useRef(true);
@@ -395,6 +407,7 @@ export default function Vessels() {
     setClientFilter("");
     setClientFilterLabel("");
     setVesselTypeFilter("");
+    setPortalFilter("");
     setPage(1);
   };
 
@@ -448,6 +461,40 @@ export default function Vessels() {
 
   const vesselNameById = (id) =>
     vessels.find((vessel) => String(vessel.id) === String(id))?.name || `Vessel ${id}`;
+
+  const bulkSetPortalVisibility = async (show) => {
+    if (!selectedVesselIds.length) return;
+    setIsBulkSaving(true);
+    try {
+      const response = await vesselsAPI.setVesselsClientPortalVisibility(selectedVesselIds, show);
+      const data =
+        response?.result?.result && typeof response.result.result === "object"
+          ? response.result.result
+          : response?.result || {};
+      if (data.status === "error") {
+        throw new Error(data.message || "Failed to update vessels");
+      }
+      toast({
+        title: show ? "Vessels shown on client portal" : "Vessels hidden from client portal",
+        description: data.message || `${selectedVesselIds.length} vessel(s) updated.`,
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      fetchVessels();
+      refreshMasterData(MASTER_KEYS.VESSELS).catch(() => { });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error?.response?.data?.message || error?.message || "Failed to update vessels",
+        status: "error",
+        duration: 4000,
+        isClosable: true,
+      });
+    } finally {
+      setIsBulkSaving(false);
+    }
+  };
 
   const confirmBulkDelete = async () => {
     if (!selectedVesselIds.length) return;
@@ -611,7 +658,24 @@ export default function Vessels() {
                 ))}
               </Select>
             </Box>
-            {(searchQuery || clientFilter || vesselTypeFilter) && (
+            <Box minW={{ base: "100%", md: "220px" }} maxW={{ base: "100%", md: "260px" }}>
+              <Select
+                size="md"
+                value={portalFilter}
+                onChange={(e) => setPortalFilter(e.target.value)}
+                bg={inputBg}
+                color={inputText}
+                borderRadius="8px"
+                placeholder="Client portal: all"
+              >
+                {PORTAL_FILTER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </Box>
+            {(searchQuery || clientFilter || vesselTypeFilter || portalFilter) && (
               <Button
                 variant="outline"
                 onClick={handleClearSearch}
@@ -643,6 +707,24 @@ export default function Vessels() {
               <HStack spacing={2}>
                 <Button size="sm" variant="ghost" onClick={() => setSelectedVesselIds([])}>
                   Clear selection
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  colorScheme="blue"
+                  onClick={() => bulkSetPortalVisibility(true)}
+                  isLoading={isBulkSaving}
+                >
+                  Show on client portal
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  colorScheme="blue"
+                  onClick={() => bulkSetPortalVisibility(false)}
+                  isLoading={isBulkSaving}
+                >
+                  Hide from client portal
                 </Button>
                 <Button size="sm" colorScheme="red" leftIcon={<Icon as={MdEdit} />} onClick={openBulkEdit}>
                   Edit selected
@@ -721,6 +803,9 @@ export default function Vessels() {
                     Status
                   </Th>
                   <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
+                    Client Portal
+                  </Th>
+                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
                     Actions
                   </Th>
                 </Tr>
@@ -728,7 +813,7 @@ export default function Vessels() {
               <Tbody>
                 {isLoading ? (
                   <Tr>
-                    <Td colSpan={11} py="40px" textAlign="center">
+                    <Td colSpan={12} py="40px" textAlign="center">
                       <Spinner size="lg" />
                     </Td>
                   </Tr>
@@ -818,6 +903,14 @@ export default function Vessels() {
                         </Badge>
                       </Td>
                       <Td py="12px" px="16px" {...tableCellProps}>
+                        <Badge
+                          colorScheme={vessel.show_on_client_portal === false ? "gray" : "blue"}
+                          size="sm"
+                        >
+                          {vessel.show_on_client_portal === false ? "Hidden" : "Shown"}
+                        </Badge>
+                      </Td>
+                      <Td py="12px" px="16px" {...tableCellProps}>
                         <HStack spacing={2}>
                           <Tooltip label="View Vessel Details">
                             <IconButton
@@ -864,7 +957,7 @@ export default function Vessels() {
                   ))
                 ) : (
                   <Tr>
-                    <Td colSpan={11} py="40px" textAlign="center">
+                    <Td colSpan={12} py="40px" textAlign="center">
                       <VStack spacing={3}>
                         <Icon as={MdDirectionsBoat} color="gray.400" boxSize={12} />
                         <Text color="gray.500" fontSize="md" fontWeight="500">

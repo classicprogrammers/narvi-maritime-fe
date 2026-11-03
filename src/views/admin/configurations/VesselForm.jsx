@@ -3,6 +3,7 @@ import {
   Box,
   Button,
   Card,
+  Checkbox,
   Flex,
   HStack,
   Icon,
@@ -97,6 +98,7 @@ const EDITABLE_FIELDS = [
   "name",
   "client_id",
   "status",
+  "show_on_client_portal",
   "imo",
   "vessel_type",
   "vessel_type_selec",
@@ -123,6 +125,7 @@ const getEmptyRow = () => ({
   client_id: "",
   client_name: "",
   status: "active",
+  show_on_client_portal: true,
   imo: "",
   vessel_type: "",
   vessel_type_selec: "",
@@ -176,6 +179,7 @@ const mapVesselToRow = (vesselInfo) => {
     client_id: client ? String(client.id || "") : String(vesselInfo.client_id || ""),
     client_name: client?.name || vesselInfo.client_name || "",
     status: vesselInfo.status || "active",
+    show_on_client_portal: vesselInfo.show_on_client_portal !== false,
     imo: vesselInfo.imo || "",
     vessel_type: vesselInfo.vessel_type || "",
     vessel_type_selec: normalizeVesselTypeSelec(vesselInfo.vessel_type_selec) || "",
@@ -287,6 +291,7 @@ export default function VesselForm() {
       "Vessel Type",
       "Vessel Type (Text)",
       "Status",
+      "Show on Client Portal",
       "Invoice Address",
       "Files",
       "Actions",
@@ -1010,6 +1015,7 @@ export default function VesselForm() {
                   <Th {...thProps} minW="200px">Vessel Type</Th>
                   <Th {...thProps} minW="200px">Vessel Type (Text)</Th>
                   <Th {...thProps} minW="170px">Status</Th>
+                  <Th {...thProps} minW="150px">Show on Client Portal</Th>
                   <Th {...thProps} minW="260px">Invoice Address</Th>
                   <Th {...thProps} minW="220px">Files</Th>
                   <Th {...thProps} minW="100px" borderRight="none">Actions</Th>
@@ -1238,6 +1244,21 @@ export default function VesselForm() {
                           </Select>
                             );
                           })()
+                        )}
+                      </Td>
+                      <Td {...cellProps} {...failedCell}>
+                        {assignCell(rowIndex, "show_on_client_portal",
+                          <Checkbox
+                            isChecked={row.show_on_client_portal}
+                            onChange={(e) =>
+                              handleInputChange(rowIndex, "show_on_client_portal", e.target.checked)
+                            }
+                            color={inputText}
+                            h={CONTROL_HEIGHT}
+                            alignItems="center"
+                          >
+                            Show on client portal
+                          </Checkbox>
                         )}
                       </Td>
                       <Td {...cellProps} {...failedCell}>
