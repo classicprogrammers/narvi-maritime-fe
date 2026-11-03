@@ -1,7 +1,8 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import narviLetterheadPrint from "../assets/letterHead/NarviLetterhead.jpeg";
-import { createStockItemApi, updateStockItemApi } from "../api/stock";
+import { createStockItemApi, getStockListApi, updateStockItemApi } from "../api/stock";
+import { findSavedDimensions, mergeSavedDimensionVw } from "./stockDimensionVw";
 import {
   buildStockSoIdM2O,
   getShippingOrderDisplayLabel,
@@ -952,6 +953,22 @@ export function createManualStockReportGenerator({
             setStockReportPhase?.("generating");
             const adminItem = mapFormRowToAdminItemForPdf(latestRow, { shippingOrders });
             adminItem.stock_id = returnedId;
+            // VW is calculated on save; read it back so the report matches Dimensions details.
+            if (Array.isArray(adminItem.dimensions) && adminItem.dimensions.length) {
+                try {
+                    const savedResponse = await getStockListApi({
+                        stock_item_id: savedPatch.stockItemId || latestRow.stockItemId,
+                        page: 1,
+                        page_size: 10,
+                    });
+                    adminItem.dimensions = mergeSavedDimensionVw(
+                        adminItem.dimensions,
+                        findSavedDimensions(savedResponse, returnedId)
+                    );
+                } catch (vwError) {
+                    console.warn("Could not refresh VW for stock report:", vwError);
+                }
+            }
             if (savedPatch.stockItemId) {
                 adminItem.stock_number = savedPatch.stockItemId;
                 adminItem.stock_item_id = savedPatch.stockItemId;
