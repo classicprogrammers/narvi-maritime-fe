@@ -164,9 +164,16 @@ export function formatShippingOrderDestinationDisplay(order) {
       ""
   ).trim();
 
+  const isCountryType = (order.destination_type || raw.destination_type) === "country";
   const parts = [];
   if (destDisplay && destDisplay !== "-") parts.push(destDisplay);
-  if (countryName && countryName !== "-") parts.push(countryName);
+  if (
+    countryName &&
+    countryName !== "-" &&
+    !(isCountryType && countryName.toLowerCase() === destDisplay.toLowerCase())
+  ) {
+    parts.push(countryName);
+  }
   if (parts.length) return parts.join(", ");
   return "-";
 }
