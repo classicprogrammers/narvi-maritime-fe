@@ -256,7 +256,7 @@ export default function ShippingOrderEditPage() {
       setIsSaving(true);
       if (isCreate) {
         const createPayload = applyShippingOrderFilesToPayload(
-          buildPayloadFromForm(formData, false),
+          buildPayloadFromForm(formData, false, {}, countries),
           formData
         );
         if (isCreateMso) createPayload.is_mso = true;
@@ -276,7 +276,7 @@ export default function ShippingOrderEditPage() {
         return;
       }
       const payload =applyShippingOrderFilesToPayload(
-        buildPayloadFromForm(formData, true, originalOrder || {}),
+        buildPayloadFromForm(formData, true, originalOrder || {}, countries),
         formData
       );
       const response = await updateShippingOrder(id, payload, originalOrder?._raw || {});

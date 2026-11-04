@@ -38,6 +38,7 @@ export const getLedgerInvoices = async (params = {}) => {
     "sort_order",
     "so_done_status",
     "client_case_invoice_ref",
+    "state",
     "date_sales_invoice_from",
     "date_sales_invoice_to",
     "date_due_from",
@@ -108,10 +109,11 @@ export const updateLedgerInvoice = async (payload) => {
   return data;
 };
 
-export const deleteLedgerInvoice = async (id) => {
-  const response = await api.post("/api/ledger/invoice/delete", { id });
+// Submitted records are never deleted; the backend only allows cancelling them
+export const cancelLedgerInvoice = async (id) => {
+  const response = await api.post("/api/ledger/invoice/cancel", { id });
   const data = response.data || response;
-  unwrapError(data, "Failed to delete ledger invoice");
+  unwrapError(data, "Failed to cancel ledger invoice");
   return data;
 };
 
@@ -132,6 +134,6 @@ export default {
   getLedgerInvoiceById,
   createLedgerInvoice,
   updateLedgerInvoice,
-  deleteLedgerInvoice,
+  cancelLedgerInvoice,
   bulkUpdateLedgerInvoices,
 };

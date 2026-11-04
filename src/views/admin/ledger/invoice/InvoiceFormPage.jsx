@@ -39,7 +39,7 @@ import { useMasterData } from "hooks/useMasterData";
 import { useLedgerDueDatePreview, useLedgerRoePreview } from "hooks/useLedgerPreviews";
 import { getCached, MASTER_KEYS } from "utils/masterDataCache";
 import { describeDueRule } from "utils/ledgerAutoFields";
-import { soDoneStatusColor, soDoneStatusLabel } from "utils/ledgerDisplay";
+import { isLedgerCancelled, soDoneStatusColor, soDoneStatusLabel } from "utils/ledgerDisplay";
 import InvoiceTableView from "./InvoiceTableView";
 import {
   applyComputedFromRecord,
@@ -332,6 +332,17 @@ export default function InvoiceFormPage() {
     getLedgerInvoiceById(id)
       .then((record) => {
         if (cancelled) return;
+        if (isLedgerCancelled(record)) {
+          toast({
+            title: "Cancelled record",
+            description: "A cancelled record cannot be edited.",
+            status: "info",
+            duration: 4000,
+            isClosable: true,
+          });
+          history.replace(LIST_PATH);
+          return;
+        }
         recordIdRef.current = record.id;
         setEditingRecord(record);
         hydrateForm(record);

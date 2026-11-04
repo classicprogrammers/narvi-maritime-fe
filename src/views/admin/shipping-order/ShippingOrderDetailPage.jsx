@@ -27,6 +27,7 @@ import { MdArrowBack, MdDelete, MdDownload, MdEdit } from "react-icons/md";
 import { useHistory, useParams } from "react-router-dom";
 import Card from "components/card/Card";
 import ShippingOrderStockList from "../../../components/shipping-order/ShippingOrderStockList";
+import ShippingOrderLedgerInvoices from "../../../components/shipping-order/ShippingOrderLedgerInvoices";
 import {
   ShippingOrderChangesPanel,
   ShippingOrderRemarksPanel,
@@ -493,6 +494,10 @@ export default function ShippingOrderDetailPage() {
         onSend={handleSendRemarkToClient}
       />
       <ShippingOrderChangesPanel changes={twoWay.changes} viewer="admin" />
+
+      <Card p={{ base: 4, md: 6 }} bg={cardBg} border="1px" borderColor={borderColor} mb={6}>
+        <ShippingOrderLedgerInvoices soId={order.id} />
+      </Card>
 
       <Card p={{ base: 4, md: 6 }} bg={cardBg} border="1px" borderColor={borderColor}>
         <ShippingOrderStockList

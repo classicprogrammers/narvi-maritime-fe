@@ -56,6 +56,11 @@ export const describeDueRule = ({ rule, payment_term, due_date } = {}) => {
   }
   const text = String(rule || "").trim();
   const days = text.match(/(\d+)\s*days?/i);
+  if (/month after the invoice month/i.test(text)) {
+    return days
+      ? `End of the month after the invoice month + ${days[1]} days`
+      : "End of the month after the invoice month";
+  }
   if (/current month|end of (the )?(invoice )?month/i.test(text) || /current month/i.test(term)) {
     const n = days ? days[1] : (term.match(/(\d+)/) || [])[1];
     return n ? `End of invoice month + ${n} days` : "End of invoice month";

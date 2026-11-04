@@ -357,13 +357,9 @@ export default function ShippingOrderFormFields({
               <SimpleSearchableSelect
                 value={formData.country_id}
                 onChange={(value) => {
-                  const selectedCountry = countries.find((c) => c.id === value);
                   setFormData((prev) => ({
                     ...prev,
                     country_id: value,
-                    ...(prev.destination_type === "country" && selectedCountry
-                      ? { destination: selectedCountry.name }
-                      : {}),
                   }));
                 }}
                 options={countries}

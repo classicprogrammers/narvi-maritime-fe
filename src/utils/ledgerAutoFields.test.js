@@ -54,6 +54,30 @@ describe("ledgerAutoFields", () => {
     expect(
       describeDueRule({ rule: "Current month + 30 days", payment_term: "x", due_date: "2026-12-30" })
     ).toBe("End of invoice month + 30 days");
+    // Rule texts the backend sends
+    expect(describeDueRule({ rule: "30 days after invoice date", payment_term: "Net 30", due_date: "2026-09-13" })).toBe(
+      "30 days after invoice date"
+    );
+    expect(
+      describeDueRule({ rule: "end of invoice month + 30 days", payment_term: "Running month + 30", due_date: "2026-09-30" })
+    ).toBe("End of invoice month + 30 days");
+    expect(describeDueRule({ rule: "end of invoice month", payment_term: "EOM", due_date: "2026-08-31" })).toBe(
+      "End of invoice month"
+    );
+    expect(
+      describeDueRule({
+        rule: "end of the month after the invoice month + 30 days",
+        payment_term: "Next month + 30 days",
+        due_date: "2026-10-30",
+      })
+    ).toBe("End of the month after the invoice month + 30 days");
+    expect(
+      describeDueRule({
+        rule: "end of the month after the invoice month",
+        payment_term: "End of following month",
+        due_date: "2026-09-30",
+      })
+    ).toBe("End of the month after the invoice month");
     expect(describeDueRule({ payment_term: "Net weird", due_date: null })).toBe(
       "Payment term 'Net weird' could not be read. Enter the due date manually."
     );

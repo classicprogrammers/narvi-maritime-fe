@@ -295,7 +295,7 @@ export function validateShippingOrderServiceBoat(data) {
  * @param {boolean} isUpdate - true for update (only changed fields)
  * @param {Object} originalData - original order for comparison when isUpdate
  */
-export function buildPayloadFromForm(data, isUpdate = false, originalData = {}) {
+export function buildPayloadFromForm(data, isUpdate = false, originalData = {}, countries = []) {
   const toNumber = (v) => {
     if (v === null || v === undefined || v === "") return null;
     const num = Number(v);
@@ -330,6 +330,15 @@ export function buildPayloadFromForm(data, isUpdate = false, originalData = {}) 
     return true;
   };
 
+  // Country is sent via country_id only; never repeat it in destination.
+  const countryName = String(
+    (countries || []).find((c) => String(c.id) === resolveRelationId(data.country_id))?.name || ""
+  ).trim();
+  const omitDestination =
+    data.destination_type === "country" ||
+    (countryName !== "" &&
+      String(data.destination || "").trim().toLowerCase() === countryName.toLowerCase());
+
   const payload = {};
 
   if (isUpdate) {
@@ -362,9 +371,9 @@ export function buildPayloadFromForm(data, isUpdate = false, originalData = {}) 
       },
       {
         key: "destination",
-        value: data.destination ? data.destination : false,
+        value: data.destination && !omitDestination ? data.destination : false,
         originalValue: originalData.destination || null,
-        compareValue: data.destination ? String(data.destination).trim() : null,
+        compareValue: data.destination && !omitDestination ? String(data.destination).trim() : null,
       },
       { key: "country_id", value: data.country_id || false, originalValue: originalData.country_id || null },
       {
@@ -527,7 +536,7 @@ export function buildPayloadFromForm(data, isUpdate = false, originalData = {}) 
   if (hasValue(data.client_id)) payload.client_id = data.client_id;
   if (hasValue(data.vessel_id)) payload.vessel_id = data.vessel_id;
   if (hasValue(data.destination_type)) payload.destination_type = data.destination_type;
-  if (hasValue(data.destination)) payload.destination = data.destination;
+  if (hasValue(data.destination) && !omitDestination) payload.destination = data.destination;
   if (hasValue(data.country_id)) payload.country_id = data.country_id;
   if (hasValue(data.destination_id)) payload.destination_id = data.destination_id;
   if (hasValue(data.done)) payload.done = data.done || "active";

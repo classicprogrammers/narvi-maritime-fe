@@ -25,6 +25,7 @@ import {
   Select,
   SimpleGrid,
   Spinner,
+  Switch,
   Table,
   Tbody,
   Td,
@@ -42,23 +43,25 @@ import {
   MdAdd,
   MdClear,
   MdDateRange,
-  MdDelete,
+  MdBlock,
   MdDescription,
   MdEdit,
   MdFilterList,
   MdSearch,
+  MdVisibility,
 } from "react-icons/md";
 import { useHistory } from "react-router-dom";
-import { bulkUpdateLedgerInvoices, deleteLedgerInvoice, getLedgerInvoices } from "api/ledgerInvoice";
+import { bulkUpdateLedgerInvoices, cancelLedgerInvoice, getLedgerInvoices } from "api/ledgerInvoice";
 import { useMasterData } from "hooks/useMasterData";
 import { getCached, MASTER_KEYS } from "utils/masterDataCache";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import LedgerBulkEditModal from "components/ledger/LedgerBulkEditModal";
+import LedgerRecordViewModal from "components/ledger/LedgerRecordViewModal";
 import LedgerDateRangeFilterModal from "components/ledger/LedgerDateRangeFilterModal";
 import LedgerSortableHeader from "components/ledger/LedgerSortableHeader";
 import { buildBulkUpdatePayload, validateBulkSelection } from "utils/ledgerBulkEdit";
 import { INVOICE_COLUMNS } from "utils/ledgerColumns";
-import { SO_DONE_STATUS_OPTIONS, soDoneStatusColor, soDoneStatusLabel } from "utils/ledgerDisplay";
+import { isLedgerCancelled, SO_DONE_STATUS_OPTIONS, soDoneStatusColor, soDoneStatusLabel } from "utils/ledgerDisplay";
 import {
   buildDateRangeParams,
   countActiveDateRanges,
@@ -185,6 +188,8 @@ export default function LedgerInvoice() {
   const [sortOrder, setSortOrder] = useState(savedState.sortOrder);
   const [selectedIds, setSelectedIds] = useState([]);
   const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
+  const [viewRow, setViewRow] = useState(null);
+  const [showCancelled, setShowCancelled] = useState(false);
   const [bulkError, setBulkError] = useState("");
   const [dateError, setDateError] = useState("");
   const lastGoodSortRef = useRef({ sortBy: savedState.sortBy, sortOrder: savedState.sortOrder });
@@ -231,6 +236,7 @@ export default function LedgerInvoice() {
         payment_status: paymentStatus,
         so_done_status: soDoneStatus,
         client_case_invoice_ref: clientCaseRefQuery,
+        state: showCancelled ? "all" : "active",
         sort_by: sortBy,
         sort_order: sortOrder,
         ...buildDateRangeParams(dateRanges, INVOICE_DATE_FILTER_FIELDS),
@@ -292,6 +298,7 @@ export default function LedgerInvoice() {
     paymentStatus,
     soDoneStatus,
     clientCaseRefQuery,
+    showCancelled,
     sortBy,
     sortOrder,
     dateRanges,
@@ -368,6 +375,7 @@ export default function LedgerInvoice() {
     soDoneStatus,
     clientCaseRefQuery,
     dateRangesKey,
+    showCancelled,
     sortBy,
     sortOrder,
   ]);
@@ -440,7 +448,8 @@ export default function LedgerInvoice() {
     onDateClose();
   };
 
-  const pageIds = records.map((row) => row.id);
+  // Cancelled records are read-only, so they cannot be bulk edited
+  const pageIds = records.filter((row) => !isLedgerCancelled(row)).map((row) => row.id);
   const allPageSelected = pageIds.length > 0 && pageIds.every((rowId) => selectedIds.includes(rowId));
   const somePageSelected = pageIds.some((rowId) => selectedIds.includes(rowId));
   const selectionError = validateBulkSelection(selectedIds);
@@ -499,14 +508,14 @@ export default function LedgerInvoice() {
     history.push(`/admin/ledger/invoice/form/${row.id}`);
   };
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmCancel = async () => {
     if (deleteId == null) return;
     setIsSaving(true);
     try {
-      const res = await deleteLedgerInvoice(deleteId);
+      const res = await cancelLedgerInvoice(deleteId);
       toast({
         title: "Success",
-        description: res?.message || res?.result?.message || "Invoice deleted successfully.",
+        description: res?.message || res?.result?.message || "Invoice cancelled successfully.",
         status: "success",
         duration: 3000,
         isClosable: true,
@@ -517,7 +526,7 @@ export default function LedgerInvoice() {
     } catch (error) {
       toast({
         title: "Error",
-        description: extractApiMessage(error, "Delete failed."),
+        description: extractApiMessage(error, "Cancel failed."),
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -598,16 +607,23 @@ export default function LedgerInvoice() {
     switch (column.key) {
       case "so_number":
         return (
-          <Button
-            variant="link"
-            color={soColor}
-            fontWeight="800"
-            fontSize="sm"
-            whiteSpace="nowrap"
-            onClick={() => handleOpenEdit(row)}
-          >
-            {displaySo(row)}
-          </Button>
+          <HStack spacing={2}>
+            <Button
+              variant="link"
+              color={soColor}
+              fontWeight="800"
+              fontSize="sm"
+              whiteSpace="nowrap"
+              onClick={() => (isLedgerCancelled(row) ? setViewRow(row) : handleOpenEdit(row))}
+            >
+              {displaySo(row)}
+            </Button>
+            {isLedgerCancelled(row) && (
+              <Badge colorScheme="red" fontSize="2xs">
+                Cancelled
+              </Badge>
+            )}
+          </HStack>
         );
       case "so_done_status": {
         const label = soDoneStatusLabel(row);
@@ -781,6 +797,20 @@ export default function LedgerInvoice() {
                   </Badge>
                 )}
               </Button>
+            </FormControl>
+
+            <FormControl w={{ base: "100%", sm: "auto" }} display="flex" alignItems="center" gap={2} pb="6px">
+              <Switch
+                id="invoice-show-cancelled"
+                isChecked={showCancelled}
+                onChange={(e) => {
+                  setShowCancelled(e.target.checked);
+                  setPage(1);
+                }}
+              />
+              <FormLabel htmlFor="invoice-show-cancelled" m={0} whiteSpace="nowrap" {...filterLabelProps}>
+                Show cancelled
+              </FormLabel>
             </FormControl>
 
             <FormControl w={{ base: "100%", sm: "160px" }}>
@@ -1050,6 +1080,7 @@ export default function LedgerInvoice() {
                               size="sm"
                               colorScheme="blue"
                               isChecked={isSelected}
+                              isDisabled={isLedgerCancelled(row)}
                               onChange={() => toggleRow(row.id)}
                               aria-label={`Select row ${displaySo(row)}`}
                             />
@@ -1082,29 +1113,42 @@ export default function LedgerInvoice() {
                             boxShadow="inset 1px 0 0 var(--chakra-colors-gray-200)"
                           >
                             <HStack spacing={2} justify="center">
-                              <Tooltip label="Edit" hasArrow>
+                              <Tooltip label="View" hasArrow>
                                 <IconButton
-                                  aria-label="Edit invoice"
-                                  icon={<MdEdit />}
+                                  aria-label="View invoice"
+                                  icon={<MdVisibility />}
                                   size="sm"
                                   variant="outline"
-                                  colorScheme="blue"
-                                  onClick={() => handleOpenEdit(row)}
+                                  onClick={() => setViewRow(row)}
                                 />
                               </Tooltip>
-                              <Tooltip label="Delete" hasArrow>
-                                <IconButton
-                                  aria-label="Delete invoice"
-                                  icon={<MdDelete />}
-                                  size="sm"
-                                  variant="outline"
-                                  colorScheme="red"
-                                  onClick={() => {
-                                    setDeleteId(row.id);
-                                    onDeleteOpen();
-                                  }}
-                                />
-                              </Tooltip>
+                              {!isLedgerCancelled(row) && (
+                                <>
+                                  <Tooltip label="Edit" hasArrow>
+                                    <IconButton
+                                      aria-label="Edit invoice"
+                                      icon={<MdEdit />}
+                                      size="sm"
+                                      variant="outline"
+                                      colorScheme="blue"
+                                      onClick={() => handleOpenEdit(row)}
+                                    />
+                                  </Tooltip>
+                                  <Tooltip label="Cancel" hasArrow>
+                                    <IconButton
+                                      aria-label="Cancel invoice"
+                                      icon={<MdBlock />}
+                                      size="sm"
+                                      variant="outline"
+                                      colorScheme="red"
+                                      onClick={() => {
+                                        setDeleteId(row.id);
+                                        onDeleteOpen();
+                                      }}
+                                    />
+                                  </Tooltip>
+                                </>
+                              )}
                             </HStack>
                           </Td>
                         </Tr>
@@ -1207,21 +1251,35 @@ export default function LedgerInvoice() {
       >
         <AlertDialogOverlay>
           <AlertDialogContent>
-            <AlertDialogHeader>Delete invoice</AlertDialogHeader>
+            <AlertDialogHeader>Cancel invoice</AlertDialogHeader>
             <AlertDialogBody>
-              Are you sure you want to delete this invoice record? This cannot be undone.
+              A submitted record is not supposed to be deleted permanently but it can be cancelled. A cancelled
+              record can no longer be edited.
             </AlertDialogBody>
             <AlertDialogFooter>
               <Button ref={cancelDeleteRef} onClick={onDeleteClose} isDisabled={isSaving}>
-                Cancel
+                Keep record
               </Button>
-              <Button colorScheme="red" ml={3} onClick={handleConfirmDelete} isLoading={isSaving}>
-                Delete
+              <Button colorScheme="red" ml={3} onClick={handleConfirmCancel} isLoading={isSaving}>
+                Cancel invoice
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialogOverlay>
       </AlertDialog>
+
+      <LedgerRecordViewModal
+        isOpen={Boolean(viewRow)}
+        onClose={() => setViewRow(null)}
+        title={viewRow ? `Invoice ${viewRow.invoice_number || ""}`.trim() : "Invoice"}
+        record={viewRow}
+        columns={INVOICE_COLUMNS}
+        onEdit={() => {
+          const row = viewRow;
+          setViewRow(null);
+          handleOpenEdit(row);
+        }}
+      />
     </Box>
   );
 }

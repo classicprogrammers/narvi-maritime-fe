@@ -954,7 +954,10 @@ const SoNumberTab = () => {
 
     const parts = [];
     if (destDisplay) parts.push(destDisplay);
-    if (hasCountry) parts.push(countryName);
+    const isSameAsDestination =
+      order.destination_type === "country" &&
+      String(destDisplay).trim().toLowerCase() === countryName.toLowerCase();
+    if (hasCountry && !isSameAsDestination) parts.push(countryName);
     if (parts.length) return parts.join(", ");
     return "-";
   }, [getCountryName, getDestinationName]);
@@ -1246,7 +1249,7 @@ const SoNumberTab = () => {
       setIsSaving(true);
 
       const payload = applyShippingOrderFilesToPayload(
-        buildPayloadFromForm(formData, false),
+        buildPayloadFromForm(formData, false, {}, countries),
         formData
       );
       const response = await createShippingOrder(payload);

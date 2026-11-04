@@ -46,6 +46,7 @@ import {
   agentOptionLabel,
   agentOptionSecondary,
   destinationParts,
+  isLedgerCancelled,
   soDoneStatusColor,
   soDoneStatusLabel,
 } from "utils/ledgerDisplay";
@@ -369,6 +370,17 @@ export default function CostFormPage() {
     getLedgerCostById(id)
       .then((record) => {
         if (cancelled) return;
+        if (isLedgerCancelled(record)) {
+          toast({
+            title: "Cancelled record",
+            description: "A cancelled record cannot be edited.",
+            status: "info",
+            duration: 4000,
+            isClosable: true,
+          });
+          history.replace(LIST_PATH);
+          return;
+        }
         recordIdRef.current = record.id;
         setEditingRecord(record);
         hydrateForm(record);
@@ -438,15 +450,6 @@ export default function CostFormPage() {
     setForm((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  const handleAgentChange = useCallback(
-    (value) => {
-      const picked = agents.options.find((a) => String(a.id) === String(value));
-      if (picked) pinAgent(picked);
-      setField("agent_id", value || "");
-    },
-    [agents.options, pinAgent, setField]
-  );
-
   // Duplicate invoice pre-check. Returns true when saving must be blocked.
   const runInvoicePrecheck = useCallback(
     async (snapshot) => {
@@ -479,6 +482,18 @@ export default function CostFormPage() {
       }
     },
     []
+  );
+
+  const handleAgentChange = useCallback(
+    (value) => {
+      const picked = agents.options.find((a) => String(a.id) === String(value));
+      if (picked) pinAgent(picked);
+      setField("agent_id", value || "");
+      // The duplicate check needs the agent, so run it as soon as the agent is picked
+      const next = { ...form, agent_id: value || "" };
+      if (duplicateKey !== invoiceCheckKey(next)) runInvoicePrecheck(next);
+    },
+    [agents.options, pinAgent, setField, form, duplicateKey, runInvoicePrecheck]
   );
 
   const closeDuplicateModal = useCallback(() => {
@@ -739,6 +754,33 @@ export default function CostFormPage() {
                 rowGap={3}
                 alignItems="start"
               >
+                <FormControl gridColumn={{ md: "span 2" }}>
+                  <FormLabel {...fieldLabelProps}>Invoices</FormLabel>
+                  <Textarea
+                    ref={invoicesRef}
+                    value={form.invoices}
+                    onChange={(e) => setField("invoices", e.target.value)}
+                    onBlur={() => {
+                      if (!isDuplicateBlocked) runInvoicePrecheck(form);
+                    }}
+                    bg={inputBg}
+                    minH="80px"
+                    rows={3}
+                  />
+                  {isChecking ? (
+                    <Flex align="center" gap={2} mt={1}>
+                      <Spinner size="xs" />
+                      <Text fontSize="xs" color={mutedColor}>
+                        Checking invoice numbers...
+                      </Text>
+                    </Flex>
+                  ) : precheckFailed ? (
+                    <Text fontSize="xs" color={mutedColor} mt={1}>
+                      Could not check for duplicates. The server will check when you save.
+                    </Text>
+                  ) : null}
+                </FormControl>
+
                 <FormControl isRequired>
                   <FormLabel {...fieldLabelProps}>SO Number</FormLabel>
                   <RemoteSearchableSelect
@@ -940,31 +982,6 @@ export default function CostFormPage() {
                     {...controlProps}
                     bg={readonlyBg}
                   />
-                </FormControl>
-
-                <FormControl gridColumn={{ md: "span 2" }}>
-                  <FormLabel {...fieldLabelProps}>Invoices</FormLabel>
-                  <Textarea
-                    ref={invoicesRef}
-                    value={form.invoices}
-                    onChange={(e) => setField("invoices", e.target.value)}
-                    onBlur={() => runInvoicePrecheck(form)}
-                    bg={inputBg}
-                    minH="80px"
-                    rows={3}
-                  />
-                  {isChecking ? (
-                    <Flex align="center" gap={2} mt={1}>
-                      <Spinner size="xs" />
-                      <Text fontSize="xs" color={mutedColor}>
-                        Checking invoice numbers...
-                      </Text>
-                    </Flex>
-                  ) : precheckFailed ? (
-                    <Text fontSize="xs" color={mutedColor} mt={1}>
-                      Could not check for duplicates. The server will check when you save.
-                    </Text>
-                  ) : null}
                 </FormControl>
 
                 <FormControl>

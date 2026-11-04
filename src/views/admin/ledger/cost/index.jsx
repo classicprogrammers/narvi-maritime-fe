@@ -25,6 +25,7 @@ import {
   Select,
   SimpleGrid,
   Spinner,
+  Switch,
   Table,
   Tbody,
   Td,
@@ -42,15 +43,16 @@ import {
   MdAdd,
   MdClear,
   MdDateRange,
-  MdDelete,
+  MdBlock,
   MdEdit,
   MdFilterList,
   MdOpenInNew,
   MdReceipt,
   MdSearch,
+  MdVisibility,
 } from "react-icons/md";
 import { useHistory } from "react-router-dom";
-import { bulkUpdateLedgerCosts, deleteLedgerCost, getLedgerCosts } from "api/ledgerCost";
+import { bulkUpdateLedgerCosts, cancelLedgerCost, getLedgerCosts } from "api/ledgerCost";
 import { useMasterData } from "hooks/useMasterData";
 import useLedgerAgentOptions from "hooks/useLedgerAgentOptions";
 import { getCached, MASTER_KEYS } from "utils/masterDataCache";
@@ -58,6 +60,7 @@ import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import LedgerAutoTag from "components/ledger/LedgerAutoTag";
 import LedgerBulkEditModal from "components/ledger/LedgerBulkEditModal";
 import LedgerDateRangeFilterModal from "components/ledger/LedgerDateRangeFilterModal";
+import LedgerRecordViewModal from "components/ledger/LedgerRecordViewModal";
 import LedgerSortableHeader from "components/ledger/LedgerSortableHeader";
 import { COST_COLUMNS } from "utils/ledgerColumns";
 import {
@@ -69,6 +72,7 @@ import {
 import {
   agentOptionLabel,
   agentOptionSecondary,
+  isLedgerCancelled,
   SO_DONE_STATUS_OPTIONS,
   soDoneStatusColor,
   soDoneStatusLabel,
@@ -223,6 +227,8 @@ export default function LedgerCost() {
   const [deleteId, setDeleteId] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkError, setBulkError] = useState("");
+  const [viewRow, setViewRow] = useState(null);
+  const [showCancelled, setShowCancelled] = useState(false);
   const [isBulkSaving, setIsBulkSaving] = useState(false);
   const [listError, setListError] = useState("");
   const dateApplyPendingRef = useRef(false);
@@ -262,6 +268,7 @@ export default function LedgerCost() {
         destination: destinationQuery,
         so_done_status: soDoneStatus,
         client_case_invoice_ref: clientCaseRefQuery,
+        state: showCancelled ? "all" : "active",
         sort_by: sortBy,
         sort_order: sortOrder,
         ...buildDateRangeParams(dateRanges, COST_DATE_FILTER_FIELDS),
@@ -320,6 +327,7 @@ export default function LedgerCost() {
     destinationQuery,
     soDoneStatus,
     clientCaseRefQuery,
+    showCancelled,
     sortBy,
     sortOrder,
     dateRanges,
@@ -427,6 +435,7 @@ export default function LedgerCost() {
     bizCategory,
     soDoneStatus,
     dateRanges,
+    showCancelled,
     sortBy,
     sortOrder,
   ]);
@@ -491,14 +500,14 @@ export default function LedgerCost() {
     history.push(`/admin/ledger/cost/form/${row.id}`);
   };
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmCancel = async () => {
     if (deleteId == null) return;
     setIsSaving(true);
     try {
-      const res = await deleteLedgerCost(deleteId);
+      const res = await cancelLedgerCost(deleteId);
       toast({
         title: "Success",
-        description: res?.message || res?.result?.message || "Cost deleted successfully.",
+        description: res?.message || res?.result?.message || "Cost cancelled successfully.",
         status: "success",
         duration: 3000,
         isClosable: true,
@@ -509,7 +518,7 @@ export default function LedgerCost() {
     } catch (error) {
       toast({
         title: "Error",
-        description: extractApiMessage(error, "Delete failed."),
+        description: extractApiMessage(error, "Cancel failed."),
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -520,7 +529,8 @@ export default function LedgerCost() {
   };
 
   // Bulk edit
-  const pageIds = records.map((row) => row.id);
+  // Cancelled records are read-only, so they cannot be bulk edited
+  const pageIds = records.filter((row) => !isLedgerCancelled(row)).map((row) => row.id);
   const selectedOnPage = pageIds.filter((rowId) => selectedIds.includes(rowId));
   const allOnPageSelected = pageIds.length > 0 && selectedOnPage.length === pageIds.length;
   const someOnPageSelected = selectedOnPage.length > 0 && !allOnPageSelected;
@@ -896,6 +906,20 @@ export default function LedgerCost() {
               </Button>
             </FormControl>
 
+            <FormControl w={{ base: "100%", sm: "auto" }} display="flex" alignItems="center" gap={2} pb="6px">
+              <Switch
+                id="cost-show-cancelled"
+                isChecked={showCancelled}
+                onChange={(e) => {
+                  setShowCancelled(e.target.checked);
+                  setPage(1);
+                }}
+              />
+              <FormLabel htmlFor="cost-show-cancelled" m={0} whiteSpace="nowrap" {...filterLabelProps}>
+                Show cancelled
+              </FormLabel>
+            </FormControl>
+
             <FormControl w={{ base: "100%", sm: "160px" }}>
               <FormLabel {...filterLabelProps}>Page Size</FormLabel>
               <Select
@@ -1216,6 +1240,7 @@ export default function LedgerCost() {
                               size="sm"
                               colorScheme="blue"
                               isChecked={isSelected}
+                              isDisabled={isLedgerCancelled(row)}
                               onChange={() => toggleRow(row.id)}
                               aria-label={`Select row ${displaySo(row)}`}
                             />
@@ -1227,16 +1252,23 @@ export default function LedgerCost() {
                             zIndex={1}
                             boxShadow="inset -1px 0 0 var(--chakra-colors-gray-200)"
                           >
-                            <Button
-                              variant="link"
-                              color={soColor}
-                              fontWeight="800"
-                              fontSize="sm"
-                              whiteSpace="nowrap"
-                              onClick={() => handleOpenEdit(row)}
-                            >
-                              {displaySo(row)}
-                            </Button>
+                            <HStack spacing={2}>
+                              <Button
+                                variant="link"
+                                color={soColor}
+                                fontWeight="800"
+                                fontSize="sm"
+                                whiteSpace="nowrap"
+                                onClick={() => (isLedgerCancelled(row) ? setViewRow(row) : handleOpenEdit(row))}
+                              >
+                                {displaySo(row)}
+                              </Button>
+                              {isLedgerCancelled(row) && (
+                                <Badge colorScheme="red" fontSize="2xs">
+                                  Cancelled
+                                </Badge>
+                              )}
+                            </HStack>
                           </Td>
                           {listColumns.map((col) => (
                             <Td key={col.key} {...tdProps} isNumeric={isNumericCol(col)}>
@@ -1251,29 +1283,42 @@ export default function LedgerCost() {
                             boxShadow="inset 1px 0 0 var(--chakra-colors-gray-200)"
                           >
                             <HStack spacing={2} justify="center">
-                              <Tooltip label="Edit" hasArrow>
+                              <Tooltip label="View" hasArrow>
                                 <IconButton
-                                  aria-label="Edit cost"
-                                  icon={<MdEdit />}
+                                  aria-label="View cost"
+                                  icon={<MdVisibility />}
                                   size="sm"
                                   variant="outline"
-                                  colorScheme="blue"
-                                  onClick={() => handleOpenEdit(row)}
+                                  onClick={() => setViewRow(row)}
                                 />
                               </Tooltip>
-                              <Tooltip label="Delete" hasArrow>
-                                <IconButton
-                                  aria-label="Delete cost"
-                                  icon={<MdDelete />}
-                                  size="sm"
-                                  variant="outline"
-                                  colorScheme="red"
-                                  onClick={() => {
-                                    setDeleteId(row.id);
-                                    onDeleteOpen();
-                                  }}
-                                />
-                              </Tooltip>
+                              {!isLedgerCancelled(row) && (
+                                <>
+                                  <Tooltip label="Edit" hasArrow>
+                                    <IconButton
+                                      aria-label="Edit cost"
+                                      icon={<MdEdit />}
+                                      size="sm"
+                                      variant="outline"
+                                      colorScheme="blue"
+                                      onClick={() => handleOpenEdit(row)}
+                                    />
+                                  </Tooltip>
+                                  <Tooltip label="Cancel" hasArrow>
+                                    <IconButton
+                                      aria-label="Cancel cost"
+                                      icon={<MdBlock />}
+                                      size="sm"
+                                      variant="outline"
+                                      colorScheme="red"
+                                      onClick={() => {
+                                        setDeleteId(row.id);
+                                        onDeleteOpen();
+                                      }}
+                                    />
+                                  </Tooltip>
+                                </>
+                              )}
                             </HStack>
                           </Td>
                         </Tr>
@@ -1358,6 +1403,19 @@ export default function LedgerCost() {
         error={isDateOpen ? listError : ""}
       />
 
+      <LedgerRecordViewModal
+        isOpen={Boolean(viewRow)}
+        onClose={() => setViewRow(null)}
+        title={viewRow ? `Cost ${displaySo(viewRow)}` : "Cost"}
+        record={viewRow}
+        columns={COST_COLUMNS}
+        onEdit={() => {
+          const row = viewRow;
+          setViewRow(null);
+          handleOpenEdit(row);
+        }}
+      />
+
       <LedgerBulkEditModal
         isOpen={isBulkOpen}
         onClose={onBulkClose}
@@ -1385,16 +1443,17 @@ export default function LedgerCost() {
       >
         <AlertDialogOverlay>
           <AlertDialogContent>
-            <AlertDialogHeader>Delete cost</AlertDialogHeader>
+            <AlertDialogHeader>Cancel cost</AlertDialogHeader>
             <AlertDialogBody>
-              Are you sure you want to delete this cost record? This cannot be undone.
+              A submitted record is not supposed to be deleted permanently but it can be cancelled. A cancelled
+              record can no longer be edited.
             </AlertDialogBody>
             <AlertDialogFooter>
               <Button ref={cancelDeleteRef} onClick={onDeleteClose} isDisabled={isSaving}>
-                Cancel
+                Keep record
               </Button>
-              <Button colorScheme="red" ml={3} onClick={handleConfirmDelete} isLoading={isSaving}>
-                Delete
+              <Button colorScheme="red" ml={3} onClick={handleConfirmCancel} isLoading={isSaving}>
+                Cancel cost
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
