@@ -434,6 +434,8 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
   const consignBlockUserEditedRef = useRef(false);
   const packedTotalsUserEditedRef = useRef(false);
   const isResettingRef = useRef(false);
+  // Tab whose draft is currently loaded; stops autosave posting the previous tab's form id to the new tab's endpoint.
+  const loadedCiPlTabRef = useRef(0);
   const lastSubmittedHeaderRef = useRef({
     to_be_shipped_by: "",
     from_text: "",
@@ -551,7 +553,9 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
   const isCiPlDraftTab = isCiPlForm && !isCiPlArchivedView;
   const isCiPlEntriesTab = isCiPlForm && !isCiPlManifestTab;
   // Item currency / ROE conversion is only supported by the simple CIPL form for now.
-  const isCiPlCurrencyTab = isCiPlForm && !isCiPlPerUnitTab && !isCiPlManifestTab;
+  // Temporarily disabled: not completed / not needed yet. Restore the line below to re-enable.
+  // const isCiPlCurrencyTab = isCiPlForm && !isCiPlPerUnitTab && !isCiPlManifestTab;
+  const isCiPlCurrencyTab = false;
 
   // Calculate totals
   const totals = {
@@ -1798,6 +1802,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
   useEffect(() => {
     if (!isCiPlForm || isCiPlArchivedView) return undefined;
     let cancelled = false;
+    setSiFormId(null);
     (async () => {
       try {
         setIsSiFormLoading(true);
@@ -1807,7 +1812,10 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       } catch (e) {
         console.error("Failed to load CI PL form:", e);
       } finally {
-        if (!cancelled) setIsSiFormLoading(false);
+        if (!cancelled) {
+          loadedCiPlTabRef.current = ciPlTabIndex;
+          setIsSiFormLoading(false);
+        }
       }
     })();
     return () => {
@@ -1870,6 +1878,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
     if (isResettingRef.current) return;
     if (isApplyingFormRef.current) return;
     if (isShippingAdvise || isDeliveryLike) return;
+    if (!isCiPlArchivedView && loadedCiPlTabRef.current !== ciPlTabIndex) return;
     const timeoutId = setTimeout(async () => {
       try {
         const currentId = await ensureFormId();

@@ -269,8 +269,12 @@ export function recalcCiplLineConvertedValues(item) {
   return { ...item, entries };
 }
 
+// Item currency / ROE conversion is disabled (backend ignores these fields); set true to re-enable.
+const CIPL_ITEM_CURRENCY_ENABLED = false;
+
 function buildLineCurrencyPayload(item) {
   const payload = {};
+  if (!CIPL_ITEM_CURRENCY_ENABLED) return payload;
   if (item?.sourceCurrencyDirty) {
     const id = toIdString(item.sourceCurrencyId);
     payload.source_currency_id = id ? Number(id) : null;
@@ -329,7 +333,7 @@ export function buildCiplStockLinePayloadItem(item, isPerUnit) {
     lwh: toNullIfEmpty(item?.lwh),
     ...buildLineCurrencyPayload(item),
   };
-  const needsConversion = !isPerUnit && item?.needsConversion === true;
+  const needsConversion = CIPL_ITEM_CURRENCY_ENABLED && !isPerUnit && item?.needsConversion === true;
 
   const allEntries = Array.isArray(item?.entries) ? item.entries : [];
   const activeEntries = allEntries.filter((entry) => !entry?.deleted);

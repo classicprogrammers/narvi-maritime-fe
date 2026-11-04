@@ -76,7 +76,8 @@ describe("parseCiplRoe / computeCiplConvertedValue", () => {
   });
 });
 
-describe("buildCiplStockLinePayloadItem currency fields", () => {
+// Skipped while item currency / ROE conversion is disabled (CIPL_ITEM_CURRENCY_ENABLED = false).
+describe.skip("buildCiplStockLinePayloadItem currency fields", () => {
   const entry = (overrides) => ({
     id: null,
     localKey: "k",
