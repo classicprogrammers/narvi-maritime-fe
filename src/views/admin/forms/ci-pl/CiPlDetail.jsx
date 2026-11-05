@@ -195,6 +195,9 @@ const resolveStockLineSupplierName = (line) => {
   return "";
 };
 
+const CI_PL_TAB_QUERY_KEY = "tab";
+const CI_PL_TAB_SLUGS = ["simple", "per-unit", "manifest"];
+
 const parseCiPlFormTotalsFromApi = (form) => {
   const formTotalsSource =
     form?.totals && typeof form.totals === "object" ? form.totals : form ?? {};
@@ -405,7 +408,22 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
   const pdfPreviewBlobUrlRef = useRef(null);
   const pdfPreviewIframeRef = useRef(null);
   const [currentStep, setCurrentStep] = useState(0);
-  const [ciPlTabIndex, setCiPlTabIndex] = useState(0);
+  // Keep the active CI PL tab (Simple / Per unit / Manifest) in the URL (?tab=) so it survives a refresh
+  // (browser storage is wiped on every page load, see bootstrapAuthStorage).
+  const [ciPlTabIndex, setCiPlTabIndex] = useState(() => {
+    if (!isCiPlForm || isCiPlArchivedView) return 0;
+    const slug = new URLSearchParams(location.search).get(CI_PL_TAB_QUERY_KEY);
+    const index = CI_PL_TAB_SLUGS.indexOf(slug);
+    return index >= 0 ? index : 0;
+  });
+  const handleCiPlTabChange = (index) => {
+    setCiPlTabIndex(index);
+    const params = new URLSearchParams(location.search);
+    if (index === 0) params.delete(CI_PL_TAB_QUERY_KEY);
+    else params.set(CI_PL_TAB_QUERY_KEY, CI_PL_TAB_SLUGS[index]);
+    const search = params.toString();
+    history.replace({ pathname: location.pathname, search: search ? `?${search}` : "" });
+  };
   const [shippingInstruction, setShippingInstruction] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isOptionsLoading, setIsOptionsLoading] = useState(false);
@@ -1518,7 +1536,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
     const stockLines = mapped.length ? mapped : blankCargoRows();
     setCargoItems(stockLines);
     const stockLinesSignature = JSON.stringify(
-      buildCiplStockLinePayload(stockLines, isCiPlPerUnitTab)
+      buildCiplStockLinePayload(stockLines, isCiPlPerUnitTab, { isManifest: isCiPlManifestTab })
     );
     lastSubmittedCiplLinesRef.current = stockLinesSignature;
     syncAutosaveSnapshotsFromApi(form, { stockLinesSignature });
@@ -1849,7 +1867,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         return supplier === merged.supplier ? merged : { ...merged, supplier };
       });
       const mergedSignature = JSON.stringify(
-        buildCiplStockLinePayload(next, isCiPlPerUnitTab)
+        buildCiplStockLinePayload(next, isCiPlPerUnitTab, { isManifest: isCiPlManifestTab })
       );
       lastSubmittedCiplLinesRef.current = mergedSignature;
       lastSavedAutosaveRef.current.stockLines = mergedSignature;
@@ -1883,7 +1901,9 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       try {
         const currentId = await ensureFormId();
         if (!currentId) return;
-        const stockListPayload = buildCiplStockLinePayload(cargoItems, isCiPlPerUnitTab);
+        const stockListPayload = buildCiplStockLinePayload(cargoItems, isCiPlPerUnitTab, {
+          isManifest: isCiPlManifestTab,
+        });
         const nextLinesSignature = JSON.stringify(stockListPayload);
         if (
           nextLinesSignature === lastSubmittedCiplLinesRef.current ||
@@ -3034,7 +3054,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
           colorScheme="orange"
           isLazy
           index={isCiPlArchivedView ? 0 : ciPlTabIndex}
-          onChange={isCiPlArchivedView ? undefined : setCiPlTabIndex}
+          onChange={isCiPlArchivedView ? undefined : handleCiPlTabChange}
         >
           <Flex justify="space-between" align="center" mb={4} flexWrap="wrap" gap={3}>
             <TabList>

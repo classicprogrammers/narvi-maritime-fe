@@ -160,3 +160,22 @@ describe("merge and parse from API", () => {
     expect(merged.sourceCurrencyDirty).toBe(false);
   });
 });
+
+describe("buildCiplStockLinePayloadItem manifest", () => {
+  it("sends line-level description and value_in_usd so free-text edits change the payload", () => {
+    const item = { lineId: 5, entries: [], details: "new text", valueUsd: "250" };
+    const payload = buildCiplStockLinePayloadItem(item, false, { isManifest: true });
+    expect(payload.description).toBe("new text");
+    expect(payload.value_in_usd).toBe("250");
+    expect(payload.entries).toBeUndefined();
+    expect(
+      buildCiplStockLinePayloadItem({ ...item, valueUsd: "300" }, false, { isManifest: true }).value_in_usd
+    ).toBe("300");
+  });
+
+  it("sends nulls for an empty line", () => {
+    const payload = buildCiplStockLinePayloadItem({ entries: [], details: "", valueUsd: "" }, false, { isManifest: true });
+    expect(payload.description).toBeNull();
+    expect(payload.value_in_usd).toBeNull();
+  });
+});

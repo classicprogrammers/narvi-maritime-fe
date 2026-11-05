@@ -1,6 +1,7 @@
 import {
   parseCiPlDescriptionFromApi,
   parseCiPlMultiFieldLines,
+  serializeCiPlDescriptionForApi,
   serializeCiPlMultiFieldLines,
 } from "./ciPlDescriptionField";
 
@@ -317,7 +318,7 @@ function buildEntryDeletePayload(entry) {
   return { id: entry.id, delete: true };
 }
 
-export function buildCiplStockLinePayloadItem(item, isPerUnit) {
+export function buildCiplStockLinePayloadItem(item, isPerUnit, options = {}) {
   const base = {
     ...(item?.lineId != null && Number.isFinite(Number(item.lineId))
       ? { id: Number(item.lineId) }
@@ -338,6 +339,15 @@ export function buildCiplStockLinePayloadItem(item, isPerUnit) {
   const allEntries = Array.isArray(item?.entries) ? item.entries : [];
   const activeEntries = allEntries.filter((entry) => !entry?.deleted);
   const deletedEntries = allEntries.filter((entry) => entry?.deleted && entry?.id);
+
+  // Manifest rows are edited and stored at line level (details / valueUsd); the backend ignores entries here.
+  if (options.isManifest) {
+    return {
+      ...base,
+      description: toNullIfEmpty(serializeCiPlDescriptionForApi(item?.details)),
+      value_in_usd: toNullIfEmpty(item?.valueUsd),
+    };
+  }
 
   if (activeEntries.length === 0) {
     if (deletedEntries.length > 0) {
@@ -373,9 +383,9 @@ export function buildCiplStockLinePayloadItem(item, isPerUnit) {
   return { ...base, entries: entriesPayload };
 }
 
-export function buildCiplStockLinePayload(items, isPerUnit) {
+export function buildCiplStockLinePayload(items, isPerUnit, options = {}) {
   return (Array.isArray(items) ? items : []).map((item) =>
-    buildCiplStockLinePayloadItem(item, isPerUnit)
+    buildCiplStockLinePayloadItem(item, isPerUnit, options)
   );
 }
 
