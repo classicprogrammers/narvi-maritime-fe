@@ -406,7 +406,7 @@ export const deleteVessel = async (id) => {
 const VESSEL_FIELD_NORMALIZERS = {
   name: (value) => (value == null ? "" : String(value).trim()),
   client_id: (value) => (value == null || value === "" ? false : Number(value)),
-  status: (value) => value || "active",
+  status: (value) => value || "",
   show_on_client_portal: (value) => value !== false,
   imo: (value) => value || "",
   vessel_type: (value) => value || "",
@@ -444,6 +444,7 @@ export const bulkCreateVessels = async (vesselRows = []) => {
       const fields = normalizeVesselFields(row);
       if (fields.name) fields.name = toVesselName(fields.name);
       if (fields.procurement_person_id === false) delete fields.procurement_person_id;
+      if (!fields.status) delete fields.status;
       return fields;
     }),
   };

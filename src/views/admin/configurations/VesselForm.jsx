@@ -21,7 +21,6 @@ import {
   Tbody,
   Td,
   Text,
-  Textarea,
   Th,
   Thead,
   Tr,
@@ -48,6 +47,7 @@ import vesselsAPI from "../../../api/vessels";
 import { refreshMasterData, MASTER_KEYS } from "../../../utils/masterDataCache";
 import { useMasterData } from "../../../hooks/useMasterData";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
+import LongTextModalField from "../../../components/forms/LongTextModalField";
 import { CellWithAssignMenu } from "../../../components/forms/AssignToRowsBelowMenu";
 import {
   VESSEL_TYPE_SELEC_OPTIONS,
@@ -75,15 +75,6 @@ function getAutoHtmlSize(value, placeholder = "", opts = {}) {
   const valueLen = String(value ?? "").length;
   const placeholderLen = String(placeholder ?? "").length;
   const desired = Math.max(valueLen, placeholderLen) + padding;
-  return Math.min(max, Math.max(min, desired));
-}
-
-function getAutoCols(value, placeholder = "", opts = {}) {
-  const { min = 24, max = 90, padding = 2 } = opts || {};
-  const text = String(value ?? "");
-  const maxLineLen = text.split(/\r?\n/).reduce((acc, line) => Math.max(acc, line.length), 0);
-  const placeholderLen = String(placeholder ?? "").length;
-  const desired = Math.max(maxLineLen, placeholderLen) + padding;
   return Math.min(max, Math.max(min, desired));
 }
 
@@ -124,7 +115,7 @@ const getEmptyRow = () => ({
   name: "",
   client_id: "",
   client_name: "",
-  status: "active",
+  status: "",
   show_on_client_portal: true,
   imo: "",
   vessel_type: "",
@@ -178,7 +169,7 @@ const mapVesselToRow = (vesselInfo) => {
     name: vesselInfo.name || "",
     client_id: client ? String(client.id || "") : String(vesselInfo.client_id || ""),
     client_name: client?.name || vesselInfo.client_name || "",
-    status: vesselInfo.status || "active",
+    status: vesselInfo.status || "",
     show_on_client_portal: vesselInfo.show_on_client_portal !== false,
     imo: vesselInfo.imo || "",
     vessel_type: vesselInfo.vessel_type || "",
@@ -202,9 +193,8 @@ const mapVesselToRow = (vesselInfo) => {
 };
 
 const rowHasCreateContent = (row) =>
-  ["name", "client_id", "imo", "vessel_type", "vessel_type_selec", "procurement_person_id", "vessel_email", "team", "invoice_address"]
+  ["name", "client_id", "status", "imo", "vessel_type", "vessel_type_selec", "procurement_person_id", "vessel_email", "team", "invoice_address"]
     .some((field) => normalizeCompare(row[field]) !== "") ||
-  row.status !== "active" ||
   row.attachments.length > 0;
 
 export default function VesselForm() {
@@ -232,7 +222,6 @@ export default function VesselForm() {
   const [peopleByClient, setPeopleByClient] = useState({});
   const [vesselTypeSelecOptions, setVesselTypeSelecOptions] = useState(VESSEL_TYPE_SELEC_OPTIONS);
   const [previewFile, setPreviewFile] = useState(null);
-  const [expandedFileRows, setExpandedFileRows] = useState({});
   const [formLayout, setFormLayout] = useState(readStoredVesselFormLayout);
   const requestedClientsRef = useRef(new Set());
 
@@ -645,8 +634,7 @@ export default function VesselForm() {
   const getRowErrors = (row) => {
     const errors = {};
     if (!normalizeCompare(row.name)) errors.name = "Vessel name";
-    if (!row.vessel_id && !row.client_id) errors.client_id = "Client";
-    return errors;
+    if (!row.vessel_id && !row.client_id) errors.client_id = "Client";    return errors;
   };
 
   const goBackToList = (refresh = false) => {
@@ -660,11 +648,11 @@ export default function VesselForm() {
   };
 
   const handleDiscard = () => {
-    if (isEditing) {
+    if (isEditing || !isDirty) {
       handleBack();
       return;
     }
-    if (isDirty && !window.confirm("Clear all rows?")) return;
+    if (!window.confirm("Clear all rows?")) return;
     setShowErrors(false);
     setFailedRowKey(null);
     setRows([getEmptyRow()]);
@@ -1227,15 +1215,15 @@ export default function VesselForm() {
                         {assignCell(rowIndex, "status",
                           (() => {
                             const statusLabel =
-                              STATUS_OPTIONS.find((option) => option.value === row.status)?.label || row.status || "Status";
+                              STATUS_OPTIONS.find((option) => option.value === row.status)?.label || row.status || "Select status";
                             return (
                           <Select
                             {...inputProps}
                             value={row.status}
-                            onChange={(e) => handleInputChange(rowIndex, "status", e.target.value)}
-                            sx={autoSelectSx(statusLabel, "Status", { min: 12, max: 24 })}
+                            onChange={(e) => handleInputChange(rowIndex, "status", e.target.value)}                            sx={autoSelectSx(statusLabel, "Status", { min: 12, max: 24 })}
                             title={statusLabel}
                           >
+                            {!row.status && <option value="">Select status</option>}
                             {STATUS_OPTIONS.map((option) => (
                               <option key={option.value} value={option.value}>
                                 {option.label}
@@ -1263,22 +1251,15 @@ export default function VesselForm() {
                       </Td>
                       <Td {...cellProps} {...failedCell}>
                         {assignCell(rowIndex, "invoice_address",
-                          <Textarea
-                            size="sm"
-                            fontSize="sm"
-                            borderRadius="md"
-                            bg={inputBg}
-                            color={inputText}
-                            borderColor={borderColor}
+                          <LongTextModalField
                             value={row.invoice_address}
-                            onChange={(e) => handleInputChange(rowIndex, "invoice_address", e.target.value)}
-                            placeholder="Invoice address"
-                            rows={1}
-                            py="7px"
-                            resize="vertical"
-                            w="auto"
-                            cols={getAutoCols(row.invoice_address, "Invoice address", { min: 24, max: 90 })}
-                            title={row.invoice_address ? String(row.invoice_address) : undefined}
+                            onChange={(newValue) => handleInputChange(rowIndex, "invoice_address", newValue)}
+                            placeholder="Click to enter invoice address..."
+                            modalTitle={`Invoice Address${row.name ? ` (${row.name})` : ""}`}
+                            textareaPlaceholder="Enter invoice address"
+                            boxWidth="100%"
+                            minH={CONTROL_HEIGHT}
+                            bg={inputBg}
                           />
                         )}
                       </Td>
@@ -1305,7 +1286,7 @@ export default function VesselForm() {
                               Upload Files
                             </Button>
                           </label>
-                          {(expandedFileRows[row.key] ? row.attachments : row.attachments.slice(0, 1)).map((file, attachmentIndex) => (
+                          {row.attachments.map((file, attachmentIndex) => (
                             <Flex
                               key={file.id || `${file.filename}-${attachmentIndex}`}
                               align="center"
@@ -1334,22 +1315,6 @@ export default function VesselForm() {
                               />
                             </Flex>
                           ))}
-                          {row.attachments.length > 1 && (
-                            <Button
-                              size="xs"
-                              variant="link"
-                              colorScheme="blue"
-                              fontWeight="normal"
-                              alignSelf="flex-start"
-                              onClick={() =>
-                                setExpandedFileRows((prev) => ({ ...prev, [row.key]: !prev[row.key] }))
-                              }
-                            >
-                              {expandedFileRows[row.key]
-                                ? "Show less"
-                                : `View more (${row.attachments.length - 1})`}
-                            </Button>
-                          )}
                         </VStack>
                       </Td>
                       <Td {...cellProps} {...failedCell} borderRight="none">
