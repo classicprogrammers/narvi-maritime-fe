@@ -7,6 +7,7 @@ import {
   buildCiplStockLinePayloadItem,
   parseCiplStockLineEntriesFromApi,
   mergeCiplStockLineFromApi,
+  keepLocalCiplLineEdits,
 } from "./ciPlStockLineEntries";
 
 describe("parseCiplLineCurrencyFromApi", () => {
@@ -177,5 +178,26 @@ describe("buildCiplStockLinePayloadItem manifest", () => {
     const payload = buildCiplStockLinePayloadItem({ entries: [], details: "", valueUsd: "" }, false, { isManifest: true });
     expect(payload.description).toBeNull();
     expect(payload.value_in_usd).toBeNull();
+  });
+});
+
+describe("keepLocalCiplLineEdits", () => {
+  it("keeps text typed during a save but adopts server ids", () => {
+    const local = {
+      details: "hello wor",
+      valueUsd: "12",
+      entries: [{ id: null, localKey: "k1", description: "abc def", valueUsd: "5", quantity: "", perUnit: "" }],
+    };
+    const merged = {
+      lineId: 9,
+      details: "hello",
+      valueUsd: "1",
+      entries: [{ id: 77, localKey: "srv", description: "abc", valueUsd: "1", quantity: "", perUnit: "" }],
+    };
+    const result = keepLocalCiplLineEdits(local, merged);
+    expect(result.lineId).toBe(9);
+    expect(result.details).toBe("hello wor");
+    expect(result.valueUsd).toBe("12");
+    expect(result.entries[0]).toMatchObject({ id: 77, description: "abc def", valueUsd: "5" });
   });
 });

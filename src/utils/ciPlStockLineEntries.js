@@ -428,6 +428,38 @@ export function mergeCiplStockLineFromApi(item, serverLine, isPerUnit, options =
   };
 }
 
+/**
+ * After a save, keep what the user typed while the request was in flight: take the server's ids/summary
+ * but restore the local editable text so the echo does not drop the newest characters.
+ */
+export function keepLocalCiplLineEdits(localItem, mergedItem) {
+  const localEntries = Array.isArray(localItem?.entries) ? localItem.entries : [];
+  const serverEntries = Array.isArray(mergedItem?.entries) ? mergedItem.entries : [];
+  const entries =
+    localEntries.length === serverEntries.length
+      ? serverEntries.map((entry, i) => {
+          const local = localEntries[i];
+          return {
+            ...entry,
+            localKey: local.localKey ?? entry.localKey,
+            description: local.description,
+            valueUsd: local.valueUsd,
+            quantity: local.quantity,
+            perUnit: local.perUnit,
+            deleted: local.deleted,
+          };
+        })
+      : localEntries.map((local, i) => ({ ...local, id: local.id ?? serverEntries[i]?.id ?? null }));
+  return {
+    ...mergedItem,
+    details: localItem.details,
+    valueUsd: localItem.valueUsd,
+    quantity: localItem.quantity,
+    perUnit: localItem.perUnit,
+    entries,
+  };
+}
+
 export function getCiplPdfEntryRows(item, isPerUnit) {
   const activeEntries = getCiplActiveEntries(item);
   if (activeEntries.length > 0) {

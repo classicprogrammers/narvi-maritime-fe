@@ -106,6 +106,7 @@ import { getWarehouseDisplayText, normalizeWarehousesFromStock } from "../../../
 import { formatApiNumericDisplay, formatCiPlCurrencyDisplay } from "../../../../utils/formatApiNumericDisplay";
 import {
   buildCiplStockLinePayload,
+  buildCiplStockLinePayloadItem,
   ciplLineNeedsConversion,
   createEmptyCiplEntry,
   getCiplActiveEntries,
@@ -113,6 +114,7 @@ import {
   getCiplEntryValueUsdForDisplay,
   getCiplPdfEntryRows,
   getCiplStockLineValueUsd,
+  keepLocalCiplLineEdits,
   mergeCiplStockLineFromApi,
   parseCiplLineCurrencyFromApi,
   parseCiplStockLineEntriesFromApi,
@@ -1841,9 +1843,12 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
     };
   }, [isCiPlForm, isCiPlArchivedView, ciPlTabIndex]);
 
-  const mergeStockLinesFromServer = (updated) => {
+  // submittedPayload: the stock_list that was sent. Lines the user kept typing in while the request was in
+  // flight keep their local text (the server echo would otherwise overwrite and drop the newest characters).
+  const mergeStockLinesFromServer = (updated, submittedPayload = null) => {
     if (!Array.isArray(updated?.stock_list) || updated.stock_list.length === 0) return;
     setCargoItems((prev) => {
+      let hasLocalEdits = false;
       const next = prev.map((item, idx) => {
         const serverLine =
           updated.stock_list.find(
@@ -1861,14 +1866,25 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
           updated.stock_list[idx];
         if (!serverLine) return item;
         const supplier = resolveStockLineSupplierName(serverLine) || item.supplier;
-        const merged = mergeCiplStockLineFromApi(item, serverLine, isCiPlPerUnitTab, {
+        let merged = mergeCiplStockLineFromApi(item, serverLine, isCiPlPerUnitTab, {
           isManifest: isCiPlManifestTab,
         });
+        if (submittedPayload && submittedPayload[idx] !== undefined) {
+          const localPayload = buildCiplStockLinePayloadItem(item, isCiPlPerUnitTab, {
+            isManifest: isCiPlManifestTab,
+          });
+          if (JSON.stringify(localPayload) !== JSON.stringify(submittedPayload[idx])) {
+            hasLocalEdits = true;
+            merged = keepLocalCiplLineEdits(item, merged);
+          }
+        }
         return supplier === merged.supplier ? merged : { ...merged, supplier };
       });
-      const mergedSignature = JSON.stringify(
-        buildCiplStockLinePayload(next, isCiPlPerUnitTab, { isManifest: isCiPlManifestTab })
-      );
+      const mergedSignature = hasLocalEdits
+        ? JSON.stringify(submittedPayload)
+        : JSON.stringify(
+          buildCiplStockLinePayload(next, isCiPlPerUnitTab, { isManifest: isCiPlManifestTab })
+        );
       lastSubmittedCiplLinesRef.current = mergedSignature;
       lastSavedAutosaveRef.current.stockLines = mergedSignature;
       return next;
@@ -1918,7 +1934,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         lastSubmittedCiplLinesRef.current = nextLinesSignature;
         lastSavedAutosaveRef.current.stockLines = nextLinesSignature;
         if (updated?.id != null) setSiFormId(updated.id);
-        mergeStockLinesFromServer(updated);
+        mergeStockLinesFromServer(updated, stockListPayload);
         if (updated) {
           syncFormTotalsFromApi(updated);
           syncAutosaveSnapshotsFromApi(updated);
