@@ -25,8 +25,6 @@ import {
   MdCheckCircle,
   MdCloudQueue,
   MdInfoOutline,
-  MdTableChart,
-  MdViewList,
 } from "react-icons/md";
 import { useHistory, useParams } from "react-router-dom";
 import RemoteSearchableSelect from "components/forms/RemoteSearchableSelect";
@@ -76,15 +74,6 @@ const SO_PAGE_SIZE = 50;
 const LIST_PATH = "/admin/ledger/cost";
 const FORM_PATH = "/admin/ledger/cost/form";
 const AUTOSAVE_DELAY_MS = 700;
-const LAYOUT_STORAGE_KEY = "narvi_cost_form_layout";
-
-const readLayout = () => {
-  try {
-    return localStorage.getItem(LAYOUT_STORAGE_KEY) === "table" ? "table" : "form";
-  } catch {
-    return "form";
-  }
-};
 
 // Agent + normalised invoice numbers: a duplicate block lasts until either changes
 const invoiceCheckKey = (form) =>
@@ -173,7 +162,6 @@ export default function CostFormPage() {
   const { refreshCurrencies } = useMasterData();
   const agents = useLedgerAgentOptions();
   const { pin: pinAgent } = agents;
-  const [layout, setLayout] = useState(readLayout);
   const [duplicateKey, setDuplicateKey] = useState("");
   const [duplicates, setDuplicates] = useState([]);
   const [isDuplicateOpen, setIsDuplicateOpen] = useState(false);
@@ -204,16 +192,8 @@ export default function CostFormPage() {
   const firstSaveToastShownRef = useRef(false);
 
   const hasSavedRecord = Boolean(id || editingRecord?.id);
-  // Table view is for new records only; the toggle is hidden on the edit route
-  const isTableView = layout === "table" && !hasSavedRecord;
-  const handleLayoutChange = (next) => {
-    setLayout(next);
-    try {
-      localStorage.setItem(LAYOUT_STORAGE_KEY, next);
-    } catch {
-      // Ignore storage failures.
-    }
-  };
+  // The table view is switched off in the Master Ledger; only the form view is offered
+  const isTableView = false;
 
   const pageBg = useColorModeValue("gray.50", "gray.900");
   const cardBg = useColorModeValue("white", "gray.800");
@@ -704,30 +684,6 @@ export default function CostFormPage() {
               </Text>
             </Box>
           </Flex>
-          {!hasSavedRecord && (
-            <HStack spacing="2" w={{ base: "100%", md: "auto" }}>
-              <Button
-                size="sm"
-                leftIcon={<Icon as={MdTableChart} />}
-                colorScheme={layout === "table" ? "blue" : "gray"}
-                variant={layout === "table" ? "solid" : "outline"}
-                aria-pressed={layout === "table"}
-                onClick={() => handleLayoutChange("table")}
-              >
-                Table view
-              </Button>
-              <Button
-                size="sm"
-                leftIcon={<Icon as={MdViewList} />}
-                colorScheme={layout === "form" ? "blue" : "gray"}
-                variant={layout === "form" ? "solid" : "outline"}
-                aria-pressed={layout === "form"}
-                onClick={() => handleLayoutChange("form")}
-              >
-                Form view
-              </Button>
-            </HStack>
-          )}
           {!isLoadingRecord && !isTableView && (
             <CostAutosaveBadge
               mode={saveMode}

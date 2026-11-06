@@ -25,8 +25,6 @@ import {
   MdCheckCircle,
   MdCloudQueue,
   MdInfoOutline,
-  MdTableChart,
-  MdViewList,
 } from "react-icons/md";
 import { useHistory, useParams } from "react-router-dom";
 import RemoteSearchableSelect from "components/forms/RemoteSearchableSelect";
@@ -70,15 +68,6 @@ const SO_PAGE_SIZE = 50;
 const LIST_PATH = "/admin/ledger/invoice";
 const FORM_PATH = "/admin/ledger/invoice/form";
 const AUTOSAVE_DELAY_MS = 700;
-const LAYOUT_STORAGE_KEY = "narvi_invoice_form_layout";
-
-const readStoredLayout = () => {
-  try {
-    return localStorage.getItem(LAYOUT_STORAGE_KEY) === "table" ? "table" : "form";
-  } catch (error) {
-    return "form";
-  }
-};
 
 const formatRateDate = (iso) => {
   const parts = String(iso || "").split("-");
@@ -179,7 +168,6 @@ export default function InvoiceFormPage() {
   const [savePulse, setSavePulse] = useState(0);
   const [savedCaption, setSavedCaption] = useState("All changes saved");
 
-  const [layout, setLayout] = useState(readStoredLayout);
   const [roeServerError, setRoeServerError] = useState(null);
   const roeInputRef = useRef(null);
   const [form, setForm] = useState(emptyInvoiceForm());
@@ -234,15 +222,6 @@ export default function InvoiceFormPage() {
   const goBackToList = useCallback(() => {
     history.push(LIST_PATH);
   }, [history]);
-
-  const handleLayoutChange = useCallback((next) => {
-    setLayout(next);
-    try {
-      localStorage.setItem(LAYOUT_STORAGE_KEY, next);
-    } catch (error) {
-      // Ignore storage failures.
-    }
-  }, []);
 
   const setField = useCallback((field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -472,7 +451,8 @@ export default function InvoiceFormPage() {
     ? getMany2oneName(editingRecord.currency_id) || editingRecord.currency_code || ""
     : "";
 
-  const isTableView = !isEditRoute && layout === "table";
+  // The table view is switched off in the Master Ledger; only the form view is offered
+  const isTableView = false;
 
   // Automatic ROE: preview only when the rate could change (new record, or currency / invoice date edited)
   const original = originalForm;
@@ -677,30 +657,6 @@ export default function InvoiceFormPage() {
               </Text>
             </Box>
           </Flex>
-          {!isEditRoute && (
-            <HStack spacing="2">
-              <Button
-                size="sm"
-                leftIcon={<Icon as={MdTableChart} />}
-                colorScheme={isTableView ? "blue" : "gray"}
-                variant={isTableView ? "solid" : "outline"}
-                aria-pressed={isTableView}
-                onClick={() => handleLayoutChange("table")}
-              >
-                Table view
-              </Button>
-              <Button
-                size="sm"
-                leftIcon={<Icon as={MdViewList} />}
-                colorScheme={!isTableView ? "blue" : "gray"}
-                variant={!isTableView ? "solid" : "outline"}
-                aria-pressed={!isTableView}
-                onClick={() => handleLayoutChange("form")}
-              >
-                Form view
-              </Button>
-            </HStack>
-          )}
           {!isLoadingRecord && !isTableView && (
             <InvoiceAutosaveBadge mode={saveMode} savedCaption={savedCaption} pulse={savePulse} />
           )}
