@@ -80,10 +80,11 @@ export function emptyToNull(value) {
 
 /** Normalize API/form dates to YYYY-MM-DD for `<Input type="date" />`. */
 export function toDateInputValue(value) {
-  if (value == null || String(value).trim() === "") return "";
+  // The API returns `false` for an empty date; it must not reach the form (it would be saved as "false").
+  if (value === false || value == null || String(value).trim() === "") return "";
   const text = String(value).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
-  const dmy = text.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  const dmy = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
   if (dmy) {
     const [, day, month, year] = dmy;
     return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
