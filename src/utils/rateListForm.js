@@ -84,12 +84,20 @@ export function toDateInputValue(value) {
   if (value === false || value == null || String(value).trim() === "") return "";
   const text = String(value).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const isoWithTime = text.match(/^(\d{4}-\d{2}-\d{2})[T ]/);
+  if (isoWithTime) return isoWithTime[1];
   const dmy = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
   if (dmy) {
     const [, day, month, year] = dmy;
     return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
   }
   return text;
+}
+
+/** Date for an API payload: a real YYYY-MM-DD or null. Never `false`, "false" or other text, which the database rejects. */
+export function dateOrNull(value) {
+  const date = toDateInputValue(value);
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
 }
 
 function valuesEqual(nextVal, prevVal) {
@@ -192,8 +200,8 @@ export function buildRateApiPayload(formRow, { forCreate = false } = {}) {
     rate_float: emptyToNull(formRow.rate_float),
     rate_calculation: emptyToNull(formRow.rate_calculation),
     fixed_sales_rate: emptyToNull(formRow.fixed_sales_rate),
-    valid_until: emptyToNull(formRow.valid_until),
-    last_update: emptyToNull(formRow.last_update),
+    valid_until: dateOrNull(formRow.valid_until),
+    last_update: dateOrNull(formRow.last_update),
     import_group: emptyToNull(formRow.import_group),
     remarks: emptyToNull(formRow.remarks),
   };

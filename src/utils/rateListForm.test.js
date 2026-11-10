@@ -1,4 +1,9 @@
-import { buildRateCreatePayload, buildRateUpdateLine, mapRateItemToFormRow } from "./rateListForm";
+import {
+  buildRateApiPayload,
+  buildRateCreatePayload,
+  buildRateUpdateLine,
+  mapRateItemToFormRow,
+} from "./rateListForm";
 
 const apiRate = { id: 7, rate_type: "general", rate_name: "THC", currency_id: { id: 1 }, shipment_type: "export" };
 
@@ -11,6 +16,26 @@ describe("empty dates from the API", () => {
     const payload = buildRateCreatePayload({ ...row, id: undefined });
     expect(payload).not.toHaveProperty("valid_until");
     expect(payload).not.toHaveProperty("last_update");
+  });
+
+  test.each([false, "false", "False", "N/A", "   ", null, undefined])(
+    "a form row holding %p never sends a date",
+    (bad) => {
+      const row = { ...mapRateItemToFormRow(apiRate), valid_until: bad, last_update: bad };
+      const payload = buildRateCreatePayload(row);
+      expect(payload).not.toHaveProperty("valid_until");
+      expect(payload).not.toHaveProperty("last_update");
+    }
+  );
+
+  test("update payload clears an empty date with null, not false", () => {
+    const row = { ...mapRateItemToFormRow(apiRate), id: 7, valid_until: false };
+    expect(buildRateApiPayload(row).valid_until).toBeNull();
+  });
+
+  test("dates with a time part keep only the date", () => {
+    const row = { ...mapRateItemToFormRow(apiRate), valid_until: "2026-12-31 00:00:00" };
+    expect(buildRateCreatePayload(row).valid_until).toBe("2026-12-31");
   });
 
   test("real dates are kept in YYYY-MM-DD", () => {
