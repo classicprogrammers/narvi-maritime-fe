@@ -12,11 +12,13 @@ export function mergeSelectedIntoOptions(options, selectedId, masterFallback = [
   const list = Array.isArray(options) ? options : [];
   const fallback = Array.isArray(masterFallback) ? masterFallback : [];
   const sid = coerceStockFormSelectId(selectedId);
+  // The fallback only resolves the selected option's label. An empty list is a real result
+  // (e.g. a search with no match) and must never be replaced by the whole fallback list.
   if (!sid) {
-    return list.length > 0 ? list : fallback;
+    return list;
   }
   if (list.some((o) => o && String(o.id) === sid)) {
-    return list.length > 0 ? list : fallback;
+    return list;
   }
   const fromMaster = fallback.find((o) => o && String(o.id) === sid);
   if (fromMaster) {

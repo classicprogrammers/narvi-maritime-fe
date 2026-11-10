@@ -71,6 +71,8 @@ export default function useStockFormRemoteSelects({
     return true;
   }, []);
 
+  const masterVesselsRef = useRef(masterVessels);
+  masterVesselsRef.current = masterVessels;
   const clientGuardRef = useRef(createLatestGuard());
   const supplierGuardRef = useRef(createLatestGuard());
 
@@ -90,7 +92,8 @@ export default function useStockFormRemoteSelects({
     } catch (error) {
       if (!clientGuardRef.current.isLatest(token)) return;
       console.error("Stock form client search failed:", error);
-      setClientSearchOptions([]);
+      // A failed request is not "no results": keep using the cached master list
+      setClientSearchOptions(null);
     } finally {
       if (clientGuardRef.current.isLatest(token)) setIsLoadingClients(false);
     }
@@ -141,7 +144,8 @@ export default function useStockFormRemoteSelects({
     } catch (error) {
       if (!supplierGuardRef.current.isLatest(token)) return;
       console.error("Stock form supplier search failed:", error);
-      setSupplierSearchOptions([]);
+      // A failed request is not "no results": keep using the cached master list
+      setSupplierSearchOptions(null);
     } finally {
       if (supplierGuardRef.current.isLatest(token)) setIsLoadingSuppliers(false);
     }
@@ -317,7 +321,13 @@ export default function useStockFormRemoteSelects({
           return;
         }
         console.error("Stock form vessel search failed:", normalizedClientId, error);
-        setVesselOptionsByClientId((prev) => ({ ...prev, [cacheKey]: [] }));
+        // A failed request is not "no results": fall back to the cached vessels for this client
+        const cachedVessels = normalizedClientId
+          ? masterVesselsRef.current.filter(
+              (vessel) => String(vessel.client_id ?? vessel.client ?? "") === normalizedClientId
+            )
+          : masterVesselsRef.current;
+        setVesselOptionsByClientId((prev) => ({ ...prev, [cacheKey]: cachedVessels }));
       } finally {
         if (gen === vesselRequestGenRef.current[cacheKey]) {
           setIsLoadingVesselByClient((prev) => ({ ...prev, [cacheKey]: false }));
