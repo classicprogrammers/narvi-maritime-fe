@@ -47,6 +47,9 @@ const ACTIVE_OPTIONS = [
 
 const EMPTY_OPTIONS = { agents: [], locations: [], groups: [] };
 
+// Without a sort the backend lists Standard charges first and If Apply after; agent tariffs follow Sort Order only.
+const AGENT_TARIFF_SORT = { sort_by: "sort_order", sort_order: "asc" };
+
 const COLUMNS = [
   { key: "group_name", label: "Group Name" },
   { key: "rate_name", label: "Rate Name" },
@@ -127,6 +130,7 @@ export default function AgentTariffs() {
             page_size: TARIFF_PAGE_SIZE,
             search: debouncedSearch || undefined,
             ...optionsPayload,
+            ...AGENT_TARIFF_SORT,
             active: filters.active === "" ? undefined : filters.active === "true",
           },
           usesFetchAll
@@ -164,6 +168,7 @@ export default function AgentTariffs() {
     try {
       const result = await getAgentRateTariffsApi({
         ...optionsPayload,
+        ...AGENT_TARIFF_SORT,
         search: debouncedSearch || undefined,
         active: filters.active === "" ? undefined : filters.active === "true",
         fetch_all: true,
