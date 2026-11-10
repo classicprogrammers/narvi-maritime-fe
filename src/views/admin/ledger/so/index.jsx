@@ -35,7 +35,7 @@ import { useHistory } from "react-router-dom";
 import { getLedgerSos } from "api/ledgerSo";
 import { useMasterData } from "hooks/useMasterData";
 import { getCached, MASTER_KEYS } from "utils/masterDataCache";
-import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import SearchableSelect from "components/forms/SearchableSelect";
 import {
   displaySoNumber,
   etaDisplay,
@@ -414,7 +414,7 @@ export default function LedgerSo() {
                 </FormControl>
                 <FormControl>
                   <FormLabel {...filterLabelProps}>Client</FormLabel>
-                  <SimpleSearchableSelect
+                  <SearchableSelect
                     value={clientId}
                     onChange={(value) => {
                       setClientId(value || "");
@@ -427,7 +427,7 @@ export default function LedgerSo() {
                 </FormControl>
                 <FormControl>
                   <FormLabel {...filterLabelProps}>Vessel</FormLabel>
-                  <SimpleSearchableSelect
+                  <SearchableSelect
                     value={vesselId}
                     onChange={(value) => {
                       setVesselId(value || "");
@@ -440,7 +440,7 @@ export default function LedgerSo() {
                 </FormControl>
                 <FormControl>
                   <FormLabel {...filterLabelProps}>Destination</FormLabel>
-                  <SimpleSearchableSelect
+                  <SearchableSelect
                     value={destination}
                     onChange={(value) => setDestination(value || "")}
                     options={destinationOptions}

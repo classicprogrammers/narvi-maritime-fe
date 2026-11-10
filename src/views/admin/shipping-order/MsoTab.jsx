@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { createLatestGuard } from "../../../utils/searchableSelect";
 import {
   Alert,
   AlertDescription,
@@ -40,7 +41,7 @@ import {
 import { MdAdd, MdChevronRight, MdExpandMore, MdLinkOff, MdSearch, MdVisibility } from "react-icons/md";
 import { useHistory } from "react-router-dom";
 import { getShippingOrders, updateShippingOrder } from "../../../api/shippingOrders";
-import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
+import SearchableSelect from "../../../components/forms/SearchableSelect";
 import {
   buildMsoLinkPayload,
   filterLinkableOrders,
@@ -248,17 +249,21 @@ export default function MsoTab() {
     }
   };
 
+  const linkSearchGuard = useRef(createLatestGuard());
   const searchLinkableOrders = useCallback(
     async (term) => {
       if (!linkTarget) return;
+      const token = linkSearchGuard.current.next();
       setIsSearchingLink(true);
       try {
         const res = await getShippingOrders({ is_mso: false, search: term || "", page_size: 20 });
+        if (!linkSearchGuard.current.isLatest(token)) return;
         setLinkOptions(filterLinkableOrders(res.orders || [], linkTarget.id));
       } catch {
+        if (!linkSearchGuard.current.isLatest(token)) return;
         setLinkOptions([]);
       } finally {
-        setIsSearchingLink(false);
+        if (linkSearchGuard.current.isLatest(token)) setIsSearchingLink(false);
       }
     },
     [linkTarget]
@@ -452,7 +457,7 @@ export default function MsoTab() {
           <ModalBody>
             <FormControl>
               <FormLabel fontSize="sm">Shipping order</FormLabel>
-              <SimpleSearchableSelect
+              <SearchableSelect
                 value={selectedSoId}
                 onChange={setSelectedSoId}
                 options={linkOptions}

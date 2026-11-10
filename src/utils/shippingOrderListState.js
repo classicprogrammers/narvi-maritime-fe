@@ -432,7 +432,7 @@ export function getShippingOrderDisplayLabel(order) {
   return order.id != null ? `SO-${order.id}` : "";
 }
 
-/** Options for SimpleSearchableSelect on stock forms. */
+/** Options for SearchableSelect on stock forms. */
 export function buildShippingOrderSelectOptions(shippingOrders = []) {
   return (Array.isArray(shippingOrders) ? shippingOrders : [])
     .filter((so) => so && so.id != null)

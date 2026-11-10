@@ -66,7 +66,8 @@ import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
 import api from "../../../api/axios";
 import { createStockItemApi, updateStockItemApi } from "../../../api/stock";
 import { AssignToRowsBelowMenu, CellWithAssignMenu } from "../../../components/forms/AssignToRowsBelowMenu";
-import RemoteSearchableSelect from "../../../components/forms/RemoteSearchableSelect";
+import SearchableSelect from "../../../components/forms/SearchableSelect";
+import { hasUnmatchedSearchText } from "../../../utils/searchableSelect";
 import StockOriginCountrySelect from "../../../components/forms/StockOriginCountrySelect";
 import StockIdNameSearchableSelect from "../../../components/forms/StockIdNameSearchableSelect";
 import StockValueInput from "../../../components/forms/StockValueInput";
@@ -343,6 +344,7 @@ export default function StockForm() {
         handleVesselSearchChange,
         ensureVesselsLoadedForClient,
         isLoadingVesselByClient,
+        isVesselListLoading,
     } = useStockFormRemoteSelects({
         masterClients: clients,
         masterSuppliers: suppliers,
@@ -656,11 +658,6 @@ export default function StockForm() {
             "",
         [user?.name, user?.email]
     );
-
-    const getVesselLoadingKey = useCallback((clientId) => {
-        const normalized = clientId == null || clientId === "" ? "__all__" : String(clientId);
-        return normalized;
-    }, []);
 
     // Load stock items for bulk edit or single edit
     const ADD_STOCK_HAS_DATA_KEY = "addStockHasData";
@@ -2233,6 +2230,16 @@ export default function StockForm() {
         formRowsRef.current = formRows;
         const rowIndex = stockReportPreview.rowIndex;
         const reportRow = formRowsRef.current?.[rowIndex];
+        if (hasUnmatchedSearchText()) {
+            toast({
+                title: "Pick an option from the list",
+                description: "A field has text with no matching option (red border). Select an option or clear the field.",
+                status: "warning",
+                duration: 5000,
+                isClosable: true,
+            });
+            return;
+        }
         const missingClientVessel = describeMissingClientVessel(reportRow ? [reportRow] : []);
         if (missingClientVessel.length > 0) {
             setShowClientVesselErrors(true);
@@ -2307,6 +2314,17 @@ export default function StockForm() {
 
             if (rowsForSave.length === 0) {
                 throw new Error("No data to save");
+            }
+
+            if (hasUnmatchedSearchText()) {
+                toast({
+                    title: "Pick an option from the list",
+                    description: "A field has text with no matching option (red border). Select an option or clear the field.",
+                    status: "warning",
+                    duration: 6000,
+                    isClosable: true,
+                });
+                return;
             }
 
             const missingClientVessel = describeMissingClientVessel(rowsForSave);
@@ -2693,7 +2711,7 @@ export default function StockForm() {
                                         )}
                                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                                             {assignCell(rowIndex, "client",
-                                                <RemoteSearchableSelect
+                                                <SearchableSelect
                                                     value={row.client}
                                                     onChange={(value) => handleInputChange(rowIndex, "client", value)}
                                                     options={getClientOptionsForValue(row.client)}
@@ -2724,7 +2742,7 @@ export default function StockForm() {
                                                     zIndex={1300000}
                                                 >
                                                     <Box w="100%">
-                                                        <RemoteSearchableSelect
+                                                        <SearchableSelect
                                                             value={row.vessel}
                                                             onChange={(value) => handleInputChange(rowIndex, "vessel", value)}
                                                             options={isBlankStockRelation(row.client) ? [] : getVesselOptionsForClient(row.client, row.vessel)}
@@ -2733,7 +2751,7 @@ export default function StockForm() {
                                                             valueKey="id"
                                                             formatOption={(option) => option.name || String(option.id ?? "")}
                                                             isDisabled={isBlankStockRelation(row.client)}
-                                                            isLoading={Boolean(isLoadingVesselByClient[getVesselLoadingKey(row.client)])}
+                                                            isLoading={isBlankStockRelation(row.client) ? false : isVesselListLoading(row.client)}
                                                             onSearchChange={(q) => handleVesselSearchChange(row.client, q)}
                                                             bg={isBlankStockRelation(row.client) ? readOnlyWeightBg : inputBg}
                                                             color={inputText}
@@ -2749,7 +2767,7 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                                             {assignCell(rowIndex, "pic",
-                                                <RemoteSearchableSelect
+                                                <SearchableSelect
                                                     value={row.pic ? String(row.pic) : null}
                                                     onChange={(value) => {
                                                         handleInputChange(rowIndex, "pic", value ? String(value) : null);
@@ -2772,7 +2790,7 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                                             {assignCell(rowIndex, "supplier",
-                                                <RemoteSearchableSelect
+                                                <SearchableSelect
                                                     value={row.supplier}
                                                     onChange={(value) => handleInputChange(rowIndex, "supplier", value)}
                                                     options={getSupplierOptionsForValue(row.supplier)}
@@ -3027,7 +3045,7 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                                             {assignCell(rowIndex, "currency",
-                                                <RemoteSearchableSelect
+                                                <SearchableSelect
                                                     value={row.currency}
                                                     onChange={(value) => handleInputChange(rowIndex, "currency", value)}
                                                     options={currencies}
@@ -3383,7 +3401,7 @@ export default function StockForm() {
                                         <Td {...cellProps} position="relative" overflow="visible">
                                             <Flex gap="1" align="center" w="100%">
                                                 <Box flex="1" minW="0">
-                                                    <RemoteSearchableSelect
+                                                    <SearchableSelect
                                                         value={row.soId || null}
                                                         onChange={(val) => handleInputChange(rowIndex, "soId", val)}
                                                         options={shippingOrderOptions}

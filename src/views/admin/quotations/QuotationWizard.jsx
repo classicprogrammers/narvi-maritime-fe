@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createLatestGuard } from "../../../utils/searchableSelect";
 import {
   Badge,
   Box,
@@ -16,7 +17,7 @@ import {
 import { MdAdd, MdClose } from "react-icons/md";
 import { useHistory } from "react-router-dom";
 import Card from "components/card/Card";
-import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import SearchableSelect from "components/forms/SearchableSelect";
 import {
   createQuotationFromSelection,
   extractNarviQuotationError,
@@ -85,7 +86,11 @@ export default function QuotationWizard() {
     item.origin.toLowerCase().includes(originFilter.trim().toLowerCase())
   );
 
+  const clientsGuardRef = useRef(createLatestGuard());
+  const vesselsGuardRef = useRef(createLatestGuard());
+
   const loadClients = async (query = "") => {
+    const token = clientsGuardRef.current.next();
     setOptionsLoading(true);
     try {
       const result = await getNarviQuotationOptions({
@@ -95,12 +100,14 @@ export default function QuotationWizard() {
         q_vessel: "",
         q_so: "",
       });
+      if (!clientsGuardRef.current.isLatest(token)) return;
       const { clients } = normalizeQuotationOptions(result);
       const selected = selectedClientRef.current;
       setClientOptions(
         ensureSelectedOption(clients, selected?.id, () => selected)
       );
     } catch (error) {
+      if (!clientsGuardRef.current.isLatest(token)) return;
       toast({
         title: "Error",
         description: extractNarviQuotationError(error, "Failed to load clients."),
@@ -109,11 +116,12 @@ export default function QuotationWizard() {
         isClosable: true,
       });
     } finally {
-      setOptionsLoading(false);
+      if (clientsGuardRef.current.isLatest(token)) setOptionsLoading(false);
     }
   };
 
   const loadVessels = async (query = "") => {
+    const token = vesselsGuardRef.current.next();
     if (!clientId) {
       setVesselOptions([]);
       return;
@@ -128,6 +136,7 @@ export default function QuotationWizard() {
         q_vessel: query,
         q_so: "",
       });
+      if (!vesselsGuardRef.current.isLatest(token)) return;
       const { vessels } = normalizeQuotationOptions(result);
       setVesselOptions(
         ensureSelectedOption(vessels, vesselId, (id) => ({
@@ -136,6 +145,7 @@ export default function QuotationWizard() {
         }))
       );
     } catch (error) {
+      if (!vesselsGuardRef.current.isLatest(token)) return;
       toast({
         title: "Error",
         description: extractNarviQuotationError(error, "Failed to load vessels."),
@@ -144,7 +154,7 @@ export default function QuotationWizard() {
         isClosable: true,
       });
     } finally {
-      setOptionsLoading(false);
+      if (vesselsGuardRef.current.isLatest(token)) setOptionsLoading(false);
     }
   };
 
@@ -461,7 +471,7 @@ export default function QuotationWizard() {
         {step === 0 && (
           <VStack align="stretch" spacing={4}>
             <Field label="Client">
-              <SimpleSearchableSelect
+              <SearchableSelect
                 value={clientId}
                 fallbackDisplay={formatClientOption(selectedClientRef.current)}
                 onChange={handleClientChange}
@@ -505,7 +515,7 @@ export default function QuotationWizard() {
                       <Text fontSize="sm" mb={2} fontWeight="600">
                         Origin
                       </Text>
-                      <SimpleSearchableSelect
+                      <SearchableSelect
                         value={scenario.origin}
                         fallbackDisplay={scenario.origin}
                         onChange={(value) => handleOriginChange(scenario.key, value || "")}
@@ -695,7 +705,7 @@ export default function QuotationWizard() {
                 </Text>
               </Field>
               <Field label="Vessel">
-                <SimpleSearchableSelect
+                <SearchableSelect
                   value={vesselId}
                   onChange={(value) => setVesselId(value || "")}
                   options={vesselOptions}

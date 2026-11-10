@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { createLatestGuard } from "../../../utils/searchableSelect";
 import { getShippingOrderOptionsApi } from "../../../api/shippingOrders";
 import {
   Box,
@@ -14,7 +15,7 @@ import {
   useColorModeValue,
 } from "@chakra-ui/react";
 import { Link } from "react-router-dom";
-import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
+import SearchableSelect from "../../../components/forms/SearchableSelect";
 import ShippingOrderAttachmentsField from "../../../components/shipping-order/ShippingOrderAttachmentsField";
 import ShippingOrderCiplFilesField from "../../../components/shipping-order/ShippingOrderCiplFilesField";
 import { useClientVesselFilterOptions } from "../../../hooks/useClientVesselFilterOptions";
@@ -61,15 +62,20 @@ export default function ShippingOrderFormFields({
   const [locationOptions, setLocationOptions] = useState([]);
   const [isLoadingDestOptions, setIsLoadingDestOptions] = useState(false);
 
+  const destGuardRef = useRef(createLatestGuard());
   const loadDestinationOptions = (q_destination = "", q_location = "") => {
+    const token = destGuardRef.current.next();
     setIsLoadingDestOptions(true);
     getShippingOrderOptionsApi({ q_destination, q_location })
       .then(({ destinations, locations }) => {
+        if (!destGuardRef.current.isLatest(token)) return;
         setDestinationOptions(destinations);
         setLocationOptions(locations);
       })
       .catch(() => { })
-      .finally(() => setIsLoadingDestOptions(false));
+      .finally(() => {
+        if (destGuardRef.current.isLatest(token)) setIsLoadingDestOptions(false);
+      });
   };
 
   useEffect(() => {
@@ -177,7 +183,7 @@ export default function ShippingOrderFormFields({
         <Flex gap="4" flexWrap="wrap">
           <FormControl flex="1" minW="220px">
             <FormLabel>Person in Charge</FormLabel>
-            <SimpleSearchableSelect
+            <SearchableSelect
               value={formData.pic_new}
               onChange={(value) =>
                 setFormData((prev) => ({ ...prev, pic_new: value }))
@@ -195,7 +201,7 @@ export default function ShippingOrderFormFields({
           </FormControl>
           <FormControl flex="1" isRequired minW="260px">
             <FormLabel>Client</FormLabel>
-            <SimpleSearchableSelect
+            <SearchableSelect
               value={formData.client_id}
               onChange={(value) =>
                 setFormData((prev) => {
@@ -237,7 +243,7 @@ export default function ShippingOrderFormFields({
                 </Button>
               )}
             </Flex>
-            <SimpleSearchableSelect
+            <SearchableSelect
               value={formData.vessel_id}
               onChange={(value) => {
                 const selected = vesselOptions.find((v) => String(v.id) === String(value));
@@ -271,7 +277,7 @@ export default function ShippingOrderFormFields({
           <FormControl flex="1" isRequired minW="260px">
             <FormLabel>Destination Type</FormLabel>
             {/* Custom list instead of a native <select>: its options rendered blank in Chrome */}
-            <SimpleSearchableSelect
+            <SearchableSelect
               value={formData.destination_type || ""}
               onChange={(value) =>
                 setFormData((prev) =>
@@ -302,7 +308,7 @@ export default function ShippingOrderFormFields({
               </FormLabel>
               {formData.destination_type === "port_country" ||
               formData.destination_type === "airport_country" ? (
-                <SimpleSearchableSelect
+                <SearchableSelect
                   value={formData.destination}
                   onChange={(value) =>
                     setFormData((prev) => ({ ...prev, destination: value }))
@@ -354,7 +360,7 @@ export default function ShippingOrderFormFields({
           {formData.destination_type && (
             <FormControl flex="1" minW="260px">
               <FormLabel>Country</FormLabel>
-              <SimpleSearchableSelect
+              <SearchableSelect
                 value={formData.country_id}
                 onChange={(value) => {
                   setFormData((prev) => ({
@@ -586,7 +592,7 @@ export default function ShippingOrderFormFields({
         <Flex gap="4" flexWrap="wrap">
           <FormControl flex="1" minW="260px" isDisabled>
             <FormLabel>Quotation</FormLabel>
-            <SimpleSearchableSelect
+            <SearchableSelect
               value={formData.quotation_id}
               onChange={(value) =>
                 setFormData((prev) => {

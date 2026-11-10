@@ -29,7 +29,7 @@ import {
 import { MdAdd, MdArrowBack, MdDelete } from "react-icons/md";
 import { useHistory, useParams } from "react-router-dom";
 import Card from "components/card/Card";
-import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import SearchableSelect from "components/forms/SearchableSelect";
 import {
   createNarviQuotation,
   extractNarviQuotationError,
@@ -76,6 +76,7 @@ import {
   resolveLineStatus,
   resolveLineStatusOptions,
 } from "./quotationUtils";
+import { createLatestGuard } from "../../../utils/searchableSelect";
 
 function LabelCell({ children, bordered = true, bg: bgProp, accentLabel = false, ...props }) {
   const accentBg = useColorModeValue("orange.100", "orange.800");
@@ -169,6 +170,8 @@ export default function QuotationForm() {
 
   const autoSaveTimerRef = useRef(null);
   const lineSearchTimerRef = useRef({});
+  const lineLoadTokensRef = useRef({});
+  const headerLoadGuardRef = useRef(createLatestGuard());
   const headerSearchTimerRef = useRef(null);
   const saveQueueRef = useRef(Promise.resolve());
   const isReadyToSaveRef = useRef(false);
@@ -361,9 +364,12 @@ export default function QuotationForm() {
       if (requestKey === lastHeaderOptionsKeyRef.current) return;
       lastHeaderOptionsKeyRef.current = requestKey;
 
+      const headerToken = headerLoadGuardRef.current.next();
       setHeaderOptionsLoading(true);
       try {
         const result = await getNarviQuotationOptions(payload);
+        // A newer search was started while this one was in flight: drop this response
+        if (!headerLoadGuardRef.current.isLatest(headerToken)) return;
         const hasClient = Boolean(payload.client_id);
         const hasVessel = Boolean(payload.vessel_id);
 
@@ -421,6 +427,7 @@ export default function QuotationForm() {
         setVesselOptions(nextVesselOptions);
         setSoOptions(nextSoOptions);
       } catch (error) {
+        if (!headerLoadGuardRef.current.isLatest(headerToken)) return;
         toast({
           title: "Error",
           description: extractNarviQuotationError(error, "Failed to load options."),
@@ -429,7 +436,7 @@ export default function QuotationForm() {
           isClosable: true,
         });
       } finally {
-        setHeaderOptionsLoading(false);
+        if (headerLoadGuardRef.current.isLatest(headerToken)) setHeaderOptionsLoading(false);
       }
     },
     [toast]
@@ -496,9 +503,13 @@ export default function QuotationForm() {
       if (lastLineOptionsKeyRef.current[requestKey]) return;
       lastLineOptionsKeyRef.current[requestKey] = true;
 
+      const lineToken = (lineLoadTokensRef.current[lineIndex] = (lineLoadTokensRef.current[lineIndex] || 0) + 1);
+      const isLatestLineLoad = () => lineLoadTokensRef.current[lineIndex] === lineToken;
       setLineOptionsLoading((prev) => ({ ...prev, [lineIndex]: true }));
       try {
         const result = await getNarviQuotationLineOptions(linePayload);
+        // Ignore responses of searches that were superseded while in flight
+        if (!isLatestLineLoad()) return;
         showLineOptionsWarnings(result);
 
         const nextLines = linesRef.current.map((line, i) => {
@@ -572,6 +583,7 @@ export default function QuotationForm() {
         linesRef.current = nextLines;
         setLines(nextLines);
       } catch (error) {
+        if (!isLatestLineLoad()) return;
         toast({
           title: "Error",
           description: extractNarviQuotationError(error, "Failed to load line options."),
@@ -580,7 +592,7 @@ export default function QuotationForm() {
           isClosable: true,
         });
       } finally {
-        setLineOptionsLoading((prev) => ({ ...prev, [lineIndex]: false }));
+        if (isLatestLineLoad()) setLineOptionsLoading((prev) => ({ ...prev, [lineIndex]: false }));
       }
     },
     [showLineOptionsWarnings, toast]
@@ -588,7 +600,6 @@ export default function QuotationForm() {
 
   const scheduleLineSearch = (lineIndex, field, value) => {
     const q = String(value ?? "").trim();
-    if (!q) return;
     const timerKey = `${lineIndex}:${field}`;
     if (lineSearchTimerRef.current[timerKey]) {
       clearTimeout(lineSearchTimerRef.current[timerKey]);
@@ -604,7 +615,6 @@ export default function QuotationForm() {
 
   const scheduleHeaderSearch = (field, value) => {
     const q = String(value ?? "").trim();
-    if (!q) return;
 
     if (headerSearchTimerRef.current) clearTimeout(headerSearchTimerRef.current);
     headerSearchTimerRef.current = setTimeout(() => {
@@ -1165,7 +1175,7 @@ export default function QuotationForm() {
       </LabelCell>
       <ValueCell bordered={false} accent minH="34px" px={2} py={1}>
         {type === "currency" ? (
-          <SimpleSearchableSelect
+          <SearchableSelect
             value={header.currency_id}
             onChange={(val) => {
               syncHeader((p) => ({ ...p, currency_id: val || "" }));
@@ -1292,7 +1302,7 @@ export default function QuotationForm() {
                     >
                       <LabelCell bordered={false}>Client</LabelCell>
                       <ValueCell bordered={false} bg="transparent">
-                        <SimpleSearchableSelect
+                        <SearchableSelect
                           value={header.client_id}
                           onChange={handleClientChange}
                           options={clientOptions}
@@ -1306,7 +1316,7 @@ export default function QuotationForm() {
 
                       <LabelCell bordered={false}>Vessel</LabelCell>
                       <ValueCell bordered={false} bg="transparent">
-                        <SimpleSearchableSelect
+                        <SearchableSelect
                           value={header.vessel_id}
                           onChange={handleVesselChange}
                           options={vesselOptions}
@@ -1322,7 +1332,7 @@ export default function QuotationForm() {
 
                       <LabelCell bordered={false}>SO ID</LabelCell>
                       <ValueCell bordered={false} bg="transparent">
-                        <SimpleSearchableSelect
+                        <SearchableSelect
                           value={header.sale_order_id}
                           onChange={(val) => {
                             if (val) rememberSoSelection(val);
@@ -1492,7 +1502,7 @@ export default function QuotationForm() {
                                 />
                               </Td>
                               <Td {...lineSearchDataCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
-                                <SimpleSearchableSelect
+                                <SearchableSelect
                                   value={line.location}
                                   onChange={(val) => updateLineCascade(index, "location", val || "")}
                                   options={line.locationOptions}
@@ -1505,7 +1515,7 @@ export default function QuotationForm() {
                                 />
                               </Td>
                               <Td {...lineSearchDataCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
-                                <SimpleSearchableSelect
+                                <SearchableSelect
                                   value={line.agent_id}
                                   onChange={(val) => updateLineCascade(index, "agent_id", val || "")}
                                   options={line.agentOptions}
@@ -1519,7 +1529,7 @@ export default function QuotationForm() {
                                 />
                               </Td>
                               <Td {...lineSearchDataCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
-                                <SimpleSearchableSelect
+                                <SearchableSelect
                                   value={line.rate_list_id}
                                   onChange={(val) => updateLineCascade(index, "rate_list_id", val || "")}
                                   options={line.rateItemOptions}
@@ -1545,7 +1555,7 @@ export default function QuotationForm() {
                                 </Text>
                               </Td>
                               <Td {...lineSearchDataCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
-                                <SimpleSearchableSelect
+                                <SearchableSelect
                                   value={line.currency_override_id}
                                   onChange={(val) =>
                                     updateLineField(index, "currency_override_id", val || "")
@@ -1654,7 +1664,7 @@ export default function QuotationForm() {
                                 />
                               </Td>
                               <Td {...lineSearchDataCell} {...lineReadOnlyCell}>
-                                <SimpleSearchableSelect
+                                <SearchableSelect
                                   value={lineStatus}
                                   onChange={(val) =>
                                     updateLineField(index, "status", val || "quote_current")

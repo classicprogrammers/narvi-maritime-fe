@@ -3,8 +3,7 @@ import { Badge, Box, Input, Text, useColorModeValue, useToast } from "@chakra-ui
 import LedgerCompactAuto from "components/ledger/LedgerCompactAuto";
 import { useLedgerDueDatePreview, useLedgerRoePreview } from "hooks/useLedgerPreviews";
 import { describeDueRule } from "utils/ledgerAutoFields";
-import RemoteSearchableSelect from "components/forms/RemoteSearchableSelect";
-import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import SearchableSelect from "components/forms/SearchableSelect";
 import LedgerEntryTable from "components/ledger/LedgerEntryTable";
 import { getShippingOrders } from "api/shippingOrders";
 import { checkLedgerCostInvoices, createLedgerCost } from "api/ledgerCost";
@@ -246,7 +245,7 @@ export default function CostEntryTableView({ currencies }) {
     switch (column.type) {
       case "so":
         return (
-          <RemoteSearchableSelect
+          <SearchableSelect
             value={value === "" || value == null ? "" : String(value)}
             onChange={(v) => handleSoPick(row.key, v)}
             options={soOptions}
@@ -260,7 +259,7 @@ export default function CostEntryTableView({ currencies }) {
         );
       case "agent":
         return (
-          <SimpleSearchableSelect
+          <SearchableSelect
             value={value === "" || value == null ? "" : String(value)}
             onChange={(v) => {
               const picked = agents.options.find((a) => String(a.id) === String(v));
@@ -291,7 +290,7 @@ export default function CostEntryTableView({ currencies }) {
         );
       case "currency":
         return (
-          <SimpleSearchableSelect
+          <SearchableSelect
             value={value === "" || value == null ? "" : String(value)}
             onChange={(v) => onChange(v || "")}
             options={currencies || []}

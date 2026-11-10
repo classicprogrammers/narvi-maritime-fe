@@ -3,7 +3,7 @@ import { getLedgerAgentOptions } from "api/ledgerShared";
 
 const DEBOUNCE_MS = 300;
 
-// Agent picker data for the ledger screens. Use with SimpleSearchableSelect serverSideSearch.
+// Agent picker data for the ledger screens. Use with SearchableSelect serverSideSearch.
 // pin(option): keep the current value in the list even when a search does not return it.
 export default function useLedgerAgentOptions({ limit = 30 } = {}) {
   const [fetched, setFetched] = useState([]);

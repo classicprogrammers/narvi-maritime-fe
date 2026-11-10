@@ -18,7 +18,7 @@ import {
   useToast,
 } from "@chakra-ui/react";
 import { MdClear, MdDownload, MdPictureAsPdf, MdRefresh, MdSearch } from "react-icons/md";
-import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import SearchableSelect from "components/forms/SearchableSelect";
 import { getAgentRateTariffOptionsApi, getAgentRateTariffsApi, withFetchAll } from "../../../api/rate";
 import FetchAllSwitch from "./FetchAllSwitch";
 import { buildPdfModel } from "./rateListPdf";
@@ -318,7 +318,7 @@ export default function AgentTariffs() {
       >
         {field(
           "Agent Name",
-          <SimpleSearchableSelect
+          <SearchableSelect
             {...selectProps}
             value={filters.agent_id}
             options={withSelectedOption(options.agents, filters.agent_id, pins.agent_id)}
@@ -331,7 +331,7 @@ export default function AgentTariffs() {
         )}
         {field(
           "Location",
-          <SimpleSearchableSelect
+          <SearchableSelect
             {...selectProps}
             value={filters.location}
             options={withSelectedOption(options.locations, filters.location, pins.location)}
@@ -344,7 +344,7 @@ export default function AgentTariffs() {
         )}
         {field(
           "Group Name",
-          <SimpleSearchableSelect
+          <SearchableSelect
             {...selectProps}
             value={filters.import_group}
             options={withSelectedOption(options.groups, filters.import_group, pins.import_group)}
@@ -357,7 +357,7 @@ export default function AgentTariffs() {
         )}
         {field(
           "Active",
-          <SimpleSearchableSelect
+          <SearchableSelect
             {...selectProps}
             value={filters.active}
             options={ACTIVE_OPTIONS}

@@ -20,7 +20,7 @@ import {
   useToast,
 } from "@chakra-ui/react";
 import { ChevronDownIcon, ChevronUpIcon } from "@chakra-ui/icons";
-import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import SearchableSelect from "components/forms/SearchableSelect";
 import {
   DISTANCE_SOURCE_LABELS,
   extractCarbonErrorMessage,
@@ -254,7 +254,7 @@ export default function ShippingOrderEmissions() {
           h="40px"
           borderRadius="10px"
         />
-        <SimpleSearchableSelect
+        <SearchableSelect
           value={clientId}
           onChange={(value) => {
             setPage(1);
@@ -264,7 +264,7 @@ export default function ShippingOrderEmissions() {
           placeholder="Client"
           size="md"
         />
-        <SimpleSearchableSelect
+        <SearchableSelect
           value={vesselId}
           onChange={(value) => {
             setPage(1);

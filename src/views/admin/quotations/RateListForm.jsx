@@ -40,7 +40,7 @@ import {
 } from "react-icons/md";
 import Card from "components/card/Card";
 import { CellWithAssignMenu } from "components/forms/AssignToRowsBelowMenu";
-import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import SearchableSelect from "components/forms/SearchableSelect";
 import { createRateListApi, deleteRateListApi, updateRateListApi } from "../../../api/rate";
 import { getAllChargeCategoriesApi } from "../../../api/chargeCategory";
 import { SHIPMENT_TYPE_OPTIONS, shipmentTypeLabel } from "../../../utils/shipmentType";
@@ -1215,7 +1215,7 @@ export default function RateListForm() {
                         ? assignCell(
                             index,
                             "client_id",
-                            <SimpleSearchableSelect
+                            <SearchableSelect
                               value={row.client_id}
                               onChange={(value) => updateRow(index, "client_id", value || "")}
                               options={getClientOptionsForRow(index)}
@@ -1234,7 +1234,7 @@ export default function RateListForm() {
                       {assignCell(
                         index,
                         "currency_id",
-                        <SimpleSearchableSelect
+                        <SearchableSelect
                           value={row.currency_id}
                           onChange={(value) => updateRow(index, "currency_id", value || "")}
                           options={getCurrencyOptionsForRow(index)}
@@ -1260,7 +1260,7 @@ export default function RateListForm() {
                       {assignCell(
                         index,
                         "agent_id",
-                        <SimpleSearchableSelect
+                        <SearchableSelect
                           value={row.agent_id}
                           onChange={(value) => updateRow(index, "agent_id", value || "")}
                           options={getAgentOptionsForRow(index)}

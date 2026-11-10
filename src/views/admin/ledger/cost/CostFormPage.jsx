@@ -27,8 +27,7 @@ import {
   MdInfoOutline,
 } from "react-icons/md";
 import { useHistory, useParams } from "react-router-dom";
-import RemoteSearchableSelect from "components/forms/RemoteSearchableSelect";
-import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import SearchableSelect from "components/forms/SearchableSelect";
 import LedgerDuplicateInvoiceModal from "components/ledger/LedgerDuplicateInvoiceModal";
 import { getShippingOrders } from "api/shippingOrders";
 import {
@@ -739,7 +738,7 @@ export default function CostFormPage() {
 
                 <FormControl isRequired>
                   <FormLabel {...fieldLabelProps}>SO Number</FormLabel>
-                  <RemoteSearchableSelect
+                  <SearchableSelect
                     value={form.sale_order_id === "" ? "" : String(form.sale_order_id)}
                     onChange={handleSoChange}
                     options={soOptions}
@@ -753,7 +752,7 @@ export default function CostFormPage() {
 
                 <FormControl isRequired>
                   <FormLabel {...fieldLabelProps}>Agent</FormLabel>
-                  <SimpleSearchableSelect
+                  <SearchableSelect
                     value={form.agent_id === "" ? "" : String(form.agent_id)}
                     onChange={handleAgentChange}
                     options={agentOptions}
@@ -792,7 +791,7 @@ export default function CostFormPage() {
 
                 <FormControl>
                   <FormLabel {...fieldLabelProps}>Currency</FormLabel>
-                  <SimpleSearchableSelect
+                  <SearchableSelect
                     value={form.currency_id === "" ? "" : String(form.currency_id)}
                     onChange={handleCurrencyChange}
                     options={currencies}

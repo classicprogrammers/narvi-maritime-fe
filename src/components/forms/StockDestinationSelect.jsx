@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import RemoteSearchableSelect from "./RemoteSearchableSelect";
+import SearchableSelect from "./SearchableSelect";
 import { getTextOptionIdByValue } from "../../utils/m2oFieldOptions";
 
 /**
@@ -73,7 +73,7 @@ export default function StockDestinationSelect({
         : autoWidthMax;
 
     return (
-        <RemoteSearchableSelect
+        <SearchableSelect
             value={normalizedValue || null}
             onChange={handleChange}
             options={selectOptions}

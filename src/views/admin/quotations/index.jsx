@@ -27,7 +27,7 @@ import {
 import { MdAdd, MdClose, MdDelete, MdEdit, MdFilterList, MdSearch } from "react-icons/md";
 import { useHistory } from "react-router-dom";
 import Card from "components/card/Card";
-import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import SearchableSelect from "components/forms/SearchableSelect";
 import {
   deleteNarviQuotation,
   extractNarviQuotationError,
@@ -50,6 +50,7 @@ import {
   quotationStateLabel,
   quotationVesselName,
 } from "./quotationUtils";
+import { createLatestGuard } from "../../../utils/searchableSelect";
 
 const DEFAULT_FILTERS = {
   client_id: "",
@@ -156,6 +157,7 @@ export default function Quotations() {
   const [vesselOptions, setVesselOptions] = useState([]);
   const [filterOptionsLoading, setFilterOptionsLoading] = useState(false);
   const filterSearchTimer = useRef(null);
+  const filterLoadGuardRef = useRef(createLatestGuard());
   const filtersRef = useRef(filters);
   filtersRef.current = filters;
 
@@ -187,6 +189,7 @@ export default function Quotations() {
 
   const loadFilterOptions = useCallback(
     async (overrides = {}) => {
+      const token = filterLoadGuardRef.current.next();
       setFilterOptionsLoading(true);
       try {
         const current = filtersRef.current;
@@ -201,11 +204,14 @@ export default function Quotations() {
           q_vessel: overrides.q_vessel ?? "",
           q_so: "",
         });
+        // Drop responses of searches that were superseded while in flight
+        if (!filterLoadGuardRef.current.isLatest(token)) return;
         setClientOptions(normalizeClientOptions(result.client_options ?? []));
         setVesselOptions(
           clientId ? normalizeVesselOptions(result.vessel_options ?? []) : []
         );
       } catch (error) {
+        if (!filterLoadGuardRef.current.isLatest(token)) return;
         toast({
           title: "Error",
           description: extractNarviQuotationError(error, "Failed to load filter options."),
@@ -214,7 +220,7 @@ export default function Quotations() {
           isClosable: true,
         });
       } finally {
-        setFilterOptionsLoading(false);
+        if (filterLoadGuardRef.current.isLatest(token)) setFilterOptionsLoading(false);
       }
     },
     [toast]
@@ -222,7 +228,6 @@ export default function Quotations() {
 
   const scheduleFilterSearch = (field, value) => {
     const q = String(value ?? "").trim();
-    if (!q) return;
     if (filterSearchTimer.current) clearTimeout(filterSearchTimer.current);
     filterSearchTimer.current = setTimeout(() => {
       const current = filtersRef.current;
@@ -506,7 +511,7 @@ export default function Quotations() {
                     <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                       Client
                     </Text>
-                    <SimpleSearchableSelect
+                    <SearchableSelect
                       value={filters.client_id}
                       onChange={(value) => handleFilterChange("client_id", value || "")}
                       options={clientOptions}
@@ -524,7 +529,7 @@ export default function Quotations() {
                     <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                       Vessel
                     </Text>
-                    <SimpleSearchableSelect
+                    <SearchableSelect
                       value={filters.vessel_id}
                       onChange={(value) => handleFilterChange("vessel_id", value || "")}
                       options={vesselOptions}

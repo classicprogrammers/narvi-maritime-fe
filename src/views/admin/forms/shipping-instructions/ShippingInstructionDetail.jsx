@@ -36,8 +36,7 @@ import {
   useToast,
 } from "@chakra-ui/react";
 import { MdPrint, MdSettings, MdHelpOutline, MdPictureAsPdf, MdDownload } from "react-icons/md";
-import SimpleSearchableSelect from "../../../../components/forms/SimpleSearchableSelect";
-import DeletableOptionCombobox from "../../../../components/forms/DeletableOptionCombobox";
+import SearchableSelect from "../../../../components/forms/SearchableSelect";
 import MasterOptionPicker from "../../../../components/forms/MasterOptionPicker";
 import DmyDateInput, { formatIsoToDisplayDate, formatDateForApi } from "../../../../components/forms/DmyDateInput";
 import { showFormSaveError } from "../../../../utils/formApiErrors";
@@ -2706,7 +2705,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           {formData.jobNo || "—"}
                         </Text>
                       ) : (
-                        <SimpleSearchableSelect
+                        <SearchableSelect
                           id="siNo"
                           value={formData.siNo}
                           onChange={async (val) => {
@@ -2785,7 +2784,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       >
                         SIC NO:
                       </FormLabel>
-                      <SimpleSearchableSelect
+                      <SearchableSelect
                         id="sicNo"
                         value={formData.sicNo}
                         onChange={async (val) => {
@@ -2850,7 +2849,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         {isDeliveryForm ? "SO NO:" : "JOB NO:"}
                       </FormLabel>
                       {isDeliveryForm ? (
-                        <SimpleSearchableSelect
+                        <SearchableSelect
                           id="siNo-delivery"
                           value={formData.siNo}
                           onChange={async (val) => {
@@ -2954,7 +2953,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           {...getUpdateSelectProps("shippedBy", handleUpdatedShippedByOption)}
                         />
                       ) : (
-                        <DeletableOptionCombobox
+                        <SearchableSelect
+                          allowFreeText
                           id="shipped-by-field"
                           value={formData.shippedBy}
                           onChange={(nextVal) => {
@@ -3200,7 +3200,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       >
                         PIC:
                       </FormLabel>
-                      <SimpleSearchableSelect
+                      <SearchableSelect
                         id="pic"
                         value={formData.pic}
                         onChange={(val) => {
@@ -3260,7 +3260,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         <FormLabel htmlFor="job-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
                           JOB NO :
                         </FormLabel>
-                        <SimpleSearchableSelect
+                        <SearchableSelect
                           id="job-delivery"
                           value={formData.siNo}
                           onChange={async (val) => {
@@ -3351,7 +3351,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                             {...getUpdateSelectProps("pic", handleUpdatedPicOption)}
                           />
                         ) : (
-                          <SimpleSearchableSelect
+                          <SearchableSelect
                             id="pic-delivery"
                             value={formData.pic}
                             onChange={(val) => {
@@ -3444,7 +3444,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                             {...getUpdateSelectProps("to", handleUpdatedLocationOption)}
                           />
                         ) : (
-                          <DeletableOptionCombobox
+                          <SearchableSelect
+                            allowFreeText
                             id="location-delivery"
                             value={formData.to}
                             onChange={(nextVal) => {
@@ -3809,7 +3810,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                   <FormLabel htmlFor="selectAgent" fontWeight="bold" m={0}>
                     Select Agent:
                   </FormLabel>
-                  <SimpleSearchableSelect
+                  <SearchableSelect
                     id="selectAgent"
                     value={formData.selectAgent}
                     onChange={async (val) => {
@@ -3872,7 +3873,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                   <FormLabel htmlFor="selectConsignee" fontWeight="bold" m={0}>
                     Select Consignee:
                   </FormLabel>
-                  <SimpleSearchableSelect
+                  <SearchableSelect
                     id="selectConsignee"
                     value={formData.selectConsignee}
                     onChange={async (val) => {

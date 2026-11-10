@@ -4,8 +4,8 @@ import { getSuppliers } from "../api/suppliers";
 import vesselsAPI from "../api/vessels";
 import { getShippingOrders } from "../api/shippingOrders";
 import { mergeSelectedIntoOptions, mergeShippingOrderLists } from "../utils/stockFormSelectUtils";
+import { createLatestGuard } from "../utils/searchableSelect";
 import { resolveShippingOrderSoIdApiParam, getSoNumberSearchKeyFromField } from "../utils/shippingOrderListState";
-import { REMOTE_SEARCHABLE_SELECT_PROPS } from "../components/forms/RemoteSearchableSelect";
 
 const PAGE_SIZE = 50;
 const DEBOUNCE_MS = 300;
@@ -71,7 +71,11 @@ export default function useStockFormRemoteSelects({
     return true;
   }, []);
 
+  const clientGuardRef = useRef(createLatestGuard());
+  const supplierGuardRef = useRef(createLatestGuard());
+
   const fetchClients = useCallback(async (search = "") => {
+    const token = clientGuardRef.current.next();
     setIsLoadingClients(true);
     try {
       const result = await getCustomersApi({
@@ -79,14 +83,16 @@ export default function useStockFormRemoteSelects({
         page: 1,
         page_size: PAGE_SIZE,
       });
+      if (!clientGuardRef.current.isLatest(token)) return;
       const list = Array.isArray(result?.customers) ? result.customers : [];
       setClientSearchOptions(list);
       clientsReadyRef.current = true;
     } catch (error) {
+      if (!clientGuardRef.current.isLatest(token)) return;
       console.error("Stock form client search failed:", error);
       setClientSearchOptions([]);
     } finally {
-      setIsLoadingClients(false);
+      if (clientGuardRef.current.isLatest(token)) setIsLoadingClients(false);
     }
   }, []);
 
@@ -120,6 +126,7 @@ export default function useStockFormRemoteSelects({
   );
 
   const fetchSuppliers = useCallback(async (search = "") => {
+    const token = supplierGuardRef.current.next();
     setIsLoadingSuppliers(true);
     try {
       const result = await getSuppliers({
@@ -127,14 +134,16 @@ export default function useStockFormRemoteSelects({
         page: 1,
         page_size: PAGE_SIZE,
       });
+      if (!supplierGuardRef.current.isLatest(token)) return;
       const list = Array.isArray(result?.suppliers) ? result.suppliers : [];
       setSupplierSearchOptions(list);
       suppliersReadyRef.current = true;
     } catch (error) {
+      if (!supplierGuardRef.current.isLatest(token)) return;
       console.error("Stock form supplier search failed:", error);
       setSupplierSearchOptions([]);
     } finally {
-      setIsLoadingSuppliers(false);
+      if (supplierGuardRef.current.isLatest(token)) setIsLoadingSuppliers(false);
     }
   }, []);
 
@@ -277,10 +286,6 @@ export default function useStockFormRemoteSelects({
       const normalizedClientId = clientId == null || clientId === "" ? "" : String(clientId);
       const cacheKey = normalizedClientId || "__all__";
       const trimmedSearch = String(search ?? "").trim();
-      const activeSearch = (lastVesselSearchByKeyRef.current[cacheKey] ?? "").trim();
-      if (trimmedSearch === "" && activeSearch !== "") {
-        return;
-      }
       const requestKey = `${cacheKey}:${trimmedSearch}`;
       if (vesselFetchKeyRef.current[cacheKey] === requestKey) {
         return;
@@ -337,7 +342,9 @@ export default function useStockFormRemoteSelects({
         return;
       }
       if (last !== "") {
+        // Search was reset: reload this client's vessels (client_id is always sent)
         lastVesselSearchByKeyRef.current[cacheKey] = "";
+        scheduleVesselSearch(clientId, "");
         return;
       }
       if (vesselReadyKeysRef.current.has(cacheKey)) {
@@ -368,9 +375,8 @@ export default function useStockFormRemoteSelects({
       if (Array.isArray(cached)) {
         base = cached;
       } else if (normalizedClientId) {
-        base = masterVessels.filter(
-          (vessel) => String(vessel.client_id ?? vessel.client ?? "") === normalizedClientId
-        );
+        // Not loaded yet: don't flash a cached list that is replaced once the client's vessels arrive
+        base = [];
       } else {
         base = masterVessels;
       }
@@ -379,9 +385,19 @@ export default function useStockFormRemoteSelects({
     [vesselOptionsByClientId, masterVessels]
   );
 
-  const stockFormSelectDropdownProps = {
-    ...REMOTE_SEARCHABLE_SELECT_PROPS,
-  };
+  // Kept for existing spreads; SearchableSelect defaults already suit remote lists.
+  // True until this client's vessel list has been fetched (or while a fetch is running)
+  const isVesselListLoading = useCallback(
+    (clientId) => {
+      const normalizedClientId = clientId == null || clientId === "" ? "" : String(clientId);
+      const cacheKey = normalizedClientId || "__all__";
+      if (isLoadingVesselByClient[cacheKey]) return true;
+      return Boolean(normalizedClientId) && !Array.isArray(vesselOptionsByClientId[cacheKey]);
+    },
+    [isLoadingVesselByClient, vesselOptionsByClientId]
+  );
+
+  const stockFormSelectDropdownProps = {};
 
   // First page on mount; typing in a field still triggers debounced search requests.
   useEffect(() => {
@@ -414,6 +430,7 @@ export default function useStockFormRemoteSelects({
     handleVesselSearchChange,
     ensureVesselsLoadedForClient,
     isLoadingVesselByClient,
+    isVesselListLoading,
     stockFormSelectDropdownProps,
   };
 }

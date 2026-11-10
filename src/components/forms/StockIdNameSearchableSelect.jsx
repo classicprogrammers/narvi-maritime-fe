@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import RemoteSearchableSelect from "./RemoteSearchableSelect";
+import SearchableSelect from "./SearchableSelect";
 import { mergeStockIdNameOptions, resolveStockLocationOptionId } from "../../utils/stockLocationOptions";
 
 export default function StockIdNameSearchableSelect({
@@ -54,7 +54,7 @@ export default function StockIdNameSearchableSelect({
             : (normalizedSelectedName ? `legacy-${normalizedSelectedName}` : null);
 
     return (
-        <RemoteSearchableSelect
+        <SearchableSelect
             value={selectValue}
             onChange={handleChange}
             options={selectOptions}

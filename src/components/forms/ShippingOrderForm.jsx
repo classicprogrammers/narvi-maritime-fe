@@ -31,6 +31,7 @@ import { useEntitySelects } from '../../hooks/useEntitySelects';
 import { useUser } from '../../redux/hooks/useUser';
 import { createNewShippingOrder, updateExistingShippingOrder } from '../../redux/slices/shippingOrdersSlice';
 import SearchableSelect from './SearchableSelect';
+import { getVesselsForClient, mergeSelectedVesselOption } from '../../views/admin/shipping-order/shippingOrderUtils';
 
 const ShippingOrderForm = ({
     isOpen,
@@ -428,7 +429,15 @@ const ShippingOrderForm = ({
                                             value={formData.vessel_id}
                                             onChange={(value) => handleInputChange('vessel_id', value)}
                                             placeholder="Select vessel..."
-                                            options={vessels}
+                                            options={
+                                                formData.partner_id
+                                                    ? mergeSelectedVesselOption(
+                                                        getVesselsForClient(vessels, formData.partner_id),
+                                                        formData.vessel_id,
+                                                        vessels
+                                                    )
+                                                    : vessels
+                                            }
                                             isLoading={isLoadingVessels}
                                             onSearch={searchVessels}
                                             displayKey="name"

@@ -46,7 +46,7 @@ import { useHistory, useLocation, useParams } from "react-router-dom";
 import vesselsAPI from "../../../api/vessels";
 import { refreshMasterData, MASTER_KEYS } from "../../../utils/masterDataCache";
 import { useMasterData } from "../../../hooks/useMasterData";
-import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
+import SearchableSelect from "../../../components/forms/SearchableSelect";
 import LongTextModalField from "../../../components/forms/LongTextModalField";
 import { CellWithAssignMenu } from "../../../components/forms/AssignToRowsBelowMenu";
 import {
@@ -1086,7 +1086,7 @@ export default function VesselForm() {
                             border={rowErrors.client_id ? "1px solid" : "none"}
                             borderColor="red.400"
                           >
-                            <SimpleSearchableSelect
+                            <SearchableSelect
                               value={row.client_id}
                               onChange={(value) => handleInputChange(rowIndex, "client_id", value)}
                               options={clientOptions}

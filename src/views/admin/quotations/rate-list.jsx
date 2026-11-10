@@ -55,7 +55,7 @@ import {
   MdSearch,
   MdUnfoldMore,
 } from "react-icons/md";
-import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import SearchableSelect from "components/forms/SearchableSelect";
 import { deleteRateListApi, getRateListApi, getRateListOptionsApi, withFetchAll } from "../../../api/rate";
 import FetchAllSwitch from "./FetchAllSwitch";
 import {
@@ -1297,7 +1297,7 @@ export default function RateList() {
           >
             {renderFilterField(
               "Rate Type",
-              <SimpleSearchableSelect
+              <SearchableSelect
                 value={filters.rate_type}
                 onChange={(value) => handleFilterChange("rate_type", value || "")}
                 options={filterOptions.rateTypes}
@@ -1322,7 +1322,7 @@ export default function RateList() {
             )}
             {renderFilterField(
               "Client",
-              <SimpleSearchableSelect
+              <SearchableSelect
                 value={filters.client_id}
                 onChange={(value) => handleFilterChange("client_id", value || "")}
                 options={filterOptions.clients}
@@ -1338,7 +1338,7 @@ export default function RateList() {
             )}
             {renderFilterField(
               "Agent",
-              <SimpleSearchableSelect
+              <SearchableSelect
                 value={filters.agent_id}
                 onChange={(value) => handleFilterChange("agent_id", value || "")}
                 options={filterOptions.agents}
@@ -1354,7 +1354,7 @@ export default function RateList() {
             )}
             {renderFilterField(
               "Group Name",
-              <SimpleSearchableSelect
+              <SearchableSelect
                 value={filters.import_group}
                 onChange={(value) => handleFilterChange("import_group", value || "")}
                 options={filterOptions.groups}
@@ -1370,7 +1370,7 @@ export default function RateList() {
             )}
             {renderFilterField(
               "Rate Name",
-              <SimpleSearchableSelect
+              <SearchableSelect
                 value={filters.rate_name}
                 onChange={(value) => handleFilterChange("rate_name", value || "")}
                 options={filterOptions.rateNames}
@@ -1386,7 +1386,7 @@ export default function RateList() {
             )}
             {renderFilterField(
               "Currency",
-              <SimpleSearchableSelect
+              <SearchableSelect
                 value={filters.currency_id}
                 onChange={(value) => handleFilterChange("currency_id", value || "")}
                 options={filterOptions.currencies}
@@ -1402,7 +1402,7 @@ export default function RateList() {
             )}
             {renderFilterField(
               "Charge Category",
-              <SimpleSearchableSelect
+              <SearchableSelect
                 value={filters.charge_category_id}
                 onChange={(value) => handleFilterChange("charge_category_id", value || "")}
                 options={chargeCategoryOptions}
@@ -1415,7 +1415,7 @@ export default function RateList() {
             )}
             {renderFilterField(
               "Shipment Type",
-              <SimpleSearchableSelect
+              <SearchableSelect
                 value={filters.shipment_type}
                 onChange={(value) => handleFilterChange("shipment_type", value || "")}
                 options={SHIPMENT_TYPE_OPTIONS}
@@ -1428,7 +1428,7 @@ export default function RateList() {
             )}
             {renderFilterField(
               "Active",
-              <SimpleSearchableSelect
+              <SearchableSelect
                 value={filters.active}
                 onChange={(value) => handleFilterChange("active", value || "")}
                 options={BOOLEAN_FILTER_OPTIONS}
@@ -1441,7 +1441,7 @@ export default function RateList() {
             )}
             {renderFilterField(
               "In Tariff",
-              <SimpleSearchableSelect
+              <SearchableSelect
                 value={filters.incl_in_tariff}
                 onChange={(value) => handleFilterChange("incl_in_tariff", value || "")}
                 options={BOOLEAN_FILTER_OPTIONS}

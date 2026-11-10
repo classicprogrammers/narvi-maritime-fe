@@ -54,7 +54,7 @@ import { useHistory } from "react-router-dom";
 import { bulkUpdateLedgerInvoices, cancelLedgerInvoice, getLedgerInvoices } from "api/ledgerInvoice";
 import { useMasterData } from "hooks/useMasterData";
 import { getCached, MASTER_KEYS } from "utils/masterDataCache";
-import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import SearchableSelect from "components/forms/SearchableSelect";
 import LedgerBulkEditModal from "components/ledger/LedgerBulkEditModal";
 import LedgerRecordViewModal from "components/ledger/LedgerRecordViewModal";
 import LedgerDateRangeFilterModal from "components/ledger/LedgerDateRangeFilterModal";
@@ -865,7 +865,7 @@ export default function LedgerInvoice() {
                 </FormControl>
                 <FormControl>
                   <FormLabel {...filterLabelProps}>Client</FormLabel>
-                  <SimpleSearchableSelect
+                  <SearchableSelect
                     value={clientId}
                     onChange={(value) => {
                       setClientId(value || "");
@@ -878,7 +878,7 @@ export default function LedgerInvoice() {
                 </FormControl>
                 <FormControl>
                   <FormLabel {...filterLabelProps}>Destination</FormLabel>
-                  <SimpleSearchableSelect
+                  <SearchableSelect
                     value={destination}
                     onChange={(value) => setDestination(value || "")}
                     options={destinationOptions}

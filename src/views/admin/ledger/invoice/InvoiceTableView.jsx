@@ -1,7 +1,6 @@
 import React, { useCallback, useRef, useState } from "react";
 import { Badge, Input, Text, useColorModeValue, useToast } from "@chakra-ui/react";
-import RemoteSearchableSelect from "components/forms/RemoteSearchableSelect";
-import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import SearchableSelect from "components/forms/SearchableSelect";
 import LedgerCompactAuto from "components/ledger/LedgerCompactAuto";
 import LedgerEntryTable from "components/ledger/LedgerEntryTable";
 import { createLedgerInvoice } from "api/ledgerInvoice";
@@ -197,7 +196,7 @@ export default function InvoiceTableView({
     const { values } = row;
     if (column.type === "so") {
       return (
-        <RemoteSearchableSelect
+        <SearchableSelect
           size="sm"
           value={values.sale_order_id === "" ? "" : String(values.sale_order_id)}
           onChange={(v) => handleSoChange(row, v)}
@@ -212,7 +211,7 @@ export default function InvoiceTableView({
     }
     if (column.type === "currency") {
       return (
-        <SimpleSearchableSelect
+        <SearchableSelect
           size="sm"
           value={values.currency_id === "" ? "" : String(values.currency_id)}
           onChange={(v) => handleCurrencyChange(row, v)}

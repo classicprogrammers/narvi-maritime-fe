@@ -13,7 +13,7 @@ import {
   useToast,
   VStack,
 } from "@chakra-ui/react";
-import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import SearchableSelect from "components/forms/SearchableSelect";
 import {
   acceptNarviQuotation,
   extractNarviQuotationError,
@@ -27,6 +27,7 @@ import {
   quotationClientId,
   quotationVesselId,
 } from "./quotationUtils";
+import { createLatestGuard } from "../../../utils/searchableSelect";
 
 export default function AcceptModal({ isOpen, onClose, quotation, onAccepted }) {
   const toast = useToast();
@@ -37,12 +38,15 @@ export default function AcceptModal({ isOpen, onClose, quotation, onAccepted }) 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const searchTimer = useRef(null);
+  const loadGuard = useRef(createLatestGuard());
 
   const loadSo = async (query = "") => {
     const clientId = quotationClientId(quotation);
     const vesselId = quotationVesselId(quotation);
+    const token = loadGuard.current.next();
     if (!clientId) {
       setSoOptions([]);
+      setLoadingOptions(false);
       return;
     }
     setLoadingOptions(true);
@@ -56,12 +60,14 @@ export default function AcceptModal({ isOpen, onClose, quotation, onAccepted }) 
         q_client: "",
         q_vessel: "",
       });
+      if (!loadGuard.current.isLatest(token)) return;
       setSoOptions(normalizeQuotationOptions(result).saleOrders);
     } catch (loadError) {
+      if (!loadGuard.current.isLatest(token)) return;
       setSoOptions([]);
       setError(extractNarviQuotationError(loadError, "Failed to load sale orders."));
     } finally {
-      setLoadingOptions(false);
+      if (loadGuard.current.isLatest(token)) setLoadingOptions(false);
     }
   };
 
@@ -124,7 +130,7 @@ export default function AcceptModal({ isOpen, onClose, quotation, onAccepted }) 
               </Text>
             ) : null}
             <BoxField label="Sale order">
-              <SimpleSearchableSelect
+              <SearchableSelect
                 value={soId}
                 onChange={(value) => {
                   setSoId(value || "");

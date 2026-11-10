@@ -72,7 +72,7 @@ import {
 } from "api/clientLogin";
 import { getCustomersForSelect } from "api/entitySelects";
 import { parseNamedClients } from "utils/portalClients";
-import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import SearchableSelect from "components/forms/SearchableSelect";
 import { useUser } from "../../../redux/hooks/useUser";
 
 function ClientLoginClientsCell({ record }) {
@@ -968,7 +968,7 @@ export default function Users() {
           <ModalBody>
             <FormControl mb="12px" isRequired>
               <FormLabel>Clients</FormLabel>
-              <SimpleSearchableSelect
+              <SearchableSelect
                 value=""
                 onChange={(value) => {
                   const nextId = Number(value);

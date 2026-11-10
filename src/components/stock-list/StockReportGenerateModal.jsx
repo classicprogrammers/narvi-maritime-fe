@@ -40,7 +40,7 @@ import {
     MdPeople,
     MdPictureAsPdf,
 } from "react-icons/md";
-import RemoteSearchableSelect from "../forms/RemoteSearchableSelect";
+import SearchableSelect from "../forms/SearchableSelect";
 import StockIdNameSearchableSelect from "../forms/StockIdNameSearchableSelect";
 import StockOriginCountrySelect from "../forms/StockOriginCountrySelect";
 import StockValueInput from "../forms/StockValueInput";
@@ -141,7 +141,7 @@ function optionLabel(option, fallbackPrefix) {
 
 function ReportSelect({ value, onChange, options, placeholder, onSearchChange, isLoading, fallbackPrefix = "Option", nameOnly = false }) {
     return (
-        <RemoteSearchableSelect
+        <SearchableSelect
             value={value}
             onChange={onChange}
             options={options || []}

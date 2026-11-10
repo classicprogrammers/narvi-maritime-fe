@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { createLatestGuard } from "../../../utils/searchableSelect";
 import {
   Alert,
   AlertIcon,
@@ -16,7 +17,7 @@ import {
   Text,
   useToast,
 } from "@chakra-ui/react";
-import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import SearchableSelect from "components/forms/SearchableSelect";
 import { createRateListApi, getRateListApi, getRateListOptionsApi } from "../../../api/rate";
 import { buildRateCreatePayload, mapRateItemToFormRow } from "../../../utils/rateListForm";
 import { filterNewRates } from "../../../utils/rateCopy";
@@ -39,15 +40,19 @@ export default function CopyTariffModal({ isOpen, onClose, sourceClient, filterP
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const timerRef = useRef(null);
 
+  const clientsGuardRef = useRef(createLatestGuard());
   const loadClients = useCallback(async (query = "") => {
+    const token = clientsGuardRef.current.next();
     setClientsLoading(true);
     try {
       const result = await getRateListOptionsApi(query ? { q_client: query } : {});
+      if (!clientsGuardRef.current.isLatest(token)) return;
       setClients(normalizeIdOptions(result.client_options));
     } catch (error) {
+      if (!clientsGuardRef.current.isLatest(token)) return;
       setClients([]);
     } finally {
-      setClientsLoading(false);
+      if (clientsGuardRef.current.isLatest(token)) setClientsLoading(false);
     }
   }, []);
 
@@ -167,7 +172,7 @@ export default function CopyTariffModal({ isOpen, onClose, sourceClient, filterP
           </Text>
           <FormControl>
             <FormLabel fontSize="sm">New client name</FormLabel>
-            <SimpleSearchableSelect
+            <SearchableSelect
               size="sm"
               prefillOnFocus={false}
               value={targetId}

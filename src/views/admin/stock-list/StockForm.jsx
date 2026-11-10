@@ -58,7 +58,7 @@ import { useStock } from "../../../redux/hooks/useStock";
 import { useUser } from "../../../redux/hooks/useUser";
 import { useMasterData } from "../../../hooks/useMasterData";
 import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
-import RemoteSearchableSelect from "../../../components/forms/RemoteSearchableSelect";
+import SearchableSelect from "../../../components/forms/SearchableSelect";
 import StockOriginCountrySelect from "../../../components/forms/StockOriginCountrySelect";
 import StockIdNameSearchableSelect from "../../../components/forms/StockIdNameSearchableSelect";
 import StockValueInput from "../../../components/forms/StockValueInput";
@@ -405,6 +405,7 @@ export default function StockForm() {
     // Sync form rows from cache (read getCached inside effect + refs to avoid infinite loop from useMasterData refs)
     const hasSyncedClientsRef = React.useRef(false);
     const hasSyncedVesselsRef = React.useRef(false);
+    const hasSyncedSupplierRef = React.useRef(false);
 
     useEffect(() => {
         const uniqueClientIds = [...new Set(formRows.map((row) => row.client).filter(Boolean).map((clientId) => String(clientId)))];
@@ -482,7 +483,6 @@ export default function StockForm() {
         if (!formRows.length || !hasSyncedClientsRef.current) return;
         const clientsList = getCached(MASTER_KEYS.CLIENTS) ?? [];
         if (!clientsList.length) return;
-        const hasSyncedSupplierRef = React.useRef(false);
         if (hasSyncedSupplierRef.current) return;
         hasSyncedSupplierRef.current = true;
         setFormRows((prevRows) =>
@@ -1588,7 +1588,7 @@ export default function StockForm() {
                                         </Td>
                                     )}
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
-                                        <RemoteSearchableSelect
+                                        <SearchableSelect
                                             value={row.client}
                                             onChange={(value) => handleInputChange(rowIndex, "client", value)}
                                             options={clients}
@@ -1611,7 +1611,7 @@ export default function StockForm() {
                                             placement="top"
                                         >
                                             <Box w="100%">
-                                                <RemoteSearchableSelect
+                                                <SearchableSelect
                                                     value={row.vessel}
                                                     onChange={(value) => handleInputChange(rowIndex, "vessel", value)}
                                                     options={isBlankStockRelation(row.client) ? [] : getVesselOptionsForClient(row.client)}
@@ -1630,7 +1630,7 @@ export default function StockForm() {
                                         </Tooltip>
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
-                                        <RemoteSearchableSelect
+                                        <SearchableSelect
                                             value={row.pic ? String(row.pic) : null}
                                             onChange={(value) => {
                                                 // Store the PIC ID
@@ -1649,7 +1649,7 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
-                                        <RemoteSearchableSelect
+                                        <SearchableSelect
                                             value={row.supplier}
                                             onChange={(value) => handleInputChange(rowIndex, "supplier", value)}
                                             options={clients}
@@ -2008,7 +2008,7 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
-                                        <RemoteSearchableSelect
+                                        <SearchableSelect
                                             value={row.currency}
                                             onChange={(value) => handleInputChange(rowIndex, "currency", value)}
                                             options={currencies}

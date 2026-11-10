@@ -64,7 +64,7 @@ import {
   MdVisibility,
   MdLocalShipping,
 } from "react-icons/md";
-import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
+import SearchableSelect from "../../../components/forms/SearchableSelect";
 import { getNarviQuotations } from "../../../api/narviQuotation";
 import { useMasterData } from "../../../hooks/useMasterData";
 import { useStockAttachmentsGallery } from "../../../hooks/useStockAttachmentsGallery";
@@ -320,7 +320,8 @@ const SoNumberTab = () => {
 
   // Pagination state
   const [page, setPage] = useState(savedState.page);
-  const [pageSize] = useState(80);
+  // The list endpoint costs ~60 ms per row, so a smaller page keeps opening and returning to the list fast
+  const [pageSize] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [hasNext, setHasNext] = useState(false);
@@ -1688,7 +1689,7 @@ const SoNumberTab = () => {
             <Box flex="1" minW="200px">
               <FormControl>
                 <FormLabel fontSize="xs" mb="1">Search by Client</FormLabel>
-                <SimpleSearchableSelect
+                <SearchableSelect
                   value={searchClientFilter}
                   onChange={setSearchClientFilter}
                   options={clients || []}
@@ -1705,7 +1706,7 @@ const SoNumberTab = () => {
             <Box flex="1" minW="200px">
               <FormControl>
                 <FormLabel fontSize="xs" mb="1">Search by Vessel</FormLabel>
-                <SimpleSearchableSelect
+                <SearchableSelect
                   value={searchVesselFilter}
                   onChange={setSearchVesselFilter}
                   options={vessels || []}
@@ -1722,7 +1723,7 @@ const SoNumberTab = () => {
             <Box flex="1" minW="200px">
               <FormControl>
                 <FormLabel fontSize="xs" mb="1">Search by Country</FormLabel>
-                <SimpleSearchableSelect
+                <SearchableSelect
                   value={searchCountryFilter}
                   onChange={setSearchCountryFilter}
                   options={countries || []}
@@ -1753,7 +1754,7 @@ const SoNumberTab = () => {
             <Box flex="1" minW="200px">
               <FormControl>
                 <FormLabel fontSize="xs" mb="1">Search by PIC</FormLabel>
-                <SimpleSearchableSelect
+                <SearchableSelect
                   value={searchPicFilter}
                   onChange={(value) => {
                     setSearchPicFilter(value != null && value !== "" ? value : null);
@@ -2149,7 +2150,7 @@ const SoNumberTab = () => {
                 <FormLabel fontSize="xs" mb="1" color={textColor}>
                   {activeFilters.activeClient ? "Active Client — select client (optional)" : "Ready for Invoice Client — select client (optional)"}
                 </FormLabel>
-                <SimpleSearchableSelect
+                <SearchableSelect
                   value={activeFilters.activeClient ? activeClientFilter : readyForInvoiceClientFilter}
                   onChange={(value) => {
                     const next = value != null && value !== "" ? value : null;

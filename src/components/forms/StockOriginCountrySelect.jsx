@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import DeletableOptionCombobox from "./DeletableOptionCombobox";
+import SearchableSelect from "./SearchableSelect";
 import { normalizeStockOriginHubText } from "../../utils/stockOriginHubText";
 import { mergeStockIdNameOptions } from "../../utils/stockLocationOptions";
 
@@ -45,7 +45,8 @@ export default function StockOriginCountrySelect({
     })();
 
     return (
-        <DeletableOptionCombobox
+        <SearchableSelect
+            allowFreeText
             value={normalizedValue}
             onChange={(nextValue, option) => {
                 const text = normalizeStockOriginHubText(nextValue || "");

@@ -37,7 +37,7 @@ import { MdEdit, MdFileDownload, MdRefresh, MdSearch, MdVisibility } from "react
 import { useHistory, useLocation } from "react-router-dom";
 import clientShippingOrdersApi from "api/clientShippingOrders";
 import clientVesselApi from "api/clientVessel";
-import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import SearchableSelect from "components/forms/SearchableSelect";
 import ShippingOrderStockList from "components/shipping-order/ShippingOrderStockList";
 import { useStockAttachmentsGallery } from "hooks/useStockAttachmentsGallery";
 import { formatShippingOrderDestinationDisplay, formatServiceBoatPaidByLabel, isDeliveryViaServiceBoat, isCostConfirmedToClient, normalizeOrder, toDateOnly } from "views/admin/shipping-order/shippingOrderUtils";
@@ -866,7 +866,7 @@ function ClientShippingOrders() {
             <Text fontSize="xs" mb={1} color={muted}>
               Vessel
             </Text>
-            <SimpleSearchableSelect
+            <SearchableSelect
               size="sm"
               value={filters.vessel}
               onChange={(value) => setFilters((prev) => ({ ...prev, vessel: value || "" }))}
@@ -898,7 +898,7 @@ function ClientShippingOrders() {
             <Text fontSize="xs" mb={1} color={muted}>
               Destination
             </Text>
-            <SimpleSearchableSelect
+            <SearchableSelect
               size="sm"
               value={filters.destination}
               onChange={(value) => {

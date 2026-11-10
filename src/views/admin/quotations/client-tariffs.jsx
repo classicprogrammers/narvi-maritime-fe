@@ -32,7 +32,7 @@ import {
   MdRefresh,
   MdSearch,
 } from "react-icons/md";
-import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import SearchableSelect from "components/forms/SearchableSelect";
 import {
   getClientRateTariffOptionsApi,
   getClientRateTariffsApi,
@@ -485,7 +485,7 @@ export default function ClientTariffs() {
       >
         {field(
           "Client Name",
-          <SimpleSearchableSelect
+          <SearchableSelect
             {...selectProps}
             value={filters.client_id}
             options={withSelectedOption(options.clients, filters.client_id, pins.client_id)}
@@ -498,7 +498,7 @@ export default function ClientTariffs() {
         )}
         {field(
           "Location",
-          <SimpleSearchableSelect
+          <SearchableSelect
             {...selectProps}
             value={filters.location}
             options={withSelectedOption(options.locations, filters.location, pins.location)}
@@ -511,7 +511,7 @@ export default function ClientTariffs() {
         )}
         {field(
           "Agent",
-          <SimpleSearchableSelect
+          <SearchableSelect
             {...selectProps}
             value={filters.agent_id}
             options={withSelectedOption(options.agents, filters.agent_id, pins.agent_id)}
@@ -524,7 +524,7 @@ export default function ClientTariffs() {
         )}
         {field(
           "Shipment Type",
-          <SimpleSearchableSelect
+          <SearchableSelect
             {...selectProps}
             value={filters.shipment_type}
             options={shipmentTypeOptions}
@@ -535,7 +535,7 @@ export default function ClientTariffs() {
         )}
         {field(
           "In Tariff",
-          <SimpleSearchableSelect
+          <SearchableSelect
             {...selectProps}
             value={filters.incl_in_tariff}
             options={options.inTariff}

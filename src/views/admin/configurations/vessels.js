@@ -58,7 +58,7 @@ import { useHistory } from "react-router-dom";
 import vesselsAPI from "../../../api/vessels";
 import { refreshMasterData, MASTER_KEYS } from "../../../utils/masterDataCache";
 import { useMasterData } from "../../../hooks/useMasterData";
-import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
+import SearchableSelect from "../../../components/forms/SearchableSelect";
 import { VESSEL_TYPE_SELEC_OPTIONS } from "../../../constants/vesselTypeSelectOptions";
 
 const VESSELS_LIST_STORAGE_KEY = "narvi_vessels_list_state";
@@ -628,7 +628,7 @@ export default function Vessels() {
               )}
             </InputGroup>
             <Box minW={{ base: "100%", md: "300px" }} maxW={{ base: "100%", md: "350px" }}>
-              <SimpleSearchableSelect
+              <SearchableSelect
                 value={clientFilter}
                 onChange={handleClientFilterChange}
                 options={clientOptions}

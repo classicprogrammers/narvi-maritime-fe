@@ -106,7 +106,7 @@ function collectShippingOrdersFromStockItems(items = []) {
     return Array.from(map.values());
 }
 import { useMasterData } from "../../../hooks/useMasterData";
-import RemoteSearchableSelect from "../../../components/forms/RemoteSearchableSelect";
+import SearchableSelect from "../../../components/forms/SearchableSelect";
 import { clampIsoDateToToday, getLocalTodayIso } from "../../../components/forms/DmyDateInput";
 import StockOriginCountrySelect from "../../../components/forms/StockOriginCountrySelect";
 import { CellWithAssignMenu } from "../../../components/forms/AssignToRowsBelowMenu";
@@ -4155,7 +4155,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
 
             return wrapAssign(
                 <Box position="relative" zIndex={10}>
-                    <RemoteSearchableSelect
+                    <SearchableSelect
                         value={currentValue ? String(currentValue) : ""}
                         onChange={(val) => handleChange(val)}
                         options={soOptions}
@@ -4248,7 +4248,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
                     : resolveStockLocationOptionId(item.narvi_stock_destination);
             return wrapAssign(
                 <Box position="relative" zIndex={10} minW="160px">
-                    <RemoteSearchableSelect
+                    <SearchableSelect
                         value={selectId != null && selectId !== "" ? String(selectId) : null}
                         onChange={(id) => {
                             const match = findOptionById("destination", stockDestinationOptions, id);
@@ -4311,7 +4311,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
 
             return wrapAssign(
                 <Box position="relative" zIndex={10} minW="160px">
-                    <RemoteSearchableSelect
+                    <SearchableSelect
                         value={selectId != null && selectId !== "" ? String(selectId) : null}
                         onChange={(id) => {
                             const match = findOptionById(locationConfig.pinKey, locationConfig.options, id);
@@ -5120,7 +5120,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                                     Filter by Vessel
                                                                 </Text>
                                                             </Flex>
-                                                            <RemoteSearchableSelect
+                                                            <SearchableSelect
                                                                 value={vesselViewVessel}
                                                                 onChange={(value) => setVesselViewVessel(value)}
                                                                 options={vesselViewVesselOptions}
@@ -5144,7 +5144,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                                     Filter by Client
                                                                 </Text>
                                                             </Flex>
-                                                            <RemoteSearchableSelect
+                                                            <SearchableSelect
                                                                 value={vesselViewClient}
                                                                 onChange={(value) => {
                                                                     setVesselViewClient(value);
@@ -5258,7 +5258,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
-                                                                    <RemoteSearchableSelect
+                                                                    <SearchableSelect
                                                                         value={clientViewClient}
                                                                         onChange={(value) => {
                                                                             setClientViewClient(value);
@@ -5292,7 +5292,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
-                                                                    <RemoteSearchableSelect
+                                                                    <SearchableSelect
                                                                         value={clientViewVesselFilter}
                                                                         onChange={(value) => setClientViewVesselFilter(value)}
                                                                         options={clientViewVesselOptions}
@@ -5323,7 +5323,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                     <Box w="220px" minW="200px">
                                                         <HStack spacing="1">
                                                             <Box flex="1">
-                                                                <RemoteSearchableSelect
+                                                                <SearchableSelect
                                                                     value={clientViewViaHub1 != null ? String(clientViewViaHub1) : null}
                                                                     onChange={(id) => {
                                                                         const match = findOptionById("viaHub1", stockViaHub1Options, id);
@@ -5392,7 +5392,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                                 </Button>
                                                             )}
                                                         </Flex>
-                                                        <RemoteSearchableSelect
+                                                        <SearchableSelect
                                                             value={clientViewClient}
                                                             onChange={(value) => {
                                                                 setClientViewClient(value);
@@ -5640,7 +5640,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
-                                                                    <RemoteSearchableSelect
+                                                                    <SearchableSelect
                                                                         value={stockViewClient}
                                                                         onChange={(value) => {
                                                                             setStockViewClient(value);
@@ -5674,7 +5674,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
-                                                                    <RemoteSearchableSelect
+                                                                    <SearchableSelect
                                                                         value={stockViewVessel}
                                                                         onChange={(value) => setStockViewVessel(value)}
                                                                         options={stockViewVesselOptions}
@@ -5851,7 +5851,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
-                                                                    <RemoteSearchableSelect
+                                                                    <SearchableSelect
                                                                         value={stockViewViaHub1 != null ? String(stockViewViaHub1) : null}
                                                                         onChange={(id) => {
                                                                             const match = findOptionById("viaHub1", stockViaHub1Options, id);
@@ -5887,7 +5887,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
-                                                                    <RemoteSearchableSelect
+                                                                    <SearchableSelect
                                                                         value={stockViewViaHub2 != null ? String(stockViewViaHub2) : null}
                                                                         onChange={(id) => {
                                                                             const match = findOptionById("viaHub2", stockViaHub2Options, id);
@@ -5923,7 +5923,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
-                                                                    <RemoteSearchableSelect
+                                                                    <SearchableSelect
                                                                         value={stockViewApDestination != null ? String(stockViewApDestination) : null}
                                                                         onChange={(id) => {
                                                                             const match = findOptionById("apDestination", stockNarviApDestinationOptions, id);
@@ -5959,7 +5959,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
-                                                                    <RemoteSearchableSelect
+                                                                    <SearchableSelect
                                                                         value={stockViewOriginFilterId != null ? String(stockViewOriginFilterId) : null}
                                                                         onChange={(id) => {
                                                                             if (id == null || id === "") {
@@ -6456,7 +6456,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                     <Box w="220px" minW="200px">
                                                         <HStack spacing="1">
                                                             <Box flex="1">
-                                                                <RemoteSearchableSelect
+                                                                <SearchableSelect
                                                                     value={clientViewClient}
                                                                     onChange={(value) => {
                                                                         setClientViewClient(value);
@@ -6490,7 +6490,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                     <Box w="220px" minW="200px">
                                                         <HStack spacing="1">
                                                             <Box flex="1">
-                                                                <RemoteSearchableSelect
+                                                                <SearchableSelect
                                                                     value={clientViewVesselFilter}
                                                                     onChange={(value) => setClientViewVesselFilter(value)}
                                                                     options={clientViewVesselOptions}
@@ -6521,7 +6521,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                     <Box w="220px" minW="200px">
                                                         <HStack spacing="1">
                                                             <Box flex="1">
-                                                                <RemoteSearchableSelect
+                                                                <SearchableSelect
                                                                     value={clientViewViaHub1 != null ? String(clientViewViaHub1) : null}
                                                                     onChange={(id) => {
                                                                         const match = findOptionById("viaHub1", stockViaHub1Options, id);

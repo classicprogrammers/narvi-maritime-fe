@@ -48,7 +48,7 @@ import {
 } from "react-icons/md";
 import clientStockApi from "api/clientStock";
 import clientVesselApi from "api/clientVessel";
-import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import SearchableSelect from "components/forms/SearchableSelect";
 import {
   getClientPortalStatusOptionsForActiveFilter,
   formatStockStatusLabel,
@@ -1247,7 +1247,7 @@ function ClientStockReportView() {
           </GridItem>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Vessel</Text>
-            <SimpleSearchableSelect
+            <SearchableSelect
               size="sm"
               value={filters.vessel}
               onChange={(value) => handleFilterChange("vessel", value || "")}
@@ -1275,7 +1275,7 @@ function ClientStockReportView() {
           </GridItem>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Hub 1</Text>
-            <SimpleSearchableSelect
+            <SearchableSelect
               size="sm"
               value={filters.location}
               onChange={(value) => handleFilterChange("location", value || "")}
@@ -1287,7 +1287,7 @@ function ClientStockReportView() {
           </GridItem>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Destination</Text>
-            <SimpleSearchableSelect
+            <SearchableSelect
               size="sm"
               value={filters.destination}
               onChange={(value) => handleFilterChange("destination", value || "")}
