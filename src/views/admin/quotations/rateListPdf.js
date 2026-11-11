@@ -166,8 +166,13 @@ export async function buildRateListPdf(model) {
   const tableStartY = CONTENT_TOP + 38;
 
   let letterheadDataUrl = null;
+  // A page gets the letterhead once: drawing it again would paint over the text already on the page.
+  const letterheadPages = new Set();
   const drawLetterhead = () => {
     if (!letterheadDataUrl) return;
+    const pageNumber = doc.internal.getCurrentPageInfo().pageNumber;
+    if (letterheadPages.has(pageNumber)) return;
+    letterheadPages.add(pageNumber);
     doc.addImage(letterheadDataUrl, "JPEG", 0, 0, pageWidth, pageHeight);
   };
 

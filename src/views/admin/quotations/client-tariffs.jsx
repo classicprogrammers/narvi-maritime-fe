@@ -11,10 +11,6 @@ import {
   Input,
   InputGroup,
   InputLeftElement,
-  Menu,
-  MenuButton,
-  MenuItem,
-  MenuList,
   SimpleGrid,
   Text,
   Textarea,
@@ -24,7 +20,6 @@ import {
   useToast,
 } from "@chakra-ui/react";
 import {
-  MdArrowDropDown,
   MdClear,
   MdContentCopy,
   MdDownload,
@@ -45,6 +40,7 @@ import {
   shipmentTypeScope,
   shipmentTypeSheetLabel,
 } from "../../../utils/shipmentType";
+import { buildTypeSections } from "../../../utils/clientTariffSections";
 import CopyTariffModal from "./CopyTariffModal";
 import FetchAllSwitch from "./FetchAllSwitch";
 import TariffTable from "./TariffTable";
@@ -88,6 +84,7 @@ const SCREEN_COLUMNS = [
 
 // Columns of the grouped PDF, where the Standard / If Apply split is the section heading instead.
 const GROUPED_COLUMNS = COLUMNS.filter((column) => column.key !== "charge_category_label");
+const PDF_TYPE_LABELS = { export: "Export", import_dob: "Import + DOB" };
 
 function parseOptions(result) {
   return {
@@ -233,9 +230,11 @@ export default function ClientTariffs() {
   };
 
   // Exports always cover every matching record, whatever the page / fetch all setting.
-  const fetchAllRows = useCallback(async () => {
+  const fetchAllRows = useCallback(async (shipmentType) => {
     const result = await getClientRateTariffsApi({
       ...filterParams,
+      // The Export / Import + DOB PDFs name their own type, whatever the Shipment Type filter shows.
+      ...(shipmentType ? { shipment_type: shipmentType } : {}),
       search: debouncedSearch || undefined,
       fetch_all: true,
     });
@@ -254,7 +253,6 @@ export default function ClientTariffs() {
 
   // Export and Import / DOB tariffs are separate documents: the selected type names the PDF and file.
   const typeScope = shipmentTypeScope(filters.shipment_type);
-  const pdfTitle = typeScope ? `Client Tariff - ${typeScope}` : "Client Tariff";
   const fileSuffix = typeScope ? `-${filters.shipment_type.replace("_", "-")}` : "";
 
   const sourceClient = useMemo(
@@ -313,34 +311,27 @@ export default function ClientTariffs() {
     }
   }, [fetchAllRows, filters.agent_id, filters.shipment_type, remarks, fileSuffix, typeScope, toast]);
 
-  const handleExportPdf = useCallback(async (grouped) => {
+  // Export and Import + DOB are two separate PDFs: Standard charges first, then If Apply charges.
+  const handleExportPdf = useCallback(async (shipmentType) => {
+    const typeLabel = PDF_TYPE_LABELS[shipmentType];
     setIsPdfLoading(true);
     try {
-      const all = await fetchAllRows();
+      const all = await fetchAllRows(shipmentType);
       if (!all.length) {
-        toast({ title: "No tariffs to export", status: "info", duration: 3000, isClosable: true });
+        toast({ title: `No ${typeLabel} tariffs to export`, status: "info", duration: 3000, isClosable: true });
         return;
       }
       const consignee = await loadConsigneeText(filters.agent_id);
-      const isIfApply = (row) => /if_apply/.test(String(row.charge_category || ""));
-      const sections = grouped
-        ? [
-            { title: "Standard Charges", rows: all.filter((row) => !isIfApply(row)) },
-            { title: "If Apply Charges", rows: all.filter(isIfApply) },
-          ]
-            .filter((section) => section.rows.length > 0)
-            .map(({ title, rows: sectionRows }) => ({
-              title,
-              head: GROUPED_COLUMNS.map((column) => column.label),
-              body: toTableRows(GROUPED_COLUMNS, sectionRows),
-            }))
-        : [{ head: COLUMNS.map((column) => column.label), body: toTableRows(COLUMNS, all) }];
       const model = buildPdfModel({
-        title: pdfTitle,
+        title: `Client Tariff - ${typeLabel}`,
         scopeLabel: exportScope,
-        sections,
+        sections: buildTypeSections({
+          rows: all,
+          head: GROUPED_COLUMNS.map((column) => column.label),
+          toBody: (sectionRows) => toTableRows(GROUPED_COLUMNS, sectionRows),
+        }),
         footerBlocks: [consignee, remarks.trim() ? `Remarks: ${remarks.trim()}` : ""],
-        filenameSuffix: `${grouped ? "client-tariff-grouped" : "client-tariff"}${fileSuffix}`,
+        filenameSuffix: `client-tariff-${shipmentType.replace("_", "-")}`,
       });
       await openPdf(model);
     } catch (error) {
@@ -354,7 +345,7 @@ export default function ClientTariffs() {
     } finally {
       setIsPdfLoading(false);
     }
-  }, [fetchAllRows, filters.agent_id, remarks, exportScope, pdfTitle, fileSuffix, openPdf, toast]);
+  }, [fetchAllRows, filters.agent_id, remarks, exportScope, openPdf, toast]);
 
   const selectProps = { size: "sm", bg: inputBg, color: inputText, borderColor, prefillOnFocus: false };
 
@@ -440,24 +431,29 @@ export default function ClientTariffs() {
               Copy General Rates
             </Button>
           </Tooltip>
-          <Menu>
-            <MenuButton
-              as={Button}
-              size="sm"
-              colorScheme="blue"
-              leftIcon={<Icon as={MdPictureAsPdf} />}
-              rightIcon={<Icon as={MdArrowDropDown} />}
-              isLoading={isPdfLoading}
-              loadingText="Generating..."
-              isDisabled={meta.totalCount === 0}
-            >
-              Export PDF
-            </MenuButton>
-            <MenuList>
-              <MenuItem onClick={() => handleExportPdf(false)}>All charges</MenuItem>
-              <MenuItem onClick={() => handleExportPdf(true)}>Grouped: Standard / If Apply</MenuItem>
-            </MenuList>
-          </Menu>
+          <Button
+            size="sm"
+            colorScheme="blue"
+            leftIcon={<Icon as={MdPictureAsPdf} />}
+            onClick={() => handleExportPdf("export")}
+            isLoading={isPdfLoading}
+            loadingText="Generating..."
+            isDisabled={meta.totalCount === 0}
+          >
+            Export PDF
+          </Button>
+          <Button
+            size="sm"
+            colorScheme="blue"
+            variant="outline"
+            leftIcon={<Icon as={MdPictureAsPdf} />}
+            onClick={() => handleExportPdf("import_dob")}
+            isLoading={isPdfLoading}
+            loadingText="Generating..."
+            isDisabled={meta.totalCount === 0}
+          >
+            Import + DOB PDF
+          </Button>
           <Button
             size="sm"
             colorScheme="green"
