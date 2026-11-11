@@ -51,6 +51,11 @@ import useJobTitleOptions from "hooks/useJobTitleOptions";
 import { applyJobTitleIdsToPayload, mapJobTitleFieldsFromContact } from "utils/contactJobTitle";
 import { mergeM2OOptions } from "utils/m2oFieldOptions";
 import { useCustomer } from "redux/hooks/useCustomer";
+import { useSaveWithDraft } from "hooks/useSaveWithDraft";
+import { useResumeDraft } from "hooks/useResumeDraft";
+import { makeDraftId } from "utils/drafts";
+import { resolveDraftSource } from "utils/draftSource";
+import { applyRegistrationDraft } from "utils/registrationDraft";
 
 
 const isValidUrl = (string) => {
@@ -281,6 +286,10 @@ function CustomerRegistration() {
 
     const [visibleVesselTypeFields, setVisibleVesselTypeFields] = React.useState(1);
 
+    const { saveWithDraft } = useSaveWithDraft();
+    const draftSessionKeyRef = React.useRef(makeDraftId());
+    const hasAppliedDraftRef = React.useRef(false);
+
     const addMoreVesselType = () => {
         if (visibleVesselTypeFields < 3) {
             setVisibleVesselTypeFields(prev => prev + 1);
@@ -427,6 +436,23 @@ function CustomerRegistration() {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editingClient?.id]);
+
+    // Resume from Drafts: overlay the draft after the client record has been applied to the form
+    const { draft: resumedDraft } = useResumeDraft(["customer"], {
+        ready: !location.state?.clientId || Boolean(editingClient),
+    });
+    React.useEffect(() => {
+        if (!resumedDraft || hasAppliedDraftRef.current) return;
+        const applied = applyRegistrationDraft({}, resumedDraft.formState);
+        if (!applied) return;
+        hasAppliedDraftRef.current = true;
+        // functional update: sees the record values queued by the effect above (fresh existingAttachments)
+        setFormData((prev) => applyRegistrationDraft(prev, resumedDraft.formState).formData);
+        setPeopleRows(applied.peopleRows);
+        setVisibleAddressFields(applied.visibleAddressFields);
+        setVisibleVesselTypeFields(applied.visibleVesselTypeFields);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [resumedDraft]);
 
     // Load vessel types on mount
     React.useEffect(() => {
@@ -844,7 +870,7 @@ function CustomerRegistration() {
                 });
             }
 
-            const doRegister = async () => registerCustomerApi({
+            const registerPayload = {
                 name: formData.name,
                 client_code: formData.client_code,
                 client_category: formData.client_category,
@@ -877,17 +903,33 @@ function CustomerRegistration() {
                 company_type: "company",
                 attachments: formData.attachments && formData.attachments.length > 0 ? formData.attachments : undefined,
                 children: children.length ? children : undefined,
-            });
-            const doUpdate = async () => updateCustomerApi(editingClient.id, {
+            };
+            const updatePayload = {
                 ...formData,
                 country_id: parseInt(formData.country_id) || null,
                 company_type_text: formData.company_type_text || "",
                 attachments: formData.attachments && formData.attachments.length > 0 ? formData.attachments : undefined,
                 attachment_to_delete: formData.attachment_to_delete && formData.attachment_to_delete.length > 0 ? formData.attachment_to_delete : undefined,
                 children: children.length ? children : undefined,
-            });
+            };
 
-            const result = editingClient ? await doUpdate() : await doRegister();
+            const draftMode = editingClient ? "update" : "create";
+            const result = await saveWithDraft({
+                module: "customer",
+                mode: draftMode,
+                recordId: editingClient?.id,
+                sessionKey: draftSessionKeyRef.current,
+                label: formData.name,
+                formState: { formData, peopleRows },
+                requests: editingClient
+                    ? [{ api: "updateCustomerApi", args: [editingClient.id, updatePayload] }]
+                    : [{ api: "registerCustomerApi", args: [registerPayload] }],
+                call: () => (editingClient
+                    ? updateCustomerApi(editingClient.id, updatePayload)
+                    : registerCustomerApi(registerPayload)),
+                isFailure: (res) => res?.result?.status !== "success",
+                ...resolveDraftSource(resumedDraft, draftMode),
+            });
 
             // Check if the API call was actually successful
             // For both register and update, check result.status === "success"

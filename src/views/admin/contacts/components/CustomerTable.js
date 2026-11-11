@@ -51,6 +51,8 @@ import {
 import Card from "components/card/Card";
 import SearchableSelect from "components/forms/SearchableSelect";
 import { useCustomer } from "redux/hooks/useCustomer";
+import { useSaveWithDraft } from "hooks/useSaveWithDraft";
+import { withActionErrorMessage } from "utils/stockDraft";
 import { formatJobTitleDisplay } from "utils/contactJobTitle";
 import { SuccessModal } from "components/modals";
 import { useMasterData } from "../../../../hooks/useMasterData";
@@ -132,6 +134,7 @@ export default function CustomerTable(props) {
     getCustomers,
   } = useCustomer();
 
+  const { saveWithDraft } = useSaveWithDraft();
   const { countries } = useMasterData();
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
@@ -466,7 +469,17 @@ export default function CustomerTable(props) {
         return;
       }
 
-      const result = await updateCustomer(editingCustomer.id, editingCustomer);
+      // Retry-only draft (the redux action swallows errors into { success: false, error })
+      const result = await saveWithDraft({
+        module: "customerInline",
+        mode: "update",
+        recordId: editingCustomer.id,
+        label: editingCustomer.name,
+        formState: null,
+        requests: [{ api: "updateCustomerApi", args: [editingCustomer.id, editingCustomer] }],
+        call: async () => withActionErrorMessage(await updateCustomer(editingCustomer.id, editingCustomer)),
+        isFailure: (res) => res?.success !== true || res.data?.result?.status !== "success",
+      });
 
       if (result.success) {
         onEditClose();

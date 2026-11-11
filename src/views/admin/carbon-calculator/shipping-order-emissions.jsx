@@ -30,6 +30,8 @@ import {
   upsertLocationDistanceApi,
 } from "api/carbon";
 import { useMasterData } from "hooks/useMasterData";
+import { useSaveWithDraft } from "hooks/useSaveWithDraft";
+import { isExplicitFailure } from "utils/draftFailure";
 
 const DONE_OPTIONS = [
   { value: "", label: "All statuses" },
@@ -75,6 +77,7 @@ function namedOptions(list) {
 
 export default function ShippingOrderEmissions() {
   const toast = useToast();
+  const { saveWithDraft } = useSaveWithDraft();
   const { clients, vessels } = useMasterData();
   const [search, setSearch] = useState("");
   const [clientId, setClientId] = useState("");
@@ -178,10 +181,21 @@ export default function ShippingOrderEmissions() {
     };
     setSavingStockId(stock.stockRecordId);
     try {
-      await setStockManualDistanceApi({
+      const payload = {
         stock_id: stock.stockRecordId,
         carbon_use_manual_distance: draft.enabled,
         carbon_manual_distance_km: draft.km,
+      };
+      // Retry-only draft
+      await saveWithDraft({
+        module: "carbonDistance",
+        mode: "update",
+        recordId: `stock-${stock.stockRecordId}`,
+        label: `Stock distance #${stock.stockRecordId}`,
+        formState: null,
+        requests: [{ api: "setStockManualDistanceApi", args: [payload] }],
+        call: () => setStockManualDistanceApi(payload),
+        isFailure: isExplicitFailure,
       });
       await refreshDetail(saleOrderId);
       toast({ title: "Stock distance saved", status: "success", duration: 2500, isClosable: true });
@@ -202,11 +216,22 @@ export default function ShippingOrderEmissions() {
     if (!legEdit) return;
     setSavingDistance(true);
     try {
-      await upsertLocationDistanceApi({
+      const payload = {
         origin_location_id: legEdit.fromLocationId,
         destination_location_id: legEdit.toLocationId,
         distance_km: legEdit.distanceKm,
         prevent_auto_calculation: legEdit.preventAutoCalculation,
+      };
+      // Retry-only draft
+      await saveWithDraft({
+        module: "carbonDistance",
+        mode: "update",
+        recordId: `route-${legEdit.fromLocationId}-${legEdit.toLocationId}`,
+        label: `Route distance ${legEdit.fromLocationId} to ${legEdit.toLocationId}`,
+        formState: null,
+        requests: [{ api: "upsertLocationDistanceApi", args: [payload] }],
+        call: () => upsertLocationDistanceApi(payload),
+        isFailure: isExplicitFailure,
       });
       await refreshDetail(legEdit.saleOrderId);
       setLegEdit(null);

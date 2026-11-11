@@ -1,3 +1,4 @@
+import { isExplicitFailure } from "utils/draftFailure";
 import React, { useEffect, useRef, useState } from "react";
 import { createLatestGuard } from "../../../utils/searchableSelect";
 import {
@@ -17,6 +18,8 @@ import {
 import { MdAdd, MdClose } from "react-icons/md";
 import { useHistory } from "react-router-dom";
 import Card from "components/card/Card";
+import { useSaveWithDraft } from "hooks/useSaveWithDraft";
+import { makeDraftId } from "utils/drafts";
 import SearchableSelect from "components/forms/SearchableSelect";
 import {
   createQuotationFromSelection,
@@ -56,6 +59,8 @@ const STEPS = ["Origin + Agent", "Rate type", "Select rates", "Review & save"];
 export default function QuotationWizard() {
   const history = useHistory();
   const toast = useToast();
+  const { saveWithDraft } = useSaveWithDraft();
+  const draftSessionKey = useRef(makeDraftId());
   const textColor = useColorModeValue("secondaryGray.900", "white");
   const borderColor = useColorModeValue("gray.200", "whiteAlpha.200");
   const cardBg = useColorModeValue("white", "gray.800");
@@ -396,7 +401,7 @@ export default function QuotationWizard() {
     if (stepError) return;
     setSaving(true);
     try {
-      const result = await createQuotationFromSelection({
+      const payload = {
         client_id: Number(clientId),
         vessel_id: Number(vesselId),
         validity_date: validityDate,
@@ -409,7 +414,27 @@ export default function QuotationWizard() {
           name: scenario.name.trim() || `${scenario.origin} / ${rateTypeLabel(scenario.rate_type)}`,
           selected_rates: selectedRatesPayload(scenario),
         })),
+      };
+      const result = await saveWithDraft({
+        module: "quotationWizard",
+        mode: "create",
+        sessionKey: draftSessionKey.current,
+        label: `Quotation for ${clientName?.name || `client ${clientId}`}`,
+        formState: null,
+        requests: [{ api: "createQuotationFromSelection", args: [payload] }],
+        isFailure: isExplicitFailure,
+        call: () => createQuotationFromSelection(payload),
       });
+      if (isExplicitFailure(result)) {
+        toast({
+          title: "Error",
+          description: extractNarviQuotationError({ response: { data: result } }, "Failed to create quotation."),
+          status: "error",
+          duration: 4000,
+          isClosable: true,
+        });
+        return;
+      }
       const newId = extractCreatedQuotationId(result);
       toast({ title: "Quotation created", status: "success", duration: 2000, isClosable: true });
       if (newId) history.push(`/admin/quotations/view/${newId}`);

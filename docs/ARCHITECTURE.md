@@ -28,6 +28,23 @@ apexcharts, jspdf + jspdf-autotable (PDF), xlsx (Excel). JavaScript/JSX only.
 - Business logic is extracted to `src/utils` (e.g. `stockCreatePayload`, `stockUpdatePayload`, `stockStatusRequirements`) and consumed by large form components such as `views/admin/stock-list/StockForm.jsx`.
 - Env: `.env` is gitignored; deploy via Vercel (`vercel-build`) and gh-pages scripts.
 
+## Drafts (frontend only)
+Spec: `docs/specs/001-drafts.md`. When a create/update call fails, the user's input is kept as a draft in the browser. No backend, no new endpoints.
+- **State:** `src/redux/slices/draftsSlice.js` (`{ userId, items, hydrated }`), accessed via `src/redux/hooks/useDrafts.js`. Pure helpers: `src/utils/draftStorage.js`, `draftSanitize.js` (strips files, base64 `datas`, passwords), `drafts.js`.
+- **Persistence:** localStorage key `drafts:<user_id>` = `{ version: 1, items }`. Logout clears Redux memory only, not localStorage.
+- **Boot preservation:** `persistScopedAuthOnBoot` (`src/utils/authStorage.js`) clears localStorage on every load but keeps the auth keys and any key starting with `drafts:`.
+- **Sync:** `src/hooks/useDraftsSync.js` (mounted once in `src/layouts/admin/index.js`) hydrates on user change, writes on change, and follows the `storage` event across tabs.
+- **Capture:** `useSaveWithDraft()` returns `saveWithDraft` (wraps the existing API call: on throw or failure result it upserts a draft by `key`, then re-throws or returns the original result; on success it removes the draft) and `saveManualDraft` (Save as draft button; Stock, Shipping order, Rate list only). Validation that runs before the call must stay outside the wrapper.
+- **Resume:** `useResumeDraft(moduleKeys, { ready })` reads `location.state.draftId` and returns the draft once the form's own data has loaded; pass the returned `draftId` as `sourceDraftId` so a later success deletes the draft. `useResumeModalDraft` does the same for list-page modals.
+- **Registry:** `src/config/draftModules.js` maps each module key to `{ label, category, resumeTo(draft), apis, isFailure? }`. Retry runs `draft.requests` through `apis`. Categories: **A** full form (Resume restores the form), **C** modal on a list page (Resume reopens the modal prefilled), **D** inline/bulk/derived (Retry + Delete only, Resume disabled). Autosave screens (B) are out of scope.
+- **Page:** `/admin/drafts` (sidebar item with count badge) lists drafts with Resume, Retry, Delete.
+- **401:** the draft is written first (flushed synchronously), then the axios interceptor redirects to login. The flag `drafts:session_expired_notice` (`src/utils/sessionExpiredNotice.js`) uses the `drafts:` prefix so it survives the boot cleanup; the sign-in screen consumes it once and shows the "Session expired ... saved to Drafts" toast.
+- **Adding a module:**
+  1. Add an entry to `DRAFT_MODULES` in `src/config/draftModules.js` (label, category, `resumeTo` for A/C, `apis` imported from `src/api/*`, `isFailure` if the generic check is wrong).
+  2. In the screen, wrap the existing call: `saveWithDraft({ module, mode, recordId, label, formState, requests: [{ api, args }], call })`. Use a stable `sessionKey` (`useRef`) for create flows.
+  3. For A/C, read the draft with `useResumeDraft` / `useResumeModalDraft` after the screen's data is ready and overlay it on the form; pass `sourceDraftId`.
+  4. Never put files or passwords in `formState`/`requests` (the sanitizer is a safety net, not a design tool). Extend `draftModules.test.js` coverage if needed.
+
 ## Tooling gaps
 - ESLint plugin is disabled in `start`/`build`; use `npm run lint:changed`.
 - Few tests exist (`authStorage`, `portalClientSelection`, `portalClients`, `store`). See docs/TESTING.md.

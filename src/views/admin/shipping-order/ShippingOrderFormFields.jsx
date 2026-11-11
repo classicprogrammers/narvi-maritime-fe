@@ -52,7 +52,7 @@ export default function ShippingOrderFormFields({
   const borderColor = useColorModeValue("gray.200", "gray.700");
 
   // Show all vessels when no client; filter to that client's vessels when client is set.
-  const { vesselOptions, isLoadingVessels } = useClientVesselFilterOptions(
+  const { vesselOptions, isLoadingVessels, onVesselSearchChange } = useClientVesselFilterOptions(
     formData?.client_id,
     formData?.vessel_id,
     vessels
@@ -254,6 +254,8 @@ export default function ShippingOrderFormFields({
                 }));
               }}
               options={vesselOptions}
+              onSearchChange={onVesselSearchChange}
+              serverSideSearch={Boolean(formData.client_id)}
               placeholder={
                 isLoadingVessels
                   ? "Loading vessels..."

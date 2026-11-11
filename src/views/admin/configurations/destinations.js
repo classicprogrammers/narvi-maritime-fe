@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Box,
   Flex,
@@ -41,10 +41,17 @@ import {
   MdLocationOn,
 } from "react-icons/md";
 import stockListDestinationsAPI from "../../../api/stockListDestinations";
+import { useSaveWithDraft } from "../../../hooks/useSaveWithDraft";
+import { useResumeModalDraft } from "../../../hooks/useResumeModalDraft";
+import { makeDraftId } from "../../../utils/drafts";
+import { resolveDraftSource } from "../../../utils/draftSource";
+import { isExplicitFailure } from "../../../utils/draftFailure";
+import { buildModalFormState } from "../../../utils/modalDraft";
 
 export default function Destinations() {
   const [destinations, setDestinations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [listLoaded, setListLoaded] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [editingDestination, setEditingDestination] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -55,6 +62,8 @@ export default function Destinations() {
   const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
 
   const toast = useToast();
+  const { saveWithDraft } = useSaveWithDraft();
+  const draftSessionKeyRef = useRef(makeDraftId());
 
   const textColor = useColorModeValue("gray.700", "white");
   const hoverBg = useColorModeValue("blue.50", "blue.900");
@@ -92,6 +101,7 @@ export default function Destinations() {
       setApiTotalPages(1);
     } finally {
       setIsLoading(false);
+      setListLoaded(true);
     }
   };
 
@@ -131,6 +141,7 @@ export default function Destinations() {
 
   // Open modal for creating new destination
   const handleNewDestination = () => {
+    draftSessionKeyRef.current = makeDraftId();
     resetForm();
     onModalOpen();
   };
@@ -144,14 +155,43 @@ export default function Destinations() {
     onModalOpen();
   };
 
+  // Resume from Drafts: reopen the modal prefilled once the list has loaded. The list is paginated,
+  // so the edited destination may be on another page: fall back to its id (update only needs the id).
+  const { activeDraft } = useResumeModalDraft(["stockDestination"], {
+    ready: listLoaded,
+    items: (draft) => [...destinations, { id: draft.formState?.editingId }],
+    isOpen: isModalOpen,
+    onApply: ({ formData: draftForm, item }) => {
+      setFormData(draftForm);
+      setEditingDestination(item);
+      onModalOpen();
+    },
+  });
+
   // Handle form submission (create or update)
   const handleSubmit = async () => {
     try {
       setIsLoading(true);
 
+      const draftMode = editingDestination ? "update" : "create";
+      const draftOptions = {
+        module: "stockDestination",
+        mode: draftMode,
+        recordId: editingDestination?.id,
+        sessionKey: draftSessionKeyRef.current,
+        label: formData.name,
+        formState: buildModalFormState(formData, editingDestination),
+        isFailure: isExplicitFailure,
+        ...resolveDraftSource(activeDraft, draftMode),
+      };
+
       if (editingDestination) {
         // Update existing destination
-        const response = await stockListDestinationsAPI.updateDestination(editingDestination.id, formData);
+        const response = await saveWithDraft({
+          ...draftOptions,
+          requests: [{ api: "updateDestination", args: [editingDestination.id, formData] }],
+          call: () => stockListDestinationsAPI.updateDestination(editingDestination.id, formData),
+        });
 
         // Extract success message from API response
         let successMessage = "Destination updated successfully";
@@ -176,7 +216,11 @@ export default function Destinations() {
         });
       } else {
         // Create new destination
-        const response = await stockListDestinationsAPI.createDestination(formData);
+        const response = await saveWithDraft({
+          ...draftOptions,
+          requests: [{ api: "createDestination", args: [formData] }],
+          call: () => stockListDestinationsAPI.createDestination(formData),
+        });
 
         // Extract success message from API response
         let successMessage = "Destination created successfully";

@@ -14,6 +14,7 @@ import { isClientUserType } from "utils/userType";
 import { getCurrentStoredToken } from "utils/authStorage";
 import ApiModal from "components/ApiModal";
 import { preloadAll, getCached, MASTER_KEYS } from "utils/masterDataCache";
+import { useDraftsSync } from "hooks/useDraftsSync";
 
 // Custom Chakra theme
 export default function Dashboard(props) {
@@ -25,6 +26,7 @@ export default function Dashboard(props) {
   const history = useHistory();
   const location = useLocation();
   const { user, checkAuth } = useUser();
+  useDraftsSync();
 
   // Check auth on mount to ensure user data is loaded from localStorage
   // Run this ONLY once on mount to avoid update loops

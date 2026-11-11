@@ -12,6 +12,7 @@ import {
   isPortalClientSelectionError,
   notifyPortalClientAccessDenied,
 } from "../utils/portalClientSelection";
+import { markSessionExpired } from "../utils/sessionExpiredNotice";
 
 const api = axios.create({
   baseURL: process.env.REACT_APP_BACKEND_URL || process.env.REACT_APP_API_BASE_URL,
@@ -129,6 +130,7 @@ api.interceptors.response.use(
         console.log("Authentication error detected, logging out user");
         const context = getAuthContextFromPath();
         clearStoredAuth(context);
+        markSessionExpired();
         window.location.href = getLoginPathForContext(context);
         return Promise.reject(error);
       } else {

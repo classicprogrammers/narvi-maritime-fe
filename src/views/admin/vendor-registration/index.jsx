@@ -58,6 +58,11 @@ import { mergeM2OOptions } from "utils/m2oFieldOptions";
 import SearchableSelect from "components/forms/SearchableSelect";
 import LongTextModalField from "components/forms/LongTextModalField";
 import { useVendor } from "redux/hooks/useVendor";
+import { useSaveWithDraft } from "hooks/useSaveWithDraft";
+import { useResumeDraft } from "hooks/useResumeDraft";
+import { makeDraftId } from "utils/drafts";
+import { resolveDraftSource } from "utils/draftSource";
+import { applyRegistrationDraft } from "utils/registrationDraft";
 
 // Constants
 const REQUIRED_PERSON_FIELDS = ["first_name"];
@@ -371,6 +376,9 @@ function VendorRegistration() {
 
     const toast = useToast();
     const [formData, setFormData] = React.useState(INITIAL_FORM_DATA);
+    const { saveWithDraft } = useSaveWithDraft();
+    const draftSessionKeyRef = React.useRef(makeDraftId());
+    const hasAppliedDraftRef = React.useRef(false);
 
     const peopleTableColumns = [
         { key: "company_name", label: "Agent company" },
@@ -745,6 +753,21 @@ function VendorRegistration() {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, isEditMode]);
+
+    // Resume from Drafts: overlay the draft after the agent record has been loaded from route state
+    const { draft: resumedDraft } = useResumeDraft(["vendor"], { ready: true });
+    React.useEffect(() => {
+        if (!resumedDraft || hasAppliedDraftRef.current) return;
+        const applied = applyRegistrationDraft({}, resumedDraft.formState);
+        if (!applied) return;
+        hasAppliedDraftRef.current = true;
+        // functional update: sees the record values queued by the load effect (fresh existingAttachments)
+        setFormData((prev) => applyRegistrationDraft(prev, resumedDraft.formState).formData);
+        setPeopleRows(applied.peopleRows);
+        if (applied.cneeRows) setCneeRows(applied.cneeRows);
+        setVisibleAddressFields(applied.visibleAddressFields);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [resumedDraft]);
 
 
     const handleInputChange = (field, value) => {
@@ -1210,9 +1233,21 @@ function VendorRegistration() {
                     attachments: formData.attachments && formData.attachments.length > 0 ? formData.attachments : undefined,
                 };
 
-            const result = isEditMode
-                ? await updateVendorApi(id, updatePayload)
-                : await registerVendorApi(updatePayload);
+            const draftMode = isEditMode ? "update" : "create";
+            const result = await saveWithDraft({
+                module: "vendor",
+                mode: draftMode,
+                recordId: isEditMode ? id : undefined,
+                sessionKey: draftSessionKeyRef.current,
+                label: formData.name,
+                formState: { formData, peopleRows, cneeRows, vendorData: isEditMode ? originalVendorData : null },
+                requests: [isEditMode
+                    ? { api: "updateVendorApi", args: [id, updatePayload] }
+                    : { api: "registerVendorApi", args: [updatePayload] }],
+                call: () => (isEditMode ? updateVendorApi(id, updatePayload) : registerVendorApi(updatePayload)),
+                isFailure: (res) => !isSuccessResponse(res),
+                ...resolveDraftSource(resumedDraft, draftMode),
+            });
 
             if (isSuccessResponse(result)) {
                 submittedSuccessfully.current = true;

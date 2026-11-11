@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Box,
   Flex,
@@ -51,6 +51,12 @@ import {
   MdDelete,
 } from "react-icons/md";
 import uomAPI from "../../../api/uom";
+import { useSaveWithDraft } from "../../../hooks/useSaveWithDraft";
+import { useResumeModalDraft } from "../../../hooks/useResumeModalDraft";
+import { makeDraftId } from "../../../utils/drafts";
+import { resolveDraftSource } from "../../../utils/draftSource";
+import { isExplicitFailure } from "../../../utils/draftFailure";
+import { buildModalFormState } from "../../../utils/modalDraft";
 
 // Custom Searchable Select Component
 const SearchableSelect = ({
@@ -146,6 +152,8 @@ export default function UOM() {
   const [uomList, setUomList] = useState([]);
   const [categoriesList, setCategoriesList] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [uomLoaded, setUomLoaded] = useState(false);
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [editingUOM, setEditingUOM] = useState(null);
   const [deleteUOMId, setDeleteUOMId] = useState(null);
@@ -167,6 +175,9 @@ export default function UOM() {
   const { isOpen: isCategoryDeleteOpen, onOpen: onCategoryDeleteOpen, onClose: onCategoryDeleteClose } = useDisclosure();
 
   const toast = useToast();
+  const { saveWithDraft } = useSaveWithDraft();
+  const uomSessionKeyRef = useRef(makeDraftId());
+  const categorySessionKeyRef = useRef(makeDraftId());
 
   const textColor = useColorModeValue("gray.700", "white");
   const hoverBg = useColorModeValue("blue.50", "blue.900");
@@ -206,6 +217,7 @@ export default function UOM() {
       setUomList([]);
     } finally {
       setIsLoading(false);
+      setUomLoaded(true);
     }
   };
 
@@ -227,6 +239,8 @@ export default function UOM() {
         isClosable: true,
       });
       setCategoriesList([]);
+    } finally {
+      setCategoriesLoaded(true);
     }
   };
 
@@ -294,6 +308,7 @@ export default function UOM() {
 
   // Open modal for creating new UOM
   const handleNewUOM = () => {
+    uomSessionKeyRef.current = makeDraftId();
     resetForm();
     onModalOpen();
   };
@@ -313,9 +328,25 @@ export default function UOM() {
     try {
       setIsLoading(true);
 
+      const uomDraftMode = editingUOM ? "update" : "create";
+      const uomDraftOptions = {
+        module: "uom",
+        mode: uomDraftMode,
+        recordId: editingUOM?.id,
+        sessionKey: uomSessionKeyRef.current,
+        label: formData.name,
+        formState: buildModalFormState(formData, editingUOM),
+        isFailure: isExplicitFailure,
+        ...resolveDraftSource(activeDraft?.module === "uom" ? activeDraft : null, uomDraftMode),
+      };
+
       if (editingUOM) {
         // Update existing UOM
-        const response = await uomAPI.updateUOM(editingUOM.id, formData);
+        const response = await saveWithDraft({
+          ...uomDraftOptions,
+          requests: [{ api: "updateUOM", args: [editingUOM.id, formData] }],
+          call: () => uomAPI.updateUOM(editingUOM.id, formData),
+        });
         
         // Extract success message from API response
         let successMessage = "Unit of Measurement updated successfully";
@@ -340,7 +371,11 @@ export default function UOM() {
         });
       } else {
         // Create new UOM
-        const response = await uomAPI.createUOM(formData);
+        const response = await saveWithDraft({
+          ...uomDraftOptions,
+          requests: [{ api: "createUOM", args: [formData] }],
+          call: () => uomAPI.createUOM(formData),
+        });
         
         // Extract success message from API response
         let successMessage = "Unit of Measurement created successfully";
@@ -414,6 +449,7 @@ export default function UOM() {
   };
 
   const handleNewCategory = () => {
+    categorySessionKeyRef.current = makeDraftId();
     resetCategoryForm();
     onCategoryModalOpen();
   };
@@ -426,13 +462,47 @@ export default function UOM() {
     onCategoryModalOpen();
   };
 
+  // Resume from Drafts: reopen the matching modal prefilled once both lists have loaded
+  const { activeDraft } = useResumeModalDraft(["uom", "uomCategory"], {
+    ready: uomLoaded && categoriesLoaded,
+    items: (draft) => (draft.module === "uomCategory" ? categoriesList : uomList),
+    isOpen: isModalOpen || isCategoryModalOpen,
+    onApply: ({ formData: draftForm, item, draft }) => {
+      if (draft.module === "uomCategory") {
+        setCategoryFormData(draftForm);
+        setEditingCategory(item);
+        onCategoryModalOpen();
+      } else {
+        setFormData(draftForm);
+        setEditingUOM(item);
+        onModalOpen();
+      }
+    },
+  });
+
   const handleCategorySubmit = async () => {
     try {
       setIsLoading(true);
 
+      const categoryDraftMode = editingCategory ? "update" : "create";
+      const categoryDraftOptions = {
+        module: "uomCategory",
+        mode: categoryDraftMode,
+        recordId: editingCategory?.id,
+        sessionKey: categorySessionKeyRef.current,
+        label: categoryFormData.name,
+        formState: buildModalFormState(categoryFormData, editingCategory),
+        isFailure: isExplicitFailure,
+        ...resolveDraftSource(activeDraft?.module === "uomCategory" ? activeDraft : null, categoryDraftMode),
+      };
+
       if (editingCategory) {
         // Update existing category
-        const response = await uomAPI.updateUOMCategory(editingCategory.id, categoryFormData);
+        const response = await saveWithDraft({
+          ...categoryDraftOptions,
+          requests: [{ api: "updateUOMCategory", args: [editingCategory.id, categoryFormData] }],
+          call: () => uomAPI.updateUOMCategory(editingCategory.id, categoryFormData),
+        });
         
         // Extract success message from API response
         let successMessage = "UOM Category updated successfully";
@@ -457,7 +527,11 @@ export default function UOM() {
         });
       } else {
         // Create new category
-        const response = await uomAPI.createUOMCategory(categoryFormData);
+        const response = await saveWithDraft({
+          ...categoryDraftOptions,
+          requests: [{ api: "createUOMCategory", args: [categoryFormData] }],
+          call: () => uomAPI.createUOMCategory(categoryFormData),
+        });
         
         // Extract success message from API response
         let successMessage = "UOM Category created successfully";

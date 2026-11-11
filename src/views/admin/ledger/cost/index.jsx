@@ -54,6 +54,13 @@ import {
 import { useHistory } from "react-router-dom";
 import { bulkUpdateLedgerCosts, cancelLedgerCost, getLedgerCosts } from "api/ledgerCost";
 import { useMasterData } from "hooks/useMasterData";
+import { useSaveWithDraft } from "hooks/useSaveWithDraft";
+import {
+  buildLedgerBulkRetryRequests,
+  getFailedBulkIds,
+  isLedgerBulkPartialFailure,
+  ledgerBulkRecordId,
+} from "utils/ledgerBulkDraft";
 import useLedgerAgentOptions from "hooks/useLedgerAgentOptions";
 import { getCached, MASTER_KEYS } from "utils/masterDataCache";
 import SearchableSelect from "components/forms/SearchableSelect";
@@ -185,6 +192,7 @@ const CHECKBOX_COL_W = "44px";
 
 export default function LedgerCost() {
   const toast = useToast();
+  const { saveWithDraft } = useSaveWithDraft();
   const history = useHistory();
   const { refreshClients, refreshVessels, refreshDestinations, refreshCurrencies } = useMasterData();
   const savedState = useRef(readPersistedCostListState()).current;
@@ -563,7 +571,26 @@ export default function LedgerCost() {
     setBulkError("");
     try {
       const payload = buildBulkUpdatePayload(selectedIds, enabledValues, COST_BULK_FIELDS);
-      const result = await bulkUpdateLedgerCosts(payload);
+      // Retry request: all ids, narrowed to the failed ones when the result reports a partial save.
+      const draftRequests = buildLedgerBulkRetryRequests("bulkUpdateLedgerCosts", payload);
+      const result = await saveWithDraft({
+        module: "ledgerCostBulk",
+        mode: "update",
+        recordId: ledgerBulkRecordId(payload.ids),
+        label: `${payload.ids.length} cost record${payload.ids.length === 1 ? "" : "s"}`,
+        formState: null,
+        requests: draftRequests,
+        // bulkUpdateLedgerCosts throws on failure; a partial result is detected from the ids it confirms.
+        isFailure: (res) => isLedgerBulkPartialFailure(payload, res),
+        call: async () => {
+          const res = await bulkUpdateLedgerCosts(payload);
+          const failedIds = getFailedBulkIds(payload, res);
+          if (failedIds.length) {
+            draftRequests.splice(0, draftRequests.length, ...buildLedgerBulkRetryRequests("bulkUpdateLedgerCosts", payload, failedIds));
+          }
+          return res;
+        },
+      });
       toast({
         title: "Success",
         description: `Updated ${result.updated_count} records (${(result.updated_fields || []).join(", ")})`,

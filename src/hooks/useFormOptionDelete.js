@@ -8,9 +8,12 @@ import {
   resolveDeleteOptionType,
   resolveUpdateOptionType,
 } from "../utils/formOptionDelete";
+import { useSaveWithDraft } from "./useSaveWithDraft";
+import { isExplicitFailure } from "../utils/draftFailure";
 
 export default function useFormOptionDelete() {
   const toast = useToast();
+  const { saveWithDraft } = useSaveWithDraft();
   const [optionsDeleteApi, setOptionsDeleteApi] = useState("/api/form/options/delete");
   const [optionsUpdateApi, setOptionsUpdateApi] = useState("/api/form/options/update");
   const [deletableOptionTypes, setDeletableOptionTypes] = useState([
@@ -88,11 +91,22 @@ export default function useFormOptionDelete() {
 
       setUpdatingOptionId(Number(option.id));
       try {
-        const result = await updateFormOptionApi(optionsUpdateApi, {
-          option_type: optionType,
-          id: option.id,
-          name: nextName,
-        });
+        const payload = { option_type: optionType, id: option.id, name: nextName };
+        const call = () => updateFormOptionApi(optionsUpdateApi, payload);
+        // A blank name is rejected by the API before any request: no draft for that.
+        // Retry-only draft otherwise (a dropdown option rename has no form to resume).
+        const result = String(nextName ?? "").trim()
+          ? await saveWithDraft({
+              module: "formOption",
+              mode: "update",
+              recordId: `${optionType}-${option.id}`,
+              label: `${optionType}: ${String(nextName).trim()}`,
+              formState: null,
+              requests: [{ api: "updateFormOptionApi", args: [optionsUpdateApi, payload] }],
+              call,
+              isFailure: isExplicitFailure,
+            })
+          : await call();
         toast({
           title: result?.message || "Option updated.",
           status: "success",
@@ -113,7 +127,7 @@ export default function useFormOptionDelete() {
         setUpdatingOptionId(null);
       }
     },
-    [optionsUpdateApi, toast, updatableOptionTypes]
+    [optionsUpdateApi, saveWithDraft, toast, updatableOptionTypes]
   );
 
   const getDeleteSelectProps = useCallback(

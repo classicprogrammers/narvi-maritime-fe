@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Box,
   Flex,
@@ -41,10 +41,17 @@ import {
 } from "react-icons/md";
 import countriesAPI from "../../../api/countries";
 import { refreshMasterData, MASTER_KEYS } from "../../../utils/masterDataCache";
+import { useSaveWithDraft } from "../../../hooks/useSaveWithDraft";
+import { useResumeModalDraft } from "../../../hooks/useResumeModalDraft";
+import { makeDraftId } from "../../../utils/drafts";
+import { resolveDraftSource } from "../../../utils/draftSource";
+import { isExplicitFailure } from "../../../utils/draftFailure";
+import { buildModalFormState } from "../../../utils/modalDraft";
 
 export default function Countries() {
   const [countries, setCountries] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [listLoaded, setListLoaded] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [editingCountry, setEditingCountry] = useState(null);
   const [originalStates, setOriginalStates] = useState([]); // Track original states for comparison
@@ -54,6 +61,8 @@ export default function Countries() {
   const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
 
   const toast = useToast();
+  const { saveWithDraft } = useSaveWithDraft();
+  const draftSessionKeyRef = useRef(makeDraftId());
 
   const textColor = useColorModeValue("gray.700", "white");
   const hoverBg = useColorModeValue("blue.50", "blue.900");
@@ -106,6 +115,7 @@ export default function Countries() {
       setCountries([]);
     } finally {
       setIsLoading(false);
+      setListLoaded(true);
     }
   };
 
@@ -163,6 +173,7 @@ export default function Countries() {
 
   // Open modal for creating new country
   const handleNewCountry = () => {
+    draftSessionKeyRef.current = makeDraftId();
     resetForm();
     onModalOpen();
   };
@@ -188,6 +199,24 @@ export default function Countries() {
     setEditingCountry(country);
     onModalOpen();
   };
+
+  // Resume from Drafts: reopen the modal prefilled once the list has loaded
+  const { activeDraft } = useResumeModalDraft(["country"], {
+    ready: listLoaded,
+    items: countries,
+    isOpen: isModalOpen,
+    onApply: ({ formData: draftForm, item }) => {
+      setFormData(draftForm);
+      // the state-operations diff is built against the freshly loaded states of the country
+      setOriginalStates(
+        Array.isArray(item?.states)
+          ? item.states.map((s) => ({ id: s.id, name: s.name || "", code: s.code || "" }))
+          : []
+      );
+      setEditingCountry(item);
+      onModalOpen();
+    },
+  });
 
   // Build states payload with operations
   const buildStatesPayload = () => {
@@ -276,9 +305,25 @@ export default function Countries() {
         states: statesPayload,
       };
 
+      const draftMode = editingCountry ? "update" : "create";
+      const draftOptions = {
+        module: "country",
+        mode: draftMode,
+        recordId: editingCountry?.id,
+        sessionKey: draftSessionKeyRef.current,
+        label: formData.name,
+        formState: buildModalFormState(formData, editingCountry),
+        isFailure: isExplicitFailure,
+        ...resolveDraftSource(activeDraft, draftMode),
+      };
+
       if (editingCountry) {
         // Update existing country
-        const response = await countriesAPI.updateCountry(editingCountry.id, payload);
+        const response = await saveWithDraft({
+          ...draftOptions,
+          requests: [{ api: "updateCountry", args: [editingCountry.id, payload] }],
+          call: () => countriesAPI.updateCountry(editingCountry.id, payload),
+        });
 
         // Extract success message from API response
         let successMessage = "Country updated successfully";
@@ -303,7 +348,11 @@ export default function Countries() {
         });
       } else {
         // Create new country
-        const response = await countriesAPI.createCountry(payload);
+        const response = await saveWithDraft({
+          ...draftOptions,
+          requests: [{ api: "createCountry", args: [payload] }],
+          call: () => countriesAPI.createCountry(payload),
+        });
 
         // Extract success message from API response
         let successMessage = "Country created successfully";

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getVessels } from "../api/vessels";
 import {
   getVesselsForClient,
@@ -13,6 +13,15 @@ export function useClientVesselFilterOptions(client, selectedVessel, allVessels 
   const clientId = resolveRelationId(client);
   const [clientVessels, setClientVessels] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [query, setQuery] = useState("");
+  const timerRef = useRef(null);
+  const onSearchChange = useCallback((text) => {
+    clearTimeout(timerRef.current);
+    const next = String(text ?? "").trim();
+    timerRef.current = setTimeout(() => setQuery(next), 300);
+  }, []);
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+  useEffect(() => setQuery(""), [clientId]);
 
   useEffect(() => {
     if (!clientId) {
@@ -27,6 +36,7 @@ export function useClientVesselFilterOptions(client, selectedVessel, allVessels 
       try {
         const response = await getVessels({
           client_id: clientId,
+          ...(query ? { search: query } : {}),
           page_size: 500,
           sort_by: "name",
           sort_order: "asc",
@@ -36,7 +46,11 @@ export function useClientVesselFilterOptions(client, selectedVessel, allVessels 
         }
       } catch (_error) {
         if (!cancelled) {
-          setClientVessels(getVesselsForClient(allVessels, clientId));
+          setClientVessels(
+            getVesselsForClient(allVessels, clientId).filter(
+              (v) => !query || String(v.name || "").toLowerCase().includes(query.toLowerCase())
+            )
+          );
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -46,7 +60,7 @@ export function useClientVesselFilterOptions(client, selectedVessel, allVessels 
     return () => {
       cancelled = true;
     };
-  }, [clientId, allVessels]);
+  }, [clientId, allVessels, query]);
 
   const vesselOptions = useMemo(() => {
     if (!clientId) return Array.isArray(allVessels) ? allVessels : [];
@@ -60,5 +74,6 @@ export function useClientVesselFilterOptions(client, selectedVessel, allVessels 
   return {
     vesselOptions,
     isLoadingVessels: Boolean(clientId && isLoading),
+    onVesselSearchChange: onSearchChange,
   };
 }

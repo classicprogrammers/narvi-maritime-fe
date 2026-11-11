@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   AlertDescription,
@@ -35,6 +35,9 @@ import { getMsoApiError, isMsoOrder } from "../../../utils/shippingOrderMso";
 import ShippingOrderFormFields from "./ShippingOrderFormFields";
 import ShippingOrderStockList from "../../../components/shipping-order/ShippingOrderStockList";
 import EditModeNotice, { useEditModeColors } from "../../../components/forms/EditModeNotice";
+import SaveAsDraftButton from "components/drafts/SaveAsDraftButton";
+import { useSaveWithDraft } from "hooks/useSaveWithDraft";
+import { useResumeDraft } from "hooks/useResumeDraft";
 
 const toEditFormData = (normalized) => ({
   ...normalized,
@@ -132,6 +135,44 @@ export default function ShippingOrderEditPage() {
   const [vslsAgentDtlsModalTargetField, setVslsAgentDtlsModalTargetField] = useState(null);
 
   const { editModeBg, editModeBorderColor } = useEditModeColors();
+
+  const { saveWithDraft, saveManualDraft } = useSaveWithDraft();
+  // Stable per form mount so repeated failed creates update one draft.
+  const sessionKeyRef = useRef(`so-${Date.now()}`);
+  const { draft: resumeDraft, draftId: sourceDraftId } = useResumeDraft(["shippingOrder"], {
+    ready: !isLoadingOrder && formData !== null,
+  });
+  const resumeAppliedRef = useRef(null);
+
+  // Overlay the draft's fields after the page's own fetch. originalOrder (diff baseline) stays as fetched.
+  useEffect(() => {
+    if (!resumeDraft || resumeAppliedRef.current === resumeDraft.id) return;
+    resumeAppliedRef.current = resumeDraft.id;
+    const saved = resumeDraft.formState?.formData;
+    if (!saved || typeof saved !== "object") return;
+    // Files are never stored, so keep the page's own (empty) upload lists.
+    // eslint-disable-next-line no-unused-vars
+    const { attachments, cipl_files, ...fields } = saved;
+    setFormData((prev) => (prev ? { ...prev, ...fields } : prev));
+  }, [resumeDraft]);
+
+  const draftIdentity = () => ({
+    module: "shippingOrder",
+    mode: isCreate ? "create" : "update",
+    recordId: isCreate ? null : id,
+    sessionKey: sessionKeyRef.current,
+    draftKey: resumeDraft?.key,
+    label: formData?.so_number || (isCreate ? "New SO" : `SO-${id}`),
+  });
+
+  // Read-only fetched data (_raw, stock list) is not user input; it is refetched on Resume.
+  // eslint-disable-next-line no-unused-vars
+  const toDraftFormState = ({ _raw, stock_list, stock_item_count, ...fields }) => ({ formData: fields, ...(isCreateMso ? { isMso: true } : {}) });
+
+  const handleSaveAsDraft = () => {
+    if (!formData) return;
+    saveManualDraft({ ...draftIdentity(), formState: toDraftFormState(formData) });
+  };
 
   const openVslsAgentDtlsModal = useCallback((value, mode = "view", title = "Details", targetField = null) => {
     setVslsAgentDtlsModalMode(mode);
@@ -260,7 +301,14 @@ export default function ShippingOrderEditPage() {
           formData
         );
         if (isCreateMso) createPayload.is_mso = true;
-        const createResponse = await createShippingOrder(createPayload);
+        const createResponse = await saveWithDraft({
+          ...draftIdentity(),
+          formState: toDraftFormState(formData),
+          requests: [{ api: "createShippingOrder", args: [createPayload] }],
+          sourceDraftId,
+          call: () => createShippingOrder(createPayload),
+          isFailure: (result) => Boolean(getMsoApiError(result)),
+        });
         const createError = getMsoApiError(createResponse);
         if (createError) throw new Error(createError);
         const createNotify = notifyShippingOrderSaveResult(createResponse, toast, { created: true });
@@ -279,7 +327,15 @@ export default function ShippingOrderEditPage() {
         buildPayloadFromForm(formData, true, originalOrder || {}, countries),
         formData
       );
-      const response = await updateShippingOrder(id, payload, originalOrder?._raw || {});
+      const originalRaw = originalOrder?._raw || {};
+      const response = await saveWithDraft({
+        ...draftIdentity(),
+        formState: toDraftFormState(formData),
+        requests: [{ api: "updateShippingOrder", args: [id, payload, originalRaw] }],
+        sourceDraftId,
+        call: () => updateShippingOrder(id, payload, originalRaw),
+        isFailure: (result) => Boolean(getMsoApiError(result)),
+      });
       const notify = notifyShippingOrderSaveResult(response, toast, { created: false });
       if (notify.ok && !notify.partial) {
         toast({
@@ -391,6 +447,7 @@ export default function ShippingOrderEditPage() {
             <Button variant="outline" onClick={handleCancel}>
               Cancel
             </Button>
+            <SaveAsDraftButton onClick={handleSaveAsDraft} isDisabled={isSaving} />
             <Button colorScheme="green" onClick={handleSave} isLoading={isSaving} loadingText={isCreate ? "Creating..." : "Updating..."}>
               {isCreateMso ? "Create MSO" : isCreate ? "Create SO" : "Save Changes"}
             </Button>

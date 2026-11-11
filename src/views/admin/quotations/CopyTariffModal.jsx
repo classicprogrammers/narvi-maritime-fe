@@ -21,6 +21,8 @@ import SearchableSelect from "components/forms/SearchableSelect";
 import { createRateListApi, getRateListApi, getRateListOptionsApi } from "../../../api/rate";
 import { buildRateCreatePayload, mapRateItemToFormRow } from "../../../utils/rateListForm";
 import { filterNewRates } from "../../../utils/rateCopy";
+import { useSaveWithDraft } from "hooks/useSaveWithDraft";
+import { buildRateCopyRetryRequests } from "utils/rateDraft";
 import { normalizeIdOptions, tariffErrorMessage } from "./tariffScreenUtils";
 
 /**
@@ -32,6 +34,7 @@ import { normalizeIdOptions, tariffErrorMessage } from "./tariffScreenUtils";
 export default function CopyTariffModal({ isOpen, onClose, sourceClient, filterParams, onCopied, source = "client" }) {
   const fromGeneral = source === "general";
   const toast = useToast();
+  const { saveWithDraft } = useSaveWithDraft();
   const [targetId, setTargetId] = useState("");
   const [targetPin, setTargetPin] = useState(null);
   const [clients, setClients] = useState([]);
@@ -106,24 +109,43 @@ export default function CopyTariffModal({ isOpen, onClose, sourceClient, filterP
       let created = 0;
       let failed = 0;
       let lastError = "";
-      for (const rate of sourceRates) {
-        const row = {
-          ...mapRateItemToFormRow(rate),
-          id: undefined,
-          rate_id: "",
-          rate_type: "client_specific",
-          client_id: targetId,
-        };
-        try {
-          // eslint-disable-next-line no-await-in-loop
-          await createRateListApi(buildRateCreatePayload(row));
-          created += 1;
-        } catch (error) {
-          failed += 1;
-          lastError = tariffErrorMessage(error, "");
-        }
-        setProgress({ done: created + failed, total: sourceRates.length });
-      }
+      const failedPayloads = [];
+      // Filled while the loop runs: only the rates that were not created are kept for Retry.
+      const draftRequests = [];
+      const targetName = (targetPin || options.find((client) => String(client.id) === String(targetId)))?.name;
+      await saveWithDraft({
+        module: "rateCopy",
+        mode: "create",
+        recordId: `${fromGeneral ? "general" : sourceId}-to-${targetId}`,
+        label: `Copy to ${targetName || `client ${targetId}`}`,
+        formState: null,
+        requests: draftRequests,
+        isFailure: () => failed > 0,
+        call: async () => {
+          for (const rate of sourceRates) {
+            const row = {
+              ...mapRateItemToFormRow(rate),
+              id: undefined,
+              rate_id: "",
+              rate_type: "client_specific",
+              client_id: targetId,
+            };
+            const payload = buildRateCreatePayload(row);
+            try {
+              // eslint-disable-next-line no-await-in-loop
+              await createRateListApi(payload);
+              created += 1;
+            } catch (error) {
+              failed += 1;
+              failedPayloads.push(payload);
+              lastError = tariffErrorMessage(error, "");
+            }
+            setProgress({ done: created + failed, total: sourceRates.length });
+          }
+          draftRequests.push(...buildRateCopyRetryRequests(failedPayloads));
+          return { status: failed ? "error" : "success", message: lastError || "Some rates failed to copy" };
+        },
+      });
       toast({
         title: failed ? "Tariff partly copied" : "Tariff copied",
         description: failed

@@ -15,6 +15,7 @@ import {
   InputRightElement,
   Text,
   useColorModeValue,
+  useToast,
 } from "@chakra-ui/react";
 // Custom components
 import DefaultAuth from "layouts/auth/Default";
@@ -30,6 +31,7 @@ import { loginSuccess } from "../../../redux/slices/userSlice";
 // API
 import { getApiEndpoint } from "../../../config/api";
 import api from "../../../api/axios";
+import { consumeSessionExpired } from "../../../utils/sessionExpiredNotice";
 import { getHomePathForUserType, isClientUserType, resolveStoredUserType } from "../../../utils/userType";
 
 function SignIn() {
@@ -38,6 +40,7 @@ function SignIn() {
   // Redux user state and actions
   const { error, clearError } = useUser();
   const dispatch = useDispatch();
+  const toast = useToast();
 
   // Modal states
   const [isSuccessModalOpen, setIsSuccessModalOpen] = React.useState(false);
@@ -161,6 +164,20 @@ function SignIn() {
       if (!succeeded) setIsSubmitting(false);
     }
   };
+
+  // Tell the user once if they were sent here by an expired session
+  React.useEffect(() => {
+    const expiredMessage = consumeSessionExpired();
+    if (expiredMessage) {
+      toast({
+        id: "session-expired",
+        title: expiredMessage,
+        status: "warning",
+        duration: 8000,
+        isClosable: true,
+      });
+    }
+  }, [toast]);
 
   // Clear error when component unmounts or error changes
   React.useEffect(() => {

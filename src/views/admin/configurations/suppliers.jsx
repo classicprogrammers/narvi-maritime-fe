@@ -40,10 +40,17 @@ import {
   deleteSupplier,
 } from "../../../api/suppliers";
 import { refreshMasterData, MASTER_KEYS } from "../../../utils/masterDataCache";
+import { useSaveWithDraft } from "../../../hooks/useSaveWithDraft";
+import { useResumeModalDraft } from "../../../hooks/useResumeModalDraft";
+import { makeDraftId } from "../../../utils/drafts";
+import { resolveDraftSource } from "../../../utils/draftSource";
+import { isExplicitFailure } from "../../../utils/draftFailure";
+import { buildModalFormState } from "../../../utils/modalDraft";
 
 export default function Suppliers() {
   const [suppliers, setSuppliers] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [listLoaded, setListLoaded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [nameInput, setNameInput] = useState("");
@@ -60,6 +67,8 @@ export default function Suppliers() {
   const [sortOrder, setSortOrder] = useState("desc");
 
   const toast = useToast();
+  const { saveWithDraft } = useSaveWithDraft();
+  const draftSessionKeyRef = useRef(makeDraftId());
   const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
   const pageBg = useColorModeValue("gray.50", "gray.900");
   const cardBg = useColorModeValue("white", "gray.800");
@@ -117,6 +126,7 @@ export default function Suppliers() {
       setHasPrevious(false);
     } finally {
       setIsLoading(false);
+      setListLoaded(true);
     }
   }, [page, pageSize, sortBy, sortOrder, searchQuery, toast]);
 
@@ -155,6 +165,7 @@ export default function Suppliers() {
   };
 
   const handleOpenAdd = () => {
+    draftSessionKeyRef.current = makeDraftId();
     setEditingId(null);
     setNameInput("");
     onModalOpen();
@@ -165,6 +176,19 @@ export default function Suppliers() {
     setNameInput(supplier.name || "");
     onModalOpen();
   };
+
+  // Resume from Drafts: reopen the modal prefilled once the list has loaded. The list is paginated,
+  // so the edited supplier may be on another page: fall back to its id (update only needs the id).
+  const { activeDraft } = useResumeModalDraft(["supplier"], {
+    ready: listLoaded,
+    items: (draft) => [...suppliers, { id: draft.formState?.editingId }],
+    isOpen: isModalOpen,
+    onApply: ({ formData: draftForm, item }) => {
+      setEditingId(item ? item.id : null);
+      setNameInput(draftForm.name || "");
+      onModalOpen();
+    },
+  });
 
   const handleSubmit = async () => {
     const trimmedName = nameInput.trim();
@@ -181,9 +205,25 @@ export default function Suppliers() {
 
     setIsSaving(true);
     try {
+      const draftMode = editingId ? "update" : "create";
+      const draftOptions = {
+        module: "supplier",
+        mode: draftMode,
+        recordId: editingId || undefined,
+        sessionKey: draftSessionKeyRef.current,
+        label: trimmedName,
+        formState: buildModalFormState({ name: trimmedName }, editingId ? { id: editingId } : null),
+        isFailure: isExplicitFailure,
+        ...resolveDraftSource(activeDraft, draftMode),
+      };
+
       if (editingId) {
         const payload = { id: editingId, name: trimmedName };
-        const res = await updateSupplier(payload);
+        const res = await saveWithDraft({
+          ...draftOptions,
+          requests: [{ api: "updateSupplier", args: [payload] }],
+          call: () => updateSupplier(payload),
+        });
         const message =
           (res && (res.message || res.result?.message)) ||
           "Supplier updated successfully";
@@ -196,7 +236,11 @@ export default function Suppliers() {
         });
       } else {
         const payload = { name: trimmedName };
-        const res = await createSupplier(payload);
+        const res = await saveWithDraft({
+          ...draftOptions,
+          requests: [{ api: "createSupplier", args: [payload] }],
+          call: () => createSupplier(payload),
+        });
         const message =
           (res && (res.message || res.result?.message)) ||
           "Supplier created successfully";

@@ -53,6 +53,13 @@ import {
 import { useHistory } from "react-router-dom";
 import { bulkUpdateLedgerInvoices, cancelLedgerInvoice, getLedgerInvoices } from "api/ledgerInvoice";
 import { useMasterData } from "hooks/useMasterData";
+import { useSaveWithDraft } from "hooks/useSaveWithDraft";
+import {
+  buildLedgerBulkRetryRequests,
+  getFailedBulkIds,
+  isLedgerBulkPartialFailure,
+  ledgerBulkRecordId,
+} from "utils/ledgerBulkDraft";
 import { getCached, MASTER_KEYS } from "utils/masterDataCache";
 import SearchableSelect from "components/forms/SearchableSelect";
 import LedgerBulkEditModal from "components/ledger/LedgerBulkEditModal";
@@ -161,6 +168,7 @@ function TruncatedText({ value, maxW = "160px", fontWeight, color, fontSize = "s
 
 export default function LedgerInvoice() {
   const toast = useToast();
+  const { saveWithDraft } = useSaveWithDraft();
   const history = useHistory();
   const { refreshClients, refreshDestinations, refreshCurrencies } = useMasterData();
   const savedState = useRef(readPersistedInvoiceListState()).current;
@@ -481,7 +489,26 @@ export default function LedgerInvoice() {
     setIsBulkSubmitting(true);
     setBulkError("");
     try {
-      const result = await bulkUpdateLedgerInvoices(payload);
+      // Retry request: all ids, narrowed to the failed ones when the result reports a partial save.
+      const draftRequests = buildLedgerBulkRetryRequests("bulkUpdateLedgerInvoices", payload);
+      const result = await saveWithDraft({
+        module: "ledgerInvoiceBulk",
+        mode: "update",
+        recordId: ledgerBulkRecordId(payload.ids),
+        label: `${payload.ids.length} invoice record${payload.ids.length === 1 ? "" : "s"}`,
+        formState: null,
+        requests: draftRequests,
+        // bulkUpdateLedgerInvoices throws on failure; a partial result is detected from the ids it confirms.
+        isFailure: (res) => isLedgerBulkPartialFailure(payload, res),
+        call: async () => {
+          const res = await bulkUpdateLedgerInvoices(payload);
+          const failedIds = getFailedBulkIds(payload, res);
+          if (failedIds.length) {
+            draftRequests.splice(0, draftRequests.length, ...buildLedgerBulkRetryRequests("bulkUpdateLedgerInvoices", payload, failedIds));
+          }
+          return res;
+        },
+      });
       const fields = Array.isArray(result.updated_fields) ? result.updated_fields.join(", ") : "";
       toast({
         title: "Success",

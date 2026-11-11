@@ -63,4 +63,23 @@ describe("authStorage", () => {
     expect(getStoredAuth(AUTH_CONTEXTS.CLIENT).token).toBe("legacy-token");
     expect(getStoredAuth(AUTH_CONTEXTS.ADMIN).token).toBeNull();
   });
+
+  test("keeps drafts:* keys on boot and still clears other keys", () => {
+    setStoredAuth(AUTH_CONTEXTS.ADMIN, {
+      token: "admin-token",
+      user: { id: 1, user_type: "admin" },
+    });
+    localStorage.setItem("drafts:1", '{"a":1}');
+    localStorage.setItem("drafts:2:ci", "x");
+    localStorage.setItem("unrelated", "drop-me");
+    localStorage.setItem("mydrafts:1", "drop-me");
+
+    persistScopedAuthOnBoot();
+
+    expect(localStorage.getItem("drafts:1")).toBe('{"a":1}');
+    expect(localStorage.getItem("drafts:2:ci")).toBe("x");
+    expect(localStorage.getItem("unrelated")).toBeNull();
+    expect(localStorage.getItem("mydrafts:1")).toBeNull();
+    expect(getStoredAuth(AUTH_CONTEXTS.ADMIN).token).toBe("admin-token");
+  });
 });

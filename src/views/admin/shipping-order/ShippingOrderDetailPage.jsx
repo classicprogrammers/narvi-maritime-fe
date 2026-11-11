@@ -26,6 +26,8 @@ import {
 import { MdArrowBack, MdDelete, MdDownload, MdEdit } from "react-icons/md";
 import { useHistory, useParams } from "react-router-dom";
 import Card from "components/card/Card";
+import { useSaveWithDraft } from "hooks/useSaveWithDraft";
+import { getMsoApiError } from "utils/shippingOrderMso";
 import ShippingOrderStockList from "../../../components/shipping-order/ShippingOrderStockList";
 import ShippingOrderLedgerInvoices from "../../../components/shipping-order/ShippingOrderLedgerInvoices";
 import {
@@ -106,6 +108,7 @@ export default function ShippingOrderDetailPage() {
   const { id } = useParams();
   const history = useHistory();
   const toast = useToast();
+  const { saveWithDraft } = useSaveWithDraft();
   const cancelDeleteRef = useRef(null);
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
 
@@ -219,7 +222,17 @@ export default function ShippingOrderDetailPage() {
     if (!order?.id) return false;
     setIsSendingRemark(true);
     try {
-      await updateShippingOrder(order.id, { remark_to_client: text.trim() });
+      const remarkPayload = { remark_to_client: text.trim() };
+      await saveWithDraft({
+        module: "shippingOrderRemark",
+        mode: "update",
+        recordId: order.id,
+        label: `Remark: ${order.so_number || `SO-${order.id}`}`,
+        formState: null,
+        requests: [{ api: "updateShippingOrder", args: [order.id, remarkPayload] }],
+        call: () => updateShippingOrder(order.id, remarkPayload),
+        isFailure: (result) => Boolean(getMsoApiError(result)),
+      });
       toast({ title: "Remark sent to client", status: "success", duration: 3000, isClosable: true });
       setReloadKey((key) => key + 1);
       return true;

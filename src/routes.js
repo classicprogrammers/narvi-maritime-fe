@@ -32,6 +32,7 @@ import {
   MdCloud,
   MdAccountBalance,
   MdCategory,
+  MdDrafts,
 } from "react-icons/md";
 
 // Admin Imports
@@ -99,6 +100,9 @@ import SignUp from "views/auth/signUp";
 // Users
 import Users from "views/admin/users";
 import HistoryLogs from "views/admin/history-logs";
+
+// Drafts
+import Drafts from "views/admin/drafts";
 
 // Carbon Calculator
 import CarbonCalculator from "views/admin/carbon-calculator";
@@ -386,6 +390,14 @@ const routes = [
         component: DeliveryConfirmation,
       },
     ],
+  },
+  {
+    name: "Drafts",
+    layout: "/admin",
+    path: "/drafts",
+    icon: <Icon as={MdDrafts} width="20px" height="20px" color="inherit" />,
+    component: Drafts,
+    badgeKey: "drafts",
   },
   {
     name: "Configurations",

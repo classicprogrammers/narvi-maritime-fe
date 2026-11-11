@@ -18,6 +18,7 @@ export const AUTH_STORAGE_KEYS = {
 
 const LEGACY_TOKEN_KEY = "token";
 const LEGACY_USER_KEY = "user";
+const DRAFT_KEY_PREFIX = "drafts:";
 
 export const getAuthContextFromPath = (pathname) => {
   const path = String(
@@ -122,6 +123,14 @@ export const persistScopedAuthOnBoot = () => {
     if (tokenValue) preserved[token] = tokenValue;
     if (userValue) preserved[user] = userValue;
   });
+
+  // Keep saved form drafts across the boot-time wipe.
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith(DRAFT_KEY_PREFIX)) {
+      preserved[key] = localStorage.getItem(key);
+    }
+  }
 
   localStorage.clear();
 

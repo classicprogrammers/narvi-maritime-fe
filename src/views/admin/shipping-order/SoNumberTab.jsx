@@ -65,12 +65,10 @@ import {
   MdLocalShipping,
 } from "react-icons/md";
 import SearchableSelect from "../../../components/forms/SearchableSelect";
-import { getNarviQuotations } from "../../../api/narviQuotation";
 import { useMasterData } from "../../../hooks/useMasterData";
 import { useStockAttachmentsGallery } from "../../../hooks/useStockAttachmentsGallery";
 import {
   getShippingOrders,
-  createShippingOrder,
   updateShippingOrder,
   mergeShippingOrderPackage,
   resolveShippingPackageDownloadUrl,
@@ -79,14 +77,11 @@ import {
 } from "../../../api/shippingOrders";
 import { useHistory, Link, useLocation } from "react-router-dom";
 import * as XLSX from "xlsx";
-import { normalizeOrder, buildPayloadFromForm, getOrderAttachmentsForDisplay, validateShippingOrderServiceBoat, validateShippingOrderRequiredFields } from "./shippingOrderUtils";
+import { normalizeOrder, getOrderAttachmentsForDisplay } from "./shippingOrderUtils";
 import {
-  applyShippingOrderFilesToPayload,
   mapExistingCiplFilesFromOrder,
-  notifyShippingOrderSaveResult,
   resolveShippingOrderDownloadFilename,
 } from "../../../utils/shippingOrderAttachments";
-import ShippingOrderFormFields from "./ShippingOrderFormFields";
 import ShippingOrderColumnEmptyFilter from "./ShippingOrderColumnEmptyFilter";
 import {
   buildShippingOrderListQueryParams,
@@ -271,7 +266,6 @@ const SoNumberTab = () => {
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
 
   const [savedState] = useState(() => getInitialShippingOrderListState(location.search));
 
@@ -329,10 +323,7 @@ const SoNumberTab = () => {
 
   const [formData, setFormData] = useState(null);
   const { clients, vessels, countries, pics, destinations } = useMasterData();
-  const [quotations, setQuotations] = useState([]);
-  const [isLoadingQuotations, setIsLoadingQuotations] = useState(false);
 
-  const formDisclosure = useDisclosure();
   const picFilterModalDisclosure = useDisclosure();
   const vslsAgentDtlsDisclosure = useDisclosure();
   const packageLinkDisclosure = useDisclosure();
@@ -888,31 +879,6 @@ const SoNumberTab = () => {
 
   // Destinations come from master cache (/api/destinations stored) - no fetch here
 
-  // Fetch quotations for searchable quotation field
-  useEffect(() => {
-    const fetchQuotations = async () => {
-      try {
-        setIsLoadingQuotations(true);
-        const response = await getNarviQuotations({ page: 1, page_size: 200 });
-        const list = Array.isArray(response?.data) ? response.data : [];
-
-        const normalized = list.map((q) => ({
-          id: q.id,
-          name: q.name || `Q-${q.id}`,
-        }));
-
-        setQuotations(normalized);
-      } catch (error) {
-        console.error("Failed to fetch quotations for SO", error);
-        setQuotations([]);
-      } finally {
-        setIsLoadingQuotations(false);
-      }
-    };
-
-    fetchQuotations();
-  }, []);
-
   // PICs come from cache (useMasterData) - /api/person/incharge/list stored in cache, no repeated calls
 
   // Default ATH/SIN PIC selections when master data loads (overrides stale session PIC ids)
@@ -1001,11 +967,6 @@ const SoNumberTab = () => {
   const handleEdit = (order) => {
     if (order?.id == null) return;
     history.push(`/admin/shipping-orders/edit/${order.id}`);
-  };
-
-  const handleFormClose = (clearDraft = false) => {
-    setFormData(null);
-    formDisclosure.onClose();
   };
 
   const handleRefresh = () => {
@@ -1217,66 +1178,6 @@ const SoNumberTab = () => {
       });
     } finally {
       setMergingOrderId(null);
-    }
-  };
-
-  const handleFormSubmit = async () => {
-    const requiredError = formData ? validateShippingOrderRequiredFields(formData) : "Client is required.";
-
-    if (requiredError) {
-      toast({
-        title: "Missing details",
-        description: requiredError,
-        status: "warning",
-        duration: 4000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    const serviceBoatError = validateShippingOrderServiceBoat(formData);
-    if (serviceBoatError) {
-      toast({
-        title: "Missing details",
-        description: serviceBoatError,
-        status: "warning",
-        duration: 4000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    try {
-      setIsSaving(true);
-
-      const payload = applyShippingOrderFilesToPayload(
-        buildPayloadFromForm(formData, false, {}, countries),
-        formData
-      );
-      const response = await createShippingOrder(payload);
-      const notify = notifyShippingOrderSaveResult(response, toast, { created: true });
-      if (notify.ok && !notify.partial) {
-        toast({
-          title: "SO created",
-          status: "success",
-          duration: 3000,
-          isClosable: true,
-        });
-      }
-
-      await fetchOrders();
-      handleFormClose(true);
-    } catch (error) {
-      console.error("Failed to save shipping order", error);
-      toast({
-        title: "Save failed",
-        description: error.message || "Unable to save shipping order",
-        status: "error",
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -2378,39 +2279,6 @@ const SoNumberTab = () => {
           </>
         )}
       </Box>
-
-      <Modal isOpen={formDisclosure.isOpen} onClose={handleFormClose} size="4xl">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>Create SO</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            {formData && (
-              <ShippingOrderFormFields
-                formData={formData}
-                setFormData={setFormData}
-                isEditMode={false}
-                clients={clients}
-                vessels={vessels}
-                countries={countries}
-                pics={pics}
-                quotations={quotations}
-                isLoadingQuotations={isLoadingQuotations}
-                onOpenVslsAgentDtlsModal={openVslsAgentDtlsModal}
-                showVesselDbLink
-              />
-            )}
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="outline" mr={3} onClick={handleFormClose}>
-              Cancel
-            </Button>
-            <Button colorScheme="blue" onClick={handleFormSubmit} isLoading={isSaving} loadingText="Creating...">
-              Create SO
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
 
       {/* Shipping package download link (shown only after merge) */}
       <Modal

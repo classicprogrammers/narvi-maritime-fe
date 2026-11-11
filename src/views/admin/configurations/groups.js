@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Box,
   Flex,
@@ -45,10 +45,17 @@ import {
   MdDelete,
 } from "react-icons/md";
 import groupsAPI from "../../../api/groups";
+import { useSaveWithDraft } from "../../../hooks/useSaveWithDraft";
+import { useResumeModalDraft } from "../../../hooks/useResumeModalDraft";
+import { makeDraftId } from "../../../utils/drafts";
+import { resolveDraftSource } from "../../../utils/draftSource";
+import { isExplicitFailure } from "../../../utils/draftFailure";
+import { buildModalFormState } from "../../../utils/modalDraft";
 
 export default function Groups() {
   const [groups, setGroups] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [listLoaded, setListLoaded] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [editingGroup, setEditingGroup] = useState(null);
   const [deleteGroupId, setDeleteGroupId] = useState(null);
@@ -59,6 +66,8 @@ export default function Groups() {
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
 
   const toast = useToast();
+  const { saveWithDraft } = useSaveWithDraft();
+  const draftSessionKeyRef = useRef(makeDraftId());
 
   const textColor = useColorModeValue("gray.700", "white");
   const hoverBg = useColorModeValue("blue.50", "blue.900");
@@ -92,6 +101,7 @@ export default function Groups() {
       setGroups([]);
     } finally {
       setIsLoading(false);
+      setListLoaded(true);
     }
   };
 
@@ -138,6 +148,7 @@ export default function Groups() {
 
   // Open modal for creating new group
   const handleNewGroup = () => {
+    draftSessionKeyRef.current = makeDraftId();
     resetForm();
     onModalOpen();
   };
@@ -151,14 +162,42 @@ export default function Groups() {
     onModalOpen();
   };
 
+  // Resume from Drafts: reopen the modal prefilled once the list has loaded
+  const { activeDraft } = useResumeModalDraft(["group"], {
+    ready: listLoaded,
+    items: groups,
+    isOpen: isModalOpen,
+    onApply: ({ formData: draftForm, item }) => {
+      setFormData(draftForm);
+      setEditingGroup(item);
+      onModalOpen();
+    },
+  });
+
   // Handle form submission (create or update)
   const handleSubmit = async () => {
     try {
       setIsLoading(true);
 
+      const draftMode = editingGroup ? "update" : "create";
+      const draftOptions = {
+        module: "group",
+        mode: draftMode,
+        recordId: editingGroup?.id,
+        sessionKey: draftSessionKeyRef.current,
+        label: formData.name,
+        formState: buildModalFormState(formData, editingGroup),
+        isFailure: isExplicitFailure,
+        ...resolveDraftSource(activeDraft, draftMode),
+      };
+
       if (editingGroup) {
         // Update existing group
-        await groupsAPI.updateGroup(editingGroup.id, formData);
+        await saveWithDraft({
+          ...draftOptions,
+          requests: [{ api: "updateGroup", args: [editingGroup.id, formData] }],
+          call: () => groupsAPI.updateGroup(editingGroup.id, formData),
+        });
         toast({
           title: "Success",
           description: "Group updated successfully",
@@ -168,7 +207,11 @@ export default function Groups() {
         });
       } else {
         // Create new group
-        await groupsAPI.createGroup(formData);
+        await saveWithDraft({
+          ...draftOptions,
+          requests: [{ api: "createGroup", args: [formData] }],
+          call: () => groupsAPI.createGroup(formData),
+        });
         toast({
           title: "Success",
           description: "Group created successfully",

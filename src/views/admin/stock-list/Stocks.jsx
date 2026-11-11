@@ -60,6 +60,8 @@ import {
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
 import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdFilterList, MdSearch, MdNumbers, MdSort, MdCheckBox, MdCheckBoxOutlineBlank, MdDownload, MdViewModule, MdViewList, MdContentCopy, MdPrint, MdPictureAsPdf, MdInventory2, MdDateRange } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
+import { useSaveWithDraft } from "../../../hooks/useSaveWithDraft";
+import { isStockSaveFailure, narrowRequestsToFailedLines } from "../../../utils/stockDraft";
 import { updateStockItemApi, downloadStockItemAttachmentApi } from "../../../api/stock";
 import {
     getStockBulkSaveResultData,
@@ -630,6 +632,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
     const [editingRowData, setEditingRowData] = useState({});
 
     const toast = useToast();
+    const { saveWithDraft } = useSaveWithDraft();
 
     const {
         stockList,
@@ -3865,7 +3868,17 @@ export default function Stocks({ variant = "stocks" } = {}) {
             // Wrap in lines array format
             const payload = { lines: [linePayload] };
 
-            const result = await updateStockItemApi(item.id, payload);
+            const requests = [{ api: "updateStockItemApi", args: [item.id, payload] }];
+            const result = await saveWithDraft({
+                module: "stockInline",
+                mode: "update",
+                recordId: item.id,
+                label: item.stock_item_id ? String(item.stock_item_id) : "1 stock item",
+                formState: null,
+                requests,
+                call: () => updateStockItemApi(item.id, payload),
+                isFailure: isStockSaveFailure,
+            });
             const resultData = getStockBulkSaveResultData(result);
             if (resultData?.status === "success" && !resultData.errors?.some(
                 (err) => String(err?.stock_id) === String(item.id)
@@ -3922,7 +3935,21 @@ export default function Stocks({ variant = "stocks" } = {}) {
 
             // Send all lines in a single payload
             const payload = { lines };
-            const result = await updateStockItemApi(editingIds[0], payload);
+            const requests = [{ api: "updateStockItemApi", args: [editingIds[0], payload] }];
+            const result = await saveWithDraft({
+                module: "stockInline",
+                mode: "update",
+                recordId: editingIds.join(","),
+                label: `${lines.length} stock items`,
+                formState: null,
+                requests,
+                call: async () => {
+                    const response = await updateStockItemApi(editingIds[0], payload);
+                    narrowRequestsToFailedLines(requests, response);
+                    return response;
+                },
+                isFailure: isStockSaveFailure,
+            });
             const resultData = getStockBulkSaveResultData(result);
 
             if (resultData?.status === "success") {

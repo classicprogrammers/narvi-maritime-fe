@@ -1,3 +1,4 @@
+import { isExplicitFailure } from "utils/draftFailure";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Box,
@@ -18,6 +19,7 @@ import {
 } from "@chakra-ui/react";
 import { useHistory, useLocation, useParams } from "react-router-dom";
 import Card from "components/card/Card";
+import { useSaveWithDraft } from "hooks/useSaveWithDraft";
 import {
   archiveNarviQuotation,
   extractNarviQuotationError,
@@ -63,6 +65,7 @@ export default function QuotationDetail() {
   const history = useHistory();
   const location = useLocation();
   const toast = useToast();
+  const { saveWithDraft } = useSaveWithDraft();
   const textColor = useColorModeValue("secondaryGray.900", "white");
   const muted = useColorModeValue("gray.500", "gray.400");
   const bannerBg = useColorModeValue("orange.50", "whiteAlpha.100");
@@ -167,7 +170,26 @@ export default function QuotationDetail() {
     if (!payload) return false;
     setSaving(true);
     try {
-      await updateNarviQuotation(payload);
+      const saveResult = await saveWithDraft({
+        module: "quotationDetail",
+        mode: "update",
+        recordId: quotation.id,
+        label: quotationReference(quotation),
+        formState: null,
+        requests: [{ api: "updateNarviQuotation", args: [payload] }],
+        isFailure: isExplicitFailure,
+        call: () => updateNarviQuotation(payload),
+      });
+      if (isExplicitFailure(saveResult)) {
+        toast({
+          title: "Error",
+          description: extractNarviQuotationError({ response: { data: saveResult } }, "Failed to update quotation."),
+          status: "error",
+          duration: 4000,
+          isClosable: true,
+        });
+        return false;
+      }
       toast({ title: successTitle, status: "success", duration: 2000, isClosable: true });
       await load();
       return true;

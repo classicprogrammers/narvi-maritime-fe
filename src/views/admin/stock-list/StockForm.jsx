@@ -50,6 +50,17 @@ import {
     MdPictureAsPdf,
     MdVisibility,
 } from "react-icons/md";
+import { useSaveWithDraft } from "../../../hooks/useSaveWithDraft";
+import { useResumeDraft } from "../../../hooks/useResumeDraft";
+import { makeDraftId } from "../../../utils/drafts";
+import {
+    buildStockDraftLabel,
+    buildStockFormState,
+    isStockActionFailure,
+    isStockSaveFailure,
+    resolveStockRowDraftSource,
+    withActionErrorMessage,
+} from "../../../utils/stockDraft";
 import { createStockItemApi } from "../../../api/stock";
 import { normalizeStockStatusKey } from "../../../constants/stockStatus";
 import { isStockT1Marked, STOCK_T1_HEADING, STOCK_T1_MARK } from "../../../constants/stockT1";
@@ -126,6 +137,8 @@ export default function StockForm() {
     const [vesselOptionsByClientId, setVesselOptionsByClientId] = useState({});
     const [isLoadingVesselByClient, setIsLoadingVesselByClient] = useState({});
     const [selectedItems, setSelectedItems] = useState([]);
+    const { saveWithDraft } = useSaveWithDraft();
+    const draftSessionKeyRef = useRef(makeDraftId());
     const [currentItemIndex, setCurrentItemIndex] = useState(0);
     const hasFetchedCurrenciesRef = React.useRef(false);
 
@@ -367,6 +380,33 @@ export default function StockForm() {
         toast,
         ensureStockData,
     ]);
+
+    // Resume from Drafts: overlay the draft rows after the form's own fetch (re-applied if the fetch re-runs)
+    const { draft: resumedDraft } = useResumeDraft(["stockLegacyForm"], { ready: !isLoading });
+    useEffect(() => {
+        if (!resumedDraft) return;
+        const draftRows = resumedDraft.formState?.formRows;
+        if (!Array.isArray(draftRows) || draftRows.length === 0) return;
+        const nextRows = draftRows.map((row) => ({ ...getEmptyRow(), ...row }));
+        formRowsRef.current = nextRows;
+        setFormRows(nextRows);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [resumedDraft]);
+
+    // One draft per saved row, so a later success for another row never removes a failed row's draft
+    const saveRowWithDraft = (row, mode, call, isFailure, requests) =>
+        saveWithDraft({
+            module: "stockLegacyForm",
+            mode,
+            recordId: mode === "update" ? row.stockId : undefined,
+            sessionKey: `${draftSessionKeyRef.current}-${row.id}`,
+            label: buildStockDraftLabel([row]),
+            formState: buildStockFormState({ rows: [row] }),
+            requests,
+            call,
+            isFailure,
+            ...resolveStockRowDraftSource(resumedDraft, mode, row),
+        });
 
     // Currencies and PICs come from cache (useMasterData). Ensure clients/vessels cache on mount.
     useEffect(() => {
@@ -1256,7 +1296,13 @@ export default function StockForm() {
 
                     try {
                         const payload = getPayload(row, true); // Include stock_id
-                        const result = await updateStockItem(row.stockId, payload, {});
+                        const result = await saveRowWithDraft(
+                            row,
+                            "update",
+                            async () => withActionErrorMessage(await updateStockItem(row.stockId, payload, {})),
+                            isStockActionFailure,
+                            [{ api: "updateStockItemApi", args: [row.stockId, payload] }]
+                        );
                         if (result && result.success) {
                             successCount++;
                         } else {
@@ -1287,7 +1333,13 @@ export default function StockForm() {
                     throw new Error('No data to save');
                 }
                 const payload = getPayload(formRows[0], true); // Include stock_id
-                const result = await updateStockItem(id, payload, {});
+                const result = await saveRowWithDraft(
+                    formRows[0],
+                    "update",
+                    async () => withActionErrorMessage(await updateStockItem(id, payload, {})),
+                    isStockActionFailure,
+                    [{ api: "updateStockItemApi", args: [id, payload] }]
+                );
                 if (result && result.success) {
                     const apiMessage = result.data?.result?.message;
                     toast({
@@ -1322,7 +1374,13 @@ export default function StockForm() {
                     try {
                         if (hasExistingStockId) {
                             const payload = getPayload(row, true);
-                            const result = await updateStockItem(row.stockId, payload, {});
+                            const result = await saveRowWithDraft(
+                                row,
+                                "update",
+                                async () => withActionErrorMessage(await updateStockItem(row.stockId, payload, {})),
+                                isStockActionFailure,
+                                [{ api: "updateStockItemApi", args: [row.stockId, payload] }]
+                            );
                             if (result && result.success) {
                                 successCount++;
                             } else {
@@ -1338,7 +1396,13 @@ export default function StockForm() {
                             );
                         } else {
                             const payload = getPayload(row);
-                            const result = await createStockItemApi(payload);
+                            const result = await saveRowWithDraft(
+                                row,
+                                "create",
+                                () => createStockItemApi(payload),
+                                isStockSaveFailure,
+                                [{ api: "createStockItemApi", args: [payload] }]
+                            );
                             if (result && result.result) {
                                 const resultData = result.result;
 

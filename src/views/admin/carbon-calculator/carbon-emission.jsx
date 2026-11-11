@@ -33,6 +33,8 @@ import {
   updateEmissionFactorsApi,
 } from "api/carbon";
 import { useUser } from "redux/hooks/useUser";
+import { useSaveWithDraft } from "hooks/useSaveWithDraft";
+import { isExplicitFailure } from "utils/draftFailure";
 
 const FONT = '"Plus Jakarta Sans", sans-serif';
 
@@ -58,6 +60,7 @@ function formatTonnesFromKg(kg) {
 
 export default function CarbonEmission() {
   const toast = useToast();
+  const { saveWithDraft } = useSaveWithDraft();
   const { user } = useUser();
   const isAdmin = user?.user_type === "admin";
 
@@ -165,7 +168,17 @@ export default function CarbonEmission() {
     }
     setSaving(true);
     try {
-      await updateEmissionFactorsApi(payload);
+      // Retry-only draft (one per page: the whole factor table is resent)
+      await saveWithDraft({
+        module: "carbonFactors",
+        mode: "update",
+        recordId: "factors",
+        label: "Emission factors",
+        formState: null,
+        requests: [{ api: "updateEmissionFactorsApi", args: [payload] }],
+        call: () => updateEmissionFactorsApi(payload),
+        isFailure: isExplicitFailure,
+      });
       setEditOpen(false);
       setResult(null);
       toast({ title: "Emission factors saved", status: "success", duration: 2500, isClosable: true });

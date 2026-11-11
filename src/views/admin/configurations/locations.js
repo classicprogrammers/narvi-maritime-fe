@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Box,
   Flex,
@@ -45,10 +45,17 @@ import {
   MdDelete,
 } from "react-icons/md";
 import stockListLocationsAPI from "../../../api/stockListLocations";
+import { useSaveWithDraft } from "../../../hooks/useSaveWithDraft";
+import { useResumeModalDraft } from "../../../hooks/useResumeModalDraft";
+import { makeDraftId } from "../../../utils/drafts";
+import { resolveDraftSource } from "../../../utils/draftSource";
+import { isExplicitFailure } from "../../../utils/draftFailure";
+import { buildModalFormState } from "../../../utils/modalDraft";
 
 export default function Locations() {
   const [locations, setLocations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [listLoaded, setListLoaded] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [editingLocation, setEditingLocation] = useState(null);
   const [deleteLocationId, setDeleteLocationId] = useState(null);
@@ -61,6 +68,8 @@ export default function Locations() {
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
 
   const toast = useToast();
+  const { saveWithDraft } = useSaveWithDraft();
+  const draftSessionKeyRef = useRef(makeDraftId());
 
   const textColor = useColorModeValue("gray.700", "white");
   const hoverBg = useColorModeValue("blue.50", "blue.900");
@@ -99,6 +108,7 @@ export default function Locations() {
       setApiTotalPages(1);
     } finally {
       setIsLoading(false);
+      setListLoaded(true);
     }
   };
 
@@ -138,6 +148,7 @@ export default function Locations() {
 
   // Open modal for creating new location
   const handleNewLocation = () => {
+    draftSessionKeyRef.current = makeDraftId();
     resetForm();
     onModalOpen();
   };
@@ -151,14 +162,43 @@ export default function Locations() {
     onModalOpen();
   };
 
+  // Resume from Drafts: reopen the modal prefilled once the list has loaded. The list is paginated,
+  // so the edited location may be on another page: fall back to its id (update only needs the id).
+  const { activeDraft } = useResumeModalDraft(["stockLocation"], {
+    ready: listLoaded,
+    items: (draft) => [...locations, { id: draft.formState?.editingId }],
+    isOpen: isModalOpen,
+    onApply: ({ formData: draftForm, item }) => {
+      setFormData(draftForm);
+      setEditingLocation(item);
+      onModalOpen();
+    },
+  });
+
   // Handle form submission (create or update)
   const handleSubmit = async () => {
     try {
       setIsLoading(true);
 
+      const draftMode = editingLocation ? "update" : "create";
+      const draftOptions = {
+        module: "stockLocation",
+        mode: draftMode,
+        recordId: editingLocation?.id,
+        sessionKey: draftSessionKeyRef.current,
+        label: formData.name,
+        formState: buildModalFormState(formData, editingLocation),
+        isFailure: isExplicitFailure,
+        ...resolveDraftSource(activeDraft, draftMode),
+      };
+
       if (editingLocation) {
         // Update existing location
-        const response = await stockListLocationsAPI.updateLocation(editingLocation.id, formData);
+        const response = await saveWithDraft({
+          ...draftOptions,
+          requests: [{ api: "updateLocation", args: [editingLocation.id, formData] }],
+          call: () => stockListLocationsAPI.updateLocation(editingLocation.id, formData),
+        });
         
         // Extract success message from API response
         let successMessage = "Location updated successfully";
@@ -183,7 +223,11 @@ export default function Locations() {
         });
       } else {
         // Create new location
-        const response = await stockListLocationsAPI.createLocation(formData);
+        const response = await saveWithDraft({
+          ...draftOptions,
+          requests: [{ api: "createLocation", args: [formData] }],
+          call: () => stockListLocationsAPI.createLocation(formData),
+        });
         
         // Extract success message from API response
         let successMessage = "Location created successfully";

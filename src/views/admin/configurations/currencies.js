@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Box,
   Flex,
@@ -43,11 +43,18 @@ import {
 import currenciesAPI from "../../../api/currencies";
 import { useMasterData } from "../../../hooks/useMasterData";
 import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
+import { useSaveWithDraft } from "../../../hooks/useSaveWithDraft";
+import { useResumeModalDraft } from "../../../hooks/useResumeModalDraft";
+import { makeDraftId } from "../../../utils/drafts";
+import { resolveDraftSource } from "../../../utils/draftSource";
+import { isExplicitFailure } from "../../../utils/draftFailure";
+import { buildModalFormState } from "../../../utils/modalDraft";
 
 export default function Currencies() {
   const { refreshCurrencies } = useMasterData();
   const [currencies, setCurrencies] = useState(() => getCached(MASTER_KEYS.CURRENCIES) ?? []);
   const [isLoading, setIsLoading] = useState(false);
+  const [listLoaded, setListLoaded] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [editingCurrency, setEditingCurrency] = useState(null);
@@ -57,6 +64,8 @@ export default function Currencies() {
   const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
 
   const toast = useToast();
+  const { saveWithDraft } = useSaveWithDraft();
+  const draftSessionKeyRef = useRef(makeDraftId());
 
   const textColor = useColorModeValue("gray.700", "white");
   const hoverBg = useColorModeValue("blue.50", "blue.900");
@@ -90,6 +99,7 @@ export default function Currencies() {
       setCurrencies([]);
     } finally {
       setIsLoading(false);
+      setListLoaded(true);
     }
   };
 
@@ -151,6 +161,7 @@ export default function Currencies() {
 
   // Open modal for creating new currency
   const handleNewCurrency = () => {
+    draftSessionKeyRef.current = makeDraftId();
     resetForm();
     onModalOpen();
   };
@@ -167,14 +178,42 @@ export default function Currencies() {
     onModalOpen();
   };
 
+  // Resume from Drafts: reopen the modal prefilled once the list has loaded
+  const { activeDraft } = useResumeModalDraft(["currency"], {
+    ready: listLoaded,
+    items: currencies,
+    isOpen: isModalOpen,
+    onApply: ({ formData: draftForm, item }) => {
+      setFormData(draftForm);
+      setEditingCurrency(item);
+      onModalOpen();
+    },
+  });
+
   // Handle form submission (create or update)
   const handleSubmit = async () => {
     try {
       setIsLoading(true);
 
+      const draftMode = editingCurrency ? "update" : "create";
+      const draftOptions = {
+        module: "currency",
+        mode: draftMode,
+        recordId: editingCurrency?.id,
+        sessionKey: draftSessionKeyRef.current,
+        label: formData.name,
+        formState: buildModalFormState(formData, editingCurrency),
+        isFailure: isExplicitFailure,
+        ...resolveDraftSource(activeDraft, draftMode),
+      };
+
       if (editingCurrency) {
         // Update existing currency
-        const response = await currenciesAPI.updateCurrency(editingCurrency.id, formData);
+        const response = await saveWithDraft({
+          ...draftOptions,
+          requests: [{ api: "updateCurrency", args: [editingCurrency.id, formData] }],
+          call: () => currenciesAPI.updateCurrency(editingCurrency.id, formData),
+        });
 
         // Extract success message from API response
         let successMessage = "Currency updated successfully";
@@ -199,7 +238,11 @@ export default function Currencies() {
         });
       } else {
         // Create new currency
-        const response = await currenciesAPI.createCurrency(formData);
+        const response = await saveWithDraft({
+          ...draftOptions,
+          requests: [{ api: "createCurrency", args: [formData] }],
+          call: () => currenciesAPI.createCurrency(formData),
+        });
 
         // Extract success message from API response
         let successMessage = "Currency created successfully";

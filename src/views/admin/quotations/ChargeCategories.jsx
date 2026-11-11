@@ -47,6 +47,12 @@ import {
   normalizeChargeCategoryList,
   updateChargeCategoryApi,
 } from "../../../api/chargeCategory";
+import { useSaveWithDraft } from "hooks/useSaveWithDraft";
+import { useResumeDraft } from "hooks/useResumeDraft";
+import { makeDraftId } from "utils/drafts";
+import { resolveDraftSource } from "utils/draftSource";
+import { isExplicitFailure } from "utils/draftFailure";
+import { buildChargeCategorySave, chargeCategoryFormFromDraft } from "utils/chargeCategoryDraft";
 
 const EMPTY_FORM = { id: null, name: "", code: "", sequence: "", is_standard: false, active: true };
 
@@ -61,6 +67,10 @@ function errorMessage(error, fallback) {
 
 export default function ChargeCategories() {
   const toast = useToast();
+  const { saveWithDraft } = useSaveWithDraft();
+  const draftSessionKey = useRef(makeDraftId());
+  const hasAppliedDraftRef = useRef(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [rows, setRows] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -104,6 +114,7 @@ export default function ChargeCategories() {
       });
     } finally {
       setIsLoading(false);
+      setHasLoaded(true);
     }
   }, [activeFilter, debouncedSearch, toast]);
 
@@ -111,7 +122,26 @@ export default function ChargeCategories() {
     loadRows();
   }, [loadRows]);
 
-  const openCreate = () => setForm({ ...EMPTY_FORM });
+  // Resume from Drafts: reopen the modal prefilled once the list has loaded.
+  const { draft: resumedDraft } = useResumeDraft(["chargeCategory"], { ready: hasLoaded });
+  // the resumed draft is linked to the open modal only; released when the modal closes
+  const [activeDraft, setActiveDraft] = useState(null);
+  useEffect(() => {
+    if (form === null) setActiveDraft(null);
+  }, [form]);
+  useEffect(() => {
+    if (!resumedDraft || hasAppliedDraftRef.current) return;
+    const resumedForm = chargeCategoryFormFromDraft(resumedDraft.formState);
+    if (!resumedForm) return;
+    hasAppliedDraftRef.current = true;
+    setActiveDraft(resumedDraft);
+    setForm(resumedForm);
+  }, [resumedDraft]);
+
+  const openCreate = () => {
+    draftSessionKey.current = makeDraftId();
+    setForm({ ...EMPTY_FORM });
+  };
   const openEdit = (row) =>
     setForm({
       id: row.id,
@@ -127,26 +157,37 @@ export default function ChargeCategories() {
       toast({ title: "Name is required", status: "warning", duration: 3000, isClosable: true });
       return;
     }
-    const sequence = form.sequence === "" ? undefined : Number(form.sequence);
+    const original = form.id == null ? {} : rows.find((row) => row.id === form.id) || {};
+    const save = buildChargeCategorySave(form, original);
     setIsSaving(true);
     try {
-      if (form.id == null) {
-        await createChargeCategoryApi({
-          name: form.name.trim(),
-          sequence,
-          is_standard: form.is_standard,
-          active: form.active,
+      let saveResult;
+      if (save.payload) {
+        saveResult = await saveWithDraft({
+          module: "chargeCategory",
+          mode: save.mode,
+          recordId: form.id,
+          sessionKey: draftSessionKey.current,
+          label: form.name.trim(),
+          formState: { form: { ...form }, editingId: form.id },
+          requests: [{ api: save.api, args: [save.payload] }],
+          ...resolveDraftSource(activeDraft, save.mode),
+          isFailure: isExplicitFailure,
+          call: () =>
+            save.mode === "create"
+              ? createChargeCategoryApi(save.payload)
+              : updateChargeCategoryApi(save.payload),
         });
-      } else {
-        const original = rows.find((row) => row.id === form.id) || {};
-        const changes = {};
-        if (form.name.trim() !== (original.name || "")) changes.name = form.name.trim();
-        if (sequence !== undefined && sequence !== original.sequence) changes.sequence = sequence;
-        if (form.is_standard !== Boolean(original.is_standard)) changes.is_standard = form.is_standard;
-        if (form.active !== (original.active !== false)) changes.active = form.active;
-        if (Object.keys(changes).length) {
-          await updateChargeCategoryApi({ id: form.id, ...changes });
-        }
+      }
+      if (isExplicitFailure(saveResult)) {
+        toast({
+          title: "Could not save",
+          description: errorMessage(saveResult, "Your input was saved to Drafts."),
+          status: "error",
+          duration: 6000,
+          isClosable: true,
+        });
+        return;
       }
       toast({ title: "Charge category saved", status: "success", duration: 3000, isClosable: true });
       setForm(null);

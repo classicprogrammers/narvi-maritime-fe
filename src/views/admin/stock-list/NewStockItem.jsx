@@ -57,6 +57,19 @@ import {
     MdTableChart,
     MdViewList,
 } from "react-icons/md";
+import SaveAsDraftButton from "../../../components/drafts/SaveAsDraftButton";
+import { useSaveWithDraft } from "../../../hooks/useSaveWithDraft";
+import { useResumeDraft } from "../../../hooks/useResumeDraft";
+import { makeDraftId, makeDraftKey } from "../../../utils/drafts";
+import {
+    buildFailedStockFormState,
+    buildStockDraftLabel,
+    buildStockFormState,
+    getStockDraftMode,
+    isStockSaveFailure,
+    narrowCreateRequestsToFailedLines,
+    resolveStockDraftSource,
+} from "../../../utils/stockDraft";
 import { formatStockStatusLabel, normalizeStockStatusKey } from "../../../constants/stockStatus";
 import { isStockT1Heading, isStockT1Marked, STOCK_T1_HEADING, STOCK_T1_MARK } from "../../../constants/stockT1";
 import { useStock } from "../../../redux/hooks/useStock";
@@ -355,6 +368,9 @@ export default function StockForm() {
     const hasFetchedCurrenciesRef = React.useRef(false);
     const hasPatchedLegacySoIdRef = React.useRef(false);
     const hasInitializedFromListRef = useRef(false);
+    const { saveWithDraft, saveManualDraft } = useSaveWithDraft();
+    const draftSessionKeyRef = useRef(makeDraftId());
+    const hasAppliedDraftRef = useRef(false);
 
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
@@ -1357,6 +1373,24 @@ export default function StockForm() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isEditFromList, selectedItemsFromState]);
 
+    // Resume from Drafts: overlay the draft rows after the form's own init/fetch (never overwritten by it)
+    const { draft: resumedDraft } = useResumeDraft(["stock"], { ready: !isLoading });
+    useEffect(() => {
+        if (!resumedDraft || hasAppliedDraftRef.current) return;
+        const draftRows = resumedDraft.formState?.formRows;
+        if (!Array.isArray(draftRows) || draftRows.length === 0) return;
+        hasAppliedDraftRef.current = true;
+        const nextRows = draftRows.map((row, index) => ({
+            ...getEmptyRow(),
+            ...row,
+            _order: row?._order ?? index,
+        }));
+        formRowsRef.current = nextRows;
+        setSort({ sortKey: null, sortOrder: null });
+        setFormRows(nextRows);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [resumedDraft]);
+
     const navigateBackFromEdit = useCallback(() => {
         if (filterState) {
             const backPath = sourcePage === "stocks"
@@ -2304,6 +2338,29 @@ export default function StockForm() {
         handleSaveStockItem({ skipStatusCheck: true });
     };
 
+    // Manual "Save as draft": no API call and no validation
+    const handleSaveAsDraft = () => {
+        const rows =
+            Array.isArray(formRowsRef.current) && formRowsRef.current.length > 0
+                ? formRowsRef.current
+                : formRows;
+        saveManualDraft({
+            module: "stock",
+            mode: getStockDraftMode(rows),
+            draftKey:
+                resumedDraft?.source === "manual"
+                    ? resumedDraft.key
+                    : makeDraftKey("stock", "manual", draftSessionKeyRef.current),
+            label: buildStockDraftLabel(rows),
+            formState: buildStockFormState({
+                rows,
+                selectedItems: selectedItems.length > 0 ? selectedItems : selectedItemsFromState,
+                isBulkEdit,
+                sourcePage,
+            }),
+        });
+    };
+
     const handleSaveStockItem = async (options) => {
         const skipStatusCheck = options?.skipStatusCheck === true;
         try {
@@ -2374,6 +2431,11 @@ export default function StockForm() {
                 throw new Error("No data to save");
             }
 
+            const draftContext = {
+                selectedItems: selectedItems.length > 0 ? selectedItems : selectedItemsFromState,
+                isBulkEdit,
+                sourcePage,
+            };
             const isListEditMode = isBulkEdit || isEditFromList || Boolean(id);
             const navigateAfterFullSuccess = () => {
                 if (isEditFromList) {
@@ -2396,7 +2458,29 @@ export default function StockForm() {
             if (rowsToUpdate.length > 0) {
                 const lines = rowsToUpdate.map((row) => getPayload(row, true));
                 const payload = { lines };
-                const result = await updateStockItemApi(id || rowsToUpdate[0].stockId, payload);
+                const updateTargetId = id || rowsToUpdate[0].stockId;
+                const result = await saveWithDraft({
+                    module: "stock",
+                    mode: "update",
+                    recordId: rowsToUpdate.length === 1 ? rowsToUpdate[0].stockId : undefined,
+                    sessionKey: draftSessionKeyRef.current,
+                    label: buildStockDraftLabel(rowsToUpdate),
+                    // a thrown update stops the save, so keep the not-yet-created rows too
+                    formState: buildStockFormState({ ...draftContext, rows: rowsForSave }),
+                    // with unsent create rows a Retry would drop them, so offer Resume only
+                    requests:
+                        rowsToCreate.length > 0
+                            ? []
+                            : [{ api: "updateStockItemApi", args: [updateTargetId, payload] }],
+                    call: () => updateStockItemApi(updateTargetId, payload),
+                    isFailure: isStockSaveFailure,
+                    failedFormState: buildFailedStockFormState({
+                        ...draftContext,
+                        rows: rowsToUpdate,
+                        unsentRows: rowsToCreate,
+                    }),
+                    ...resolveStockDraftSource(resumedDraft, "update"),
+                });
                 const resultData = getStockBulkSaveResultData(result);
 
                 if (resultData?.status === "success") {
@@ -2421,7 +2505,27 @@ export default function StockForm() {
                 try {
                     const lines = rowsToCreate.map((row) => getPayload(row));
                     const payload = { lines };
-                    const result = await createStockItemApi(payload);
+                    const createRequests = [{ api: "createStockItemApi", args: [payload] }];
+                    const result = await saveWithDraft({
+                        module: "stock",
+                        mode: "create",
+                        sessionKey: draftSessionKeyRef.current,
+                        label: buildStockDraftLabel(rowsToCreate),
+                        formState: buildStockFormState({ ...draftContext, rows: rowsToCreate }),
+                        requests: createRequests,
+                        call: async () => {
+                            const response = await createStockItemApi(payload);
+                            narrowCreateRequestsToFailedLines(createRequests, response);
+                            return response;
+                        },
+                        isFailure: isStockSaveFailure,
+                        failedFormState: buildFailedStockFormState({
+                            ...draftContext,
+                            rows: rowsToCreate,
+                            getRowId: () => null,
+                        }),
+                        ...resolveStockDraftSource(resumedDraft, "create"),
+                    });
 
                     if (result && result.result) {
                         const resultData = result.result;
@@ -2585,6 +2689,7 @@ export default function StockForm() {
                     >
                         Discard
                     </Button>
+                    <SaveAsDraftButton onClick={handleSaveAsDraft} isDisabled={updateLoading} />
                     <Button
                         leftIcon={<Icon as={MdSave} />}
                         colorScheme={isEditing || isBulkEdit || isEditFromList ? "green" : "blue"}

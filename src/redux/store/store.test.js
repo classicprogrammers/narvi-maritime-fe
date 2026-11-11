@@ -28,6 +28,10 @@ describe("Redux Store Configuration", () => {
     expect(state.user).toEqual(expectedInitialState);
   });
 
+  test("initial drafts state should be empty and not hydrated", () => {
+    expect(store.getState().drafts).toEqual({ userId: null, items: [], hydrated: false });
+  });
+
   test("store should dispatch actions", () => {
     const initialState = store.getState();
 

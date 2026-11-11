@@ -10,7 +10,10 @@ import {
   useColorModeValue,
   Collapse,
   IconButton,
+  Badge,
 } from "@chakra-ui/react";
+import { useSelector } from "react-redux";
+import { selectDraftCount } from "redux/slices/draftsSlice";
 import { ChevronDownIcon, ChevronRightIcon } from "@chakra-ui/icons";
 
 export function SidebarLinks(props) {
@@ -25,6 +28,7 @@ export function SidebarLinks(props) {
   let textColor = useColorModeValue("secondaryGray.500", "white");
   let brandColor = useColorModeValue("#174693", "#174693");
 
+  const draftCount = useSelector(selectDraftCount);
   const { routes, collapsed = false } = props;
   const [openSubmenus, setOpenSubmenus] = useState({});
   const [, setAddStockFlagDummy] = useState(0);
@@ -397,8 +401,20 @@ export function SidebarLinks(props) {
                               : textColor
                           }
                           me={collapsed ? "0px" : "18px"}
+                          position="relative"
                         >
                           {route.icon}
+                          {collapsed && route.badgeKey === "drafts" && draftCount > 0 && (
+                            <Box
+                              data-testid="drafts-dot"
+                              position="absolute"
+                              top="-2px"
+                              right="-4px"
+                              boxSize="8px"
+                              borderRadius="full"
+                              bg="red.500"
+                            />
+                          )}
                         </Box>
                         {!collapsed && (
                           <Text
@@ -416,6 +432,11 @@ export function SidebarLinks(props) {
                           >
                             {route.name}
                           </Text>
+                        )}
+                        {!collapsed && route.badgeKey === "drafts" && draftCount > 0 && (
+                          <Badge colorScheme="red" borderRadius="full" px="2" me="2">
+                            {draftCount}
+                          </Badge>
                         )}
                       </Flex>
                       {!collapsed && (

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import {
   Box,
   Flex,
@@ -74,6 +74,12 @@ import { getCustomersForSelect } from "api/entitySelects";
 import { parseNamedClients } from "utils/portalClients";
 import SearchableSelect from "components/forms/SearchableSelect";
 import { useUser } from "../../../redux/hooks/useUser";
+import { useSaveWithDraft } from "hooks/useSaveWithDraft";
+import { useResumeModalDraft } from "hooks/useResumeModalDraft";
+import { makeDraftId } from "utils/drafts";
+import { resolveDraftSource } from "utils/draftSource";
+import { isExplicitFailure } from "utils/draftFailure";
+import { buildModalFormState, omitSecretFields } from "utils/modalDraft";
 
 function ClientLoginClientsCell({ record }) {
   const clients = parseNamedClients(record?.client_ids);
@@ -109,9 +115,14 @@ export default function Users() {
   const inputBg = useColorModeValue("white", "gray.700");
   const inputText = useColorModeValue("gray.700", "white");
   const toast = useToast();
+  const { saveWithDraft } = useSaveWithDraft();
+  const userSessionKeyRef = useRef(makeDraftId());
+  const clientSessionKeyRef = useRef(makeDraftId());
 
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [usersLoaded, setUsersLoaded] = useState(false);
+  const [clientLoginsLoaded, setClientLoginsLoaded] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [editingUser, setEditingUser] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -222,6 +233,7 @@ export default function Users() {
       // handled in API layer
     } finally {
       setIsLoading(false);
+      setUsersLoaded(true);
     }
   }, []);
 
@@ -266,6 +278,7 @@ export default function Users() {
       setClientLogins([]);
     } finally {
       setIsClientListLoading(false);
+      setClientLoginsLoaded(true);
     }
   }, [clientSearchEmail, clientActiveFilter]);
 
@@ -306,6 +319,7 @@ export default function Users() {
 
   const handleCreateClick = () => {
     if (!isAdmin) return;
+    userSessionKeyRef.current = makeDraftId();
     resetForm();
     openModal();
   };
@@ -334,8 +348,41 @@ export default function Users() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Resume from Drafts: reopen the matching modal prefilled once both lists have loaded.
+  // Passwords are never stored in a draft, so the password fields come back empty.
+  const { activeDraft } = useResumeModalDraft(["user", "clientLogin"], {
+    ready: usersLoaded && clientLoginsLoaded,
+    items: (draft) => (draft.module === "clientLogin" ? clientLogins : users),
+    isOpen: isModalOpen || isClientModalOpen,
+    onApply: ({ formData: draftForm, item, draft }) => {
+      if (draft.module === "clientLogin") {
+        setClientFormData({ ...draftForm, password: "", confirm_password: "" });
+        setShowClientPassword(false);
+        setEditingClientLogin(item);
+        openClientModal();
+      } else {
+        setFormData({ ...draftForm, password: "", confirm_password: "" });
+        setShowPassword(false);
+        setEditingUser(item);
+        openModal();
+      }
+    },
+  });
+
   const handleSubmit = () => {
     const save = async () => {
+      // passwords are left out of the draft form state (see omitSecretFields)
+      const userDraftMode = editingUser ? "update" : "create";
+      const userDraftOptions = {
+        module: "user",
+        mode: userDraftMode,
+        recordId: editingUser?.id,
+        sessionKey: userSessionKeyRef.current,
+        label: formData.name || formData.email,
+        formState: buildModalFormState(omitSecretFields(formData), editingUser),
+        isFailure: isExplicitFailure,
+        ...resolveDraftSource(activeDraft?.module === "user" ? activeDraft : null, userDraftMode),
+      };
       try {
         if (editingUser) {
           const newPassword = String(formData.password || "").trim();
@@ -382,7 +429,11 @@ export default function Users() {
           if (newPassword) {
             payload.password = newPassword;
           }
-          const res = await updateUserApi(payload);
+          const res = await saveWithDraft({
+            ...userDraftOptions,
+            requests: [{ api: "updateUserApi", args: [payload] }],
+            call: () => updateUserApi(payload),
+          });
           if (res?.result?.status === "error" || res?.status === "error") {
             toast({
               title: "Update failed",
@@ -420,7 +471,11 @@ export default function Users() {
             password: formData.password,
             user_type: formData.user_type,
           };
-          const res = await signupUserApi(payload);
+          const res = await saveWithDraft({
+            ...userDraftOptions,
+            requests: [{ api: "signupUserApi", args: [payload] }],
+            call: () => signupUserApi(payload),
+          });
           if (res?.result?.status === "error" || res?.status === "error") {
             toast({
               title: "Create failed",
@@ -482,6 +537,7 @@ export default function Users() {
 
   const openCreateClientLogin = () => {
     if (!isAdmin) return;
+    clientSessionKeyRef.current = makeDraftId();
     resetClientForm();
     openClientModal();
   };
@@ -581,6 +637,18 @@ export default function Users() {
 
     setIsClientSubmitting(true);
     try {
+      // passwords are left out of the draft form state (see omitSecretFields)
+      const clientDraftMode = editingClientLogin ? "update" : "create";
+      const clientDraftOptions = {
+        module: "clientLogin",
+        mode: clientDraftMode,
+        recordId: editingClientLogin?.id,
+        sessionKey: clientSessionKeyRef.current,
+        label: clientFormData.email,
+        formState: buildModalFormState(omitSecretFields(clientFormData), editingClientLogin),
+        isFailure: isExplicitFailure,
+        ...resolveDraftSource(activeDraft?.module === "clientLogin" ? activeDraft : null, clientDraftMode),
+      };
       if (editingClientLogin) {
         const payload = { id: editingClientLogin.id };
         if (clientFormData.email.trim()) payload.email = clientFormData.email.trim();
@@ -591,7 +659,11 @@ export default function Users() {
         payload.active = Boolean(clientFormData.active);
         payload.client_ids = buildClientLoginIdsPayload(clientFormData.client_ids);
         payload.primary_client_id = primaryClientIdForSubmit;
-        const res = await updateClientLoginApi(payload);
+        const res = await saveWithDraft({
+          ...clientDraftOptions,
+          requests: [{ api: "updateClientLoginApi", args: [payload] }],
+          call: () => updateClientLoginApi(payload),
+        });
         toast({
           title: "Success",
           description: res?.result?.message || res?.message || "Client access updated successfully",
@@ -607,7 +679,11 @@ export default function Users() {
           confirm_password: clientFormData.confirm_password,
         };
         if (primaryClientIdForSubmit != null) payload.primary_client_id = primaryClientIdForSubmit;
-        const res = await createClientLoginApi(payload);
+        const res = await saveWithDraft({
+          ...clientDraftOptions,
+          requests: [{ api: "createClientLoginApi", args: [payload] }],
+          call: () => createClientLoginApi(payload),
+        });
         toast({
           title: "Success",
           description: res?.result?.message || res?.message || "Client access created successfully",

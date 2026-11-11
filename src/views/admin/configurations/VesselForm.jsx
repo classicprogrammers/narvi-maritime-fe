@@ -46,6 +46,16 @@ import { useHistory, useLocation, useParams } from "react-router-dom";
 import vesselsAPI from "../../../api/vessels";
 import { refreshMasterData, MASTER_KEYS } from "../../../utils/masterDataCache";
 import { useMasterData } from "../../../hooks/useMasterData";
+import { useSaveWithDraft } from "../../../hooks/useSaveWithDraft";
+import { useResumeDraft } from "../../../hooks/useResumeDraft";
+import { makeDraftId } from "../../../utils/drafts";
+import { resolveDraftSource } from "../../../utils/draftSource";
+import {
+  applyVesselDraftRows,
+  buildVesselDraftLabel,
+  getVesselDraftRecordId,
+  toCreateDraftRows,
+} from "../../../utils/vesselDraft";
 import SearchableSelect from "../../../components/forms/SearchableSelect";
 import LongTextModalField from "../../../components/forms/LongTextModalField";
 import { CellWithAssignMenu } from "../../../components/forms/AssignToRowsBelowMenu";
@@ -224,6 +234,9 @@ export default function VesselForm() {
   const [previewFile, setPreviewFile] = useState(null);
   const [formLayout, setFormLayout] = useState(readStoredVesselFormLayout);
   const requestedClientsRef = useRef(new Set());
+  const { saveWithDraft } = useSaveWithDraft();
+  const draftSessionKeyRef = useRef(makeDraftId());
+  const hasAppliedDraftRef = useRef(false);
 
   const textColor = useColorModeValue("gray.700", "white");
   const inputBg = useColorModeValue("gray.100", "gray.800");
@@ -482,6 +495,17 @@ export default function VesselForm() {
     };
   }, [editVesselIds, isEditing, toast]);
 
+  // Resume from Drafts: overlay the draft rows after the vessels have loaded (baselineById stays fresh)
+  const { draft: resumedDraft } = useResumeDraft(["vessel"], { ready: !isLoading });
+  useEffect(() => {
+    if (!resumedDraft || hasAppliedDraftRef.current) return;
+    const draftRows = resumedDraft.formState?.rows;
+    if (!Array.isArray(draftRows) || draftRows.length === 0) return;
+    hasAppliedDraftRef.current = true;
+    setRows((prev) => (isEditing ? applyVesselDraftRows(prev, draftRows) : toCreateDraftRows(draftRows)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumedDraft]);
+
   const getPeopleOptions = (row) => {
     const options = peopleByClient[String(row.client_id || "")] || [];
     if (
@@ -676,6 +700,19 @@ export default function VesselForm() {
     });
   };
 
+  const saveVesselCreateWithDraft = (createRows) =>
+    saveWithDraft({
+      module: "vessel",
+      mode: "create",
+      sessionKey: draftSessionKeyRef.current,
+      label: buildVesselDraftLabel(createRows),
+      formState: { rows: createRows },
+      requests: [{ api: "bulkCreateVessels", args: [createRows] }],
+      call: () => vesselsAPI.bulkCreateVessels(createRows),
+      isFailure: (res) => unwrapVesselResult(res?.result).status === "error",
+      ...resolveDraftSource(resumedDraft, "create"),
+    });
+
   const handleSave = async () => {
     setShowErrors(true);
     const invalidIndex = rows.findIndex((row) => Object.keys(getRowErrors(row)).length > 0);
@@ -722,7 +759,21 @@ export default function VesselForm() {
           return;
         }
         if (items.length) {
-          response = await vesselsAPI.bulkUpdateVesselItems(items);
+          const updateRows = submittedRows.filter((row) => row.vessel_id);
+          // the bulk call saves nothing on error, so the draft keeps every submitted row
+          response = await saveWithDraft({
+            module: "vessel",
+            mode: "update",
+            recordId: getVesselDraftRecordId(updateRows),
+            sessionKey: draftSessionKeyRef.current,
+            label: buildVesselDraftLabel(updateRows),
+            formState: { rows: submittedRows },
+            // the draft also holds the create rows, so Retry alone must not delete it (Resume only)
+            requests: createRows.length ? [] : [{ api: "bulkUpdateVesselItems", args: [items] }],
+            call: () => vesselsAPI.bulkUpdateVesselItems(items),
+            isFailure: (res) => unwrapVesselResult(res?.result).status === "error",
+            ...resolveDraftSource(resumedDraft, "update"),
+          });
           const updateData = unwrapVesselResult(response?.result);
           if (updateData.status === "error") {
             reportSaveError(updateData, submittedRows);
@@ -730,11 +781,11 @@ export default function VesselForm() {
           }
         }
         if (createRows.length) {
-          response = await vesselsAPI.bulkCreateVessels(createRows);
+          response = await saveVesselCreateWithDraft(createRows);
         }
       } else {
         submittedRows.push(...rows);
-        response = await vesselsAPI.bulkCreateVessels(rows);
+        response = await saveVesselCreateWithDraft(rows);
       }
 
       const data = unwrapVesselResult(response?.result);

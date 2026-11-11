@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Box,
   Flex,
@@ -48,11 +48,18 @@ import {
 import picAPI from "../../../api/pic";
 import { useMasterData } from "../../../hooks/useMasterData";
 import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
+import { useSaveWithDraft } from "../../../hooks/useSaveWithDraft";
+import { useResumeModalDraft } from "../../../hooks/useResumeModalDraft";
+import { makeDraftId } from "../../../utils/drafts";
+import { resolveDraftSource } from "../../../utils/draftSource";
+import { isExplicitFailure } from "../../../utils/draftFailure";
+import { buildModalFormState } from "../../../utils/modalDraft";
 
 export default function PIC() {
   const { refreshPics } = useMasterData();
   const [pics, setPics] = useState(() => getCached(MASTER_KEYS.PICS) ?? []);
   const [isLoading, setIsLoading] = useState(false);
+  const [listLoaded, setListLoaded] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [editingPIC, setEditingPIC] = useState(null);
   const [deletePICId, setDeletePICId] = useState(null);
@@ -63,6 +70,8 @@ export default function PIC() {
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
 
   const toast = useToast();
+  const { saveWithDraft } = useSaveWithDraft();
+  const draftSessionKeyRef = useRef(makeDraftId());
 
   const textColor = useColorModeValue("gray.700", "white");
   const hoverBg = useColorModeValue("blue.50", "blue.900");
@@ -93,6 +102,7 @@ export default function PIC() {
       setPics([]);
     } finally {
       setIsLoading(false);
+      setListLoaded(true);
     }
   };
 
@@ -138,6 +148,7 @@ export default function PIC() {
 
   // Open modal for creating new PIC
   const handleNewPIC = () => {
+    draftSessionKeyRef.current = makeDraftId();
     resetForm();
     onModalOpen();
   };
@@ -151,14 +162,42 @@ export default function PIC() {
     onModalOpen();
   };
 
+  // Resume from Drafts: reopen the modal prefilled once the list has loaded
+  const { activeDraft } = useResumeModalDraft(["pic"], {
+    ready: listLoaded,
+    items: pics,
+    isOpen: isModalOpen,
+    onApply: ({ formData: draftForm, item }) => {
+      setFormData(draftForm);
+      setEditingPIC(item);
+      onModalOpen();
+    },
+  });
+
   // Handle form submission (create or update)
   const handleSubmit = async () => {
     try {
       setIsLoading(true);
 
+      const draftMode = editingPIC ? "update" : "create";
+      const draftOptions = {
+        module: "pic",
+        mode: draftMode,
+        recordId: editingPIC?.id,
+        sessionKey: draftSessionKeyRef.current,
+        label: formData.name,
+        formState: buildModalFormState(formData, editingPIC),
+        isFailure: isExplicitFailure,
+        ...resolveDraftSource(activeDraft, draftMode),
+      };
+
       if (editingPIC) {
         // Update existing PIC
-        await picAPI.updatePIC(editingPIC.id, formData);
+        await saveWithDraft({
+          ...draftOptions,
+          requests: [{ api: "updatePIC", args: [editingPIC.id, formData] }],
+          call: () => picAPI.updatePIC(editingPIC.id, formData),
+        });
         toast({
           title: "Success",
           description: "PIC updated successfully",
@@ -168,7 +207,11 @@ export default function PIC() {
         });
       } else {
         // Create new PIC
-        await picAPI.createPIC(formData);
+        await saveWithDraft({
+          ...draftOptions,
+          requests: [{ api: "createPIC", args: [formData] }],
+          call: () => picAPI.createPIC(formData),
+        });
         toast({
           title: "Success",
           description: "PIC created successfully",

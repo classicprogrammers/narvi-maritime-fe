@@ -41,6 +41,16 @@ import {
 import Card from "components/card/Card";
 import { CellWithAssignMenu } from "components/forms/AssignToRowsBelowMenu";
 import SearchableSelect from "components/forms/SearchableSelect";
+import SaveAsDraftButton from "components/drafts/SaveAsDraftButton";
+import { useSaveWithDraft } from "hooks/useSaveWithDraft";
+import { useResumeDraft } from "hooks/useResumeDraft";
+import { makeDraftKey } from "utils/drafts";
+import {
+  buildRateDraftFormState,
+  buildRateRetryRequests,
+  getRemainingRateRowIndices,
+  isRateSaveFailure,
+} from "utils/rateDraft";
 import { createRateListApi, deleteRateListApi, updateRateListApi } from "../../../api/rate";
 import { getAllChargeCategoriesApi } from "../../../api/chargeCategory";
 import { SHIPMENT_TYPE_OPTIONS, shipmentTypeLabel } from "../../../utils/shipmentType";
@@ -337,6 +347,14 @@ export default function RateListForm() {
   const cancelDeleteRef = useRef(null);
   const deletedRateIdsRef = useRef(new Set());
   const initializedForKeyRef = useRef(null);
+  const [initializedKey, setInitializedKey] = useState(null);
+  const appliedDraftIdRef = useRef(null);
+  // Stable per form session, so failed saves and manual drafts update one draft.
+  const draftKeyRef = useRef(makeDraftKey("rate", isEditing ? "update" : "create", Date.now()));
+  const { saveWithDraft, saveManualDraft } = useSaveWithDraft();
+  const { draft: resumedDraft, draftId: sourceDraftId } = useResumeDraft(["rate"], {
+    ready: initializedKey === location.key,
+  });
 
   const textColor = useColorModeValue("secondaryGray.900", "white");
   const borderColor = useColorModeValue("gray.200", "whiteAlpha.100");
@@ -542,6 +560,7 @@ export default function RateListForm() {
   useEffect(() => {
     if (initializedForKeyRef.current === location.key) return;
     initializedForKeyRef.current = location.key;
+    setInitializedKey(location.key);
 
     const items = location.state?.selectedItems;
     const hasItems = Array.isArray(items) && items.length > 0;
@@ -576,6 +595,42 @@ export default function RateListForm() {
     setClientOptionPins({});
     setCurrencyOptionPins({});
   }, [location.key, location.state]);
+
+  // Resume: overlay the draft rows once the form's own init has run, so nothing overwrites them.
+  useEffect(() => {
+    if (!resumedDraft || appliedDraftIdRef.current === resumedDraft.id) return;
+    appliedDraftIdRef.current = resumedDraft.id;
+    const saved = resumedDraft.formState || {};
+    if (!Array.isArray(saved.formRows) || !saved.formRows.length) return;
+    draftKeyRef.current = resumedDraft.key;
+    setFormRows(saved.formRows);
+    setOriginalRows(saved.originalRows || []);
+    setAgentOptionPins(saved.agentOptionPins || {});
+    setClientOptionPins(saved.clientOptionPins || {});
+    setCurrencyOptionPins(saved.currencyOptionPins || {});
+  }, [resumedDraft]);
+
+  const getDraftSnapshotInput = () => ({
+    formRows,
+    originalRows,
+    pins: { agent: agentOptionPins, client: clientOptionPins, currency: currencyOptionPins },
+    selectedItems: selectedItemsFromState,
+    isBulkEdit: stateData.isBulkEdit,
+  });
+
+  // Manual draft: no API call and no validation; keeps every row and stays on the page.
+  const handleSaveAsDraft = () => {
+    saveManualDraft({
+      module: "rate",
+      mode: isEditing ? "update" : "create",
+      draftKey: draftKeyRef.current,
+      label: `${formRows.length} rate(s)`,
+      formState: buildRateDraftFormState({
+        ...getDraftSnapshotInput(),
+        indices: formRows.map((_, index) => index),
+      }),
+    });
+  };
 
   const getAgentOptionsForRow = useCallback(
     (index) => {
@@ -886,45 +941,35 @@ export default function RateListForm() {
 
     setSaving(true);
     let updateDone = !changedLines.length;
+    let updateErrors = [];
     const createdKeys = [];
+    // Draft content is filled while the call runs (see syncDraft), so it only holds what is still unsaved.
+    const draftFormState = {};
+    const draftRequests = [];
+    const syncDraft = () => {
+      const indices = getRemainingRateRowIndices({ formRows, changedLines, updateDone, updateErrors, createdKeys });
+      Object.assign(draftFormState, buildRateDraftFormState({ ...getDraftSnapshotInput(), indices }));
+      draftRequests.splice(0, draftRequests.length, ...buildRateRetryRequests({ formRows, changedLines, indices }));
+    };
     try {
-      if (changedLines.length) {
-        const result = await updateRateListApi({ lines: changedLines });
-        updateDone = true;
-        const message =
-          result.message ||
-          result.result?.message ||
-          `${result.updated_count ?? changedLines.length} rate(s) updated.`;
-
-        const errorCount = result.error_count ?? (Array.isArray(result.errors) ? result.errors.length : 0);
-
-        toast({
-          title: errorCount > 0 ? "Partially saved" : "Rates updated",
-          description: message,
-          status: errorCount > 0 ? "warning" : "success",
-          duration: 5000,
-          isClosable: true,
-        });
-
-        if (Array.isArray(result.errors) && result.errors.length) {
-          const detail = result.errors
-            .map((err) => `Row ${(err.index ?? 0) + 1} (ID ${err.id ?? "?"}): ${err.message}`)
-            .join("\n");
-          toast({
-            title: "Some rows failed",
-            description: detail,
-            status: "error",
-            duration: 8000,
-            isClosable: true,
-          });
-        }
-      }
-
-      for (const row of newRows) {
-        // eslint-disable-next-line no-await-in-loop
-        await createRateListApi(buildRateCreatePayload(row));
-        createdKeys.push(row._key);
-      }
+      await saveWithDraft({
+        module: "rate",
+        mode: isEditing ? "update" : "create",
+        draftKey: draftKeyRef.current,
+        label: `${formRows.length} rate(s)`,
+        formState: draftFormState,
+        requests: draftRequests,
+        isFailure: isRateSaveFailure,
+        failedFormState: () => draftFormState,
+        sourceDraftId,
+        call: async () => {
+          try {
+            return (await saveRates()) || { status: "success" };
+          } finally {
+            syncDraft();
+          }
+        },
+      });
 
       if (newRows.length) {
         toast({
@@ -976,6 +1021,50 @@ export default function RateListForm() {
       });
     } finally {
       setSaving(false);
+    }
+
+    async function saveRates() {
+      let updateResult = null;
+      if (changedLines.length) {
+        const result = await updateRateListApi({ lines: changedLines });
+        updateResult = result;
+        updateDone = true;
+        updateErrors = Array.isArray(result.errors) ? result.errors : [];
+        const message =
+          result.message ||
+          result.result?.message ||
+          `${result.updated_count ?? changedLines.length} rate(s) updated.`;
+
+        const errorCount = result.error_count ?? (Array.isArray(result.errors) ? result.errors.length : 0);
+
+        toast({
+          title: errorCount > 0 ? "Partially saved" : "Rates updated",
+          description: message,
+          status: errorCount > 0 ? "warning" : "success",
+          duration: 5000,
+          isClosable: true,
+        });
+
+        if (Array.isArray(result.errors) && result.errors.length) {
+          const detail = result.errors
+            .map((err) => `Row ${(err.index ?? 0) + 1} (ID ${err.id ?? "?"}): ${err.message}`)
+            .join("\n");
+          toast({
+            title: "Some rows failed",
+            description: detail,
+            status: "error",
+            duration: 8000,
+            isClosable: true,
+          });
+        }
+      }
+
+      for (const row of newRows) {
+        // eslint-disable-next-line no-await-in-loop
+        await createRateListApi(buildRateCreatePayload(row));
+        createdKeys.push(row._key);
+      }
+      return updateResult;
     }
   };
 
@@ -1074,6 +1163,7 @@ export default function RateListForm() {
           >
             Discard
           </Button>
+          <SaveAsDraftButton onClick={handleSaveAsDraft} isLoading={false} isDisabled={saving} />
           <Button
             leftIcon={<Icon as={MdSave} />}
             colorScheme={isEditing ? "green" : "blue"}
