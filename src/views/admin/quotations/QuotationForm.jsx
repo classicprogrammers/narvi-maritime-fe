@@ -610,7 +610,7 @@ export default function QuotationForm() {
       const searchKey = field === "location" ? "q_location" : field === "agent" ? "q_agent" : "q_rate";
       clearLineOptionsCache(lineIndex);
       loadLineOptions(lineIndex, lineState, { [searchKey]: q });
-    }, 300);
+    }, 400);
   };
 
   const scheduleHeaderSearch = (field, value) => {
@@ -628,7 +628,7 @@ export default function QuotationForm() {
         q_vessel: field === "vessel" ? q : "",
         q_so: field === "so" ? q : "",
       });
-    }, 300);
+    }, 400);
   };
 
   const handleHeaderFieldFocus = (field) => {

@@ -702,7 +702,7 @@ function ClientStockReportView() {
       if (nextQuery === searchQuery) return;
       setSearchQuery(nextQuery);
       setCurrentPage(1);
-    }, 300);
+    }, 400);
     return () => clearTimeout(timer);
   }, [search, searchQuery]);
 
@@ -712,7 +712,7 @@ function ClientStockReportView() {
       if (nextQuery === poNumberQuery) return;
       setPoNumberQuery(nextQuery);
       setCurrentPage(1);
-    }, 300);
+    }, 400);
     return () => clearTimeout(timer);
   }, [filters.poNumber, poNumberQuery]);
 
@@ -722,7 +722,7 @@ function ClientStockReportView() {
       if (nextQuery === reqNoQuery) return;
       setReqNoQuery(nextQuery);
       setCurrentPage(1);
-    }, 300);
+    }, 400);
     return () => clearTimeout(timer);
   }, [filters.reqNo, reqNoQuery]);
 

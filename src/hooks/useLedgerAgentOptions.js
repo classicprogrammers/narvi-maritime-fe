@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getLedgerAgentOptions } from "api/ledgerShared";
 
-const DEBOUNCE_MS = 300;
+const DEBOUNCE_MS = 400;
 
 // Agent picker data for the ledger screens. Use with SearchableSelect serverSideSearch.
 // pin(option): keep the current value in the list even when a search does not return it.

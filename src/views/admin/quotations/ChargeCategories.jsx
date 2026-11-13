@@ -91,7 +91,7 @@ export default function ChargeCategories() {
   const borderColor = useColorModeValue("gray.200", "whiteAlpha.200");
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 400);
     return () => clearTimeout(timer);
   }, [search]);
 

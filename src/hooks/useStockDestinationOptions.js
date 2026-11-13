@@ -67,7 +67,7 @@ export default function useStockDestinationOptions() {
         q_narvi_stock_ap_destination: qNarviApDestination,
         q_origin_text: qOriginText,
       });
-    }, 300);
+    }, 400);
     return () => clearTimeout(timeoutId);
   }, [qDestination, qViaHub1, qViaHub2, qNarviApDestination, qOriginText, loadOptions]);
 

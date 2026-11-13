@@ -64,6 +64,8 @@ export default function StockOriginCountrySelect({
             minW={minW}
             w={w}
             htmlSize={computedHtmlSize}
+            // Options come from the backend search; never filter locally (avoids showing results twice)
+            serverSideSearch
             {...rest}
         />
     );

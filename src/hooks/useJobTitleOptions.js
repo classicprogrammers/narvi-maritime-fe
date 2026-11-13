@@ -29,7 +29,7 @@ export default function useJobTitleOptions() {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       loadOptions({ q_job_title: qJobTitle });
-    }, 300);
+    }, 400);
     return () => clearTimeout(timeoutId);
   }, [qJobTitle, loadOptions]);
 

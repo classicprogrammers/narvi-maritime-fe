@@ -180,7 +180,7 @@ export default function CostEntryTableView({ currencies }) {
   const handleSoSearch = useCallback(
     (query) => {
       if (soTimerRef.current) clearTimeout(soTimerRef.current);
-      soTimerRef.current = setTimeout(() => fetchOrders(query), 300);
+      soTimerRef.current = setTimeout(() => fetchOrders(query), 400);
     },
     [fetchOrders]
   );

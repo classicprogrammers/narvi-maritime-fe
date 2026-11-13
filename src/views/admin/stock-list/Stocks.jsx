@@ -4259,6 +4259,8 @@ export default function Stocks({ variant = "stocks" } = {}) {
                         )}
                         placeholder="Select or type origin..."
                         onSearchChange={setQOriginText}
+
+                        serverSideSearch
                         isLoading={isLoadingDestinationOptions}
                         bg={inputBg}
                         color={inputText}
@@ -4294,6 +4296,8 @@ export default function Stocks({ variant = "stocks" } = {}) {
                         valueKey="id"
                         formatOption={(option) => option.name || `Destination ${option.id}`}
                         onSearchChange={setQDestination}
+
+                        serverSideSearch
                         isLoading={isLoadingDestinationOptions}
                         bg={inputBg}
                         color={inputText}
@@ -4357,6 +4361,8 @@ export default function Stocks({ variant = "stocks" } = {}) {
                         valueKey="id"
                         formatOption={(option) => option.name || `Option ${option.id}`}
                         onSearchChange={locationConfig.setQ}
+
+                        serverSideSearch
                         isLoading={isLoadingDestinationOptions}
                         bg={inputBg}
                         color={inputText}
@@ -5358,6 +5364,8 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                                         setClientViewViaHub1(id);
                                                                     }}
                                                                     onSearchChange={setQViaHub1}
+
+                                                                    serverSideSearch
                                                                     options={getOptionsForValue("viaHub1", stockViaHub1Options, clientViewViaHub1)}
                                                                     placeholder="Filter by HUB 1"
                                                                     displayKey="name"
@@ -5886,6 +5894,8 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                                             setStockViewViaHub1(id);
                                                                         }}
                                                                         onSearchChange={setQViaHub1}
+
+                                                                        serverSideSearch
                                                                         options={getOptionsForValue("viaHub1", stockViaHub1Options, stockViewViaHub1)}
                                                                         placeholder="Filter by Via HUB 1"
                                                                         displayKey="name"
@@ -5922,6 +5932,8 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                                             setStockViewViaHub2(id);
                                                                         }}
                                                                         onSearchChange={setQViaHub2}
+
+                                                                        serverSideSearch
                                                                         options={getOptionsForValue("viaHub2", stockViaHub2Options, stockViewViaHub2)}
                                                                         placeholder="Filter by Via HUB 2"
                                                                         displayKey="name"
@@ -5958,6 +5970,8 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                                             setStockViewApDestination(id);
                                                                         }}
                                                                         onSearchChange={setQNarviApDestination}
+
+                                                                        serverSideSearch
                                                                         options={getOptionsForValue("apDestination", stockNarviApDestinationOptions, stockViewApDestination)}
                                                                         placeholder="Filter by AP Destination"
                                                                         displayKey="name"
@@ -6002,6 +6016,8 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                                             );
                                                                         }}
                                                                         onSearchChange={setQOriginText}
+
+                                                                        serverSideSearch
                                                                         options={getOptionsForValue("origin", stockOriginTextOptions, stockViewOriginFilterId)}
                                                                         placeholder="Filter by Origin"
                                                                         displayKey="name"
@@ -6556,6 +6572,8 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                                         setClientViewViaHub1(id);
                                                                     }}
                                                                     onSearchChange={setQViaHub1}
+
+                                                                    serverSideSearch
                                                                     options={getOptionsForValue("viaHub1", stockViaHub1Options, clientViewViaHub1)}
                                                                     placeholder="Filter by HUB 1"
                                                                     displayKey="name"

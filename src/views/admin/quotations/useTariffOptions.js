@@ -44,7 +44,7 @@ export default function useTariffOptions({ fetchOptions, payload, parse, initial
     (queryKey, query) => {
       queriesRef.current = { ...queriesRef.current, [queryKey]: (query || "").trim() };
       clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(load, 300);
+      timerRef.current = setTimeout(load, 400);
     },
     [load]
   );

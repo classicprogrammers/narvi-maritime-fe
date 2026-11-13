@@ -8,7 +8,7 @@ import { createLatestGuard } from "../utils/searchableSelect";
 import { resolveShippingOrderSoIdApiParam, getSoNumberSearchKeyFromField } from "../utils/shippingOrderListState";
 
 const PAGE_SIZE = 50;
-const DEBOUNCE_MS = 300;
+const DEBOUNCE_MS = 400;
 
 function useDebouncedFn(fn, delayMs = DEBOUNCE_MS) {
   const timerRef = useRef(null);

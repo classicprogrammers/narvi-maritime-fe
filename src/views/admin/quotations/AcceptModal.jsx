@@ -87,7 +87,7 @@ export default function AcceptModal({ isOpen, onClose, quotation, onAccepted }) 
 
   const handleSearch = (query) => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => loadSo(query), 300);
+    searchTimer.current = setTimeout(() => loadSo(query), 400);
   };
 
   const handleAccept = async () => {

@@ -237,7 +237,7 @@ export default function Quotations() {
         q_client: field === "client" ? q : "",
         q_vessel: field === "vessel" ? q : "",
       });
-    }, 300);
+    }, 400);
   };
 
   const handleFilterFieldFocus = (field) => {

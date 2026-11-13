@@ -18,7 +18,7 @@ export function useClientVesselFilterOptions(client, selectedVessel, allVessels 
   const onSearchChange = useCallback((text) => {
     clearTimeout(timerRef.current);
     const next = String(text ?? "").trim();
-    timerRef.current = setTimeout(() => setQuery(next), 300);
+    timerRef.current = setTimeout(() => setQuery(next), 400);
   }, []);
   useEffect(() => () => clearTimeout(timerRef.current), []);
   useEffect(() => setQuery(""), [clientId]);

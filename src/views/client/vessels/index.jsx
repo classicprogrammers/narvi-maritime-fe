@@ -53,7 +53,7 @@ function ClientVessels() {
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchClientVessels();
-    }, 300);
+    }, 400);
     return () => clearTimeout(timer);
   }, [fetchClientVessels]);
 

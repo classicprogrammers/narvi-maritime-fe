@@ -52,7 +52,7 @@ function ClientHubLocations() {
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchHubs();
-    }, 300);
+    }, 400);
     return () => clearTimeout(timer);
   }, [fetchHubs]);
 

@@ -197,7 +197,7 @@ export default function QuotationWizard() {
       } finally {
         if (!cancelled) setOriginsLoading(false);
       }
-    }, 300);
+    }, 400);
     return () => {
       cancelled = true;
       clearTimeout(timer);
@@ -509,7 +509,7 @@ export default function QuotationWizard() {
                 serverSideSearch
                 onSearchChange={(query) => {
                   if (clientSearchTimer.current) clearTimeout(clientSearchTimer.current);
-                  clientSearchTimer.current = setTimeout(() => loadClients(query), 300);
+                  clientSearchTimer.current = setTimeout(() => loadClients(query), 400);
                 }}
                 size="sm"
                 bg={inputBg}
@@ -742,7 +742,7 @@ export default function QuotationWizard() {
                   serverSideSearch
                   onSearchChange={(query) => {
                     if (vesselSearchTimer.current) clearTimeout(vesselSearchTimer.current);
-                    vesselSearchTimer.current = setTimeout(() => loadVessels(query), 300);
+                    vesselSearchTimer.current = setTimeout(() => loadVessels(query), 400);
                   }}
                   size="sm"
                   bg={inputBg}

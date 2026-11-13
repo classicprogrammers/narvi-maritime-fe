@@ -77,6 +77,8 @@ export default function StockIdNameSearchableSelect({
             autoWidth={autoWidth}
             autoWidthMin={autoWidthMin}
             autoWidthMax={autoWidthMax}
+            // Options come from the backend search; never filter locally (avoids showing results twice)
+            serverSideSearch
             {...rest}
         />
     );

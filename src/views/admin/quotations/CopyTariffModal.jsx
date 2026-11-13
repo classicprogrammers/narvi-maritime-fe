@@ -204,7 +204,7 @@ export default function CopyTariffModal({ isOpen, onClose, sourceClient, filterP
               isLoading={clientsLoading}
               onSearchChange={(query) => {
                 clearTimeout(timerRef.current);
-                timerRef.current = setTimeout(() => loadClients((query || "").trim()), 300);
+                timerRef.current = setTimeout(() => loadClients((query || "").trim()), 400);
               }}
               onChange={(value) => {
                 setTargetId(value || "");
