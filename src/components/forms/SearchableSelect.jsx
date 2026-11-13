@@ -89,6 +89,8 @@ const SearchableSelect = ({
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const containerRef = useRef(null);
   const inputRef = useRef(null);
+  // True once the user moved the highlight with the arrow keys (or the mouse) in this open session
+  const pickedByNavRef = useRef(false);
   const dropdownRef = useRef(null);
   const highlightedItemRef = useRef(null);
   // Always call the latest callback without re-subscribing effects
@@ -231,7 +233,10 @@ const SearchableSelect = ({
 
   // Closing (outside click, Esc, Tab, Enter on no match) keeps the typed search text and the
   // server-side query until the user picks an option or clears the field.
-  const closeDropdown = useCallback(() => setIsOpen(false), []);
+  const closeDropdown = useCallback(() => {
+    pickedByNavRef.current = false;
+    setIsOpen(false);
+  }, []);
 
   const resetSearch = useCallback(() => {
     setSearchValue("");
@@ -315,10 +320,12 @@ const SearchableSelect = ({
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
+        pickedByNavRef.current = true;
         setHighlightedIndex(stepIndex(activeIndex, 1, count));
         break;
       case "ArrowUp":
         e.preventDefault();
+        pickedByNavRef.current = true;
         setHighlightedIndex(stepIndex(activeIndex, -1, count));
         break;
       case "Enter":
@@ -332,8 +339,18 @@ const SearchableSelect = ({
         closeDropdown();
         break;
       case "Tab":
-        // Tab leaves the field without changing the value
-        closeDropdown();
+        // After typing a search, Tab picks the highlighted match and moves on (focus continues).
+        // Tab without typing, or with no match, leaves the value untouched.
+        if (
+          !allowFreeText &&
+          (searchValue.trim() !== "" || pickedByNavRef.current) &&
+          activeIndex >= 0 &&
+          listState === "options"
+        ) {
+          commitOption(filteredOptions[activeIndex]);
+        } else {
+          closeDropdown();
+        }
         break;
       default:
         break;
@@ -432,11 +449,18 @@ const SearchableSelect = ({
                 px={deletable ? 2 : 3}
                 py={deletable ? 1 : 2}
                 bg={isActive ? highlightBg : undefined}
+                outline={isActive ? "2px solid" : undefined}
+                outlineColor={isActive ? FOCUS_COLOR : undefined}
+                outlineOffset="-2px"
+                fontWeight={!allowFreeText && String(option[valueKey]) === String(value) ? "semibold" : undefined}
                 borderBottom="1px"
                 borderColor={defaultBorderColor}
                 fontSize="sm"
                 onMouseMove={() => {
-                  if (index !== highlightedIndex) setHighlightedIndex(index);
+                  if (index !== highlightedIndex) {
+                    pickedByNavRef.current = true;
+                    setHighlightedIndex(index);
+                  }
                 }}
               >
                 <Flex align="center" gap={1}>
