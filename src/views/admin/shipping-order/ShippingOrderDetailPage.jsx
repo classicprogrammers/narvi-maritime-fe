@@ -45,6 +45,9 @@ import {
   resolveShippingPackageDownloadUrl,
   updateShippingOrder,
 } from "../../../api/shippingOrders";
+import { downloadLedgerInvoiceFileApi } from "../../../api/ledgerInvoice";
+import { fileTypeLabel } from "../../../utils/documentTypes";
+import { readEconomy } from "../../../utils/ledgerEconomy";
 import { resolveShippingOrderDownloadFilename } from "../../../utils/shippingOrderAttachments";
 import { getAdminOrderTwoWayState, shouldMarkAdminOrderSeen } from "../../../utils/clientOrderUpdates";
 import {
@@ -218,6 +221,9 @@ export default function ShippingOrderDetailPage() {
       : state;
   }, [order, clientUpdateSeenNow]);
 
+  // Invoices and invoice files of this SO (Master Ledger); null on a backend that does not send them yet
+  const economy = useMemo(() => readEconomy(order?._raw), [order]);
+
   const handleSendRemarkToClient = async (text) => {
     if (!order?.id) return false;
     setIsSendingRemark(true);
@@ -334,9 +340,14 @@ export default function ShippingOrderDetailPage() {
           const key = `${kind}-${order.id}-${file.id}`;
           return (
             <HStack key={file.id || file.filename} justify="space-between" py="1" spacing="3">
-              <Text fontSize="sm" noOfLines={1} title={file.filename || file.name}>
+              <Text fontSize="sm" noOfLines={1} title={file.filename || file.name} flex={1}>
                 {file.filename || file.name || `File ${file.id}`}
               </Text>
+              {fileTypeLabel(file) ? (
+                <Badge colorScheme="gray" variant="subtle" textTransform="none" flexShrink={0}>
+                  {fileTypeLabel(file)}
+                </Badge>
+              ) : null}
               <IconButton
                 size="xs"
                 aria-label="Download file"
@@ -509,7 +520,11 @@ export default function ShippingOrderDetailPage() {
       <ShippingOrderChangesPanel changes={twoWay.changes} viewer="admin" />
 
       <Card p={{ base: 4, md: 6 }} bg={cardBg} border="1px" borderColor={borderColor} mb={6}>
-        <ShippingOrderLedgerInvoices soId={order.id} />
+        <ShippingOrderLedgerInvoices
+          soId={order.id}
+          economy={economy}
+          onDownloadFile={(file, invoice) => downloadLedgerInvoiceFileApi(file, invoice?.id)}
+        />
       </Card>
 
       <Card p={{ base: 4, md: 6 }} bg={cardBg} border="1px" borderColor={borderColor}>

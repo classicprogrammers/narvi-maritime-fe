@@ -103,6 +103,8 @@ import HistoryLogs from "views/admin/history-logs";
 
 // Drafts
 import Drafts from "views/admin/drafts";
+// Chat
+import Chat from "views/admin/chat";
 
 // Carbon Calculator
 import CarbonCalculator from "views/admin/carbon-calculator";
@@ -495,6 +497,13 @@ const routes = [
 
 // Hidden routes that should not appear in sidebar but are available for routing
 const hiddenRoutes = [
+  // Opened from the navbar chat button; the page itself handles missing permission
+  {
+    name: "Chat",
+    layout: "/admin",
+    path: "/chat",
+    component: Chat,
+  },
   {
     name: "Quotation Create",
     layout: "/admin",

@@ -70,6 +70,9 @@ import { useUser } from "../../../redux/hooks/useUser";
 import { useMasterData } from "../../../hooks/useMasterData";
 import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
 import SearchableSelect from "../../../components/forms/SearchableSelect";
+import DocumentTypeSelect from "../../../components/forms/DocumentTypeSelect";
+import { setAttachmentDocumentType } from "../../../api/attachments";
+import { DEFAULT_DOCUMENT_TYPE, withFileDocumentType } from "../../../utils/documentTypes";
 import StockOriginCountrySelect from "../../../components/forms/StockOriginCountrySelect";
 import StockIdNameSearchableSelect from "../../../components/forms/StockIdNameSearchableSelect";
 import StockValueInput from "../../../components/forms/StockValueInput";
@@ -219,6 +222,8 @@ export default function StockForm() {
 
     // Form state - array of rows
     const [formRows, setFormRows] = useState([getEmptyRow()]);
+    // Type given to the files picked next in each row (a file's type can still be changed in its own row)
+    const [uploadTypes, setUploadTypes] = useState({});
     const formRowsRef = useRef(formRows);
     const getPayloadRef = useRef(() => ({}));
     const [stockReportPdfLoadingRowIndex, setStockReportPdfLoadingRowIndex] = useState(null);
@@ -672,7 +677,8 @@ export default function StockForm() {
                 resolve({
                     filename: file.name,
                     datas: base64data,
-                    mimetype: file.type || 'application/octet-stream'
+                    mimetype: file.type || 'application/octet-stream',
+                    document_type: uploadTypes[rowIndex] || DEFAULT_DOCUMENT_TYPE
                 });
             };
             reader.readAsDataURL(file);
@@ -716,6 +722,39 @@ export default function StockForm() {
             }
             return row;
         }));
+    };
+
+    // Type of a file that is still waiting to be saved
+    const handlePendingTypeChange = (rowIndex, attachmentIndex, value) => {
+        setFormRows(prevRows => prevRows.map((row, idx) => {
+            if (idx !== rowIndex) return row;
+            return {
+                ...row,
+                attachments: (row.attachments || []).map((att, i) =>
+                    i === attachmentIndex ? { ...att, document_type: value } : att
+                ),
+            };
+        }));
+    };
+
+    // A saved file is retagged on the server right away
+    const handleExistingTypeChange = async (rowIndex, attachmentId, value) => {
+        try {
+            await setAttachmentDocumentType(attachmentId, value);
+            setFormRows(prevRows => prevRows.map((row, idx) =>
+                idx === rowIndex
+                    ? { ...row, existingAttachments: withFileDocumentType(row.existingAttachments, attachmentId, value) }
+                    : row
+            ));
+        } catch (err) {
+            toast({
+                title: "Could not change the file type",
+                description: err?.response?.data?.result?.message || err?.message || "Please try again.",
+                status: "error",
+                duration: 5000,
+                isClosable: true,
+            });
+        }
     };
 
     const handleInputChange = (rowIndex, field, value) => {
@@ -2237,6 +2276,11 @@ export default function StockForm() {
                                                 id={`file-upload-form-${rowIndex}`}
                                                 style={{ display: 'none' }}
                                             />
+                                            <DocumentTypeSelect
+                                                value={uploadTypes[rowIndex]}
+                                                onChange={(value) => setUploadTypes(prev => ({ ...prev, [rowIndex]: value }))}
+                                                ariaLabel="Type for new files"
+                                            />
                                             <label htmlFor={`file-upload-form-${rowIndex}`}>
                                                 <Button
                                                     as="span"
@@ -2283,6 +2327,15 @@ export default function StockForm() {
                                                                 <Text isTruncated flex={1} title={att.filename}>
                                                                     {att.filename}
                                                                 </Text>
+                                                                <DocumentTypeSelect
+                                                                    value={att.document_type}
+                                                                    onChange={(value) =>
+                                                                        handleExistingTypeChange(rowIndex, att.id, value)
+                                                                    }
+                                                                    w="96px"
+                                                                    flexShrink={0}
+                                                                    ariaLabel={`Type of ${att.filename}`}
+                                                                />
                                                                 <IconButton
                                                                     aria-label="Delete attachment"
                                                                     icon={<MdRemove />}
@@ -2354,6 +2407,15 @@ export default function StockForm() {
                                                                 <Text isTruncated flex={1} title={att.filename}>
                                                                     {att.filename}
                                                                 </Text>
+                                                                <DocumentTypeSelect
+                                                                    value={att.document_type}
+                                                                    onChange={(value) =>
+                                                                        handlePendingTypeChange(rowIndex, newIndex, value)
+                                                                    }
+                                                                    w="96px"
+                                                                    flexShrink={0}
+                                                                    ariaLabel={`Type of ${att.filename}`}
+                                                                />
                                                                 <IconButton
                                                                     aria-label="Remove attachment"
                                                                     icon={<MdRemove />}

@@ -15,22 +15,26 @@ export const readAutoField = (record, valueKey, manualKey) => {
   return { value: zero ? "" : value, manual };
 };
 
-// Text typed into an auto-capable field. Empty or 0 returns to automatic.
+// Text typed into an auto-capable field. Empty returns to automatic. A leading 0 is kept while
+// typing (0.5 starts with 0); a value that is still 0 is not written, see writableAutoValue.
 export const applyManualInput = (text) => {
   const value = String(text ?? "").trim();
-  if (value === "" || (Number.isFinite(Number(value)) && Number(value) === 0)) {
-    return { value: "", manual: false };
-  }
+  if (value === "") return { value: "", manual: false };
   return { value: String(text), manual: true };
 };
 
-// Value written by the form: automatic values are never sent
-export const writableAutoValue = (form, key, manualKey) =>
-  form?.[manualKey] ? form?.[key] ?? "" : "";
+const isZeroText = (v) => !isEmpty(v) && String(v).trim() !== "" && Number(v) === 0;
+
+// Value written by the form: automatic values are never sent, nor is a manual value of 0
+export const writableAutoValue = (form, key, manualKey) => {
+  if (!form?.[manualKey]) return "";
+  const value = form?.[key] ?? "";
+  return isZeroText(value) ? "" : value;
+};
 
 // undefined = no change, null = back to automatic, number = manual value
 export const diffAutoNumber = (form, original, key, manualKey) => {
-  const now = form?.[manualKey] ? toNum(form?.[key]) : null;
+  const now = form?.[manualKey] && !isZeroText(form?.[key]) ? toNum(form?.[key]) : null;
   const before = original?.[manualKey] ? toNum(original?.[key]) : null;
   if (now === before) return undefined;
   return now;

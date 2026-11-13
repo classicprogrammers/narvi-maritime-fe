@@ -1,4 +1,5 @@
 import api from "./axios";
+import { findOtherAgentDuplicates, splitInvoiceNumbers } from "../utils/ledgerInvoiceNumbers";
 
 const unwrapError = (data, fallback) => {
   if (data?.result?.status === "error") {
@@ -141,6 +142,19 @@ export const checkLedgerCostInvoices = async ({ agent_id, invoices, exclude_id }
   return { has_duplicates: Boolean(payload.has_duplicates) || duplicates.length > 0, duplicates };
 };
 
+// Invoice numbers already booked under another agent (agents sometimes reuse a number, so this only warns)
+export const findCostInvoicesUnderOtherAgents = async ({ invoices, agent_id, exclude_id }) => {
+  const numbers = splitInvoiceNumbers(invoices).slice(0, 10);
+  const lists = await Promise.all(
+    numbers.map((number) => getLedgerCosts({ search: number, state: "active", page_size: "all" }))
+  );
+  return findOtherAgentDuplicates(
+    lists.flatMap((list) => list.data || []),
+    numbers,
+    { agentId: agent_id, excludeId: exclude_id }
+  );
+};
+
 export default {
   getLedgerCosts,
   getLedgerCostById,
@@ -149,4 +163,5 @@ export default {
   cancelLedgerCost,
   bulkUpdateLedgerCosts,
   checkLedgerCostInvoices,
+  findCostInvoicesUnderOtherAgents,
 };

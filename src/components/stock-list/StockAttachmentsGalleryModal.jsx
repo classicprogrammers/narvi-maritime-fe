@@ -19,6 +19,7 @@ import {
     useToast,
 } from "@chakra-ui/react";
 import { MdChevronLeft, MdChevronRight, MdDownload } from "react-icons/md";
+import { fileTypeLabel } from "../../utils/documentTypes";
 import {
     getStockAttachmentLabel,
     isPreviewableInBrowser,
@@ -172,9 +173,11 @@ export default function StockAttachmentsGalleryModal({
                             <Text fontSize="md" fontWeight="600" isTruncated title={currentLabel}>
                                 {currentLabel}
                             </Text>
-                            {list.length > 1 && (
+                            {(list.length > 1 || fileTypeLabel(list[index])) && (
                                 <Text fontSize="xs" color="gray.300" mt={0.5}>
-                                    {index + 1} of {list.length}
+                                    {[fileTypeLabel(list[index]), list.length > 1 ? `${index + 1} of ${list.length}` : ""]
+                                        .filter(Boolean)
+                                        .join(" · ")}
                                 </Text>
                             )}
                         </Box>

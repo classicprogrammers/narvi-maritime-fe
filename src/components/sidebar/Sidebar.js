@@ -7,6 +7,7 @@ import {
   Drawer,
   DrawerBody,
   Icon,
+  IconButton,
   useColorModeValue,
   DrawerOverlay,
   useDisclosure,
@@ -25,10 +26,11 @@ import { SidebarContext } from "contexts/SidebarContext";
 
 // Assets
 import { IoMenuOutline } from "react-icons/io5";
+import { MdChevronLeft, MdChevronRight } from "react-icons/md";
 
 function Sidebar(props) {
   const { routes, onHoverChange } = props;
-  const { toggleSidebar } = useContext(SidebarContext);
+  const { toggleSidebar, setToggleSidebar } = useContext(SidebarContext);
   const [isHovered, setIsHovered] = useState(false);
   const [hoverTimeout, setHoverTimeout] = useState(null);
 
@@ -40,6 +42,9 @@ function Sidebar(props) {
   // Chakra Color Mode
   let sidebarBg = useColorModeValue("white", "navy.800");
   let sidebarMargins = "0px";
+  const toggleBtnColor = useColorModeValue("gray.600", "gray.200");
+  const toggleBtnBorder = useColorModeValue("gray.300", "whiteAlpha.400");
+  const toggleBtnHover = useColorModeValue("gray.100", "navy.700");
 
   // Determine if sidebar should be expanded (either by toggle or hover)
   const isExpanded = toggleSidebar || isHovered;
@@ -69,10 +74,30 @@ function Sidebar(props) {
       minH="100%"
       zIndex="1000"
     >
+      <Box position="relative" w={isExpanded ? "300px" : "80px"} transition={variantChange}>
+      <IconButton
+        aria-label={toggleSidebar ? "Collapse sidebar" : "Expand sidebar"}
+        icon={<Icon as={toggleSidebar ? MdChevronLeft : MdChevronRight} boxSize={5} />}
+        onClick={() => setToggleSidebar(!toggleSidebar)}
+        position="absolute"
+        top="72px"
+        right="-14px"
+        zIndex={5}
+        size="xs"
+        boxSize="28px"
+        minW="28px"
+        borderRadius="full"
+        bg={sidebarBg}
+        color={toggleBtnColor}
+        border="1px solid"
+        borderColor={toggleBtnBorder}
+        boxShadow="sm"
+        _hover={{ bg: toggleBtnHover }}
+      />
       <Box
         bg={sidebarBg}
         transition={variantChange}
-        w={isExpanded ? "300px" : "80px"}
+        w="100%"
         h="100vh"
         m={sidebarMargins}
         minH="100%"
@@ -90,6 +115,7 @@ function Sidebar(props) {
         >
           <Content routes={routes} collapsed={!isExpanded} />
         </Scrollbars>
+      </Box>
       </Box>
     </Box>
   );

@@ -39,6 +39,8 @@ import clientShippingOrdersApi from "api/clientShippingOrders";
 import clientVesselApi from "api/clientVessel";
 import SearchableSelect from "components/forms/SearchableSelect";
 import ShippingOrderStockList from "components/shipping-order/ShippingOrderStockList";
+import ShippingOrderLedgerInvoices from "components/shipping-order/ShippingOrderLedgerInvoices";
+import { readEconomy } from "utils/ledgerEconomy";
 import { useStockAttachmentsGallery } from "hooks/useStockAttachmentsGallery";
 import { formatShippingOrderDestinationDisplay, formatServiceBoatPaidByLabel, isDeliveryViaServiceBoat, isCostConfirmedToClient, normalizeOrder, toDateOnly } from "views/admin/shipping-order/shippingOrderUtils";
 import { getRowClientName } from "utils/portalClients";
@@ -284,6 +286,8 @@ function ClientShippingOrders() {
     isLoading: false,
   });
   const [isEditingOrder, setIsEditingOrder] = useState(false);
+  // Invoices and invoice files of the open order; null until the detail response carries them
+  const modalEconomy = useMemo(() => readEconomy(stockModal.order?._raw), [stockModal.order]);
   const filesCacheRef = useRef(new Map());
   const stockCacheRef = useRef(new Map());
   const ordersRequestIdRef = useRef(0);
@@ -431,7 +435,7 @@ function ClientShippingOrders() {
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchOrders();
-    }, 300);
+    }, 400);
     return () => clearTimeout(timer);
   }, [fetchOrders]);
 
@@ -1360,6 +1364,28 @@ function ClientShippingOrders() {
                 />
                 <ClientOrderChanges changes={stockModal.order.twoWay?.changes} />
               </>
+            ) : null}
+            {modalEconomy ? (
+              <Box
+                border="1px solid"
+                borderColor={borderColor}
+                borderRadius="12px"
+                p={5}
+                mb={5}
+                bg={cardBg}
+              >
+                <ShippingOrderLedgerInvoices
+                  economy={modalEconomy}
+                  title="Invoices"
+                  onDownloadFile={(file) =>
+                    clientShippingOrdersApi.downloadClientShippingOrderAttachmentApi(
+                      stockModal.order.id,
+                      file,
+                      true
+                    )
+                  }
+                />
+              </Box>
             ) : null}
             <Box
               border="1px solid"

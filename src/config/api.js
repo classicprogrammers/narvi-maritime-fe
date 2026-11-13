@@ -37,6 +37,14 @@ export const API_CONFIG = {
     SHIPPING_ORDER: "/api/shipping/order",
     SHIPPING_ORDER_CREATE: "/api/create/shipping/order",
     SHIPPING_ORDER_UPDATE: "/api/shipping/order/update",
+    // File document types (stock item, shipping order and invoice files)
+    ATTACHMENT_DOCUMENT_TYPES: "/api/attachment/document-types",
+    ATTACHMENT_DOCUMENT_TYPE: "/api/attachment/document-type",
+    // General chat
+    CHAT_ME: "/api/chat/me",
+    CHAT_MEMBERS: "/api/chat/members",
+    CHAT_MESSAGES: "/api/chat/messages",
+    CHAT_SEND: "/api/chat/send",
     // Master Ledger — Cost DB
     LEDGER_COST: "/api/ledger/cost",
     LEDGER_COST_CREATE: "/api/ledger/cost/create",

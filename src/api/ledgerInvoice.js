@@ -1,4 +1,6 @@
 import api from "./axios";
+import { readFileErrors, toRelativeApiPath } from "../utils/ledgerEconomy";
+import { parseContentDispositionFilename } from "../utils/shippingOrderAttachments";
 
 const unwrapError = (data, fallback) => {
   if (data?.result?.status === "error") {
@@ -117,6 +119,37 @@ export const cancelLedgerInvoice = async (id) => {
   return data;
 };
 
+// Files only: attachments are tagged "invoice" by the backend. Resolves to the list of per-file errors (empty = all saved).
+export const uploadLedgerInvoiceFiles = async (id, attachments) => {
+  const data = await updateLedgerInvoice({ id, attachments });
+  return readFileErrors(data);
+};
+
+export const deleteLedgerInvoiceFile = async (id, fileId) => {
+  await updateLedgerInvoice({ id, attachment_to_delete: [fileId] });
+};
+
+// GET <file.download_url> (staff and client links differ, so it is used as given);
+// without one, the invoice attachment route. Resolves to { data: Blob, filename }.
+export const downloadLedgerInvoiceFileApi = async (file, invoiceId) => {
+  const path =
+    toRelativeApiPath(file?.download_url) ||
+    (invoiceId != null && file?.id != null
+      ? `/api/ledger/invoice/${invoiceId}/attachment/${file.id}/download`
+      : null);
+  if (!path) throw new Error("This file has no download link.");
+  const response = await api.get(path, { responseType: "blob" });
+  if (response.data instanceof Blob && response.data.type === "application/json") {
+    const json = JSON.parse(await response.data.text());
+    throw new Error(json?.result?.message || json?.message || "Failed to download file");
+  }
+  return {
+    data: response.data,
+    type: response.headers["content-type"] || "application/octet-stream",
+    filename: parseContentDispositionFilename(response.headers["content-disposition"]),
+  };
+};
+
 export const bulkUpdateLedgerInvoices = async ({ ids, values }) => {
   const response = await api.post("/api/ledger/invoice/bulk-update", { ids, values });
   const data = response.data || response;
@@ -135,5 +168,8 @@ export default {
   createLedgerInvoice,
   updateLedgerInvoice,
   cancelLedgerInvoice,
+  uploadLedgerInvoiceFiles,
+  deleteLedgerInvoiceFile,
+  downloadLedgerInvoiceFileApi,
   bulkUpdateLedgerInvoices,
 };

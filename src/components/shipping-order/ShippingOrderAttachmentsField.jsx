@@ -15,6 +15,9 @@ import {
 } from "@chakra-ui/react";
 import { MdAttachFile, MdClose as MdRemove, MdDownload } from "react-icons/md";
 import { downloadShippingOrderAttachmentApi } from "../../api/shippingOrders";
+import { setAttachmentDocumentType } from "../../api/attachments";
+import DocumentTypeSelect from "../forms/DocumentTypeSelect";
+import { DEFAULT_DOCUMENT_TYPE, withFileDocumentType } from "../../utils/documentTypes";
 import {
   filesToShippingAttachments,
   resolveShippingOrderDownloadFilename,
@@ -31,6 +34,8 @@ export default function ShippingOrderAttachmentsField({
 }) {
   const toast = useToast();
   const [loadingAttachmentId, setLoadingAttachmentId] = useState(null);
+  // Type given to the files picked next; each file's type can still be changed in its row
+  const [uploadType, setUploadType] = useState(DEFAULT_DOCUMENT_TYPE);
   const resolvedOrderId = orderId ?? formData?.id ?? null;
 
   const existing = formData?.existingAttachments || [];
@@ -42,7 +47,10 @@ export default function ShippingOrderAttachmentsField({
   const handleUpload = async (fileList) => {
     if (!fileList?.length) return;
     try {
-      const newAttachments = await filesToShippingAttachments(fileList);
+      const newAttachments = (await filesToShippingAttachments(fileList)).map((att) => ({
+        ...att,
+        document_type: uploadType,
+      }));
       setFormData((prev) => ({
         ...prev,
         attachments: [...(prev.attachments || []), ...newAttachments],
@@ -64,6 +72,34 @@ export default function ShippingOrderAttachmentsField({
       ...prev,
       attachments: (prev.attachments || []).filter((_, i) => i !== index),
     }));
+  };
+
+  const handlePendingTypeChange = (index, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      attachments: (prev.attachments || []).map((att, i) =>
+        i === index ? { ...att, document_type: value } : att
+      ),
+    }));
+  };
+
+  // A saved file is retagged on the server right away
+  const handleExistingTypeChange = async (attachmentId, value) => {
+    try {
+      await setAttachmentDocumentType(attachmentId, value);
+      setFormData((prev) => ({
+        ...prev,
+        existingAttachments: withFileDocumentType(prev.existingAttachments, attachmentId, value),
+      }));
+    } catch (err) {
+      toast({
+        title: "Could not change the file type",
+        description: err?.response?.data?.result?.message || err?.message || "Please try again.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    }
   };
 
   const handleDeleteExisting = (attachmentId) => {
@@ -132,11 +168,18 @@ export default function ShippingOrderAttachmentsField({
     }
   };
 
-  const renderFileRow = (att, key, { onRemove }) => (
+  const renderFileRow = (att, key, { onRemove, onTypeChange }) => (
     <Flex key={key} align="center" justify="space-between" fontSize="sm" gap={1}>
       <Text isTruncated flex={1} title={att.filename || att.name}>
         {att.filename || att.name || "File"}
       </Text>
+      <DocumentTypeSelect
+        value={att.document_type}
+        onChange={onTypeChange}
+        w="130px"
+        flexShrink={0}
+        ariaLabel={`Type of ${att.filename || att.name || "file"}`}
+      />
       <HStack spacing={0}>
         <IconButton
           aria-label="Download file"
@@ -175,27 +218,38 @@ export default function ShippingOrderAttachmentsField({
               e.target.value = "";
             }}
           />
-          <label htmlFor="shipping-order-file-upload">
-            <Button
-              as="span"
-              size="sm"
-              variant="outline"
-              colorScheme="blue"
-              leftIcon={<Icon as={MdAttachFile} />}
-              cursor="pointer"
-              w="100%"
-            >
-              Upload Files
-            </Button>
-          </label>
+          <HStack spacing={2}>
+            <DocumentTypeSelect
+              value={uploadType}
+              onChange={setUploadType}
+              w="150px"
+              flexShrink={0}
+              ariaLabel="Type for new files"
+            />
+            <label htmlFor="shipping-order-file-upload" style={{ flex: 1 }}>
+              <Button
+                as="span"
+                size="sm"
+                variant="outline"
+                colorScheme="blue"
+                leftIcon={<Icon as={MdAttachFile} />}
+                cursor="pointer"
+                w="100%"
+              >
+                Upload Files
+              </Button>
+            </label>
+          </HStack>
           {existing.map((att) =>
             renderFileRow(att, `existing-${att.id}`, {
               onRemove: () => handleDeleteExisting(att.id),
+              onTypeChange: (value) => handleExistingTypeChange(att.id, value),
             })
           )}
           {pending.map((att, idx) =>
             renderFileRow(att, `pending-${idx}`, {
               onRemove: () => handleRemovePending(idx),
+              onTypeChange: (value) => handlePendingTypeChange(idx, value),
             })
           )}
           {existing.length === 0 && pending.length === 0 && (

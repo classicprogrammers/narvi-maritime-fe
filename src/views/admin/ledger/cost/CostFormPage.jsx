@@ -33,6 +33,7 @@ import { getShippingOrders } from "api/shippingOrders";
 import {
   checkLedgerCostInvoices,
   createLedgerCost,
+  findCostInvoicesUnderOtherAgents,
   getLedgerCostById,
   updateLedgerCost,
 } from "api/ledgerCost";
@@ -47,7 +48,11 @@ import {
   soDoneStatusColor,
   soDoneStatusLabel,
 } from "utils/ledgerDisplay";
-import { shouldPrecheckInvoices, splitInvoiceNumbers } from "utils/ledgerInvoiceNumbers";
+import {
+  invoiceNumbersKey,
+  shouldPrecheckInvoices,
+  splitInvoiceNumbers,
+} from "utils/ledgerInvoiceNumbers";
 import CostEntryTableView from "./CostEntryTableView";
 import { CostDueField, CostRoeField } from "./CostAutoFields";
 import {
@@ -166,6 +171,11 @@ export default function CostFormPage() {
   const [isDuplicateOpen, setIsDuplicateOpen] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [precheckFailed, setPrecheckFailed] = useState(false);
+  // Invoice numbers already booked under another agent: a warning the operator can accept
+  const [otherAgentDuplicates, setOtherAgentDuplicates] = useState([]);
+  const [isOtherAgentOpen, setIsOtherAgentOpen] = useState(false);
+  const [otherAgentPendingKey, setOtherAgentPendingKey] = useState("");
+  const otherAgentCheckedKeyRef = useRef("");
   const invoicesRef = useRef(null);
   const checkedOkKeyRef = useRef("");
   const [currencies, setCurrencies] = useState(() => getCached(MASTER_KEYS.CURRENCIES) ?? []);
@@ -398,7 +408,7 @@ export default function CostFormPage() {
       if (soSearchTimerRef.current) clearTimeout(soSearchTimerRef.current);
       soSearchTimerRef.current = setTimeout(() => {
         fetchShippingOrders(query);
-      }, 300);
+      }, 400);
     },
     [fetchShippingOrders]
   );
@@ -463,6 +473,35 @@ export default function CostFormPage() {
     []
   );
 
+  // Looks the invoice numbers up across all agents, as soon as they are typed (no agent needed).
+  // Returns true while the operator still has to answer the warning.
+  const runOtherAgentCheck = useCallback(async (snapshot) => {
+    if (splitInvoiceNumbers(snapshot.invoices).length === 0) return false;
+    const recordId = recordIdRef.current;
+    const original = recordId ? originalFormRef.current : null;
+    const key = invoiceNumbersKey(snapshot.invoices);
+    if (original && key === invoiceNumbersKey(original.invoices)) return false;
+    if (otherAgentCheckedKeyRef.current === key) return false;
+    try {
+      const found = await findCostInvoicesUnderOtherAgents({
+        invoices: snapshot.invoices,
+        agent_id: snapshot.agent_id ? Number(snapshot.agent_id) : undefined,
+        exclude_id: recordId || undefined,
+      });
+      if (found.length === 0) {
+        otherAgentCheckedKeyRef.current = key;
+        return false;
+      }
+      setOtherAgentDuplicates(found);
+      setOtherAgentPendingKey(key);
+      setIsOtherAgentOpen(true);
+      return true;
+    } catch (error) {
+      // The server only checks the same agent; without this lookup we simply do not warn
+      return false;
+    }
+  }, []);
+
   const handleAgentChange = useCallback(
     (value) => {
       const picked = agents.options.find((a) => String(a.id) === String(value));
@@ -479,6 +518,18 @@ export default function CostFormPage() {
     setIsDuplicateOpen(false);
     setTimeout(() => invoicesRef.current?.focus(), 0);
   }, []);
+
+  // "Edit invoice number": saving stays paused until the numbers change or the warning is accepted
+  const closeOtherAgentModal = useCallback(() => {
+    setIsOtherAgentOpen(false);
+    setTimeout(() => invoicesRef.current?.focus(), 0);
+  }, []);
+
+  const acceptOtherAgentInvoices = useCallback(() => {
+    otherAgentCheckedKeyRef.current = otherAgentPendingKey;
+    setOtherAgentPendingKey("");
+    setIsOtherAgentOpen(false);
+  }, [otherAgentPendingKey]);
 
   const soOptions = useMemo(
     () =>
@@ -526,6 +577,8 @@ export default function CostFormPage() {
     if (isLoadingRecord || skipAutosaveRef.current || isTableView) return;
     // Blocked by a duplicate invoice number until invoices or agent change
     if (duplicateKey && duplicateKey === invoiceCheckKey(form)) return;
+    // Waiting for the operator to answer the "already used by another agent" warning
+    if (otherAgentPendingKey && otherAgentPendingKey === invoiceNumbersKey(form.invoices)) return;
 
     const signature = getWritableCostSignature(form);
     if (signature === lastSavedSignatureRef.current) return;
@@ -553,6 +606,7 @@ export default function CostFormPage() {
       let started = false;
       try {
         if (await runInvoicePrecheck(snapshot)) return;
+        if (await runOtherAgentCheck(snapshot)) return;
         if (!recordIdRef.current) {
           if (createInFlightRef.current) return;
           createInFlightRef.current = true;
@@ -616,14 +670,27 @@ export default function CostFormPage() {
     }, AUTOSAVE_DELAY_MS);
 
     return () => clearTimeout(timer);
-  }, [form, isLoadingRecord, isTableView, duplicateKey, history, showError, markSaved, runInvoicePrecheck]);
+  }, [
+    form,
+    isLoadingRecord,
+    isTableView,
+    duplicateKey,
+    otherAgentPendingKey,
+    history,
+    showError,
+    markSaved,
+    runInvoicePrecheck,
+    runOtherAgentCheck,
+  ]);
 
   const requiredError = validateCostForm(form);
   const isDirty = getWritableCostSignature(form) !== lastSavedSignatureRef.current;
   const isDuplicateBlocked = Boolean(duplicateKey) && duplicateKey === invoiceCheckKey(form);
+  const isOtherAgentPending =
+    Boolean(otherAgentPendingKey) && otherAgentPendingKey === invoiceNumbersKey(form.invoices);
   const saveMode = isSaving
     ? "saving"
-    : isDuplicateBlocked
+    : isDuplicateBlocked || isOtherAgentPending
       ? "blocked"
       : !hasSavedRecord && requiredError
       ? "idle"
@@ -688,7 +755,13 @@ export default function CostFormPage() {
               mode={saveMode}
               savedCaption={savedCaption}
               pulse={savePulse}
-              blockedCaption={isDuplicateBlocked ? "Duplicate invoice number" : undefined}
+              blockedCaption={
+                isDuplicateBlocked
+                  ? "Duplicate invoice number"
+                  : isOtherAgentPending
+                    ? "Invoice number used by another agent"
+                    : undefined
+              }
             />
           )}
         </Flex>
@@ -715,8 +788,12 @@ export default function CostFormPage() {
                     ref={invoicesRef}
                     value={form.invoices}
                     onChange={(e) => setField("invoices", e.target.value)}
-                    onBlur={() => {
-                      if (!isDuplicateBlocked) runInvoicePrecheck(form);
+                    onBlur={async () => {
+                      if (isDuplicateBlocked) return;
+                      if (await runInvoicePrecheck(form)) return;
+                      // Still pending: ask again, so the operator can accept it ("Use it anyway")
+                      if (isOtherAgentPending) setIsOtherAgentOpen(true);
+                      else runOtherAgentCheck(form);
                     }}
                     bg={inputBg}
                     minH="80px"
@@ -1041,6 +1118,12 @@ export default function CostFormPage() {
         onClose={closeDuplicateModal}
         duplicates={duplicates}
         agentLabel={selectedAgentLabel}
+      />
+      <LedgerDuplicateInvoiceModal
+        isOpen={isOtherAgentOpen}
+        onClose={closeOtherAgentModal}
+        onUseAnyway={acceptOtherAgentInvoices}
+        duplicates={otherAgentDuplicates}
       />
     </Box>
   );

@@ -41,6 +41,8 @@ export function mapExistingAttachmentsFromOrder(order = {}) {
       file_size: att.file_size,
       url: att.url,
       download_url: att.download_url,
+      document_type: att.document_type,
+      document_type_label: att.document_type_label,
     }));
 }
 

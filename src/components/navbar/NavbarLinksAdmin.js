@@ -2,32 +2,27 @@
 import {
   Avatar,
   Flex,
-  Icon,
   Menu,
   MenuButton,
   MenuItem,
   MenuList,
   Text,
   useColorModeValue,
-  IconButton,
 } from "@chakra-ui/react";
 import { SidebarResponsive } from "components/sidebar/Sidebar";
 import PropTypes from "prop-types";
-import React, { useContext } from "react";
-import { SidebarContext } from "contexts/SidebarContext";
+import React from "react";
 import { useHistory } from "react-router-dom";
-import { MdMenu, MdChevronLeft } from "react-icons/md";
 import routes from "routes.js";
+import NavbarChat from "components/navbar/NavbarChat";
 import { useUser } from "redux/hooks/useUser";
 import { clearMasterData } from "utils/masterDataCache";
 
 export default function HeaderLinks(props) {
   const { secondary } = props;
-  const { toggleSidebar, setToggleSidebar } = useContext(SidebarContext);
   const history = useHistory();
   const { logout, user } = useUser();
 
-  const navbarIcon = useColorModeValue("gray.400", "white");
   const menuBg = useColorModeValue("white", "navy.800");
   const textColor = useColorModeValue("secondaryGray.900", "white");
   const borderColor = useColorModeValue("#E6ECFA", "rgba(135, 140, 189, 0.3)");
@@ -35,10 +30,6 @@ export default function HeaderLinks(props) {
     "14px 17px 40px 4px rgba(112, 144, 176, 0.18)",
     "14px 17px 40px 4px rgba(112, 144, 176, 0.06)"
   );
-
-  const handleToggleSidebar = () => {
-    setToggleSidebar(!toggleSidebar);
-  };
 
   const handleLogout = () => {
     clearMasterData();
@@ -65,17 +56,8 @@ export default function HeaderLinks(props) {
       borderRadius="30px"
       boxShadow={shadow}
     >
-      <IconButton
-        display={{ base: "none", xl: "flex" }}
-        icon={<Icon as={toggleSidebar ? MdChevronLeft : MdMenu} />}
-        variant="ghost"
-        aria-label={toggleSidebar ? "Collapse sidebar" : "Expand sidebar"}
-        onClick={handleToggleSidebar}
-        color={navbarIcon}
-        _hover={{ bg: "gray.100" }}
-        me="10px"
-      />
       <SidebarResponsive routes={routes} />
+      <NavbarChat />
 
       <Menu>
         <MenuButton p="0px">

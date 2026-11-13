@@ -54,8 +54,13 @@ describe("ledgerCostUtils auto fields", () => {
     expect(buildUpdatePayload(form, original, 9)).toEqual({ id: 9 });
   });
 
-  test("typing 0 returns ROE to automatic", () => {
-    expect(roeInputPatch("0").roe_manual).toBe(false);
+  test("typing 0 keeps the 0 so 0.5 can be typed, and a ROE of 0 is not sent", () => {
+    expect(roeInputPatch("0")).toMatchObject({ roe_invoice_date: "0", roe_manual: true });
+    expect(roeInputPatch("0.5")).toMatchObject({ roe_invoice_date: "0.5", roe_manual: true });
+    expect(roeInputPatch("").roe_manual).toBe(false);
+    const zero = { ...base(), roe_invoice_date: "0", roe_manual: true };
+    expect(buildCreatePayload(zero)).not.toHaveProperty("roe_invoice_date");
+    expect(buildCreatePayload({ ...zero, roe_invoice_date: "0.5" }).roe_invoice_date).toBe(0.5);
   });
 
   test("automatic values are not part of the writable signature", () => {

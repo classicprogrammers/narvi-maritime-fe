@@ -31,12 +31,22 @@ import SearchableSelect from "components/forms/SearchableSelect";
 import LedgerAutoTag from "components/ledger/LedgerAutoTag";
 import { getShippingOrders } from "api/shippingOrders";
 import { getLedgerCosts } from "api/ledgerCost";
-import { createLedgerInvoice, getLedgerInvoiceById, updateLedgerInvoice } from "api/ledgerInvoice";
+import LedgerInvoiceFilesField from "components/ledger/LedgerInvoiceFilesField";
+import {
+  createLedgerInvoice,
+  deleteLedgerInvoiceFile,
+  downloadLedgerInvoiceFileApi,
+  getLedgerInvoiceById,
+  updateLedgerInvoice,
+  uploadLedgerInvoiceFiles,
+} from "api/ledgerInvoice";
 import { useMasterData } from "hooks/useMasterData";
 import { useLedgerDueDatePreview, useLedgerRoePreview } from "hooks/useLedgerPreviews";
 import { getCached, MASTER_KEYS } from "utils/masterDataCache";
 import { describeDueRule } from "utils/ledgerAutoFields";
 import { isLedgerCancelled, soDoneStatusColor, soDoneStatusLabel } from "utils/ledgerDisplay";
+import { invoiceFilesOf, saveDownloadedFile } from "utils/ledgerEconomy";
+import { filesToShippingAttachments } from "utils/shippingOrderAttachments";
 import InvoiceTableView from "./InvoiceTableView";
 import {
   applyComputedFromRecord,
@@ -358,7 +368,7 @@ export default function InvoiceFormPage() {
       if (soSearchTimerRef.current) clearTimeout(soSearchTimerRef.current);
       soSearchTimerRef.current = setTimeout(() => {
         fetchShippingOrders(query);
-      }, 300);
+      }, 400);
     },
     [fetchShippingOrders]
   );
@@ -506,6 +516,58 @@ export default function InvoiceFormPage() {
       });
     },
     [toast]
+  );
+
+  // Invoice files: sent on their own (files only) once the record exists; the record is reloaded for the list
+  const reloadInvoiceRecord = useCallback(async () => {
+    const record = await getLedgerInvoiceById(recordIdRef.current);
+    setEditingRecord(record);
+  }, []);
+
+  const handleInvoiceFilesUpload = useCallback(
+    async (fileList) => {
+      if (!recordIdRef.current) return;
+      try {
+        const attachments = await filesToShippingAttachments(fileList);
+        const fileErrors = await uploadLedgerInvoiceFiles(recordIdRef.current, attachments);
+        if (fileErrors.length) {
+          toast({
+            title: "Some files were not uploaded",
+            description: fileErrors.join("; "),
+            status: "warning",
+            duration: 8000,
+            isClosable: true,
+          });
+        }
+        await reloadInvoiceRecord();
+      } catch (error) {
+        showError(extractApiMessage(error, "Failed to upload files."));
+      }
+    },
+    [reloadInvoiceRecord, showError, toast]
+  );
+
+  const handleInvoiceFileDelete = useCallback(
+    async (file) => {
+      try {
+        await deleteLedgerInvoiceFile(recordIdRef.current, file.id);
+        await reloadInvoiceRecord();
+      } catch (error) {
+        showError(extractApiMessage(error, "Failed to remove file."));
+      }
+    },
+    [reloadInvoiceRecord, showError]
+  );
+
+  const handleInvoiceFileDownload = useCallback(
+    async (file) => {
+      try {
+        saveDownloadedFile(await downloadLedgerInvoiceFileApi(file, recordIdRef.current), file);
+      } catch (error) {
+        showError(extractApiMessage(error, "Failed to download file."));
+      }
+    },
+    [showError]
   );
 
   useEffect(() => {
@@ -1090,6 +1152,20 @@ export default function InvoiceFormPage() {
                     rows={3}
                   />
                 </FormControl>
+
+                <LedgerInvoiceFilesField
+                  labelProps={fieldLabelProps}
+                  files={invoiceFilesOf(editingRecord)}
+                  canUpload={hasSavedRecord && !isLedgerCancelled(editingRecord)}
+                  hint={
+                    hasSavedRecord
+                      ? undefined
+                      : "The invoice saves automatically once the required fields are filled. Then you can add files."
+                  }
+                  onUpload={handleInvoiceFilesUpload}
+                  onDelete={handleInvoiceFileDelete}
+                  onDownload={handleInvoiceFileDownload}
+                />
               </SimpleGrid>
 
               <Text fontSize="xs" color="gray.500" mt={5}>

@@ -20,10 +20,24 @@ describe("ledgerAutoFields", () => {
     expect(readAutoField({ roe: false }, "roe", "roe_manual")).toEqual({ value: "", manual: false });
   });
 
-  test("applyManualInput: typing is manual, empty or 0 is auto", () => {
+  test("applyManualInput: typing is manual, only empty is auto; a leading 0 is kept for 0.5", () => {
     expect(applyManualInput("1.5")).toEqual({ value: "1.5", manual: true });
     expect(applyManualInput("")).toEqual({ value: "", manual: false });
-    expect(applyManualInput("0")).toEqual({ value: "", manual: false });
+    expect(applyManualInput("   ")).toEqual({ value: "", manual: false });
+    expect(applyManualInput("0")).toEqual({ value: "0", manual: true });
+    expect(applyManualInput("0.")).toEqual({ value: "0.", manual: true });
+    expect(applyManualInput("0.5")).toEqual({ value: "0.5", manual: true });
+  });
+
+  test("a manual value that is still 0 is never written and counts as automatic", () => {
+    const k = ["roe", "roe_manual"];
+    expect(writableAutoValue({ roe: "0", roe_manual: true }, ...k)).toBe("");
+    expect(writableAutoValue({ roe: "0.", roe_manual: true }, ...k)).toBe("");
+    expect(writableAutoValue({ roe: "0.5", roe_manual: true }, ...k)).toBe("0.5");
+    const auto = { roe: "1.2", roe_manual: false };
+    expect(diffAutoNumber({ roe: "0", roe_manual: true }, auto, ...k)).toBeUndefined();
+    expect(diffAutoNumber({ roe: "0.5", roe_manual: true }, auto, ...k)).toBe(0.5);
+    expect(diffAutoNumber({ roe: "0", roe_manual: true }, { roe: "1.5", roe_manual: true }, ...k)).toBeNull();
   });
 
   test("auto values are never written", () => {

@@ -126,6 +126,7 @@ export default function Users() {
   const [searchTerm, setSearchTerm] = useState("");
   const [editingUser, setEditingUser] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [chatTogglingId, setChatTogglingId] = useState(null);
   const [userToDelete, setUserToDelete] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -227,6 +228,7 @@ export default function Users() {
             email: u.email ?? u.login ?? "",
             active: typeof u.active === "boolean" ? u.active : (u.status ? String(u.status).toLowerCase() === "active" : true),
             user_type: u.user_type === "admin" ? "admin" : "user",
+            can_chat: u.can_chat === true,
           }))
       );
     } catch (e) {
@@ -510,6 +512,27 @@ export default function Users() {
     save();
   };
 
+  // Quick toggle: sends only { id, can_chat } (must be a real boolean)
+  const handleChatToggle = async (user, next) => {
+    setChatTogglingId(user.id);
+    setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, can_chat: next } : u)));
+    try {
+      await updateUserApi({ id: user.id, can_chat: next });
+      toast({
+        title: next ? "Chat access granted" : "Chat access removed",
+        description: user.name,
+        status: "success",
+        duration: 2500,
+        isClosable: true,
+      });
+    } catch (e) {
+      // error modal is shown by the API layer; restore the switch
+      setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, can_chat: !next } : u)));
+    } finally {
+      setChatTogglingId(null);
+    }
+  };
+
   const confirmDelete = () => {
     const run = async () => {
       if (!userToDelete) return;
@@ -771,6 +794,7 @@ export default function Users() {
                       <Th borderColor={borderColor}>Email</Th>
                       <Th borderColor={borderColor}>User Type</Th>
                       <Th borderColor={borderColor}>Status</Th>
+                      <Th borderColor={borderColor}>Chat Access</Th>
                       <Th borderColor={borderColor} textAlign="right">
                         Actions
                       </Th>
@@ -779,11 +803,11 @@ export default function Users() {
                   <Tbody>
                     {isLoading ? (
                       <Tr>
-                        <Td colSpan={5} borderColor={borderColor}>Loading users...</Td>
+                        <Td colSpan={6} borderColor={borderColor}>Loading users...</Td>
                       </Tr>
                     ) : filteredUsers.length === 0 ? (
                       <Tr>
-                        <Td colSpan={5} borderColor={borderColor}>No users found.</Td>
+                        <Td colSpan={6} borderColor={borderColor}>No users found.</Td>
                       </Tr>
                     ) : filteredUsers.map((user) => (
                       <Tr key={user.id}>
@@ -791,6 +815,18 @@ export default function Users() {
                         <Td borderColor={borderColor}>{user.email}</Td>
                         <Td borderColor={borderColor}>{user.user_type === "admin" ? "Admin" : "User"}</Td>
                         <Td borderColor={borderColor}>{user.active ? "Active" : "Inactive"}</Td>
+                        <Td borderColor={borderColor}>
+                          {isAdmin ? (
+                            <Switch
+                              aria-label={`Chat access for ${user.name}`}
+                              isChecked={Boolean(user.can_chat)}
+                              isDisabled={chatTogglingId === user.id}
+                              onChange={(e) => handleChatToggle(user, e.target.checked)}
+                            />
+                          ) : (
+                            user.can_chat ? "Yes" : "No"
+                          )}
+                        </Td>
                         <Td borderColor={borderColor}>
                           <Flex justify="flex-end" gap="8px">
                             <IconButton
