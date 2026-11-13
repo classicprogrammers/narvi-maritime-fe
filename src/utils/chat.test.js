@@ -123,3 +123,21 @@ describe("chat draft persistence", () => {
     expect(readDraftBody()).toBe("");
   });
 });
+
+import { pollAfterId, CHAT_POLL_LOOKBACK } from "./chat";
+
+describe("pollAfterId", () => {
+  test("stays a fixed margin behind the highest id seen", () => {
+    const messages = [{ id: 20 }, { id: 18 }, { id: 15 }];
+    expect(pollAfterId(messages)).toBe(20 - CHAT_POLL_LOOKBACK);
+  });
+
+  test("never goes negative", () => {
+    expect(pollAfterId([{ id: 2 }])).toBe(0);
+    expect(pollAfterId([])).toBe(0);
+  });
+
+  test("a custom lookback overrides the default", () => {
+    expect(pollAfterId([{ id: 20 }], 2)).toBe(18);
+  });
+});

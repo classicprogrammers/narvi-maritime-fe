@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getChatMessages, sendChatMessage } from "../api/chat";
 import {
   CHAT_POLL_INTERVAL_MS,
-  maxMessageId,
   mergeMessages,
   minMessageId,
+  pollAfterId,
 } from "../utils/chat";
 
 const PAGE_SIZE = 50;
@@ -51,7 +51,7 @@ export const useChat = (enabled) => {
       pollingRef.current = true;
       try {
         const { messages: list } = await getChatMessages({
-          afterId: maxMessageId(messagesRef.current),
+          afterId: pollAfterId(messagesRef.current),
         });
         if (list.length) apply((prev) => mergeMessages(prev, list));
       } catch (err) {

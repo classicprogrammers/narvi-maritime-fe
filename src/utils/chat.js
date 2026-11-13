@@ -14,6 +14,20 @@ export const mergeMessages = (existing = [], incoming = []) => {
 export const maxMessageId = (messages = []) =>
   messages.reduce((max, m) => (m.id > max ? m.id : max), 0);
 
+// How many ids the poll cursor stays behind the latest one we've seen.
+//
+// Two messages sent at nearly the same moment can have their rows become visible to
+// the server out of id order (the lower id's insert transaction can still be committing
+// when a concurrent request already sees the higher id). If the poll cursor jumps straight
+// to the highest id we've seen, it stops ever asking for anything at or below that id, so a
+// message stuck mid-commit at the time is skipped for good — only a full reload (which asks
+// for the latest page with no cursor) would recover it. Re-asking for a few ids behind the
+// max is cheap (mergeMessages already dedupes by id) and closes that window.
+export const CHAT_POLL_LOOKBACK = 5;
+
+export const pollAfterId = (messages = [], lookback = CHAT_POLL_LOOKBACK) =>
+  Math.max(0, maxMessageId(messages) - lookback);
+
 export const minMessageId = (messages = []) =>
   messages.length ? messages.reduce((min, m) => (m.id < min ? m.id : min), messages[0].id) : null;
 
