@@ -22,6 +22,7 @@ import {
 import {
   MdClear,
   MdContentCopy,
+  MdDelete,
   MdDownload,
   MdPictureAsPdf,
   MdRefresh,
@@ -249,7 +250,6 @@ export default function ClientTariffs() {
     const client = options.clients.find((o) => String(o.id) === String(filters.client_id)) || pins.client_id;
     const agent = options.agents.find((o) => String(o.id) === String(filters.agent_id)) || pins.agent_id;
     if (client) parts.push(client.name);
-    if (filters.location) parts.push(filters.location);
     if (agent) parts.push(agent.name);
     return parts.join(" · ");
   }, [options.clients, options.agents, filters, pins]);
@@ -328,7 +328,8 @@ export default function ClientTariffs() {
       const currencies = uniqueCurrencies(all);
       const pdfColumns = currencies.length === 1 ? PDF_COLUMNS_NO_CURRENCY : PDF_COLUMNS;
       const model = buildPdfModel({
-        title: `${typeLabel} Tariffs`,
+        // The location follows the title ("Export Tariffs - SIN"); the line below is the client name.
+        title: filters.location ? `${typeLabel} Tariffs - ${filters.location}` : `${typeLabel} Tariffs`,
         tariffHeader: true,
         scopeLabel: exportScope,
         currencyLabel: currencies.length === 1 ? `Currency: ${currencies[0]}` : "",
@@ -337,7 +338,7 @@ export default function ClientTariffs() {
           head: pdfColumns.map((column) => column.label),
           toBody: (sectionRows) => toTableRows(pdfColumns, sectionRows),
         }),
-        footerBlocks: [consignee, remarks.trim() ? `Remarks: ${remarks.trim()}` : ""],
+        footerBlocks: [consignee, remarks.trim() ? `Remarks:\n${remarks.trim()}` : ""],
         filenameSuffix: `client-tariff-${shipmentType.replace("_", "-")}`,
       });
       await openPdf(model);
@@ -352,7 +353,7 @@ export default function ClientTariffs() {
     } finally {
       setIsPdfLoading(false);
     }
-  }, [fetchAllRows, filters.agent_id, remarks, exportScope, openPdf, toast]);
+  }, [fetchAllRows, filters.agent_id, filters.location, remarks, exportScope, openPdf, toast]);
 
   const selectProps = { size: "sm", bg: inputBg, color: inputText, borderColor, prefillOnFocus: false };
 
@@ -551,9 +552,22 @@ export default function ClientTariffs() {
       </SimpleGrid>
 
       <FormControl mb="4">
-        <FormLabel fontSize="xs" mb="1" color={textColor}>
-          Remarks (printed on the PDF and Excel)
-        </FormLabel>
+        <Flex align="center" justify="space-between" mb="1">
+          <FormLabel fontSize="xs" mb="0" color={textColor}>
+            Remarks (printed on the PDF and Excel)
+          </FormLabel>
+          {/* The remarks stay when the filters change, so they are cleared here before the next location. */}
+          <Button
+            size="xs"
+            variant="ghost"
+            colorScheme="red"
+            leftIcon={<Icon as={MdDelete} />}
+            onClick={() => setRemarks("")}
+            isDisabled={!remarks}
+          >
+            Delete remarks
+          </Button>
+        </Flex>
         <Textarea
           size="sm"
           rows={2}
