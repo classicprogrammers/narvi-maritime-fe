@@ -76,6 +76,8 @@ export function buildPdfModel({
   sections,
   footerBlocks = [],
   filenameSuffix = "report",
+  currencyLabel = "",
+  tariffHeader = false,
 }) {
   return {
     title,
@@ -83,6 +85,8 @@ export function buildPdfModel({
     sections,
     footerBlocks: footerBlocks.filter((block) => String(block || "").trim()),
     filenameSuffix,
+    currencyLabel,
+    tariffHeader,
     generatedAt: new Date().toLocaleString(),
     rowCount: sections.reduce((total, section) => total + section.body.length, 0),
   };
@@ -163,7 +167,9 @@ export async function buildRateListPdf(model) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const tableWidth = pageWidth - CONTENT_LEFT - CONTENT_RIGHT;
-  const tableStartY = CONTENT_TOP + 38;
+  // The tariff header is Title, company name, Generated, Currency, a blank line, then the tables.
+  const tableStartY =
+    CONTENT_TOP + 38 + (model.tariffHeader ? 12 + (model.currencyLabel ? 12 : 0) : 0);
 
   let letterheadDataUrl = null;
   // A page gets the letterhead once: drawing it again would paint over the text already on the page.
@@ -188,7 +194,9 @@ export async function buildRateListPdf(model) {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.text(
-    `${model.title} (${model.rowCount} record${model.rowCount === 1 ? "" : "s"})`,
+    model.tariffHeader
+      ? model.title
+      : `${model.title} (${model.rowCount} record${model.rowCount === 1 ? "" : "s"})`,
     CONTENT_LEFT,
     CONTENT_TOP
   );
@@ -201,6 +209,10 @@ export async function buildRateListPdf(model) {
     metaY += 12;
   }
   doc.text(`Generated: ${model.generatedAt}`, CONTENT_LEFT, metaY);
+  if (model.currencyLabel) {
+    metaY += 12;
+    doc.text(model.currencyLabel, CONTENT_LEFT, metaY);
+  }
 
   const tableOptions = {
     theme: "grid",

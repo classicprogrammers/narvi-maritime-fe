@@ -1,4 +1,4 @@
-import { buildTypeSections, isIfApplyRow, sortBySortOrder } from "./clientTariffSections";
+import { buildTypeSections, isIfApplyRow, sortBySortOrder, uniqueCurrencies } from "./clientTariffSections";
 
 const rate = (id, sort_order, charge_category) => ({ id, sort_order, charge_category, name: `Rate ${id}` });
 const toBody = (rows) => rows.map((row) => [row.name]);
@@ -38,5 +38,15 @@ describe("clientTariffSections", () => {
     const only = buildTypeSections({ rows: [rate(1, 1, "standard")], head, toBody });
     expect(only.map((section) => section.title)).toEqual(["Standard charges"]);
     expect(buildTypeSections({ rows: [], head, toBody })).toEqual([]);
+  });
+
+  test("lists the different currencies once, from either currency field", () => {
+    expect(uniqueCurrencies([{ currency: "SGD" }, { currency: "SGD" }])).toEqual(["SGD"]);
+    expect(uniqueCurrencies([{ currency: "SGD" }, { currency_id: { name: "USD" } }, { currency: "" }])).toEqual([
+      "SGD",
+      "USD",
+    ]);
+    expect(uniqueCurrencies([{}, { currency: false }])).toEqual([]);
+    expect(uniqueCurrencies([])).toEqual([]);
   });
 });

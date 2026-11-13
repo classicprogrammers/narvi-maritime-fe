@@ -14,6 +14,14 @@ export function sortBySortOrder(rows) {
     .map(({ row }) => row);
 }
 
+/** The different currencies of a list of tariff rows, in first-seen order. */
+export function uniqueCurrencies(rows) {
+  const codes = rows
+    .map((row) => String(row?.currency || row?.currency_id?.name || "").trim())
+    .filter(Boolean);
+  return [...new Set(codes)];
+}
+
 /**
  * The PDF sections of one shipment type: the Standard charges (always apply) first, then the
  * If Apply charges (apply in certain cases), each in Sort Order. A part without rates is left out.
