@@ -145,6 +145,8 @@ export default function ClientTariffs() {
   const [meta, setMeta] = useState({ totalCount: 0, totalPages: 1, hasNext: false, hasPrevious: false });
   const [isPdfLoading, setIsPdfLoading] = useState(false);
   const [isExcelLoading, setIsExcelLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  // { ids, label } of the rows waiting for delete confirmation.
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const cancelDeleteRef = useRef();
@@ -198,6 +200,7 @@ export default function ClientTariffs() {
         )
       );
       setRows(Array.isArray(result.data) ? result.data : []);
+      setSelectedIds([]);
       setMeta({
         totalCount: result.total_count || 0,
         totalPages: result.total_pages || 1,
@@ -206,6 +209,7 @@ export default function ClientTariffs() {
       });
     } catch (error) {
       setRows([]);
+      setSelectedIds([]);
       setMeta({ totalCount: 0, totalPages: 1, hasNext: false, hasPrevious: false });
       toast({
         title: "Error",
@@ -227,17 +231,19 @@ export default function ClientTariffs() {
     if (!deleteTarget) return;
     setIsDeleting(true);
     try {
-      const result = await deleteClientRateTariffApi(deleteTarget.id);
+      const result = await deleteClientRateTariffApi(deleteTarget.ids);
+      const count = result?.deleted_count ?? deleteTarget.ids.length;
       toast({
-        title: "Client tariff deleted",
-        description: result?.message,
+        title: "Client tariffs deleted",
+        description: `${count} client tariff${count === 1 ? "" : "s"} deleted.`,
         status: "success",
         duration: 2200,
         isClosable: true,
       });
       setDeleteTarget(null);
-      // Deleting the last row of a page would leave it empty: step back one page.
-      if (rows.length === 1 && page > 1 && !usesFetchAll) setPage(page - 1);
+      setSelectedIds([]);
+      // Deleting every row of a page after the first would leave it empty: step back one page.
+      if (count >= rows.length && page > 1 && !usesFetchAll) setPage(page - 1);
       else loadData();
     } catch (error) {
       toast({
@@ -498,6 +504,21 @@ export default function ClientTariffs() {
               Copy General Rates
             </Button>
           </Tooltip>
+          {selectedIds.length > 0 && (
+            <Button
+              size="sm"
+              colorScheme="red"
+              leftIcon={<Icon as={MdDelete} />}
+              onClick={() =>
+                setDeleteTarget({
+                  ids: selectedIds,
+                  label: `${selectedIds.length} selected client tariff${selectedIds.length === 1 ? "" : "s"}`,
+                })
+              }
+            >
+              Delete selected ({selectedIds.length})
+            </Button>
+          )}
           <Button
             size="sm"
             colorScheme="blue"
@@ -653,7 +674,11 @@ export default function ClientTariffs() {
         hasPrevious={meta.hasPrevious}
         fetchAll={usesFetchAll}
         onPageChange={setPage}
-        onDelete={setDeleteTarget}
+        onDelete={(row) =>
+          setDeleteTarget({ ids: [row.id], label: `"${row.rate_name || `#${row.id}`}"` })
+        }
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
       />
 
       <AlertDialog
@@ -667,7 +692,7 @@ export default function ClientTariffs() {
             Delete client tariff
           </AlertDialogHeader>
           <AlertDialogBody>
-            Permanently delete "{deleteTarget?.rate_name || `#${deleteTarget?.id}`}"? This cannot be undone.
+            Permanently delete {deleteTarget?.label}? This cannot be undone.
           </AlertDialogBody>
           <AlertDialogFooter>
             <Button ref={cancelDeleteRef} variant="outline" onClick={() => setDeleteTarget(null)} isDisabled={isDeleting}>

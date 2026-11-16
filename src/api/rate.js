@@ -77,9 +77,12 @@ export const getClientRateTariffOptionsApi = async (payload = {}) => {
   return unwrapRateApiData(response);
 };
 
-// Hard delete of one client-specific rate item (agent/general rate ids are "not found").
-export const deleteClientRateTariffApi = async (id) => {
-  const response = await api.post("/api/client/rate/tariff/delete", { params: { id } });
+// Hard delete of client-specific rate items (agent/general rate ids are "not found").
+// Pass one id or an array of ids; a bulk delete is all or nothing (any bad id deletes none).
+// Success returns { ids, deleted_count }.
+export const deleteClientRateTariffApi = async (idOrIds) => {
+  const params = Array.isArray(idOrIds) ? { ids: idOrIds } : { id: idOrIds };
+  const response = await api.post("/api/client/rate/tariff/delete", { params });
   return unwrapRateApiData(response);
 };
 

@@ -2,6 +2,7 @@ import React from "react";
 import {
   Box,
   Button,
+  Checkbox,
   Flex,
   HStack,
   Icon,
@@ -23,6 +24,7 @@ import { displayTariffValue } from "./tariffScreenUtils";
  * Paginated table shared by the Agent Tariffs and Client Tariffs screens.
  * columns: [{ key, label, isNumeric?, render?(row) }]
  * onDelete?(row): when given, each row gets a delete button.
+ * selectedIds? + onSelectionChange?(ids): when both are given, rows get checkboxes.
  */
 export default function TariffTable({
   columns,
@@ -38,6 +40,8 @@ export default function TariffTable({
   fetchAll,
   onPageChange,
   onDelete,
+  selectedIds,
+  onSelectionChange,
 }) {
   const borderColor = useColorModeValue("gray.200", "gray.700");
   const headerBg = useColorModeValue("gray.50", "gray.700");
@@ -49,7 +53,15 @@ export default function TariffTable({
   const rowBgAlt = useColorModeValue("gray.50", "whiteAlpha.50");
   const hoverBg = useColorModeValue("blue.50", "blue.900");
 
-  const pageStart = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const selectable = Boolean(selectedIds && onSelectionChange);
+  const rowIds = rows.map((row) => row.id).filter((id) => id != null);
+  const allSelected = selectable && rowIds.length > 0 && rowIds.every((id) => selectedIds.includes(id));
+  const someSelected = selectable && rowIds.some((id) => selectedIds.includes(id));
+  const toggleAll = () => onSelectionChange(allSelected ? [] : rowIds);
+  const toggleRow = (id) =>
+    onSelectionChange(selectedIds.includes(id) ? selectedIds.filter((x) => x !== id) : [...selectedIds, id]);
+
+  const pageStart =totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
   const pageEnd = Math.min(page * pageSize, totalCount);
 
   return (
@@ -70,6 +82,16 @@ export default function TariffTable({
             <Table size="sm" variant="simple">
               <Thead position="sticky" top={0} zIndex={1}>
                 <Tr>
+                  {selectable && (
+                    <Th py={3} px={4} bg={headerBg} borderColor={borderColor} w="1%">
+                      <Checkbox
+                        aria-label="Select all rows on this page"
+                        isChecked={allSelected}
+                        isIndeterminate={someSelected && !allSelected}
+                        onChange={toggleAll}
+                      />
+                    </Th>
+                  )}
                   {columns.map((column) => (
                     <Th
                       key={column.key}
@@ -99,6 +121,15 @@ export default function TariffTable({
                     bg={index % 2 === 0 ? rowBg : rowBgAlt}
                     _hover={{ bg: hoverBg }}
                   >
+                    {selectable && (
+                      <Td py={3} px={4} borderColor={borderColor}>
+                        <Checkbox
+                          aria-label="Select row"
+                          isChecked={selectedIds.includes(row.id)}
+                          onChange={() => toggleRow(row.id)}
+                        />
+                      </Td>
+                    )}
                     {columns.map((column) => {
                       const value = column.render ? column.render(row) : row[column.key];
                       return (
