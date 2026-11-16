@@ -20,6 +20,7 @@ const LEGACY_TOKEN_KEY = "token";
 const LEGACY_USER_KEY = "user";
 const DRAFT_KEY_PREFIX = "drafts:";
 const CHAT_KEY_PREFIX = "chat:";
+export const FILTERS_KEY_PREFIX = "filters:";
 
 export const getAuthContextFromPath = (pathname) => {
   const path = String(
@@ -125,10 +126,16 @@ export const persistScopedAuthOnBoot = () => {
     if (userValue) preserved[user] = userValue;
   });
 
-  // Keep saved form drafts and chat state (unsent text, last-seen id) across the boot-time wipe.
+  // Keep saved form drafts, chat state (unsent text, last-seen id) and saved list filters
+  // across the boot-time wipe.
   for (let i = 0; i < localStorage.length; i += 1) {
     const key = localStorage.key(i);
-    if (key && (key.startsWith(DRAFT_KEY_PREFIX) || key.startsWith(CHAT_KEY_PREFIX))) {
+    if (
+      key &&
+      (key.startsWith(DRAFT_KEY_PREFIX) ||
+        key.startsWith(CHAT_KEY_PREFIX) ||
+        key.startsWith(FILTERS_KEY_PREFIX))
+    ) {
       preserved[key] = localStorage.getItem(key);
     }
   }

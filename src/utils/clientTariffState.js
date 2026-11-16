@@ -1,4 +1,6 @@
-export const CLIENT_TARIFF_STORAGE_KEY = "narvi_client_tariff_state";
+import { readPersistedFilters, writePersistedFilters } from "./persistedFilters";
+
+export const CLIENT_TARIFF_SCREEN = "client-tariffs";
 
 export const defaultClientTariffState = {
   filters: { client_id: "", location: "", agent_id: "", incl_in_tariff: "true", shipment_type: "" },
@@ -11,6 +13,8 @@ export const defaultClientTariffState = {
 };
 
 const str = (value, fallback) => (typeof value === "string" ? value : fallback);
+// Client / agent filters hold the option id, which the select hands back as a number.
+const idStr = (value) => (typeof value === "number" || typeof value === "string" ? String(value) : "");
 
 /** Sanitizes anything read from storage into a complete, valid state. */
 export function buildClientTariffState(raw = {}) {
@@ -18,9 +22,9 @@ export function buildClientTariffState(raw = {}) {
   const filters = raw?.filters || {};
   return {
     filters: {
-      client_id: str(filters.client_id, defaults.filters.client_id),
+      client_id: idStr(filters.client_id),
       location: str(filters.location, defaults.filters.location),
-      agent_id: str(filters.agent_id, defaults.filters.agent_id),
+      agent_id: idStr(filters.agent_id),
       incl_in_tariff: str(filters.incl_in_tariff, defaults.filters.incl_in_tariff) || "true",
       shipment_type: str(filters.shipment_type, defaults.filters.shipment_type),
     },
@@ -32,20 +36,7 @@ export function buildClientTariffState(raw = {}) {
   };
 }
 
-export function readPersistedClientTariffState() {
-  try {
-    const raw = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(CLIENT_TARIFF_STORAGE_KEY) : null;
-    return raw ? buildClientTariffState(JSON.parse(raw)) : null;
-  } catch {
-    return null;
-  }
-}
+export const readPersistedClientTariffState = () =>
+  readPersistedFilters(CLIENT_TARIFF_SCREEN, buildClientTariffState);
 
-export function writePersistedClientTariffState(state) {
-  try {
-    if (typeof sessionStorage === "undefined") return;
-    sessionStorage.setItem(CLIENT_TARIFF_STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    // ignore
-  }
-}
+export const writePersistedClientTariffState = (state) => writePersistedFilters(CLIENT_TARIFF_SCREEN, state);

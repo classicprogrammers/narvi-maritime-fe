@@ -316,7 +316,9 @@ export default function RateList() {
     rateName: null,
     group: null,
     rateType: null,
+    ...savedListState?.pins,
   });
+  const skipFirstPruneRef = useRef(Boolean(savedListState));
   const filtersRef = useRef(DEFAULT_FILTERS);
 
   const textColor = useColorModeValue("gray.700", "white");
@@ -527,6 +529,7 @@ export default function RateList() {
       sort,
       showFilterFields,
       selectedRates,
+      pins: selectedOptionPinsRef.current,
     });
   }, [search, debouncedSearch, filters, page, sort, showFilterFields, selectedRates]);
 
@@ -670,12 +673,15 @@ export default function RateList() {
 
   const loadFilterOptions = useCallback(
     async (currentFilters = filtersRef.current, queries = optionQueriesRef.current, options = {}) => {
-      const { pruneSelections = true } = options;
+      // Filters restored from a previous visit are trusted on the first load: only later
+      // changes may prune selections that the narrowed option lists no longer contain.
+      const pruneSelections = (options.pruneSelections ?? true) && !skipFirstPruneRef.current;
       const requestId = ++optionsRequestIdRef.current;
       setIsLoadingFilterOptions(true);
       try {
         const result = await getRateListOptionsApi(buildOptionsPayload(currentFilters, queries));
         if (requestId !== optionsRequestIdRef.current) return;
+        skipFirstPruneRef.current = false;
 
         const rawGroups =
           (Array.isArray(result.group_options) && result.group_options) ||

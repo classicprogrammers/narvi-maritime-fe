@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Button,
@@ -20,6 +20,11 @@ import {
 import { MdClear, MdDownload, MdPictureAsPdf, MdRefresh, MdSearch } from "react-icons/md";
 import SearchableSelect from "components/forms/SearchableSelect";
 import { getAgentRateTariffOptionsApi, getAgentRateTariffsApi, withFetchAll } from "../../../api/rate";
+import {
+  defaultAgentTariffState,
+  readPersistedAgentTariffState,
+  writePersistedAgentTariffState,
+} from "../../../utils/agentTariffState";
 import FetchAllSwitch from "./FetchAllSwitch";
 import { buildPdfModel } from "./rateListPdf";
 import { downloadSheetAsExcel } from "./rateListExcel";
@@ -81,24 +86,35 @@ export default function AgentTariffs() {
   const inputText = useColorModeValue("gray.800", "gray.100");
   const placeholderColor = useColorModeValue("gray.400", "gray.500");
 
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
-  const [pins, setPins] = useState({});
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [fetchAll, setFetchAll] = useState(false);
+  // Filters survive switching screens and refreshes; only Clear Filters resets them.
+  const [saved] = useState(() => readPersistedAgentTariffState() || defaultAgentTariffState);
+  const [filters, setFilters] = useState(saved.filters);
+  const [pins, setPins] = useState(saved.pins);
+  const [search, setSearch] = useState(saved.search);
+  const [debouncedSearch, setDebouncedSearch] = useState(saved.search.trim());
+  const [page, setPage] = useState(saved.page);
+  const [fetchAll, setFetchAll] = useState(saved.fetchAll);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState("");
   const [meta, setMeta] = useState({ totalCount: 0, totalPages: 1, hasNext: false, hasPrevious: false });
 
+  const lastSearchRef = useRef(saved.search.trim());
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDebouncedSearch(search.trim());
+      const next = search.trim();
+      // Keep the restored page when the search is unchanged (e.g. on mount).
+      if (next === lastSearchRef.current) return;
+      lastSearchRef.current = next;
+      setDebouncedSearch(next);
       setPage(1);
     }, 400);
     return () => clearTimeout(timer);
   }, [search]);
+
+  useEffect(() => {
+    writePersistedAgentTariffState({ filters, pins, search, page, fetchAll });
+  }, [filters, pins, search, page, fetchAll]);
 
   const optionsPayload = useMemo(
     () => ({
@@ -226,7 +242,9 @@ export default function AgentTariffs() {
     setPins({});
     setSearch("");
     setDebouncedSearch("");
+    lastSearchRef.current = "";
     setPage(1);
+    setFetchAll(false);
   };
 
   const selectProps = { size: "sm", bg: inputBg, color: inputText, borderColor, prefillOnFocus: false };

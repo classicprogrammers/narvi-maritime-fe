@@ -80,6 +80,8 @@ export function buildRateListFilterSnapshot(state = {}) {
     page: typeof state.page === "number" && state.page >= 1 ? state.page : 1,
     sort: normalizeRateListSort(state.sort),
     showFilterFields: Boolean(state.showFilterFields),
+    // Labels of the selected dropdown options, so restored selections are not pruned as unknown.
+    pins: state.pins && typeof state.pins === "object" && !Array.isArray(state.pins) ? state.pins : {},
     selectedRates:
       state.selectedRates && typeof state.selectedRates === "object" ? state.selectedRates : {},
   };
