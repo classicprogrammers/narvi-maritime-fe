@@ -345,7 +345,17 @@ export default function ClientTariffs() {
           head: pdfColumns.map((column) => column.label),
           toBody: (sectionRows) => toTableRows(pdfColumns, sectionRows),
           groupRow: (name) => [
-            { content: name, colSpan: pdfColumns.length, styles: { fontStyle: "bold", halign: "left" } },
+            {
+              content: name,
+              colSpan: pdfColumns.length,
+              styles: {
+                fontStyle: "bold",
+                fontSize: 8,
+                halign: "left",
+                textColor: [0, 0, 0],
+                fillColor: [225, 225, 225],
+              },
+            },
           ],
         }),
         footerBlocks: [consignee, remarks.trim() ? `Remarks:\n${remarks.trim()}` : ""],
