@@ -15,6 +15,13 @@ describe("filterNewRates", () => {
     expect(filterNewRates(source, existing)).toEqual([source[1]]);
   });
 
+  test("same rate for another agent is still new", () => {
+    const withAgent = [{ ...source[0], agent_id: { id: 1 } }];
+    const existing = [{ ...source[0], agent_id: 2 }];
+    expect(filterNewRates(withAgent, existing)).toEqual(withAgent);
+    expect(filterNewRates(withAgent, [{ ...source[0], agent_id: 1 }])).toEqual([]);
+  });
+
   test("same name in another location is still new", () => {
     const existing = [{ rate_name: "THC", location_text: "Fujairah", charge_category_label: "Standard" }];
     expect(filterNewRates(source, existing)).toHaveLength(2);

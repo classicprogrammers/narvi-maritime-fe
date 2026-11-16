@@ -514,15 +514,14 @@ export default function CostFormPage() {
     [agents.options, pinAgent, setField, form, duplicateKey, runInvoicePrecheck]
   );
 
+  // The modals hand the focus to the Invoices field themselves (finalFocusRef)
   const closeDuplicateModal = useCallback(() => {
     setIsDuplicateOpen(false);
-    setTimeout(() => invoicesRef.current?.focus(), 0);
   }, []);
 
   // "Edit invoice number": saving stays paused until the numbers change or the warning is accepted
   const closeOtherAgentModal = useCallback(() => {
     setIsOtherAgentOpen(false);
-    setTimeout(() => invoicesRef.current?.focus(), 0);
   }, []);
 
   const acceptOtherAgentInvoices = useCallback(() => {
@@ -1118,12 +1117,14 @@ export default function CostFormPage() {
         onClose={closeDuplicateModal}
         duplicates={duplicates}
         agentLabel={selectedAgentLabel}
+        finalFocusRef={invoicesRef}
       />
       <LedgerDuplicateInvoiceModal
         isOpen={isOtherAgentOpen}
         onClose={closeOtherAgentModal}
         onUseAnyway={acceptOtherAgentInvoices}
         duplicates={otherAgentDuplicates}
+        finalFocusRef={invoicesRef}
       />
     </Box>
   );

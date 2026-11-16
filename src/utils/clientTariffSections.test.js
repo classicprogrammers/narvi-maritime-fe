@@ -1,4 +1,11 @@
-import { buildTypeSections, isIfApplyRow, sortBySortOrder, uniqueCurrencies } from "./clientTariffSections";
+import {
+  buildTypeSections,
+  groupRowsByGroupName,
+  isIfApplyRow,
+  sectionsToSheetRows,
+  sortBySortOrder,
+  uniqueCurrencies,
+} from "./clientTariffSections";
 
 const rate = (id, sort_order, charge_category) => ({ id, sort_order, charge_category, name: `Rate ${id}` });
 const toBody = (rows) => rows.map((row) => [row.name]);
@@ -28,10 +35,32 @@ describe("clientTariffSections", () => {
       rate(4, 1, "dob_standard"),
     ];
     const sections = buildTypeSections({ rows, head, toBody });
-    expect(sections.map((section) => section.title)).toEqual(["Standard charges", "If Apply charges"]);
+    expect(sections.map((section) => section.title)).toEqual([
+      "Standard charges",
+      "If Apply charges",
+      "DOB If Apply charges",
+    ]);
     expect(sections[0].body).toEqual([["Rate 4"], ["Rate 2"]]);
-    expect(sections[1].body).toEqual([["Rate 3"], ["Rate 1"]]);
+    expect(sections[1].body).toEqual([["Other charges"], ["Rate 1"]]);
+    expect(sections[2].body).toEqual([["Other charges"], ["Rate 3"]]);
     expect(sections[0].head).toBe(head);
+  });
+
+  test("If Apply charges are listed under their Group Name, A-Z, no group last", () => {
+    const rows = [
+      { ...rate(1, 1, "if_apply"), group_name: false },
+      { ...rate(2, 2, "if_apply"), group_name: "Zeta" },
+      { ...rate(3, 1, "if_apply"), group_name: "Alpha" },
+      { ...rate(4, 3, "if_apply"), group_name: "Zeta" },
+    ];
+    const [section] = buildTypeSections({ rows, head, toBody });
+    expect(section.body).toEqual([["Alpha"], ["Rate 3"], ["Zeta"], ["Rate 2"], ["Rate 4"], ["Other charges"], ["Rate 1"]]);
+    expect(groupRowsByGroupName([]).length).toBe(0);
+  });
+
+  test("sections become sheet rows with a title, headings and a blank row", () => {
+    const sections = buildTypeSections({ rows: [rate(1, 1, "standard")], head, toBody });
+    expect(sectionsToSheetRows(sections)).toEqual([["Standard charges"], head, ["Rate 1"], []]);
   });
 
   test("a part without rates is left out", () => {

@@ -41,7 +41,7 @@ import {
   shipmentTypeScope,
   shipmentTypeSheetLabel,
 } from "../../../utils/shipmentType";
-import { buildTypeSections, uniqueCurrencies } from "../../../utils/clientTariffSections";
+import { buildTypeSections, sectionsToSheetRows, uniqueCurrencies } from "../../../utils/clientTariffSections";
 import CopyTariffModal from "./CopyTariffModal";
 import FetchAllSwitch from "./FetchAllSwitch";
 import TariffTable from "./TariffTable";
@@ -240,6 +240,8 @@ export default function ClientTariffs() {
       // The Export / Import + DOB PDFs name their own type, whatever the Shipment Type filter shows.
       ...(shipmentType ? { shipment_type: shipmentType } : {}),
       search: debouncedSearch || undefined,
+      // Rows of the same group come together: the exports list the If Apply charges under their group.
+      sort_by: "group_name",
       fetch_all: true,
     });
     return Array.isArray(result.data) ? result.data : [];
@@ -287,12 +289,17 @@ export default function ClientTariffs() {
         ...(consignee ? [[], ...consignee.split(/\r?\n/).map((line) => [line])] : []),
         ...(remarks.trim() ? [[], ["Remarks", remarks.trim()]] : []),
       ];
+      // Same sections as the PDFs: Standard charges, then If Apply charges under their Group Name.
+      const sections = buildTypeSections({
+        rows: all,
+        head: PDF_COLUMNS.map((column) => column.label),
+        toBody: (sectionRows) => toTableRows(PDF_COLUMNS, sectionRows),
+      });
       downloadSheetAsExcel({
-        headers: COLUMNS.map((column) => column.label),
-        rows: [...toTableRows(COLUMNS, all), ...remarksRows],
+        rows: [...sectionsToSheetRows(sections), ...remarksRows],
         filePrefix: excelFilePrefix,
         sheetName: typeScope ? `Client Tariff - ${shipmentTypeSheetLabel(filters.shipment_type)}` : "Client Tariff",
-        colWidths: [44, 20, 14, 14, 30],
+        colWidths: [44, 14, 14, 30],
       });
       toast({
         title: "Excel export",
@@ -337,6 +344,9 @@ export default function ClientTariffs() {
           rows: all,
           head: pdfColumns.map((column) => column.label),
           toBody: (sectionRows) => toTableRows(pdfColumns, sectionRows),
+          groupRow: (name) => [
+            { content: name, colSpan: pdfColumns.length, styles: { fontStyle: "bold", halign: "left" } },
+          ],
         }),
         footerBlocks: [consignee, remarks.trim() ? `Remarks:\n${remarks.trim()}` : ""],
         filenameSuffix: `client-tariff-${shipmentType.replace("_", "-")}`,

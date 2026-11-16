@@ -45,6 +45,7 @@ import {
   MdArrowUpward,
   MdAttachMoney,
   MdClear,
+  MdContentCopy,
   MdDelete,
   MdDownload,
   MdEdit,
@@ -58,6 +59,7 @@ import {
 import SearchableSelect from "components/forms/SearchableSelect";
 import { deleteRateListApi, getRateListApi, getRateListOptionsApi, withFetchAll } from "../../../api/rate";
 import FetchAllSwitch from "./FetchAllSwitch";
+import CopyTariffModal from "./CopyTariffModal";
 import {
   buildRateListFilterSnapshot,
   clearPersistedRateListState,
@@ -298,6 +300,7 @@ export default function RateList() {
     onOpen: onPdfPreviewOpen,
     onClose: onPdfPreviewClose,
   } = useDisclosure();
+  const { isOpen: isCopyOpen, onOpen: onCopyOpen, onClose: onCopyClose } = useDisclosure();
   const pdfPreviewIframeRef = useRef(null);
   const pdfPreviewBlobUrlRef = useRef(null);
 
@@ -1481,6 +1484,9 @@ export default function RateList() {
                 <Button colorScheme="red" size="sm" leftIcon={<Icon as={MdEdit} />} onClick={handleNavigateToEdit}>
                   Edit Selected ({selectedCount})
                 </Button>
+                <Button colorScheme="purple" size="sm" leftIcon={<Icon as={MdContentCopy} />} onClick={onCopyOpen}>
+                  Copy to Client ({selectedCount})
+                </Button>
                 <Button
                   colorScheme="blue"
                   size="sm"
@@ -1816,6 +1822,13 @@ export default function RateList() {
           </ModalFooter>
         </ModalContent>
       </Modal>
+      <CopyTariffModal
+        source="selected"
+        isOpen={isCopyOpen}
+        onClose={onCopyClose}
+        selectedRates={Object.values(selectedRates)}
+        onCopied={loadData}
+      />
     </Box>
   );
 }

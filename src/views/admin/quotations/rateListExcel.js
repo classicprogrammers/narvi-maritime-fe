@@ -76,14 +76,17 @@ export function getRateListExcelFilename(filePrefix = "rate-list") {
 
 /** Download a worksheet of `headers` + `rows` as an .xlsx file. */
 export function downloadSheetAsExcel({ headers, rows, filePrefix, sheetName, colWidths }) {
-  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-  worksheet["!autofilter"] = {
-    ref: XLSX.utils.encode_range({
-      s: { c: 0, r: 0 },
-      e: { c: headers.length - 1, r: Math.max(rows.length, 1) },
-    }),
-  };
-  worksheet["!cols"] = headers.map((header, index) => ({
+  // Without headers the rows lay out their own sections, so there is no single table to filter.
+  const worksheet = XLSX.utils.aoa_to_sheet(headers ? [headers, ...rows] : rows);
+  if (headers) {
+    worksheet["!autofilter"] = {
+      ref: XLSX.utils.encode_range({
+        s: { c: 0, r: 0 },
+        e: { c: headers.length - 1, r: Math.max(rows.length, 1) },
+      }),
+    };
+  }
+  worksheet["!cols"] = (headers || colWidths || []).map((header, index) => ({
     wch: colWidths?.[index] ?? Math.max(14, String(header).length + 4),
   }));
 

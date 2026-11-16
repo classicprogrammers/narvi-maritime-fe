@@ -19,13 +19,29 @@ import { formatDuplicateMessage } from "utils/ledgerInvoiceNumbers";
 // onClose closes the modal; the caller focuses the Invoices textarea afterwards.
 // onUseAnyway: when given, the numbers belong to ANOTHER agent (each item carries agent_name) and the operator
 // may keep them. Without it the modal blocks saving, as for the same agent.
-const LedgerDuplicateInvoiceModal = ({ isOpen, onClose, onUseAnyway, duplicates = [], agentLabel = "" }) => {
+// finalFocusRef: field that gets the focus when the modal closes (otherwise the browser returns it to the
+// previously focused field, so "Edit invoice numbers" would not take the operator to the invoice field)
+const LedgerDuplicateInvoiceModal = ({
+  isOpen,
+  onClose,
+  onUseAnyway,
+  duplicates = [],
+  agentLabel = "",
+  finalFocusRef,
+}) => {
   const cardBg = useColorModeValue("gray.50", "gray.700");
   const borderColor = useColorModeValue("gray.200", "gray.700");
   const muted = useColorModeValue("gray.600", "gray.300");
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size={{ base: "full", md: "lg" }} isCentered scrollBehavior="inside">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      finalFocusRef={finalFocusRef}
+      size={{ base: "full", md: "lg" }}
+      isCentered
+      scrollBehavior="inside"
+    >
       <ModalOverlay />
       <ModalContent>
         <ModalHeader display="flex" alignItems="center" gap="2">
