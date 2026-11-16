@@ -48,6 +48,11 @@ import {
   shipmentTypeScope,
   shipmentTypeSheetLabel,
 } from "../../../utils/shipmentType";
+import {
+  defaultClientTariffState,
+  readPersistedClientTariffState,
+  writePersistedClientTariffState,
+} from "../../../utils/clientTariffState";
 import { buildTypeSections, sectionsToSheetRows, uniqueCurrencies } from "../../../utils/clientTariffSections";
 import CopyTariffModal from "./CopyTariffModal";
 import FetchAllSwitch from "./FetchAllSwitch";
@@ -133,13 +138,15 @@ export default function ClientTariffs() {
   const inputText = useColorModeValue("gray.800", "gray.100");
   const placeholderColor = useColorModeValue("gray.400", "gray.500");
 
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
-  const [pins, setPins] = useState({});
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [fetchAll, setFetchAll] = useState(false);
-  const [remarks, setRemarks] = useState("");
+  // Filters survive switching screens (session storage); only Clear Filters resets them.
+  const [saved] = useState(() => readPersistedClientTariffState() || defaultClientTariffState);
+  const [filters, setFilters] = useState(saved.filters);
+  const [pins, setPins] = useState(saved.pins);
+  const [search, setSearch] = useState(saved.search);
+  const [debouncedSearch, setDebouncedSearch] = useState(saved.search.trim());
+  const [page, setPage] = useState(saved.page);
+  const [fetchAll, setFetchAll] = useState(saved.fetchAll);
+  const [remarks, setRemarks] = useState(saved.remarks);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [meta, setMeta] = useState({ totalCount: 0, totalPages: 1, hasNext: false, hasPrevious: false });
@@ -151,13 +158,22 @@ export default function ClientTariffs() {
   const [isDeleting, setIsDeleting] = useState(false);
   const cancelDeleteRef = useRef();
 
+  const lastSearchRef = useRef(saved.search.trim());
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDebouncedSearch(search.trim());
+      const next = search.trim();
+      // Keep the restored page when the search is unchanged (e.g. on mount).
+      if (next === lastSearchRef.current) return;
+      lastSearchRef.current = next;
+      setDebouncedSearch(next);
       setPage(1);
     }, 400);
     return () => clearTimeout(timer);
   }, [search]);
+
+  useEffect(() => {
+    writePersistedClientTariffState({ filters, pins, search, page, fetchAll, remarks });
+  }, [filters, pins, search, page, fetchAll, remarks]);
 
   // Selected filters, shared by the list, the dropdown narrowing and the full exports.
   const filterParams = useMemo(
@@ -275,7 +291,9 @@ export default function ClientTariffs() {
     setPins({});
     setSearch("");
     setDebouncedSearch("");
+    lastSearchRef.current = "";
     setPage(1);
+    setFetchAll(false);
   };
 
   // Exports always cover every matching record, whatever the page / fetch all setting.
