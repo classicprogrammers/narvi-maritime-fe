@@ -921,7 +921,10 @@ export default function Vessels() {
                               aria-label="View vessel details"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                history.push(`/admin/configurations/vessels/${vessel.id}`, { vessel });
+                                history.push(`/admin/configurations/vessels/${vessel.id}`, {
+                                  vessel,
+                                  vesselIds: vessels.map((item) => item.id),
+                                });
                               }}
                             />
                           </Tooltip>

@@ -24,10 +24,20 @@ import {
   Spinner,
   Center,
 } from "@chakra-ui/react";
-import { MdPrint, MdContentCopy, MdArrowBack, MdEdit, MdVisibility, MdDownload } from "react-icons/md";
+import {
+  MdPrint,
+  MdContentCopy,
+  MdArrowBack,
+  MdEdit,
+  MdVisibility,
+  MdDownload,
+  MdChevronLeft,
+  MdChevronRight,
+} from "react-icons/md";
 import { useHistory, useLocation, useParams } from "react-router-dom";
 
 import Card from "components/card/Card";
+import { getAdjacentVesselIds } from "utils/vesselNavigation";
 import vesselsAPI from "../../../api/vessels";
 
 const prettyValue = (value) => {
@@ -234,6 +244,15 @@ const VesselDetail = () => {
     }
   };
 
+  const vesselIds = location.state?.vesselIds;
+  const { index: listIndex, total: listTotal, prevId, nextId } = getAdjacentVesselIds(vesselIds, id);
+  const hasListNav = listIndex !== -1 && listTotal > 1;
+
+  const goToVessel = (targetId) => {
+    if (targetId == null) return;
+    history.replace(`/admin/configurations/vessels/${targetId}`, { vesselIds });
+  };
+
   const handleEdit = () => {
     history.push(`/admin/configurations/vessels/edit/${vessel?.id ?? id}`);
   };
@@ -289,7 +308,30 @@ const VesselDetail = () => {
           <Heading size="lg" color={headingColor}>
             Vessel Details
           </Heading>
-          <Flex gap={2} className="no-print">
+          <Flex gap={2} className="no-print" align="center">
+            {hasListNav && (
+              <Flex align="center" gap={1} mr={2}>
+                <Tooltip label="Previous vessel">
+                  <IconButton
+                    aria-label="Previous vessel"
+                    icon={<Icon as={MdChevronLeft} boxSize={6} />}
+                    onClick={() => goToVessel(prevId)}
+                    isDisabled={prevId == null || isLoading}
+                  />
+                </Tooltip>
+                <Text fontSize="sm" color={labelColor} minW="60px" textAlign="center">
+                  {listIndex + 1} / {listTotal}
+                </Text>
+                <Tooltip label="Next vessel">
+                  <IconButton
+                    aria-label="Next vessel"
+                    icon={<Icon as={MdChevronRight} boxSize={6} />}
+                    onClick={() => goToVessel(nextId)}
+                    isDisabled={nextId == null || isLoading}
+                  />
+                </Tooltip>
+              </Flex>
+            )}
             <Button leftIcon={<Icon as={MdPrint} />} onClick={handlePrint}>
               Print
             </Button>
