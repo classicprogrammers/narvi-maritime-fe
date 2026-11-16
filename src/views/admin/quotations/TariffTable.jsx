@@ -4,6 +4,8 @@ import {
   Button,
   Flex,
   HStack,
+  Icon,
+  IconButton,
   Spinner,
   Table,
   Tbody,
@@ -14,11 +16,13 @@ import {
   Tr,
   useColorModeValue,
 } from "@chakra-ui/react";
+import { MdDelete } from "react-icons/md";
 import { displayTariffValue } from "./tariffScreenUtils";
 
 /**
- * Read-only paginated table shared by the Agent Tariffs and Client Tariffs screens.
+ * Paginated table shared by the Agent Tariffs and Client Tariffs screens.
  * columns: [{ key, label, isNumeric?, render?(row) }]
+ * onDelete?(row): when given, each row gets a delete button.
  */
 export default function TariffTable({
   columns,
@@ -33,6 +37,7 @@ export default function TariffTable({
   hasPrevious,
   fetchAll,
   onPageChange,
+  onDelete,
 }) {
   const borderColor = useColorModeValue("gray.200", "gray.700");
   const headerBg = useColorModeValue("gray.50", "gray.700");
@@ -82,6 +87,9 @@ export default function TariffTable({
                       {column.label}
                     </Th>
                   ))}
+                  {onDelete && (
+                    <Th py={3} px={4} bg={headerBg} borderColor={borderColor} w="1%" aria-label="Actions" />
+                  )}
                 </Tr>
               </Thead>
               <Tbody>
@@ -109,6 +117,18 @@ export default function TariffTable({
                         </Td>
                       );
                     })}
+                    {onDelete && (
+                      <Td py={3} px={4} borderColor={borderColor}>
+                        <IconButton
+                          size="sm"
+                          variant="ghost"
+                          colorScheme="red"
+                          aria-label="Delete client tariff"
+                          icon={<Icon as={MdDelete} />}
+                          onClick={() => onDelete(row)}
+                        />
+                      </Td>
+                    )}
                   </Tr>
                 ))}
               </Tbody>

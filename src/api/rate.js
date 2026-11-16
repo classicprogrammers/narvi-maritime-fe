@@ -77,6 +77,12 @@ export const getClientRateTariffOptionsApi = async (payload = {}) => {
   return unwrapRateApiData(response);
 };
 
+// Hard delete of one client-specific rate item (agent/general rate ids are "not found").
+export const deleteClientRateTariffApi = async (id) => {
+  const response = await api.post("/api/client/rate/tariff/delete", { params: { id } });
+  return unwrapRateApiData(response);
+};
+
 /**
  * List params for either one page or everything: fetch_all=true returns every matching
  * record in one response (page/page_size are ignored), as in the stock list.

@@ -1,5 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogOverlay,
   Box,
   Button,
   Flex,
@@ -30,6 +36,7 @@ import {
 } from "react-icons/md";
 import SearchableSelect from "components/forms/SearchableSelect";
 import {
+  deleteClientRateTariffApi,
   getClientRateTariffOptionsApi,
   getClientRateTariffsApi,
   withFetchAll,
@@ -138,6 +145,9 @@ export default function ClientTariffs() {
   const [meta, setMeta] = useState({ totalCount: 0, totalPages: 1, hasNext: false, hasPrevious: false });
   const [isPdfLoading, setIsPdfLoading] = useState(false);
   const [isExcelLoading, setIsExcelLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const cancelDeleteRef = useRef();
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -212,6 +222,35 @@ export default function ClientTariffs() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      const result = await deleteClientRateTariffApi(deleteTarget.id);
+      toast({
+        title: "Client tariff deleted",
+        description: result?.message,
+        status: "success",
+        duration: 2200,
+        isClosable: true,
+      });
+      setDeleteTarget(null);
+      // Deleting the last row of a page would leave it empty: step back one page.
+      if (rows.length === 1 && page > 1 && !usesFetchAll) setPage(page - 1);
+      else loadData();
+    } catch (error) {
+      toast({
+        title: "Delete failed",
+        description: tariffErrorMessage(error, "Failed to delete client tariff."),
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const handleFilterChange = (field, value, optionList) => {
     setFilters((prev) => ({
@@ -614,7 +653,32 @@ export default function ClientTariffs() {
         hasPrevious={meta.hasPrevious}
         fetchAll={usesFetchAll}
         onPageChange={setPage}
+        onDelete={setDeleteTarget}
       />
+
+      <AlertDialog
+        isOpen={Boolean(deleteTarget)}
+        leastDestructiveRef={cancelDeleteRef}
+        onClose={() => !isDeleting && setDeleteTarget(null)}
+      >
+        <AlertDialogOverlay />
+        <AlertDialogContent borderRadius="lg">
+          <AlertDialogHeader fontSize="lg" fontWeight="bold" color="red.600">
+            Delete client tariff
+          </AlertDialogHeader>
+          <AlertDialogBody>
+            Permanently delete "{deleteTarget?.rate_name || `#${deleteTarget?.id}`}"? This cannot be undone.
+          </AlertDialogBody>
+          <AlertDialogFooter>
+            <Button ref={cancelDeleteRef} variant="outline" onClick={() => setDeleteTarget(null)} isDisabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button colorScheme="red" ml={3} onClick={handleDelete} isLoading={isDeleting}>
+              Delete
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <CopyTariffModal
         isOpen={copyModal.isOpen}
