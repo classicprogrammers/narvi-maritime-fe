@@ -1,19 +1,6 @@
 /** A charge that only applies in some cases: If Apply and DOB If Apply. Everything else always applies. */
 export const isIfApplyRow = (row) => /if_apply/.test(String(row?.charge_category || ""));
 
-const sortValue = (row) => {
-  const value = Number(row?.sort_order);
-  return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
-};
-
-/** Sort Order ascending, rows without one last, original order kept for equal values. */
-export function sortBySortOrder(rows) {
-  return rows
-    .map((row, index) => ({ row, index }))
-    .sort((a, b) => sortValue(a.row) - sortValue(b.row) || a.index - b.index)
-    .map(({ row }) => row);
-}
-
 /** The different currencies of a list of tariff rows, in first-seen order. */
 export function uniqueCurrencies(rows) {
   const codes = rows
@@ -28,21 +15,17 @@ export const OTHER_CHARGES_LABEL = "Other charges";
 export const rowGroupName = (row) => (typeof row?.group_name === "string" ? row.group_name.trim() : "");
 
 /**
- * Rows grouped by Group Name: groups A-Z, rows without a group last as "Other charges".
- * Rows keep their order inside a group (Sort Order, rows without one last).
+ * Rows grouped by Group Name, in the order the backend sent them: sort_by=group_name already puts the
+ * groups in tariff order and rows without a group last, so nothing is re-sorted here.
  */
 export function groupRowsByGroupName(rows) {
   const groups = new Map();
-  sortBySortOrder(rows).forEach((row) => {
+  rows.forEach((row) => {
     const name = rowGroupName(row);
     if (!groups.has(name)) groups.set(name, []);
     groups.get(name).push(row);
   });
-  const named = [...groups.keys()].filter(Boolean).sort((a, b) => a.localeCompare(b));
-  return [...named, ...(groups.has("") ? [""] : [])].map((name) => ({
-    name: name || OTHER_CHARGES_LABEL,
-    rows: groups.get(name),
-  }));
+  return [...groups].map(([name, groupRows]) => ({ name: name || OTHER_CHARGES_LABEL, rows: groupRows }));
 }
 
 /**
@@ -52,19 +35,18 @@ export function groupRowsByGroupName(rows) {
  */
 export function buildTypeSections({ rows, head, toBody, groupRow = (name) => [name] }) {
   const ifApply = rows.filter(isIfApplyRow);
-  const isDob = (row) => /^dob_/.test(String(row?.charge_category || ""));
   const grouped = (sectionRows) =>
     groupRowsByGroupName(sectionRows).flatMap((group) => [groupRow(group.name), ...toBody(group.rows)]);
   return [
     { title: "Standard charges", rows: rows.filter((row) => !isIfApplyRow(row)), flat: true },
-    { title: "If Apply charges", rows: ifApply.filter((row) => !isDob(row)) },
-    { title: "DOB If Apply charges", rows: ifApply.filter(isDob) },
+    // If Apply and DOB If Apply share one list, so the groups keep the tariff order whatever the category.
+    { title: "If Apply charges", rows: ifApply },
   ]
     .filter((section) => section.rows.length > 0)
     .map(({ title, rows: sectionRows, flat }) => ({
       title,
       head,
-      body: flat ? toBody(sortBySortOrder(sectionRows)) : grouped(sectionRows),
+      body: flat ? toBody(sectionRows) : grouped(sectionRows),
     }));
 }
 

@@ -52,8 +52,8 @@ const ACTIVE_OPTIONS = [
 
 const EMPTY_OPTIONS = { agents: [], locations: [], groups: [] };
 
-// Without a sort the backend lists Standard charges first and If Apply after; agent tariffs follow Sort Order only.
-const AGENT_TARIFF_SORT = { sort_by: "sort_order", sort_order: "asc" };
+// Standard rows first, then the groups in tariff order (the backend sorts, so nothing is re-sorted here).
+const AGENT_TARIFF_SORT = { sort_by: "group_name" };
 
 const COLUMNS = [
   { key: "group_name", label: "Group Name" },

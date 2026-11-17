@@ -86,8 +86,10 @@ const COLUMNS = [
   { key: "rate_calculation", label: "Rate Calculation" },
 ];
 
-// On screen the tariff also shows each rate's shipment type; the exports are per type instead.
+// On screen the tariff also shows each rate's group and shipment type, so the order is easy to check;
+// the exports are per type and list the groups as headings instead.
 const SCREEN_COLUMNS = [
+  { key: "group_name", label: "Group Name", render: (row) => (typeof row.group_name === "string" ? row.group_name : "") },
   ...COLUMNS,
   {
     key: "shipment_type_label",
@@ -95,6 +97,9 @@ const SCREEN_COLUMNS = [
     render: (row) => shipmentTypeLabel(row.shipment_type, row.shipment_type_label),
   },
 ];
+
+// Standard rows first, then the groups in tariff order (the backend sorts, so nothing is re-sorted here).
+const CLIENT_TARIFF_SORT = { sort_by: "group_name" };
 
 // Columns of the PDFs, where the Standard / If Apply split is the section heading instead.
 const PDF_COLUMNS = COLUMNS.filter((column) => column.key !== "charge_category_label");
@@ -211,7 +216,7 @@ export default function ClientTariffs() {
     try {
       const result = await getClientRateTariffsApi(
         withFetchAll(
-          { ...filterParams, search: debouncedSearch || undefined, page, page_size: TARIFF_PAGE_SIZE },
+          { ...filterParams, ...CLIENT_TARIFF_SORT, search: debouncedSearch || undefined, page, page_size: TARIFF_PAGE_SIZE },
           usesFetchAll
         )
       );
@@ -304,7 +309,7 @@ export default function ClientTariffs() {
       ...(shipmentType ? { shipment_type: shipmentType } : {}),
       search: debouncedSearch || undefined,
       // Rows of the same group come together: the exports list the If Apply charges under their group.
-      sort_by: "group_name",
+      ...CLIENT_TARIFF_SORT,
       fetch_all: true,
     });
     return Array.isArray(result.data) ? result.data : [];

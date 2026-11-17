@@ -62,6 +62,7 @@ import FetchAllSwitch from "./FetchAllSwitch";
 import CopyTariffModal from "./CopyTariffModal";
 import {
   buildRateListFilterSnapshot,
+  buildRateListSortParams,
   clearPersistedRateListState,
   defaultRateListState,
   RATE_LIST_DEFAULT_SORT,
@@ -237,7 +238,7 @@ const STICKY_ACTIONS_WIDTH = "104px";
 
 /** Sort keys sent as sort_by to GET /api/rate/list for each sortable table column. */
 const RATE_LIST_COLUMNS = [
-  { label: "Group Name", sortKey: "import_group", minW: "150px" },
+  { label: "Group Name", sortKey: "group_name", aliases: ["import_group"], minW: "150px" },
   { label: "Sort Order", sortKey: "sort_order", minW: "110px" },
   { label: "Rate Name", sortKey: "rate_name", minW: "240px" },
   { label: "Rate Text", sortKey: "rate_text", minW: "280px" },
@@ -454,8 +455,7 @@ export default function RateList() {
       shipment_type: filters.shipment_type || undefined,
       active: filters.active === "" ? undefined : filters.active === "true",
       incl_in_tariff: filters.incl_in_tariff === "" ? undefined : filters.incl_in_tariff === "true",
-      sort_by: sort.sort_by || undefined,
-      sort_order: sort.sort_by ? sort.sort_order : undefined,
+      ...buildRateListSortParams(sort),
     }),
     [debouncedSearch, filters, sort]
   );

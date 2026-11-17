@@ -6,6 +6,16 @@ export const RATE_LIST_DEFAULT_SORT = {
   sort_order: "asc",
 };
 
+/**
+ * Sort params for the list request. Group Name ascending is the backend's own order for that column, so
+ * sort_order=asc is never sent with it; descending is still sent to reverse the groups.
+ */
+export function buildRateListSortParams(sort) {
+  if (!sort?.sort_by) return { sort_by: undefined, sort_order: undefined };
+  const omitOrder = sort.sort_by === "group_name" && sort.sort_order !== "desc";
+  return { sort_by: sort.sort_by, sort_order: omitOrder ? undefined : sort.sort_order };
+}
+
 export const defaultRateListState = {
   search: "",
   debouncedSearch: "",
@@ -29,7 +39,9 @@ export const defaultRateListState = {
 };
 
 function normalizeRateListSort(sort) {
-  const sortBy = typeof sort?.sort_by === "string" ? sort.sort_by.trim() : "";
+  const rawSortBy = typeof sort?.sort_by === "string" ? sort.sort_by.trim() : "";
+  // A persisted sort by the old Group Name key is the same column as group_name.
+  const sortBy = rawSortBy === "import_group" ? "group_name" : rawSortBy;
   const sortOrder = sort?.sort_order === "asc" || sort?.sort_order === "desc" ? sort.sort_order : "";
   // A persisted "id desc" is the legacy default (newest first); treat it as the new default.
   if (!sortBy || !sortOrder || (sortBy === "id" && sortOrder === "desc")) {
