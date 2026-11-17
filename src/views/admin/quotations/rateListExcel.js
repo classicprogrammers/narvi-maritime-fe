@@ -10,6 +10,7 @@ const FIELD_LABELS = {
   agent_id: "Agent",
   agent_text: "Agent",
   import_group: "Group Name",
+  group_sort_order: "Group Sort Order",
   rate_name: "Rate Name",
   charge_category: "Charge Category",
   charge_category_label: "Charge Category",

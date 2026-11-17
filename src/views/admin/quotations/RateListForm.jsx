@@ -108,6 +108,7 @@ const FORM_SORT_COLUMNS = [
   { label: "Last Update", sortKey: "last_update", type: "date" },
   { label: "Sort Order", sortKey: "sort_order", type: "number" },
   { label: "Group Name", sortKey: "import_group", type: "text" },
+  { label: "Group Sort Order", sortKey: "group_sort_order", type: "number" },
   { label: "In Tariff", sortKey: "incl_in_tariff", type: "boolean" },
   { label: "Active", sortKey: "active", type: "boolean" },
   { label: "Remarks", sortKey: "remarks", type: "text" },
@@ -1523,6 +1524,18 @@ export default function RateListForm() {
                           onChange={(e) => updateRow(index, "import_group", e.target.value)}
                           {...cellInputProps}
                           htmlSize={getAutoHtmlSize(row.import_group, "Group Name")}
+                        />
+                      )}
+                    </Td>
+                    <Td {...tdProps}>
+                      {assignCell(
+                        index,
+                        "group_sort_order",
+                        <Input
+                          value={row.group_sort_order}
+                          onChange={(e) => updateRow(index, "group_sort_order", e.target.value)}
+                          {...cellInputProps}
+                          htmlSize={getAutoHtmlSize(row.group_sort_order, "Group Sort Order")}
                         />
                       )}
                     </Td>

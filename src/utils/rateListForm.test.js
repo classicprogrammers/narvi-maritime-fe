@@ -65,3 +65,29 @@ describe("shipment type in rate payloads", () => {
     });
   });
 });
+
+describe("Group Sort Order", () => {
+  test("an unset value from the API (false) is empty in the form", () => {
+    expect(mapRateItemToFormRow({ ...apiRate, group_sort_order: false }).group_sort_order).toBe("");
+    expect(mapRateItemToFormRow({ ...apiRate, group_sort_order: 3 }).group_sort_order).toBe(3);
+  });
+
+  test("a whole number of 1 or more is sent, anything else means not set", () => {
+    const form = (value) => ({ ...mapRateItemToFormRow(apiRate), group_sort_order: value });
+    expect(buildRateApiPayload(form("2")).group_sort_order).toBe(2);
+    expect(buildRateApiPayload(form("")).group_sort_order).toBeNull();
+    expect(buildRateApiPayload(form("0")).group_sort_order).toBeNull();
+    expect(buildRateApiPayload(form("1.5")).group_sort_order).toBeNull();
+    expect(buildRateApiPayload(form("abc")).group_sort_order).toBeNull();
+  });
+
+  test("create sends it only when set, update sends a change", () => {
+    const original = mapRateItemToFormRow({ ...apiRate, group_sort_order: false });
+    expect(buildRateCreatePayload(original)).not.toHaveProperty("group_sort_order");
+    expect(buildRateCreatePayload({ ...original, group_sort_order: "4" }).group_sort_order).toBe(4);
+    expect(buildRateUpdateLine({ ...original, group_sort_order: "4" }, original)).toEqual({
+      id: 7,
+      group_sort_order: 4,
+    });
+  });
+});

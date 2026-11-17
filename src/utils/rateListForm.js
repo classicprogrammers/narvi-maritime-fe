@@ -16,6 +16,7 @@ export const DEFAULT_RATE_FORM_ROW = {
   charge_category_label: "",
   incl_in_tariff: false,
   import_group: "",
+  group_sort_order: "",
   shipment_type: "both",
   last_update: "",
   active: true,
@@ -39,6 +40,7 @@ export const RATE_API_FIELDS = [
   "sort_order",
   "charge_category_id",
   "import_group",
+  "group_sort_order",
   "shipment_type",
   "incl_in_tariff",
   "active",
@@ -147,6 +149,8 @@ export function mapRateItemToFormRow(item) {
     charge_category_label: item.charge_category_id?.name || item.charge_category_label || "",
     incl_in_tariff: Boolean(item.incl_in_tariff),
     import_group: item.import_group || "",
+    // The API sends `false` when no Group Sort Order is set.
+    group_sort_order: item.group_sort_order === false || item.group_sort_order == null ? "" : item.group_sort_order,
     shipment_type: item.shipment_type || "both",
     last_update: toDateInputValue(item.last_update),
     active: item.active !== false,
@@ -216,6 +220,14 @@ export function buildRateApiPayload(formRow, { forCreate = false } = {}) {
     formRow.sort_order === "" || formRow.sort_order == null ? null : Number(formRow.sort_order);
   if (sortOrder != null || !forCreate) {
     payload.sort_order = sortOrder;
+  }
+
+  // A whole number of 1 or more; empty (or anything else) means not set.
+  const groupSortOrder = Number(formRow.group_sort_order);
+  const hasGroupSortOrder =
+    formRow.group_sort_order !== "" && Number.isInteger(groupSortOrder) && groupSortOrder >= 1;
+  if (hasGroupSortOrder || !forCreate) {
+    payload.group_sort_order = hasGroupSortOrder ? groupSortOrder : null;
   }
 
   payload.shipment_type = formRow.shipment_type || "both";

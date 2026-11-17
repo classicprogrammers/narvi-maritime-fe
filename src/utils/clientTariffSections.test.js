@@ -1,6 +1,7 @@
 import {
   buildTypeSections,
   groupRowsByGroupName,
+  exportScopeProblem,
   isIfApplyRow,
   sectionsToSheetRows,
   uniqueCurrencies,
@@ -58,5 +59,14 @@ describe("clientTariffSections", () => {
     ]);
     expect(uniqueCurrencies([{}, { currency: false }])).toEqual([]);
     expect(uniqueCurrencies([])).toEqual([]);
+  });
+});
+
+describe("exportScopeProblem", () => {
+  test("a client tariff export needs one agent and one location", () => {
+    expect(exportScopeProblem({ agent_id: "3", location: "RTM" })).toBe("");
+    expect(exportScopeProblem({ agent_id: "", location: "RTM" })).toBe("Select an agent to export.");
+    expect(exportScopeProblem({ agent_id: "3", location: "" })).toBe("Select a location to export.");
+    expect(exportScopeProblem({})).toBe("Select an agent and a location to export.");
   });
 });

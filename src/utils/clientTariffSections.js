@@ -1,6 +1,17 @@
 /** A charge that only applies in some cases: If Apply and DOB If Apply. Everything else always applies. */
 export const isIfApplyRow = (row) => /if_apply/.test(String(row?.charge_category || ""));
 
+/**
+ * A client tariff PDF / Excel is for one agent in one location, never a mix: the groups are ordered by
+ * the Group Sort Order set for that agent and location. Returns why the export can't run, or "".
+ */
+export function exportScopeProblem(filters = {}) {
+  if (!filters.agent_id && !filters.location) return "Select an agent and a location to export.";
+  if (!filters.agent_id) return "Select an agent to export.";
+  if (!filters.location) return "Select a location to export.";
+  return "";
+}
+
 /** The different currencies of a list of tariff rows, in first-seen order. */
 export function uniqueCurrencies(rows) {
   const codes = rows

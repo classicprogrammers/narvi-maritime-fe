@@ -53,7 +53,7 @@ import {
   readPersistedClientTariffState,
   writePersistedClientTariffState,
 } from "../../../utils/clientTariffState";
-import { buildTypeSections, sectionsToSheetRows, uniqueCurrencies } from "../../../utils/clientTariffSections";
+import { buildTypeSections, exportScopeProblem, sectionsToSheetRows, uniqueCurrencies } from "../../../utils/clientTariffSections";
 import CopyTariffModal from "./CopyTariffModal";
 import FetchAllSwitch from "./FetchAllSwitch";
 import TariffTable from "./TariffTable";
@@ -344,7 +344,15 @@ export default function ClientTariffs() {
     }
   };
 
+  // One agent and one location per export, so the group order of that agent / location applies.
+  const warnExportScope = useCallback(() => {
+    const problem = exportScopeProblem(filters);
+    if (problem) toast({ title: "Cannot export", description: problem, status: "warning", duration: 3500, isClosable: true });
+    return Boolean(problem);
+  }, [filters, toast]);
+
   const handleExportExcel = useCallback(async () => {
+    if (warnExportScope()) return;
     setIsExcelLoading(true);
     try {
       const all = await fetchAllRows();
@@ -387,11 +395,12 @@ export default function ClientTariffs() {
     } finally {
       setIsExcelLoading(false);
     }
-  }, [fetchAllRows, filters.agent_id, filters.shipment_type, remarks, excelFilePrefix, typeScope, toast]);
+  }, [fetchAllRows, filters.agent_id, filters.shipment_type, remarks, excelFilePrefix, typeScope, toast, warnExportScope]);
 
   // Export and Import + DOB are two separate PDFs: Standard charges first, then If Apply charges.
   const handleExportPdf = useCallback(async (shipmentType) => {
     const typeLabel = PDF_TYPE_LABELS[shipmentType];
+    if (warnExportScope()) return;
     setIsPdfLoading(true);
     try {
       const all = await fetchAllRows(shipmentType);
@@ -441,7 +450,7 @@ export default function ClientTariffs() {
     } finally {
       setIsPdfLoading(false);
     }
-  }, [fetchAllRows, filters.agent_id, filters.location, remarks, exportScope, openPdf, toast]);
+  }, [fetchAllRows, filters.agent_id, filters.location, remarks, exportScope, openPdf, toast, warnExportScope]);
 
   const selectProps = { size: "sm", bg: inputBg, color: inputText, borderColor, prefillOnFocus: false };
 
