@@ -1266,7 +1266,8 @@ export default function RateList() {
               }}
             >
               <option value="">Default (Sort Order)</option>
-              {sortableColumns.map((column) => (
+              {/* "Default (Sort Order)" above already is Sort Order, so it is not listed a second time. */}
+              {sortableColumns.filter((column) => column.sortKey !== "sort_order").map((column) => (
                 <option key={column.sortKey} value={column.sortKey}>
                   {column.label}
                 </option>
