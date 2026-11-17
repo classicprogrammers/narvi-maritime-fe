@@ -98,8 +98,9 @@ const SCREEN_COLUMNS = [
   },
 ];
 
-// Standard rows first, then the groups in tariff order (the backend sorts, so nothing is re-sorted here).
-const CLIENT_TARIFF_SORT = { sort_by: "group_name" };
+// The PDF / Excel exports list Standard rows first, then the groups in the order set in Rate Items (the backend
+// sorts, so nothing is re-sorted here). The on-screen list keeps the backend's default Sort Order, as in Rate Items.
+const CLIENT_TARIFF_EXPORT_SORT = { sort_by: "group_name" };
 
 // Columns of the PDFs, where the Standard / If Apply split is the section heading instead.
 const PDF_COLUMNS = COLUMNS.filter((column) => column.key !== "charge_category_label");
@@ -216,7 +217,7 @@ export default function ClientTariffs() {
     try {
       const result = await getClientRateTariffsApi(
         withFetchAll(
-          { ...filterParams, ...CLIENT_TARIFF_SORT, search: debouncedSearch || undefined, page, page_size: TARIFF_PAGE_SIZE },
+          { ...filterParams, search: debouncedSearch || undefined, page, page_size: TARIFF_PAGE_SIZE },
           usesFetchAll
         )
       );
@@ -309,7 +310,7 @@ export default function ClientTariffs() {
       ...(shipmentType ? { shipment_type: shipmentType } : {}),
       search: debouncedSearch || undefined,
       // Rows of the same group come together: the exports list the If Apply charges under their group.
-      ...CLIENT_TARIFF_SORT,
+      ...CLIENT_TARIFF_EXPORT_SORT,
       fetch_all: true,
     });
     return Array.isArray(result.data) ? result.data : [];

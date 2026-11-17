@@ -52,8 +52,10 @@ const ACTIVE_OPTIONS = [
 
 const EMPTY_OPTIONS = { agents: [], locations: [], groups: [] };
 
-// Standard rows first, then the groups in tariff order (the backend sorts, so nothing is re-sorted here).
-const AGENT_TARIFF_SORT = { sort_by: "group_name" };
+// The on-screen list follows Sort Order, as in Rate Items. The PDF / Excel exports list Standard rows first, then
+// the groups in the order set in Rate Items (the backend sorts, so nothing is re-sorted here).
+const AGENT_TARIFF_SORT = { sort_by: "sort_order", sort_order: "asc" };
+const AGENT_TARIFF_EXPORT_SORT = { sort_by: "group_name" };
 
 const COLUMNS = [
   { key: "group_name", label: "Group Name" },
@@ -184,7 +186,7 @@ export default function AgentTariffs() {
     try {
       const result = await getAgentRateTariffsApi({
         ...optionsPayload,
-        ...AGENT_TARIFF_SORT,
+        ...AGENT_TARIFF_EXPORT_SORT,
         search: debouncedSearch || undefined,
         active: filters.active === "" ? undefined : filters.active === "true",
         fetch_all: true,
