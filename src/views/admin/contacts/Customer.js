@@ -4,6 +4,13 @@ import { useHistory } from "react-router-dom";
 import CustomerTable from "views/admin/contacts/components/CustomerTable";
 import { columnsDataClient } from "views/admin/contacts/variables/columnsData";
 import { useCustomer } from "redux/hooks/useCustomer";
+import {
+  DEFAULT_CLIENT_FILTERS,
+  buildClientFilterParams,
+  sanitizeClientFilters,
+  CLIENT_DATE_FILTER_FIELDS,
+} from "utils/clientListFilters";
+import { validateDateRanges } from "utils/ledgerListQuery";
 
 const mapSortOrderToApi = (uiSort) => {
   switch (uiSort) {
@@ -26,10 +33,7 @@ function readPersistedClientListState() {
       pageSize: typeof p.pageSize === "number" ? p.pageSize : 80,
       nameSearchValue: typeof p.nameSearchValue === "string" ? p.nameSearchValue : "",
       overallSearchValue: typeof p.overallSearchValue === "string" ? p.overallSearchValue : "",
-      filters: {
-        client_code: p.filters?.client_code != null ? p.filters.client_code : "",
-        email: p.filters?.email != null ? p.filters.email : "",
-      },
+      filters: sanitizeClientFilters(p.filters),
       sortOrder: p.sortOrder === "newest" || p.sortOrder === "oldest" || p.sortOrder === "alphabetical" ? p.sortOrder : "alphabetical",
     };
   } catch {
@@ -51,7 +55,7 @@ const defaultListState = {
   pageSize: 80,
   nameSearchValue: "",
   overallSearchValue: "",
-  filters: { client_code: "", email: "" },
+  filters: { ...DEFAULT_CLIENT_FILTERS },
   sortOrder: "alphabetical",
 };
 
@@ -84,8 +88,7 @@ export default function Customer() {
       return {
         name: nameSearchValue?.trim() || undefined,
         search: overallSearchValue?.trim() || undefined,
-        client_code: filters.client_code?.trim() || undefined,
-        email: filters.email?.trim() || undefined,
+        ...buildClientFilterParams(filters),
         page: overrides.page ?? page,
         page_size: overrides.page_size ?? pageSize,
         sort_by: sortApi.sort_by,
@@ -129,19 +132,30 @@ export default function Customer() {
     return () => clearTimeout(timer);
   }, [nameSearchValue, overallSearchValue]);
 
-  // Advance filters on change (debounced) – refetch when client_code, email, or country change
+  // Advance filters on change (debounced) – refetch when any advanced filter changes
   const isFirstFiltersRun = useRef(true);
   useEffect(() => {
     if (isFirstFiltersRun.current) {
       isFirstFiltersRun.current = false;
       return;
     }
+    // Invalid or inverted date ranges: show the inline error, send no request
+    if (Object.keys(validateDateRanges(filters, CLIENT_DATE_FILTER_FIELDS)).length > 0) return;
     const timer = setTimeout(() => {
       setPage(1);
       fetchCustomersRef.current({ page: 1 });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filters.client_code, filters.email]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    filters.client_code,
+    filters.email,
+    filters.follow_up,
+    filters.entry_date_from,
+    filters.entry_date_to,
+    filters.follow_up_date_from,
+    filters.follow_up_date_to,
+  ]);
 
   const refreshCustomers = useCallback(() => {
     fetchCustomers({ page });
@@ -187,7 +201,7 @@ export default function Customer() {
   const handleClearAll = useCallback(() => {
     setNameSearchValue("");
     setOverallSearchValue("");
-    setFilters({ client_code: "", email: "" });
+    setFilters({ ...DEFAULT_CLIENT_FILTERS });
     setSortOrder("alphabetical");
     setPage(1);
     getCustomers({ page: 1, page_size: pageSize, ...mapSortOrderToApi("alphabetical") });

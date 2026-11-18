@@ -265,6 +265,7 @@ function CustomerRegistration() {
         client_invoicing: "",
         prefix: "",
         job_title: "",
+        follow_up: false,
         attachments: [],
         attachment_to_delete: [],
         existingAttachments: [],
@@ -368,6 +369,7 @@ function CustomerRegistration() {
                 client_invoicing: editingClient.client_invoicing || "",
                 prefix: editingClient.prefix || "",
                 job_title: editingClient.job_title || "",
+                follow_up: !!editingClient.follow_up,
                 attachments: [], // New uploads
                 attachment_to_delete: [], // IDs to delete
                 existingAttachments: Array.isArray(editingClient.attachments) ? editingClient.attachments.map(att => ({
@@ -1678,7 +1680,19 @@ function CustomerRegistration() {
                                                         <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Phone1</Text>
                                                         <Input name="phone" value={formData.phone} onChange={handleInputChange} placeholder="+65..." size="sm" w={gridInputWidth} />
                                                     </Box>
-                                                    <Box px={4} py={2} borderColor={borderColor}></Box>
+                                                    <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                        {editingClient && (
+                                                            <>
+                                                                <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Follow up</Text>
+                                                                <Box w={gridInputWidth}>
+                                                                    <Checkbox
+                                                                        isChecked={!!formData.follow_up}
+                                                                        onChange={(e) => setFormData((prev) => ({ ...prev, follow_up: e.target.checked }))}
+                                                                    />
+                                                                </Box>
+                                                            </>
+                                                        )}
+                                                    </Box>
 
                                                     {/* LEFT: Phone2 */}
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>

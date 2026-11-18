@@ -38,6 +38,8 @@ import {
   Select,
   Grid,
   Textarea,
+  Checkbox,
+  Switch,
 } from "@chakra-ui/react";
 import React, { useMemo, useState, useRef, useEffect } from "react";
 import { useHistory } from "react-router-dom";
@@ -50,6 +52,18 @@ import {
 
 import Card from "components/card/Card";
 import SearchableSelect from "components/forms/SearchableSelect";
+import DmyDateInput, { normalizeToIsoDate } from "components/forms/DmyDateInput";
+import { updateCustomerFollowUpApi } from "api/customer";
+import {
+  DEFAULT_CLIENT_FILTERS,
+  hasActiveClientAdvanceFilters,
+} from "utils/clientListFilters";
+import { validateDateRanges } from "utils/ledgerListQuery";
+import {
+  CLIENT_DATE_FILTER_FIELDS,
+  buildClientDateParams,
+} from "utils/clientListFilters";
+import SalesNotesMatchModal from "./SalesNotesMatchModal";
 import { useCustomer } from "redux/hooks/useCustomer";
 import { useSaveWithDraft } from "hooks/useSaveWithDraft";
 import { withActionErrorMessage } from "utils/stockDraft";
@@ -71,6 +85,8 @@ import {
   MdPeople,
   MdClose,
 } from "react-icons/md";
+
+const CLIENT_DATE_FIELDS = CLIENT_DATE_FILTER_FIELDS;
 
 export default function CustomerTable(props) {
   const {
@@ -95,10 +111,7 @@ export default function CustomerTable(props) {
   const history = useHistory();
   const [internalNameSearch, setInternalNameSearch] = useState("");
   const [internalOverallSearch, setInternalOverallSearch] = useState("");
-  const [internalFilters, setInternalFilters] = useState({
-    client_code: "",
-    email: "",
-  });
+  const [internalFilters, setInternalFilters] = useState({ ...DEFAULT_CLIENT_FILTERS });
   const isControlled =
     propsNameSearchValue !== undefined &&
     propsOnNameSearchChange != null &&
@@ -120,7 +133,7 @@ export default function CustomerTable(props) {
   const setSortOrder = sortOrderControlled ? propsOnSortOrderChange : setInternalSortOrder;
 
   // Auto-open advanced filters when any advance filter has data (including when restored from persistence)
-  const hasAnyAdvanceFilter = filters.client_code || filters.email || overallSearchValue;
+  const hasAnyAdvanceFilter = hasActiveClientAdvanceFilters(filters, overallSearchValue);
   const [showFilterFields, setShowFilterFields] = useState(() => !!hasAnyAdvanceFilter);
   useEffect(() => {
     if (hasAnyAdvanceFilter) setShowFilterFields(true);
@@ -336,11 +349,58 @@ export default function CustomerTable(props) {
     setFiltersOrNotify(field, value);
   };
 
+  const dateRangeErrors = useMemo(
+    () => validateDateRanges(filters, CLIENT_DATE_FIELDS),
+    [filters]
+  );
+  const matchDateParams = useMemo(
+    () => (Object.keys(dateRangeErrors).length > 0 ? {} : buildClientDateParams(filters)),
+    [filters, dateRangeErrors]
+  );
+  const hasMatchDateParams = Object.keys(matchDateParams).length > 0;
+  const {
+    isOpen: isMatchOpen,
+    onOpen: onMatchOpen,
+    onClose: onMatchClose,
+  } = useDisclosure();
+
+  // Follow up switch: per-client optimistic value + saving flag ({ [id]: { value, saving } })
+  const [followUpState, setFollowUpState] = useState({});
+  // Drop settled optimistic values once fresh rows arrive
+  useEffect(() => {
+    setFollowUpState((prev) => {
+      const next = {};
+      Object.entries(prev).forEach(([id, s]) => {
+        if (s.saving) next[id] = s;
+      });
+      return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+    });
+  }, [tableData]);
+
+  const handleFollowUpToggle = async (customer, checked) => {
+    if (!customer?.id || followUpState[customer.id]?.saving) return;
+    const id = customer.id;
+    setFollowUpState((prev) => ({ ...prev, [id]: { value: checked, saving: true } }));
+    try {
+      // The API module already shows the backend error message in a modal
+      await updateCustomerFollowUpApi(id, checked);
+      setFollowUpState((prev) => ({ ...prev, [id]: { value: checked, saving: false } }));
+      if (propsOnRefresh) propsOnRefresh();
+      else getCustomers({});
+    } catch (error) {
+      setFollowUpState((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+  };
+
   const clearAllFilters = () => {
     if (isControlled && propsOnClearAll) {
       propsOnClearAll();
     } else {
-      setInternalFilters({ client_code: "", email: "" });
+      setInternalFilters({ ...DEFAULT_CLIENT_FILTERS });
       setNameSearchValue("");
       setOverallSearchValue("");
     }
@@ -659,10 +719,8 @@ export default function CustomerTable(props) {
                 &nbsp;
               </Text>
               <HStack spacing={3}>
-                {(filters.client_code ||
-                  filters.email ||
+                {(hasAnyAdvanceFilter ||
                   nameSearchValue ||
-                  overallSearchValue ||
                   sortOrder !== "alphabetical") && (
                   <Button
                     size="md"
@@ -685,16 +743,8 @@ export default function CustomerTable(props) {
               </Text>
               <Button
                 size="md"
-                variant={
-                  filters.client_code || filters.email || overallSearchValue
-                    ? "solid"
-                    : "outline"
-                }
-                colorScheme={
-                  filters.client_code || filters.email || overallSearchValue
-                    ? "blue"
-                    : "gray"
-                }
+                variant={hasAnyAdvanceFilter ? "solid" : "outline"}
+                colorScheme={hasAnyAdvanceFilter ? "blue" : "gray"}
                 leftIcon={<Icon as={MdFilterList} />}
                 onClick={() => setShowFilterFields(!showFilterFields)}
                 borderRadius="10px"
@@ -872,8 +922,100 @@ export default function CustomerTable(props) {
                   </InputGroup>
                 </Box>
 
+                {/* Follow up Filter */}
+                <Box minW="200px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Follow up
+                  </Text>
+                  <HStack spacing={2}>
+                    <Checkbox
+                      colorScheme="blue"
+                      isChecked={filters.follow_up === "true"}
+                      onChange={(e) =>
+                        handleFilterChange("follow_up", e.target.checked ? "true" : "")
+                      }
+                    >
+                      Show follow-up clients only
+                    </Checkbox>
+                    {filters.follow_up === "true" && (
+                      <IconButton
+                        aria-label="Clear Follow up"
+                        size="md"
+                        style={{ width: "32px", height: "32px" }}
+                        variant="ghost"
+                        icon={<Icon as={MdClose} />}
+                        onClick={() => handleFilterChange("follow_up", "")}
+                        _hover={{ bg: "gray.200" }}
+                      />
+                    )}
+                  </HStack>
+                </Box>
               </HStack>
 
+              <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
+                {CLIENT_DATE_FIELDS.map(({ key, label }) => (
+                  <Box key={key} minW="300px" flex="1">
+                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                      {label}
+                    </Text>
+                    <HStack spacing={3} align="flex-start">
+                      {["from", "to"].map((side) => {
+                        const field = `${key}_${side}`;
+                        return (
+                          <HStack key={field} spacing={1} flex="1">
+                            <Box flex="1">
+                              <DmyDateInput
+                                value={filters[field] ?? ""}
+                                onChange={(next) =>
+                                  handleFilterChange(field, normalizeToIsoDate(next))
+                                }
+                                placeholder={side === "from" ? "From dd/mm/yyyy" : "To dd/mm/yyyy"}
+                                iconColor="blue.500"
+                                fontSize="sm"
+                                bg={inputBg}
+                                color={inputText}
+                                borderRadius="8px"
+                                border="2px"
+                                borderColor={borderColor}
+                                _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                                isInvalid={!!dateRangeErrors[key]}
+                              />
+                            </Box>
+                            {filters[field] && (
+                              <IconButton
+                                aria-label={`Clear ${label} ${side}`}
+                                size="md"
+                                style={{ width: "32px", height: "32px" }}
+                                variant="ghost"
+                                icon={<Icon as={MdClose} />}
+                                onClick={() => handleFilterChange(field, "")}
+                                _hover={{ bg: "gray.200" }}
+                              />
+                            )}
+                          </HStack>
+                        );
+                      })}
+                    </HStack>
+                    {dateRangeErrors[key] && (
+                      <Text fontSize="xs" color="red.500" mt={1}>
+                        {dateRangeErrors[key]}
+                      </Text>
+                    )}
+                  </Box>
+                ))}
+              </HStack>
+
+              {hasMatchDateParams && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  colorScheme="blue"
+                  onClick={onMatchOpen}
+                  borderRadius="8px"
+                >
+                  View matching notes
+                </Button>
+              )}
             </Box>
           )}
         </Box>
@@ -1096,6 +1238,18 @@ export default function CustomerTable(props) {
                                 </Box>
                               </HStack>
                             </Tooltip>
+                          );
+                        } else if (cell.column.Header === "FOLLOW UP") {
+                          const rowId = row.original.id;
+                          const rowState = followUpState[rowId];
+                          data = (
+                            <Switch
+                              colorScheme="blue"
+                              isChecked={rowState ? rowState.value : !!row.original.follow_up}
+                              isDisabled={!!rowState?.saving}
+                              onChange={(e) => handleFollowUpToggle(row.original, e.target.checked)}
+                              aria-label="Follow up"
+                            />
                           );
                         } else if (cell.column.Header === "ACTIONS") {
                           data = (
@@ -1636,6 +1790,12 @@ export default function CustomerTable(props) {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      <SalesNotesMatchModal
+        isOpen={isMatchOpen}
+        onClose={onMatchClose}
+        dateParams={matchDateParams}
+      />
 
       <SuccessModal
         isOpen={isSuccessOpen}

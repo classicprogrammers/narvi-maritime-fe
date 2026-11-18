@@ -46,6 +46,7 @@ import VendorRegistration from "views/admin/vendor-registration";
 import ClientDetail from "views/admin/contacts/ClientDetail";
 import AgentDetail from "views/admin/contacts/AgentDetail";
 import Phonebook from "views/admin/phonebook";
+import SalesNotes from "views/admin/contacts/SalesNotes";
 
 // Quotations Imports
 import Quotations from "views/admin/quotations";
@@ -152,6 +153,15 @@ const routes = [
         path: "/contacts/phonebook",
         icon: <Icon as={MdPhone} width="20px" height="20px" color="inherit" />,
         component: Phonebook,
+        exact: true,
+      },
+      {
+        name: "Sales",
+        path: "/contacts/sales",
+        icon: (
+          <Icon as={MdAttachMoney} width="20px" height="20px" color="inherit" />
+        ),
+        component: SalesNotes,
         exact: true,
       },
     ],

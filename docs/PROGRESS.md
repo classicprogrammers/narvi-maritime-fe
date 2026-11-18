@@ -3,50 +3,56 @@
 The handoff file. The orchestrator rewrites it after every phase. After `/clear` or a crash, run `/resume`.
 
 ## Current feature
-001-drafts: save entered form data as a frontend draft when any create/update API call fails; Drafts sidebar item + page (list, Resume, Retry, Delete). Manual "Save as draft" button on Stock list, Shipping order, Rate list. Files/images excluded. Redux slice persisted to localStorage, keyed per user.
+002-sales-notes: Contacts / Client Management "SALES" tab. (1) Sales Notes list + create/edit/delete (remarks, entry date, follow-up date, dd/mm/yy) with entry/follow-up date filters. (2) "FOLLOW UP" filter in Advanced Filters (works like Narvi Maritime Approved Agents filter on stock list: add X to clear; list pops up); `follow_up` boolean on customers set via customer update. (3) Date filters (entry / follow-up) on customers + notes list popup. Backend contract: see request in session; endpoints `/api/client/sales`, `/create`, `/update`, `/delete`, `/api/customers?follow_up=...&follow_up_date_from/to&entry_date_from/to`.
 
 ## Phase
-CP1 approved. CP2 accepted by user (no commits; user tests locally then pushes). Implement: T1-T10 + T9a done (pilot: stock, shipping order, rates). Paused for user decision before T11-T16. Open risk: stock create partial-failure Retry may duplicate created rows. Nothing browser-tested yet. (Phases: intake, spec CP1, plan CP2, implement, QA, review, approval CP4, ship CP5)
+CP1 approved (open questions resolved with defaults). Plan = spec tasks T1-T15 (docs/specs/002-sales-notes.md). WAITING AT CP2: user approval of plan; no commits, work on `staging`. (Phases: intake, spec CP1, plan CP2, implement, QA, review, approval CP4, ship CP5)
 
 ## Branch
-`staging` (no feature branch: CLAUDE.md hard rule + user preference)
+`staging` (no feature branch: CLAUDE.md hard rule + user preference in memory). Working tree was clean at start.
 
 ## Spec
-docs/specs/001-drafts.md (17 tasks T1-T17, 8 open questions)
+docs/specs/002-sales-notes.md (not yet written)
 
 ## Tasks
-- [x] T1 utils: draftStorage, draftSanitize, drafts + tests
-- [x] T2 authStorage: keep `drafts:*` on boot + test
-- [x] T3 draftsSlice + store wiring + tests
-- [x] T4 useDraftsSync (admin layout) + useDrafts
-- [x] T5 draftModules registry + test
-- [x] T6 useSaveWithDraft + useResumeDraft + tests (generic isFailure; 401 = draft, redirect, toast)
-- [x] T7 Drafts page + route + sidebar badge
-- [x] T8 Stock (#1-#3) + manual button + Resume
-- [x] T9 Shipping order (#4, #6) + manual button + Resume
-- [x] T9a Remove dead SoNumberTab Create SO modal
-- [x] T10 Rates (#7, #8) + manual button + Resume
-- [x] T11 Quotations (#10, #11, #12)
-- [x] T12 Ledger bulk (#15, #16)
-- [x] T13 Contacts (#20-#22)
-- [x] T14 Configurations (#23-#31) + Users (#32, #33)
-- [x] T15 Carbon (#34, #35) + formOption (#19)
-- [x] T16 Docs + npm run check
+- [x] T1 endpoints + src/api/clientSales.js + tests
+- [x] T2 utils/salesNotes.js + tests (deviation: local normalizeToIsoDate/getLocalTodayIso copies, because importing DmyDateInput.jsx breaks Jest with `@chakra-ui/utils/context` not found; flag at CP4)
+- [x] T3 utils/clientListFilters.js + tests (follow_up stored as "true"/"" in filter state; private CLIENT_DATE_FILTER_FIELDS, no import of salesNotes)
+- [x] T4 customer API changes (+follow_up, new updateCustomerFollowUpApi) + tests
+- [x] T5 Customer.js filter wiring (not browser-tested)
+- [x] T6 Follow up filter UI (checkbox + X) (not browser-tested)
+- [x] T7 Date range filter UI on clients (not browser-tested)
+- [x] T8 Matching notes popup (SalesNotesMatchModal.jsx + button in CustomerTable.js; not browser-tested; reversed range is not validated inside matchDateParams)
+- [x] T9 FOLLOW UP column toggle (not browser-tested; local CLIENT_DATE_FIELDS copies in Customer.js and CustomerTable.js)
+- [x] T10 follow_up in client edit form (not browser-tested)
+- [x] T11 SalesNoteFormModal
+- [x] T12 Sales screen list
+- [x] T13 Sales add/edit/delete
+- [x] T14 Route + sidebar
+- [ ] T15 npm run check + docs
 
 ## Decisions
-- Work stays on `staging`; no `feature/*` branch created (CLAUDE.md "Only two branches").
-- Storage: Redux slice for live UI state + localStorage for persistence, key `drafts:<userId>`.
-- Manual "Save as draft" button only on Stock list, Shipping order, Rate list; all other modules draft on API failure only.
+- Work stays on `staging`; no `feature/*` branch created (CLAUDE.md "Only two branches"; the /feature skill asks for one, project rule wins).
+- Endpoints for sales are not yet in `src/config/api.js` / docs/API_CONTRACT.md; contract supplied by backend dev in the request. Adding them to config is allowed (contract given), record in API_CONTRACT during /update-docs.
 
-- CP1 answers (user): remove dead SoNumberTab Create SO modal; skip autosave modules; draft bulk entries too; user_id from login is stable; 401 -> draft + redirect to login with toast; draft on any failure shape.
+## QA / review
+- QA: unit coverage OK; browser blocked by staging CORS (duplicate Access-Control-Allow-Origin) and no test credentials -> data flows NOT VERIFIED.
+- Verifier loop 1: FAIL. Fix loop 1 running: (1) SalesNotes stuck loading with reversed saved range, (2) SalesNoteFormModal field errors never shown, (3) match popup sends reversed range, (4) buildClientFilterParams sends reversed/half ranges, (5) dedupe CLIENT_DATE_FIELDS, (8) empty-state text. Finding 6 (local date helpers) get a comment only; 7 (API_CONTRACT) handled by /update-docs.
 
-- CP2 (user): do NOT commit anything; changes stay uncommitted in the working tree. User tests and pushes themselves.
+- Fix loop 1: findings 1-6, 8 done. Re-verify: PASS (npm run check exit 0). Remaining low items: (a) Customer.js:143 early return skips refetch on non-date filter changes while a date error exists, (b) CustomerTable.js duplicate import + alias of CLIENT_DATE_FILTER_FIELDS, (c) hex scrollbar colors in SalesNotesTable.jsx:90-92 copied from CustomerTable, (d) sanitizeSalesListState keeps reversed saved range. Finding 7: API_CONTRACT.md update pending (/update-docs after CP4).
+- Phase: WAITING AT CP4 (diff + QA + verifier). Browser flows unverified (staging CORS, no test credentials).
 
 ## Blockers / open questions
-- Open A resolved: QuotationDetail `persist` (#10) is an explicit save (toast "Quotation saved", no debounce), so #10 and #11 stay in scope (Retry + Delete).
-- Open B: bulk Resume only for full-form bulk screens (#1, #7, #23); inline grids Retry+Delete. Default accepted unless user objects.
-- Defaults still assumed: manual drafts have Retry disabled; PDF status-change calls rely on surrounding stock draft.
-- Phase 0 (ARCHITECTURE/STYLE_GUIDE/API_CONTRACT TODOs) may be incomplete; architect to report gaps.
+- Spec open questions 1-11 resolved with defaults (see spec); user asked how to test. Still waiting for explicit CP1 approval.
 
 ## Next action
-Wait for CP2 approval, then delegate T1 to `developer`.
+Get answers, then delegate spec to `architect` (and `ui-designer`). Stop at CP1.
+
+## Previous feature (archived summary)
+001-drafts: frontend draft-on-failure feature. T1-T16 marked done (see git log / docs/specs/001-drafts.md). Open risk noted then: stock create partial-failure Retry may duplicate created rows. Was never browser-tested at last note.
+
+## Second feature in flight (parallel to 002): 003-rate-list-location-filters
+Rate List cascading filters using the new POST /api/rate/list/options (rate_type, location/location_id, client_id, agent_id, currency_id, rate_name, import_group; option lists only contain values valid for the current selection; new location_options + q_location; general => no clients; client_specific => only clients with client-specific tariffs; re-call options after every filter change). Scope: src/views/admin/quotations/rate-list.jsx only. Origin: Igor's IAH request.
+- Branch: `staging` (no feature branch, per CLAUDE.md). 002 files are uncommitted in the same tree: do not touch or commit them with 003.
+- Phase: spec drafting (architect) -> CP1.
+- Spec: docs/specs/003-rate-list-location-filters.md

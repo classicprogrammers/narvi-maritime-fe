@@ -189,6 +189,12 @@ export const getCustomersApi = async (filterParams = {}) => {
         params.sort_by = String(filterParams.sort_by).trim();
       if (filterParams.sort_order != null && String(filterParams.sort_order).trim() !== "")
         params.sort_order = String(filterParams.sort_order).trim();
+      if (filterParams.follow_up === true || filterParams.follow_up === "true")
+        params.follow_up = "true";
+      ["entry_date_from", "entry_date_to", "follow_up_date_from", "follow_up_date_to"].forEach((key) => {
+        if (filterParams[key] != null && String(filterParams[key]).trim() !== "")
+          params[key] = String(filterParams[key]).trim();
+      });
     } else {
       params.page_size = 80;
     }
@@ -247,6 +253,7 @@ export const updateCustomerApi = async (customerId, data) => {
       vessel_type1: data.vessel_type1,
       vessel_type2: data.vessel_type2,
       vessel_type3: data.vessel_type3,
+      follow_up: typeof data.follow_up === "boolean" ? data.follow_up : undefined,
       attachments: Array.isArray(data.attachments) && data.attachments.length > 0
         ? data.attachments
         : undefined,
@@ -283,6 +290,38 @@ export const updateCustomerApi = async (customerId, data) => {
   } catch (error) {
     console.error("Update customer error:", error);
     handleApiError(error, "Update customer");
+  }
+};
+
+export const updateCustomerFollowUpApi = async (customerId, followUp) => {
+  try {
+    const payload = { customer_id: customerId, follow_up: followUp };
+
+    const response = await api.post(getApiEndpoint("CUSTOMER_UPDATE"), payload);
+    const result = response.data;
+
+    if (result && result.result && result.result.status === "error") {
+      let errorMessage = result.result.message || "Update failed";
+
+      if (result.result.errors && typeof result.result.errors === "object") {
+        const errorDetails = Object.entries(result.result.errors)
+          .map(([field, message]) => `${field}: ${message}`)
+          .join("\n");
+        errorMessage = errorDetails ? `${errorMessage}\n\nValidation Errors:\n${errorDetails}` : errorMessage;
+      }
+
+      const error = new Error(errorMessage);
+      error.response = {
+        data: result,
+        status: 400,
+      };
+      throw error;
+    }
+
+    return result;
+  } catch (error) {
+    console.error("Update customer follow up error:", error);
+    handleApiError(error, "Update customer follow up");
   }
 };
 
