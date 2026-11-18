@@ -20,7 +20,7 @@ import {
 import SearchableSelect from "components/forms/SearchableSelect";
 import { createRateListApi, getRateListApi, getRateListOptionsApi } from "../../../api/rate";
 import { buildRateCreatePayload, mapRateItemToFormRow } from "../../../utils/rateListForm";
-import { filterNewRates } from "../../../utils/rateCopy";
+import { filterNewRates, sortRatesForCopy } from "../../../utils/rateCopy";
 import { useSaveWithDraft } from "hooks/useSaveWithDraft";
 import { buildRateCopyRetryRequests } from "utils/rateDraft";
 import { normalizeIdOptions, tariffErrorMessage } from "./tariffScreenUtils";
@@ -114,6 +114,7 @@ export default function CopyTariffModal({
         });
         sourceRates = filterNewRates(sourceRates, Array.isArray(existing.data) ? existing.data : []);
       }
+      sourceRates = sortRatesForCopy(sourceRates);
       if (!sourceRates.length) {
         toast({ title: fromGeneral ? "No new rates to copy" : "No rates to copy", status: "info", duration: 3000, isClosable: true });
         return;
