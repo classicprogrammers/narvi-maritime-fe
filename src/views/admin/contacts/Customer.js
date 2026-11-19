@@ -151,6 +151,7 @@ export default function Customer() {
     filters.client_code,
     filters.email,
     filters.follow_up,
+    filters.target_list,
     filters.entry_date_from,
     filters.entry_date_to,
     filters.follow_up_date_from,

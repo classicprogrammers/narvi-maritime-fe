@@ -12,6 +12,7 @@ describe("DEFAULT_CLIENT_FILTERS", () => {
       client_code: "",
       email: "",
       follow_up: "",
+      target_list: "",
       entry_date_from: "",
       entry_date_to: "",
       follow_up_date_from: "",
@@ -41,6 +42,13 @@ describe("hasActiveClientAdvanceFilters", () => {
 
   it("is true with overall search", () => {
     expect(hasActiveClientAdvanceFilters(DEFAULT_CLIENT_FILTERS, "abc")).toBe(true);
+  });
+
+  it("target_list is an active filter and sends target_list true", () => {
+    expect(hasActiveClientAdvanceFilters({ target_list: "true" }, "")).toBe(true);
+    expect(hasActiveClientAdvanceFilters({ target_list: "false" }, "")).toBe(false);
+    expect(buildClientFilterParams({ target_list: "true" })).toEqual({ target_list: true });
+    expect(buildClientFilterParams({ target_list: "" })).toEqual({});
   });
 
   it("treats follow_up false/empty as inactive", () => {
@@ -141,5 +149,7 @@ describe("sanitizeClientFilters", () => {
       entry_date_from: "2026-01-05",
     });
     expect(sanitizeClientFilters({ follow_up: "false" }).follow_up).toBe("");
+    expect(sanitizeClientFilters({ target_list: true }).target_list).toBe("true");
+    expect(sanitizeClientFilters({ target_list: "false" }).target_list).toBe("");
   });
 });

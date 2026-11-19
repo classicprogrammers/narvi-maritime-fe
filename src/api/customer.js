@@ -191,6 +191,8 @@ export const getCustomersApi = async (filterParams = {}) => {
         params.sort_order = String(filterParams.sort_order).trim();
       if (filterParams.follow_up === true || filterParams.follow_up === "true")
         params.follow_up = "true";
+      if (filterParams.target_list === true || filterParams.target_list === "true")
+        params.target_list = "true";
       ["entry_date_from", "entry_date_to", "follow_up_date_from", "follow_up_date_to"].forEach((key) => {
         if (filterParams[key] != null && String(filterParams[key]).trim() !== "")
           params[key] = String(filterParams[key]).trim();
@@ -254,6 +256,7 @@ export const updateCustomerApi = async (customerId, data) => {
       vessel_type2: data.vessel_type2,
       vessel_type3: data.vessel_type3,
       follow_up: typeof data.follow_up === "boolean" ? data.follow_up : undefined,
+      target_list: typeof data.target_list === "boolean" ? data.target_list : undefined,
       attachments: Array.isArray(data.attachments) && data.attachments.length > 0
         ? data.attachments
         : undefined,
@@ -293,9 +296,10 @@ export const updateCustomerApi = async (customerId, data) => {
   }
 };
 
-export const updateCustomerFollowUpApi = async (customerId, followUp) => {
+// Toggles one boolean flag of a customer (follow_up, target_list) via customer update
+const updateCustomerFlagApi = async (customerId, field, value, label) => {
   try {
-    const payload = { customer_id: customerId, follow_up: followUp };
+    const payload = { customer_id: customerId, [field]: value };
 
     const response = await api.post(getApiEndpoint("CUSTOMER_UPDATE"), payload);
     const result = response.data;
@@ -320,10 +324,16 @@ export const updateCustomerFollowUpApi = async (customerId, followUp) => {
 
     return result;
   } catch (error) {
-    console.error("Update customer follow up error:", error);
-    handleApiError(error, "Update customer follow up");
+    console.error(`Update customer ${label} error:`, error);
+    handleApiError(error, `Update customer ${label}`);
   }
 };
+
+export const updateCustomerFollowUpApi = (customerId, followUp) =>
+  updateCustomerFlagApi(customerId, "follow_up", followUp, "follow up");
+
+export const updateCustomerTargetListApi = (customerId, targetList) =>
+  updateCustomerFlagApi(customerId, "target_list", targetList, "target list");
 
 export const deleteCustomerApi = async (customerId) => {
   try {

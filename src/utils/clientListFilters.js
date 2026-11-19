@@ -26,6 +26,7 @@ export const DEFAULT_CLIENT_FILTERS = {
   client_code: "",
   email: "",
   follow_up: "",
+  target_list: "",
   entry_date_from: "",
   entry_date_to: "",
   follow_up_date_from: "",
@@ -33,12 +34,14 @@ export const DEFAULT_CLIENT_FILTERS = {
 };
 
 const isFollowUpOn = (value) => value === true || value === "true";
+const isTargetListOn = isFollowUpOn;
 
 export const hasActiveClientAdvanceFilters = (filters, overallSearch) =>
   !!(
     filters?.client_code ||
     filters?.email ||
     isFollowUpOn(filters?.follow_up) ||
+    isTargetListOn(filters?.target_list) ||
     countActiveDateRanges(filters, CLIENT_DATE_FILTER_FIELDS) > 0 ||
     overallSearch
   );
@@ -51,6 +54,7 @@ export const buildClientFilterParams = (filters) => {
   if (clientCode) params.client_code = clientCode;
   if (email) params.email = email;
   if (isFollowUpOn(filters?.follow_up)) params.follow_up = true;
+  if (isTargetListOn(filters?.target_list)) params.target_list = true;
   return { ...params, ...buildClientDateParams(filters) };
 };
 
@@ -60,5 +64,6 @@ export const sanitizeClientFilters = (raw) => ({
   client_code: raw?.client_code != null ? String(raw.client_code) : "",
   email: raw?.email != null ? String(raw.email) : "",
   follow_up: isFollowUpOn(raw?.follow_up) ? "true" : "",
+  target_list: isTargetListOn(raw?.target_list) ? "true" : "",
   ...buildClientDateParams(raw),
 });

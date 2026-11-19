@@ -4,6 +4,7 @@ import {
   getCustomersApi,
   updateCustomerApi,
   updateCustomerFollowUpApi,
+  updateCustomerTargetListApi,
 } from "./customer";
 
 jest.mock("./axios", () => ({ __esModule: true, default: { get: jest.fn(), post: jest.fn() } }));
@@ -56,6 +57,22 @@ describe("customer api", () => {
     await updateCustomerFollowUpApi(7, true);
     expect(api.post).toHaveBeenCalledTimes(1);
     expect(api.post.mock.calls[0][1]).toEqual({ customer_id: 7, follow_up: true });
+  });
+
+  test("updateCustomerTargetListApi posts exactly customer_id and target_list", async () => {
+    api.post.mockClear();
+    api.post.mockResolvedValue({ data: { result: { status: "success" } } });
+    await updateCustomerTargetListApi(7, true);
+    expect(api.post.mock.calls[0][1]).toEqual({ customer_id: 7, target_list: true });
+  });
+
+  test("getCustomersApi sends target_list=true only when on", async () => {
+    api.get.mockClear();
+    api.get.mockResolvedValue({ data: { result: { status: "success", data: [] } } });
+    await getCustomersApi({ target_list: true });
+    expect(api.get.mock.calls[0][0]).toContain("target_list=true");
+    await getCustomersApi({ target_list: "" });
+    expect(api.get.mock.calls[1][0]).not.toContain("target_list");
   });
 
   test("updateCustomerFollowUpApi throws on error body", async () => {

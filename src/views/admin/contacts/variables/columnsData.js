@@ -35,6 +35,11 @@ export const columnsDataClient = [
     minWidth: 110,
   },
   {
+    Header: "TARGET LIST",
+    accessor: "target_list",
+    minWidth: 110,
+  },
+  {
     Header: "ACTIONS",
     accessor: "id",
     minWidth: 120,

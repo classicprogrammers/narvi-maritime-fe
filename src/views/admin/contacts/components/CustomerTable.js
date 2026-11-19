@@ -53,7 +53,7 @@ import {
 import Card from "components/card/Card";
 import SearchableSelect from "components/forms/SearchableSelect";
 import DmyDateInput, { normalizeToIsoDate } from "components/forms/DmyDateInput";
-import { updateCustomerFollowUpApi } from "api/customer";
+import { updateCustomerFollowUpApi, updateCustomerTargetListApi } from "api/customer";
 import {
   DEFAULT_CLIENT_FILTERS,
   hasActiveClientAdvanceFilters,
@@ -376,6 +376,37 @@ export default function CustomerTable(props) {
       return Object.keys(next).length === Object.keys(prev).length ? prev : next;
     });
   }, [tableData]);
+
+  const [targetListState, setTargetListState] = useState({});
+
+  useEffect(() => {
+    setTargetListState((prev) => {
+      const next = {};
+      Object.entries(prev).forEach(([id, s]) => {
+        if (s.saving) next[id] = s;
+      });
+      return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+    });
+  }, [tableData]);
+
+  const handleTargetListToggle = async (customer, checked) => {
+    if (!customer?.id || targetListState[customer.id]?.saving) return;
+    const id = customer.id;
+    setTargetListState((prev) => ({ ...prev, [id]: { value: checked, saving: true } }));
+    try {
+      // The API module already shows the backend error message in a modal
+      await updateCustomerTargetListApi(id, checked);
+      setTargetListState((prev) => ({ ...prev, [id]: { value: checked, saving: false } }));
+      if (propsOnRefresh) propsOnRefresh();
+      else getCustomers({});
+    } catch (error) {
+      setTargetListState((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+  };
 
   const handleFollowUpToggle = async (customer, checked) => {
     if (!customer?.id || followUpState[customer.id]?.saving) return;
@@ -950,6 +981,35 @@ export default function CustomerTable(props) {
                     )}
                   </HStack>
                 </Box>
+
+                {/* Target list Filter */}
+                <Box minW="200px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Target list
+                  </Text>
+                  <HStack spacing={2}>
+                    <Checkbox
+                      colorScheme="blue"
+                      isChecked={filters.target_list === "true"}
+                      onChange={(e) =>
+                        handleFilterChange("target_list", e.target.checked ? "true" : "")
+                      }
+                    >
+                      Show target list clients only
+                    </Checkbox>
+                    {filters.target_list === "true" && (
+                      <IconButton
+                        aria-label="Clear Target list"
+                        size="md"
+                        style={{ width: "32px", height: "32px" }}
+                        variant="ghost"
+                        icon={<Icon as={MdClose} />}
+                        onClick={() => handleFilterChange("target_list", "")}
+                        _hover={{ bg: "gray.200" }}
+                      />
+                    )}
+                  </HStack>
+                </Box>
               </HStack>
 
               <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
@@ -1249,6 +1309,18 @@ export default function CustomerTable(props) {
                               isDisabled={!!rowState?.saving}
                               onChange={(e) => handleFollowUpToggle(row.original, e.target.checked)}
                               aria-label="Follow up"
+                            />
+                          );
+                        } else if (cell.column.Header === "TARGET LIST") {
+                          const rowId = row.original.id;
+                          const rowState = targetListState[rowId];
+                          data = (
+                            <Switch
+                              colorScheme="blue"
+                              isChecked={rowState ? rowState.value : !!row.original.target_list}
+                              isDisabled={!!rowState?.saving}
+                              onChange={(e) => handleTargetListToggle(row.original, e.target.checked)}
+                              aria-label="Target list"
                             />
                           );
                         } else if (cell.column.Header === "ACTIONS") {
