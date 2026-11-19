@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useHistory } from "react-router-dom";
 import {
   AlertDialog,
   AlertDialogBody,
@@ -13,14 +14,12 @@ import {
 } from "@chakra-ui/react";
 
 import SalesNotesTable from "views/admin/contacts/components/SalesNotesTable";
-import SalesNoteFormModal from "views/admin/contacts/components/SalesNoteFormModal";
 import { FailureModal, SuccessModal } from "components/modals";
 import {
-  createClientSale,
   deleteClientSale,
   getClientSales,
-  updateClientSale,
 } from "api/clientSales";
+import { updateCustomerFollowUpApi } from "api/customer";
 import {
   countActiveDateRanges,
   nextSortState,
@@ -79,10 +78,7 @@ export default function SalesNotes() {
   const [loadError, setLoadError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
 
-  // Form modal: { mode: "create" | "edit", note } or null
-  const [formState, setFormState] = useState(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [formError, setFormError] = useState("");
+  const history = useHistory();
   const [noteToDelete, setNoteToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
@@ -178,27 +174,23 @@ export default function SalesNotes() {
 
   const reload = () => setReloadKey((key) => key + 1);
 
-  const closeForm = () => {
-    setFormState(null);
-    setFormError("");
-  };
-
-  const handleSubmit = async (payload) => {
-    if (!formState) return;
-    const isEdit = formState.mode === "edit";
-    setIsSaving(true);
-    setFormError("");
+  // follow_up belongs to the customer: toggle it there, then refresh the notes list
+  const [followUpSavingIds, setFollowUpSavingIds] = useState({});
+  const handleToggleFollowUp = async (customerId, checked) => {
+    if (followUpSavingIds[customerId]) return;
+    setFollowUpSavingIds((prev) => ({ ...prev, [customerId]: true }));
     try {
-      if (isEdit) await updateClientSale(payload);
-      else await createClientSale(payload);
-      closeForm();
-      setSuccessMessage(isEdit ? "Sales note updated successfully." : "Sales note added successfully.");
+      // The API module already shows the backend error message in a modal
+      await updateCustomerFollowUpApi(customerId, checked);
       reload();
-    } catch (err) {
-      // Keep the modal open with the user's input; show the backend message
-      setFormError(err?.response?.data?.message || err?.message || "Failed to save sales note");
+    } catch {
+      // nothing to roll back: the switch reflects the server value
     } finally {
-      setIsSaving(false);
+      setFollowUpSavingIds((prev) => {
+        const next = { ...prev };
+        delete next[customerId];
+        return next;
+      });
     }
   };
 
@@ -239,27 +231,15 @@ export default function SalesNotes() {
           hasActiveFilters={hasActiveFilters}
           hasAnyFilterState={hasAnyFilterState}
           onClearAll={handleClearAll}
-          onAdd={() => {
-            setFormError("");
-            setFormState({ mode: "create", note: null });
-          }}
-          onEdit={(note) => {
-            setFormError("");
-            setFormState({ mode: "edit", note });
-          }}
+          onAdd={() => history.push("/admin/contacts/sales/new")}
+          onEdit={(note) =>
+            history.push({ pathname: `/admin/contacts/sales/edit/${note.id}`, state: { note } })
+          }
           onDelete={setNoteToDelete}
+          onToggleFollowUp={handleToggleFollowUp}
+          followUpSavingIds={followUpSavingIds}
         />
       </VStack>
-
-      <SalesNoteFormModal
-        isOpen={!!formState}
-        onClose={closeForm}
-        mode={formState?.mode || "create"}
-        initialNote={formState?.note || null}
-        onSubmit={handleSubmit}
-        isSaving={isSaving}
-        error={formError}
-      />
 
       <SuccessModal
         isOpen={!!successMessage}

@@ -47,6 +47,7 @@ import ClientDetail from "views/admin/contacts/ClientDetail";
 import AgentDetail from "views/admin/contacts/AgentDetail";
 import Phonebook from "views/admin/phonebook";
 import SalesNotes from "views/admin/contacts/SalesNotes";
+import SalesNoteForm from "views/admin/contacts/SalesNoteForm";
 
 // Quotations Imports
 import Quotations from "views/admin/quotations";
@@ -570,6 +571,20 @@ const hiddenRoutes = [
     layout: "/admin",
     path: "/contacts/agents/:id",
     component: AgentDetail,
+  },
+  {
+    name: "Sales Note Form",
+    layout: "/admin",
+    path: "/contacts/sales/new",
+    exact: true,
+    component: SalesNoteForm,
+  },
+  {
+    name: "Sales Note Edit",
+    layout: "/admin",
+    path: "/contacts/sales/edit/:id",
+    exact: true,
+    component: SalesNoteForm,
   },
   {
     name: "Client Detail",

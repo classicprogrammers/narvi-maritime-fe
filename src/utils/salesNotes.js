@@ -21,6 +21,38 @@ const normalizeToIsoDate = (value) => {
   return text;
 };
 
+// Same Enter behaviour as the Remarks textarea in the client edit modal (CustomerTable.js):
+// Enter numbers the current line ("1. text") and starts a new line; Shift+Enter is a plain newline.
+// Returns { value, cursor } for the new text, or null when Enter should be left alone.
+export const applyNumberedListEnter = (text, cursor) => {
+  const value = String(text ?? "");
+  const pos = Number.isInteger(cursor) ? cursor : value.length;
+  const before = value.substring(0, pos);
+  const after = value.substring(pos);
+  const lastNewline = before.lastIndexOf("\n");
+  const currentLine = before.substring(lastNewline + 1);
+
+  if (!currentLine.trim()) {
+    return { value: `${before}\n${after}`, cursor: pos + 1 };
+  }
+
+  let maxNumber = 0;
+  value.split("\n").forEach((line) => {
+    const match = line.trim().match(/^(\d+)\.\s/);
+    if (match) maxNumber = Math.max(maxNumber, parseInt(match[1], 10));
+  });
+
+  const trimmed = currentLine.trim();
+  let newLine = currentLine;
+  if (!/^\d+\.\s/.test(trimmed)) {
+    const indent = currentLine.match(/^\s*/)?.[0] || "";
+    newLine = `${indent}${maxNumber + 1}. ${trimmed}`;
+  }
+  const linesBefore = lastNewline >= 0 ? before.substring(0, lastNewline + 1) : "";
+  const newValue = `${linesBefore}${newLine}\n${after}`;
+  return { value: newValue, cursor: linesBefore.length + newLine.length + 1 };
+};
+
 export const SALES_DATE_FILTER_FIELDS = [
   { key: "entry_date", label: "Entry date" },
   { key: "follow_up_date", label: "Follow-up date" },
@@ -74,7 +106,6 @@ export const validateSalesNoteForm = (form = {}, mode = "create") => {
       errors.client_id = "Client is required";
     }
   }
-  if (!String(form.remarks ?? "").trim()) errors.remarks = "Remarks are required";
 
   const entry = normalizeToIsoDate(form.entry_date);
   if (entry) {
@@ -98,14 +129,18 @@ export const buildSalesNoteCreatePayload = (form = {}) => {
   };
   const followUp = normalizeToIsoDate(form.follow_up_date);
   if (followUp) payload.follow_up_date = followUp;
+  const todoRemarks = String(form.todo_remarks ?? "").trim();
+  if (todoRemarks) payload.todo_remarks = todoRemarks;
   return payload;
 };
 
+// Empty todo_remarks is sent as null: the backend clears it
 export const buildSalesNoteUpdatePayload = (form = {}) => ({
   id: form.id,
   remarks: String(form.remarks ?? "").trim(),
   entry_date: normalizeToIsoDate(form.entry_date),
   follow_up_date: normalizeToIsoDate(form.follow_up_date) || null,
+  todo_remarks: String(form.todo_remarks ?? "").trim() || null,
 });
 
 // Restore persisted list state; invalid pieces fall back to defaults

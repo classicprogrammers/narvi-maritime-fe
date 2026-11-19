@@ -11,13 +11,13 @@ import {
   InputGroup,
   InputLeftElement,
   InputRightElement,
+  Switch,
   Table,
   Tbody,
   Td,
   Text,
   Th,
   Thead,
-  Tooltip,
   Tr,
   useColorModeValue,
 } from "@chakra-ui/react";
@@ -34,6 +34,7 @@ import {
 } from "react-icons/md";
 
 import Card from "components/card/Card";
+import SalesNoteDetailsModal from "views/admin/contacts/components/SalesNoteDetailsModal";
 import DmyDateInput, { normalizeToIsoDate } from "components/forms/DmyDateInput";
 import { SALES_DATE_FILTER_FIELDS, formatIsoToDdMmYy } from "utils/salesNotes";
 
@@ -44,6 +45,7 @@ const COLUMNS = [
   { header: "Client code", sortKey: null, minW: "120px" },
   { header: "Follow up", sortKey: null, minW: "100px" },
   { header: "Remarks", sortKey: null, minW: "260px" },
+  { header: "To-do remarks", sortKey: null, minW: "220px" },
   { header: "Follow-up date", sortKey: "follow_up_date", minW: "130px" },
   { header: "Created by", sortKey: "created_by", minW: "140px" },
   { header: "Actions", sortKey: null, minW: "100px" },
@@ -71,8 +73,11 @@ export default function SalesNotesTable({
   onAdd,
   onEdit,
   onDelete,
+  onToggleFollowUp,
+  followUpSavingIds = {},
 }) {
   const [showFilterFields, setShowFilterFields] = useState(() => hasActiveFilters);
+  const [detailsNote, setDetailsNote] = useState(null);
 
   const textColor = useColorModeValue("secondaryGray.900", "white");
   const borderColor = useColorModeValue("gray.200", "whiteAlpha.100");
@@ -140,23 +145,48 @@ export default function SalesNotesTable({
     const clientName = row.client_id?.name ?? row.client_name;
     const clientCode = row.client_code ?? row.client_id?.client_code;
     const followUp = !!row.client_follow_up;
-    const remarks = row.remarks ? String(row.remarks) : "";
+    const customerId = row.client_id?.id ?? row.client_id;
+    const canToggle = !!onToggleFollowUp && customerId != null && typeof customerId !== "object";
+    const renderLongText = (value) => {
+      const content = value ? String(value) : "";
+      return content ? (
+        <Text
+          noOfLines={2}
+          maxW="360px"
+          cursor="pointer"
+          _hover={{ color: "blue.500", textDecoration: "underline" }}
+          title="Click to view full text"
+          onClick={() => setDetailsNote(row)}
+        >
+          {content}
+        </Text>
+      ) : (
+        "-"
+      );
+    };
     return [
       dateText(row.entry_date),
       text(clientName),
       text(clientCode),
-      <Badge key="fu" colorScheme={followUp ? "green" : "gray"}>
-        {followUp ? "Yes" : "No"}
-      </Badge>,
-      remarks ? (
-        <Tooltip label={remarks} placement="top-start" hasArrow whiteSpace="pre-wrap" maxW="420px">
-          <Text noOfLines={2} maxW="360px">
-            {remarks}
-          </Text>
-        </Tooltip>
+      canToggle ? (
+        <HStack key="fu" spacing={2}>
+          <Switch
+            size="sm"
+            colorScheme="green"
+            isChecked={followUp}
+            isDisabled={!!followUpSavingIds[customerId]}
+            onChange={(e) => onToggleFollowUp(customerId, e.target.checked)}
+            aria-label={`Follow up ${clientName ?? ""}`.trim()}
+          />
+          <Badge colorScheme={followUp ? "green" : "gray"}>{followUp ? "Yes" : "No"}</Badge>
+        </HStack>
       ) : (
-        "-"
+        <Badge key="fu" colorScheme={followUp ? "green" : "gray"}>
+          {followUp ? "Yes" : "No"}
+        </Badge>
       ),
+      renderLongText(row.remarks),
+      renderLongText(row.todo_remarks),
       dateText(row.follow_up_date),
       text(row.created_by?.name),
     ];
@@ -507,6 +537,15 @@ export default function SalesNotesTable({
           </Text>
         </HStack>
       </Flex>
+      <SalesNoteDetailsModal
+        isOpen={!!detailsNote}
+        note={detailsNote}
+        onClose={() => setDetailsNote(null)}
+        onEdit={(note) => {
+          setDetailsNote(null);
+          onEdit(note);
+        }}
+      />
     </Card>
   );
 }
