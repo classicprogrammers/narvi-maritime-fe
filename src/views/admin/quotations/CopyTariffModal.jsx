@@ -58,7 +58,11 @@ export default function CopyTariffModal({
     const token = clientsGuardRef.current.next();
     setClientsLoading(true);
     try {
-      const result = await getRateListOptionsApi(query ? { q_client: query } : {});
+      const result = await getRateListOptionsApi({
+        // Every client, including those without rate items yet (the list is not narrowed by filters)
+        all_clients: true,
+        ...(query ? { q_client: query } : {}),
+      });
       if (!clientsGuardRef.current.isLatest(token)) return;
       setClients(normalizeIdOptions(result.client_options));
     } catch (error) {
