@@ -21,13 +21,12 @@ const orderValue = (value) => {
 };
 
 /**
- * Source rates in the agent's own order (Group Sort Order, then Sort Order, then id), so rates the
- * backend numbers on create get the same sequence as the source instead of the selection's key order.
+ * Source rates in the view-mode order (Sort Order, then id; unset last), as the Rate List, Agent and
+ * Client tariffs show them. Group Sort Order and Sort Order themselves are copied unchanged: the backend
+ * stores what is sent, so this only fixes the sequence the rates are created in.
  */
 export function sortRatesForCopy(rates) {
   return [...rates].sort((a, b) => {
-    const group = orderValue(a.group_sort_order) - orderValue(b.group_sort_order);
-    if (group !== 0 && !Number.isNaN(group)) return group;
     const order = orderValue(a.sort_order) - orderValue(b.sort_order);
     if (order !== 0 && !Number.isNaN(order)) return order;
     return (Number(a.id) || 0) - (Number(b.id) || 0);

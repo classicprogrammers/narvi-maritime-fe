@@ -330,7 +330,7 @@ export default function Dashboard(props) {
                 </Switch>
               </Box>
             ) : null}
-            <Box>
+            <Box position="relative" zIndex="1002">
               <Footer />
             </Box>
           </Box>

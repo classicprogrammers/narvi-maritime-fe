@@ -35,9 +35,25 @@ export default function Footer() {
         mb={{ base: "20px", xl: "0px" }}>
         {" "}
         &copy; {1900 + new Date().getYear()}
-        <Text as='span' fontWeight='500' ms='4px'>
-          Classic UI. 
-                  </Text>
+        <Link
+          href='https://classicprogrammers.com/'
+          target='_blank'
+          rel='noopener noreferrer'
+          onClick={(e) => {
+            e.preventDefault();
+            window.open(
+              "https://classicprogrammers.com/",
+              "_blank",
+              "noopener,noreferrer"
+            );
+          }}
+          position='relative'
+          zIndex='10'
+          cursor='pointer'
+          fontWeight='500'
+          ms='4px'>
+          Classic Programmers LLC
+        </Link>
       </Text>
     </Flex>
   );

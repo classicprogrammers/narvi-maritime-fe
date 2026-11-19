@@ -1,15 +1,15 @@
 import { filterNewRates, sortRatesForCopy } from "./rateCopy";
 
 describe("sortRatesForCopy", () => {
-  test("orders by group sort order, then sort order, then id; unset last", () => {
+  test("orders by sort order, then id; unset last; ignores group sort order", () => {
     const rates = [
-      { id: 5, group_sort_order: false, sort_order: 1 },
-      { id: 4, group_sort_order: 2, sort_order: 1 },
-      { id: 3, group_sort_order: 1, sort_order: 2 },
-      { id: 2, group_sort_order: 1, sort_order: 1 },
-      { id: 1, group_sort_order: 2, sort_order: false },
+      { id: 5, group_sort_order: 1, sort_order: false },
+      { id: 4, group_sort_order: 3, sort_order: 2 },
+      { id: 3, group_sort_order: false, sort_order: 1 },
+      { id: 2, group_sort_order: 2, sort_order: 2 },
+      { id: 1, group_sort_order: 9, sort_order: 1 },
     ];
-    expect(sortRatesForCopy(rates).map((rate) => rate.id)).toEqual([2, 3, 4, 1, 5]);
+    expect(sortRatesForCopy(rates).map((rate) => rate.id)).toEqual([1, 3, 2, 4, 5]);
   });
 
   test("does not mutate the input", () => {
