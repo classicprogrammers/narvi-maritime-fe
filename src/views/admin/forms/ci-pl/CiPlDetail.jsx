@@ -2297,6 +2297,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
           },
           total_packed_vw: 0,
           total_vw: 0,
+          ...(isCiPlForm ? { remarks: "" } : {}),
 
           agents_pic: null,
           warnings: "",
