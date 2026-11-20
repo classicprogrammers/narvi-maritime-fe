@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Avatar,
   Box,
   Button,
+  CloseButton,
+  useToast,
   Flex,
   Icon,
   IconButton,
@@ -38,6 +40,8 @@ export default function NavbarChat() {
   const [recent, setRecent] = useState([]);
   const [lastSeen, setLastSeen] = useState(readLastSeenId());
   const onChatPage = location.pathname.startsWith("/admin/chat");
+  const toast = useToast();
+  const prevMaxRef = useRef(null);
 
   const iconColor = useColorModeValue("gray.500", "white");
   const hoverBg = useColorModeValue("blue.50", "whiteAlpha.200");
@@ -72,6 +76,66 @@ export default function NavbarChat() {
       window.removeEventListener("chat:seen", syncSeen);
     };
   }, [canChat]);
+
+  // Pop a toast for each newly arrived message from someone else (not on first load, not on the chat page)
+  useEffect(() => {
+    if (!recent.length) return;
+    const newest = maxMessageId(recent);
+    if (prevMaxRef.current == null) {
+      prevMaxRef.current = newest;
+      return;
+    }
+    const fresh = recent.filter((m) => m.id > prevMaxRef.current && !m.is_mine);
+    prevMaxRef.current = Math.max(prevMaxRef.current, newest);
+    if (onChatPage || document.hidden) return;
+    fresh.slice(-2).forEach((m) => {
+      toast({
+        position: "top-right",
+        duration: 6000,
+        render: ({ onClose }) => (
+          <Flex
+            w="340px"
+            gap="12px"
+            p="12px"
+            align="center"
+            cursor="pointer"
+            bg={menuBg}
+            borderRadius="16px"
+            borderLeft="4px solid"
+            borderColor="brand.500"
+            boxShadow={shadow}
+            onClick={() => {
+              onClose();
+              history.push("/admin/chat");
+            }}
+          >
+            <Avatar size="md" name={m.sender?.name} />
+            <Box flex="1" minW={0}>
+              <Flex justify="space-between" gap="8px">
+                <Text fontSize="sm" fontWeight="700" noOfLines={1}>
+                  {m.sender?.name}
+                </Text>
+                <Text fontSize="xs" color={mutedColor} flexShrink={0}>
+                  New message
+                </Text>
+              </Flex>
+              <Text fontSize="sm" color={mutedColor} noOfLines={2}>
+                {messagePreview(m)}
+              </Text>
+            </Box>
+            <CloseButton
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
+            />
+          </Flex>
+        ),
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recent]);
 
   if (!canChat) return null;
 

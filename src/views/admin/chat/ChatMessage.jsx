@@ -16,7 +16,7 @@ const AVATAR = "32px";
 const SWIPE_TRIGGER_PX = 60;
 const SWIPE_MAX_PX = 90;
 
-const ChatMessage = ({ message, showSender, onPreview, onReply, onJumpTo }) => {
+const ChatMessage = ({ message, showSender, showAvatar = showSender, onPreview, onReply, onJumpTo }) => {
   const mine = message.is_mine;
   const [dragX, setDragX] = useState(0);
   const dragRef = useRef(null);
@@ -106,7 +106,7 @@ const ChatMessage = ({ message, showSender, onPreview, onReply, onJumpTo }) => {
       )}
       {!mine && (
         <Box w={AVATAR} flexShrink={0}>
-          {showSender && <Avatar size="sm" w={AVATAR} h={AVATAR} name={message.sender?.name} />}
+          {showAvatar && <Avatar size="sm" w={AVATAR} h={AVATAR} name={message.sender?.name} />}
         </Box>
       )}
       <Box

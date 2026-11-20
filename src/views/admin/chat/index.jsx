@@ -197,7 +197,7 @@ const Chat = () => {
           </Center>
         )}
 
-        {items.map((item) => {
+        {items.map((item, idx) => {
           if (item.type === "day") {
             lastSenderId = null;
             return (
@@ -211,11 +211,15 @@ const Chat = () => {
           const m = item.message;
           const showSender = m.sender?.id !== lastSenderId;
           lastSenderId = m.sender?.id;
+          // Avatar sits on the last bubble of a run from the same sender
+          const next = items[idx + 1];
+          const showAvatar = !(next && next.type !== "day" && next.message.sender?.id === m.sender?.id);
           return (
             <ChatMessage
               key={item.key}
               message={m}
               showSender={showSender}
+              showAvatar={showAvatar}
               onPreview={(url, name) => setPreview({ url, name })}
               onReply={setReplyTo}
               onJumpTo={jumpTo}
