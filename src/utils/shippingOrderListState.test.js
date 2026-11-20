@@ -46,3 +46,17 @@ describe("shippingOrderListState client updates", () => {
     });
   });
 });
+
+describe("shippingOrderListState pending POD", () => {
+  test("the Pending POD chip asks only for pending_pod orders", () => {
+    expect(buildShippingOrderListQueryParams({ activeFilters: { pendingPod: true } })).toEqual({
+      done: "pending_pod",
+    });
+  });
+
+  test("Ready for Invoice chips no longer include pending_pod", () => {
+    expect(
+      buildShippingOrderListQueryParams({ activeFilters: { readyForInvoiceClient: true } }).done
+    ).toEqual(["ready_for_invoice"]);
+  });
+});

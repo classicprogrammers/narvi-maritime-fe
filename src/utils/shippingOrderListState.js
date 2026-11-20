@@ -33,8 +33,8 @@ export const SHIPPING_ORDER_STATUS_FILTER_OPTIONS = [
   { value: "ready_for_invoice", label: "Ready for Invoice" },
 ];
 
-/** Status values for Ready for Invoice preset chips (OR match on API). */
-export const SHIPPING_ORDER_READY_FOR_INVOICE_DONE = ["ready_for_invoice", "pending_pod"];
+/** Status values for Ready for Invoice preset chips (Pending POD has its own chip). */
+export const SHIPPING_ORDER_READY_FOR_INVOICE_DONE = ["ready_for_invoice"];
 
 const resolveEntityId = (value) => {
   if (value == null || value === "") return undefined;
@@ -102,6 +102,8 @@ export function buildShippingOrderListQueryParams({
     params.done = "active";
   } else if (f.readyForInvoiceClient) {
     params.done = [...SHIPPING_ORDER_READY_FOR_INVOICE_DONE];
+  } else if (f.pendingPod) {
+    params.done = "pending_pod";
   }
 
   let clientId;
@@ -240,6 +242,7 @@ export const defaultShippingOrderListState = {
     readyForInvoiceClient: false,
     athReadyForInvoice: false,
     sinReadyForInvoice: false,
+    pendingPod: false,
     clientUpdates: false,
     clientEdited: false,
   },

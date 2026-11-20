@@ -13,9 +13,12 @@ import {
   Textarea,
   VStack,
   useColorModeValue,
+  useDisclosure,
 } from "@chakra-ui/react";
 import { Link } from "react-router-dom";
 import SearchableSelect from "../../../components/forms/SearchableSelect";
+import ShippingOrderStatusChangeModal from "../../../components/shipping-order/ShippingOrderStatusChangeModal";
+import { needsStatusChangePopup, resolveStatusFromPod } from "../../../utils/shippingOrderStatusChange";
 import ShippingOrderAttachmentsField from "../../../components/shipping-order/ShippingOrderAttachmentsField";
 import ShippingOrderCiplFilesField from "../../../components/shipping-order/ShippingOrderCiplFilesField";
 import { useClientVesselFilterOptions } from "../../../hooks/useClientVesselFilterOptions";
@@ -45,7 +48,10 @@ export default function ShippingOrderFormFields({
   isLoadingQuotations,
   onOpenVslsAgentDtlsModal,
   showVesselDbLink = true,
+  originalDone,
+  originalCaseCloseDate,
 }) {
+  const statusModal = useDisclosure();
   const inputBg = useColorModeValue("white", "navy.900");
   const editModeBg = useColorModeValue("red.50", "red.900");
   const editFieldBg = isEditMode ? editModeBg : inputBg;
@@ -144,10 +150,18 @@ export default function ShippingOrderFormFields({
               value={formData.done || "active"}
               onChange={(e) => {
                 const nextDone = e.target.value;
+                if (needsStatusChangePopup(originalDone, nextDone)) {
+                  statusModal.onOpen();
+                  return;
+                }
                 setFormData((prev) => ({
                   ...prev,
                   done: nextDone,
                   ...(nextDone !== "cancelled" ? { cancel_text: "" } : null),
+                  // POD arrived after Pending POD: the update sends pod_received: true.
+                  ...(originalDone === "pending_pod" && nextDone === "ready_for_invoice"
+                    ? { pod_received: true }
+                    : null),
                 }));
               }}
             >
@@ -160,6 +174,25 @@ export default function ShippingOrderFormFields({
             </Select>
           </FormControl>
         </Flex>
+        <ShippingOrderStatusChangeModal
+          isOpen={statusModal.isOpen}
+          onClose={statusModal.onClose}
+          originalCaseCloseDate={originalCaseCloseDate}
+          initialCaseCloseDate={formData.so_case_close_date || formData.so_delivery_date}
+          initialPodReceived={formData.pod_received}
+          onConfirm={({ caseCloseDate, podReceived }) => {
+            setFormData((prev) => ({
+              ...prev,
+              done: resolveStatusFromPod(podReceived),
+              cancel_text: "",
+              so_case_close_date: caseCloseDate,
+              // "SO Case Closed Date" field below is the same date; keep them equal.
+              so_delivery_date: caseCloseDate,
+              pod_received: podReceived,
+            }));
+            statusModal.onClose();
+          }}
+        />
         {formData.done === "cancelled" && (
           <FormControl mt="4">
             <FormLabel>Cancel Reason</FormLabel>

@@ -478,6 +478,8 @@ export default function ShippingOrderEditPage() {
           isLoadingQuotations={isLoadingQuotations}
           onOpenVslsAgentDtlsModal={openVslsAgentDtlsModal}
           showVesselDbLink={isCreate}
+          originalDone={originalOrder?.done}
+          originalCaseCloseDate={originalOrder?.so_case_close_date}
         />
 
         {!isCreate && (

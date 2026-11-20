@@ -3,6 +3,11 @@
  */
 import { mapExistingAttachmentsFromOrder, mapExistingCiplFilesFromOrder } from "../../../utils/shippingOrderAttachments";
 import { formatDateDMY } from "utils/dateFormat";
+import {
+  buildStatusChangePayload,
+  normalizeCaseCloseDate,
+  normalizePodReceived,
+} from "../../../utils/shippingOrderStatusChange";
 
 export function toDateOnly(dateStr) {
   if (!dateStr) return "";
@@ -63,6 +68,8 @@ export function normalizeOrder(order) {
       order.cancel_text === false || order.cancel_text == null || order.cancel_text === undefined
         ? ""
         : String(order.cancel_text),
+    so_case_close_date: normalizeCaseCloseDate(order.so_case_close_date),
+    pod_received: normalizePodReceived(order.pod_received),
     pic_new: (picVal && typeof picVal === "object" ? picVal.id : picVal) ?? null,
     pic_name: (picVal && typeof picVal === "object" ? picVal.name : null) || order.pic_name || order.pic || "",
     client: (clientVal && typeof clientVal === "object" ? clientVal.name : null) || order.client || order.client_name || "",
@@ -518,6 +525,9 @@ export function buildPayloadFromForm(data, isUpdate = false, originalData = {}, 
         payload[key] = false;
       }
     });
+
+    // Closing an Active SO (or a late POD) is decided by the backend from pod_received.
+    Object.assign(payload, buildStatusChangePayload(data, originalData));
 
     return payload;
   }

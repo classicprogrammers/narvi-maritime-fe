@@ -1920,6 +1920,28 @@ const SoNumberTab = () => {
                 )}
               </Tag>
             </WrapItem>
+
+            {/* Pending POD Filter */}
+            <WrapItem>
+              <Tag
+                size="md"
+                borderRadius="full"
+                variant={activeFilters.pendingPod ? "solid" : "outline"}
+                colorScheme={activeFilters.pendingPod ? "blue" : "gray"}
+                cursor="pointer"
+                onClick={() => toggleFilter("pendingPod")}
+              >
+                <TagLabel>Pending POD</TagLabel>
+                {activeFilters.pendingPod && (
+                  <TagCloseButton
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFilter("pendingPod");
+                    }}
+                  />
+                )}
+              </Tag>
+            </WrapItem>
           </Wrap>
             <HStack spacing="3" flexShrink={0}>
               <Button
