@@ -451,6 +451,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
   const isApplyingFormRef = useRef(false);
   const headerUserEditedRef = useRef(false);
   const consignBlockUserEditedRef = useRef(false);
+  const remarksUserEditedRef = useRef(false);
   const packedTotalsUserEditedRef = useRef(false);
   const isResettingRef = useRef(false);
   // Tab whose draft is currently loaded; stops autosave posting the previous tab's form id to the new tab's endpoint.
@@ -466,6 +467,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
     header: {},
     cneeText: null,
     packed: {},
+    remarks: "",
     stockLines: "",
   });
 
@@ -496,6 +498,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
     totalPackedQuantity: "",
     totalPackedWeight: "",
     totalPackedVw: "",
+    remarks: "",
     totalVw: "",
     totalBox: null,
     totalWeight: null,
@@ -986,6 +989,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       ),
       total_packed_vw: Number(form.total_packed_vw || 0),
     };
+    lastSavedAutosaveRef.current.remarks = form.remarks ? String(form.remarks) : "";
     if (stockLinesSignature != null) {
       lastSavedAutosaveRef.current.stockLines = stockLinesSignature;
     }
@@ -1354,6 +1358,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       totalPackedQuantity: hasPackedQty ? Number(packedQtyValue) : stockTotals.quantity,
       totalPackedWeight: hasPackedWeight ? Number(packedWeightValue) : stockTotals.weight,
       totalPackedVw: hasPackedVw ? Number(form.total_packed_vw) : stockTotals.vw,
+      remarks: form.remarks ? String(form.remarks) : "",
       totalVw: hasTotalVw ? Number(form.total_vw) : stockTotals.vw,
       totalBox,
       totalWeight,
@@ -2074,6 +2079,37 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
     return () => clearTimeout(timeoutId);
   }, [formData.consignBlock]);
 
+  // Autosave REMARKS (CI/PL forms only, debounced)
+  useEffect(() => {
+    if (!isCiPlForm) return;
+    if (isResettingRef.current) return;
+    if (isApplyingFormRef.current) return;
+    if (!remarksUserEditedRef.current) return;
+    const timeoutId = setTimeout(async () => {
+      try {
+        const currentId = await ensureFormId();
+        if (!currentId) return;
+        const nextRemarks = String(formData.remarks ?? "");
+        if (nextRemarks === lastSavedAutosaveRef.current.remarks) {
+          remarksUserEditedRef.current = false;
+          return;
+        }
+        setIsSiFormLoading(true);
+        const updated = await saveForm(buildSavePayloadWithId(currentId, { remarks: nextRemarks }));
+        if (updated?.id != null) setSiFormId(updated.id);
+        lastSavedAutosaveRef.current.remarks = nextRemarks;
+        remarksUserEditedRef.current = false;
+      } catch (e) {
+        console.error("Failed to autosave remarks:", e);
+        showFormSaveError(toast, e, "Failed to save form");
+      } finally {
+        setIsSiFormLoading(false);
+      }
+    }, 600);
+
+    return () => clearTimeout(timeoutId);
+  }, [formData.remarks]);
+
   // Keep packed totals auto-calculated from cargo unless user overrides.
   useEffect(() => {
     if (isResettingRef.current) return;
@@ -2316,7 +2352,9 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         currencyName: "",
         totalPackedQuantity: 0,
         totalPackedWeight: 0,
+        remarks: "",
       }));
+      remarksUserEditedRef.current = false;
       setQAgent("");
       setQCnee("");
       setQSi("");
@@ -2343,6 +2381,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         header: {},
         cneeText: null,
         packed: {},
+        remarks: "",
         stockLines: resetStockLinesSignature,
       };
       applySiFormResponse(updated);
@@ -2650,6 +2689,14 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       const ciPlBody = [...ciPlRows, ciPlTotalRow, ciPlPackedAsRow];
       const ciPlTotalRowIndex = ciPlBody.length - 2;
       const ciPlPackedAsRowIndex = ciPlBody.length - 1;
+      const ciPlRemarksText = String(formData.remarks || "").trim();
+      const ciPlRemarksRowIndex = ciPlRemarksText ? ciPlBody.length : -1;
+      if (ciPlRemarksText) {
+        ciPlBody.push([
+          { content: "REMARKS:", styles: { fontStyle: "bold" } },
+          { content: ciPlRemarksText, colSpan: ciPlPackedAsRow.length - 1 },
+        ]);
+      }
 
       const docTitle = isCiPlManifestTab
         ? `Shipping Invoice / Cargo Manifest${formData.vessel ? ` - ${formData.vessel}` : ""}`
@@ -2763,6 +2810,12 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
           if (hookData.section === "body" && hookData.row.index === ciPlPackedAsRowIndex) {
             hookData.cell.styles.fillColor = [255, 245, 204];
             hookData.cell.styles.fontStyle = "bold";
+          }
+          if (hookData.section === "body" && hookData.row.index === ciPlRemarksRowIndex) {
+            hookData.cell.styles.halign = "left";
+            hookData.cell.styles.valign = "top";
+            hookData.cell.styles.overflow = "linebreak";
+            if (hookData.column.index === 0) hookData.cell.styles.fontStyle = "bold";
           }
         },
       });
@@ -4361,6 +4414,47 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                               <Td py={2} px={2} fontSize="xs" />
                             </>
                           )}
+                        </Tr>
+                      )}
+                      {isCiPlForm && (
+                        <Tr bg="gray.50">
+                          <Td
+                            borderRight="1px"
+                            borderColor="gray.300"
+                            py={3}
+                            px={4}
+                            fontSize="xs"
+                            fontWeight="bold"
+                            verticalAlign="top"
+                          >
+                            REMARKS:
+                          </Td>
+                          <Td
+                            colSpan={
+                              (isCiPlManifestTab ? 1 : 0) +
+                              3 +
+                              (isCiPlPerUnitTab ? 4 : (isCiPlCurrencyTab ? 3 : 0) + 2)
+                            }
+                            py={2}
+                            px={2}
+                          >
+                            <Textarea
+                              id="ciPlRemarks"
+                              value={formData.remarks}
+                              onChange={(e) => {
+                                remarksUserEditedRef.current = true;
+                                handleInputChange("remarks", e.target.value);
+                              }}
+                              size="sm"
+                              rows={3}
+                              resize="vertical"
+                              bg="white"
+                              border="1px"
+                              borderColor="gray.300"
+                              _focus={{ borderColor: "orange.400", boxShadow: "0 0 0 1px var(--chakra-colors-orange-400)" }}
+                              placeholder="Add remarks (optional) - printed under PACKED AS in the PDF"
+                            />
+                          </Td>
                         </Tr>
                       )}
                     </Tbody>

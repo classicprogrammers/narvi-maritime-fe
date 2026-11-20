@@ -811,25 +811,60 @@ export default function Stocks({ variant = "stocks" } = {}) {
     const [isViewingSelected, setIsViewingSelected] = useState(false);
 
     const { clients, vessels, suppliers: vendors, destinations, currencies } = useMasterData();
-    const { vesselOptions: stockViewVesselOptions, isLoadingVessels: isLoadingStockViewVessels } =
-        useClientVesselFilterOptions(stockViewClient, stockViewVessel, vessels);
     const { vesselOptions: clientViewVesselOptions, isLoadingVessels: isLoadingClientViewVessels } =
         useClientVesselFilterOptions(clientViewClient, clientViewVesselFilter, vessels);
     const { vesselOptions: vesselViewVesselOptions, isLoadingVessels: isLoadingVesselViewVessels } =
         useClientVesselFilterOptions(vesselViewClient, vesselViewVessel, vessels);
+    // Selected Stock View / Edit filters, sent to /api/stock/list/options so each dropdown only
+    // lists values that exist for the other selected filters (e.g. vessels of the chosen client).
+    const stockViewOptionFilters = {
+        client_id: typeof stockViewClient === "object" && stockViewClient
+            ? (stockViewClient.id ?? stockViewClient.value)
+            : stockViewClient,
+        vessel_id: typeof stockViewVessel === "object" && stockViewVessel
+            ? (stockViewVessel.id ?? stockViewVessel.value)
+            : stockViewVessel,
+        so_id: stockViewFilterSO ? String(stockViewFilterSO).replace(/\D/g, "") : "",
+        active: resolveStockListActiveParam(stockViewActiveFilter),
+        stock_status: vesselViewStatuses.size > 0
+            ? Array.from(vesselViewStatuses)
+            : stockViewStatus,
+        narvi_stock_via_hub1: resolveStockLocationOptionId(stockViewViaHub1),
+        narvi_stock_via_hub2: resolveStockLocationOptionId(stockViewViaHub2),
+        narvi_stock_ap_destination: resolveStockLocationOptionId(stockViewApDestination),
+        warehouse_new: stockViewFilterWarehouseNew,
+        origin_text: stockViewOrigin ? normalizeStockOriginHubText(stockViewOrigin) : "",
+        si_number: stockViewFilterSI,
+        si_combined: stockViewFilterSICombined,
+        di_no: stockViewFilterDI,
+        po_text: stockViewFilterPO,
+        req_no: stockViewFilterReqNo,
+        stock_item_id: stockViewStockItemId,
+    };
     const {
         destinationOptions: stockDestinationOptions,
         viaHub1Options: stockViaHub1Options,
         viaHub2Options: stockViaHub2Options,
         narviApDestinationOptions: stockNarviApDestinationOptions,
         originTextOptions: stockOriginTextOptions,
+        clientFilterOptions,
+        vesselFilterOptions,
+        soFilterOptions,
+        siNumberFilterOptions,
+        siCombinedFilterOptions,
+        diNoFilterOptions,
+        poTextFilterOptions,
+        reqNoFilterOptions,
+        stockItemIdFilterOptions,
+        warehouseFilterOptions,
         isLoading: isLoadingDestinationOptions,
         setQDestination,
         setQViaHub1,
         setQViaHub2,
         setQNarviApDestination,
         setQOriginText,
-    } = useStockDestinationOptions();
+        setExtraQuery,
+    } = useStockDestinationOptions(stockViewOptionFilters);
     const { pinOption, seedOption, getOptionsForValue, findOptionById } = useStockListOptionPins();
 
     const resolveOriginOptionId = useCallback((stock) => {
@@ -1008,6 +1043,29 @@ export default function Stocks({ variant = "stocks" } = {}) {
         setClientViewPage(1);
         setApiFetchTrigger((t) => t + 1);
     });
+
+    // Server-searched dropdown for text-valued Stock View filters (SO, SI, DI, PO, Req No, ...).
+    // Options come from POST /api/stock/list/options and follow the other selected filters.
+    const renderStockViewOptionFilter = ({ value, options, placeholder, setter, queryKey }) => (
+        <Box w="220px" minW="200px">
+            <SearchableSelect
+                value={value ? String(value) : ""}
+                onChange={(next) => commitTextFilter(setter, next ? String(next) : "")}
+                onSearchChange={(text) => setExtraQuery(queryKey, text)}
+                serverSideSearch
+                options={options}
+                placeholder={placeholder}
+                displayKey="name"
+                valueKey="value"
+                formatOption={(option) => option.name || String(option.value ?? "")}
+                fallbackDisplay={value ? String(value) : ""}
+                isLoading={isLoadingDestinationOptions}
+                bg={inputBg}
+                color={inputText}
+                borderColor={borderColor}
+            />
+        </Box>
+    );
 
     const requestStockListRefresh = useEventCallback(() => {
         setStockViewPage(1);
@@ -5653,20 +5711,13 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                     </HStack>
                                                     <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
                                                         {/* Stock Item ID Filter */}
-                                                        <Box w="220px" minW="200px">
-                                                            <DebouncedTextFilterInput
-                                                                key={textFilterResetKey}
-                                                                value={stockViewStockItemId}
-                                                                onChange={(next) => commitTextFilter(setStockViewStockItemId, next)}
-                                                                placeholder="Filter by Stock Item ID"
-                                                                bg={inputBg}
-                                                                color={inputText}
-                                                                borderColor={borderColor}
-                                                                showAdjacentClear
-                                                                clearAriaLabel="Clear stock item ID filter"
-                                                                pl="8"
-                                                            />
-                                                        </Box>
+                                                        {renderStockViewOptionFilter({
+                                                            value: stockViewStockItemId,
+                                                            options: stockItemIdFilterOptions,
+                                                            placeholder: "Filter by Stock Item ID",
+                                                            setter: setStockViewStockItemId,
+                                                            queryKey: "q_stock_item_id",
+                                                        })}
 
                                                         {/* Client Filter */}
                                                         <Box w="220px" minW="200px">
@@ -5678,12 +5729,17 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                                             setStockViewClient(value);
                                                                             setStockViewVessel(null);
                                                                         }}
-                                                                        options={clients}
+                                                                        onSearchChange={(text) => setExtraQuery("q_client", text)}
+                                                                        serverSideSearch
+                                                                        options={clientFilterOptions}
                                                                         placeholder="Filter by Client"
                                                                         displayKey="name"
                                                                         valueKey="id"
                                                                         formatOption={(option) => option.name || `Client ${option.id}`}
-                                                                        isLoading={false}
+                                                                        fallbackDisplay={
+                                                                            clients.find((c) => String(c.id) === String(stockViewClient))?.name || ""
+                                                                        }
+                                                                        isLoading={isLoadingDestinationOptions}
                                                                         bg={inputBg}
                                                                         color={inputText}
                                                                         borderColor={borderColor}
@@ -5709,12 +5765,17 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                                     <SearchableSelect
                                                                         value={stockViewVessel}
                                                                         onChange={(value) => setStockViewVessel(value)}
-                                                                        options={stockViewVesselOptions}
+                                                                        onSearchChange={(text) => setExtraQuery("q_vessel", text)}
+                                                                        serverSideSearch
+                                                                        options={vesselFilterOptions}
                                                                         placeholder="Filter by Vessel"
                                                                         displayKey="name"
                                                                         valueKey="id"
                                                                         formatOption={(option) => option.name || String(option.id ?? "")}
-                                                                        isLoading={isLoadingStockViewVessels}
+                                                                        fallbackDisplay={
+                                                                            vessels.find((v) => String(v.id) === String(stockViewVessel))?.name || ""
+                                                                        }
+                                                                        isLoading={isLoadingDestinationOptions}
                                                                         bg={inputBg}
                                                                         color={inputText}
                                                                         borderColor={borderColor}
@@ -5800,84 +5861,49 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                         </Box>
 
                                                         {/* Warehouse ID Filter */}
-                                                        <Box w="220px" minW="200px">
-                                                            <DebouncedTextFilterInput
-                                                                key={textFilterResetKey}
-                                                                value={stockViewFilterWarehouseNew}
-                                                                onChange={(next) => commitTextFilter(setStockViewFilterWarehouseNew, next)}
-                                                                placeholder="Filter by Warehouse ID"
-                                                                bg={inputBg}
-                                                                color={inputText}
-                                                                borderColor={borderColor}
-                                                                showAdjacentClear
-                                                                clearAriaLabel="Clear warehouse ID filter"
-                                                                pl="8"
-                                                            />
-                                                        </Box>
+                                                        {renderStockViewOptionFilter({
+                                                            value: stockViewFilterWarehouseNew,
+                                                            options: warehouseFilterOptions,
+                                                            placeholder: "Filter by Warehouse ID",
+                                                            setter: setStockViewFilterWarehouseNew,
+                                                            queryKey: "q_warehouse",
+                                                        })}
 
                                                         {/* SO Number Filter */}
-                                                        <Box w="220px" minW="200px">
-                                                            <DebouncedTextFilterInput
-                                                                key={textFilterResetKey}
-                                                                value={stockViewFilterSO}
-                                                                onChange={(next) => commitTextFilter(setStockViewFilterSO, next)}
-                                                                placeholder="Filter by SO Number"
-                                                                bg={inputBg}
-                                                                color={inputText}
-                                                                borderColor={borderColor}
-                                                                showAdjacentClear
-                                                                clearAriaLabel="Clear SO filter"
-                                                                pl="8"
-                                                            />
-                                                        </Box>
+                                                        {renderStockViewOptionFilter({
+                                                            value: stockViewFilterSO,
+                                                            options: soFilterOptions,
+                                                            placeholder: "Filter by SO Number",
+                                                            setter: setStockViewFilterSO,
+                                                            queryKey: "q_so",
+                                                        })}
 
                                                         {/* SI Number Filter */}
-                                                        <Box w="220px" minW="200px">
-                                                            <DebouncedTextFilterInput
-                                                                key={textFilterResetKey}
-                                                                value={stockViewFilterSI}
-                                                                onChange={(next) => commitTextFilter(setStockViewFilterSI, next)}
-                                                                placeholder="Filter by SI Number"
-                                                                bg={inputBg}
-                                                                color={inputText}
-                                                                borderColor={borderColor}
-                                                                showAdjacentClear
-                                                                clearAriaLabel="Clear SI filter"
-                                                                pl="8"
-                                                            />
-                                                        </Box>
+                                                        {renderStockViewOptionFilter({
+                                                            value: stockViewFilterSI,
+                                                            options: siNumberFilterOptions,
+                                                            placeholder: "Filter by SI Number",
+                                                            setter: setStockViewFilterSI,
+                                                            queryKey: "q_si_number",
+                                                        })}
 
                                                         {/* SI Combined Filter */}
-                                                        <Box w="220px" minW="200px">
-                                                            <DebouncedTextFilterInput
-                                                                key={textFilterResetKey}
-                                                                value={stockViewFilterSICombined}
-                                                                onChange={(next) => commitTextFilter(setStockViewFilterSICombined, next)}
-                                                                placeholder="Filter by SI Combined"
-                                                                bg={inputBg}
-                                                                color={inputText}
-                                                                borderColor={borderColor}
-                                                                showAdjacentClear
-                                                                clearAriaLabel="Clear SI Combined filter"
-                                                                pl="8"
-                                                            />
-                                                        </Box>
+                                                        {renderStockViewOptionFilter({
+                                                            value: stockViewFilterSICombined,
+                                                            options: siCombinedFilterOptions,
+                                                            placeholder: "Filter by SI Combined",
+                                                            setter: setStockViewFilterSICombined,
+                                                            queryKey: "q_si_combined",
+                                                        })}
 
                                                         {/* DI Number Filter */}
-                                                        <Box w="220px" minW="200px">
-                                                            <DebouncedTextFilterInput
-                                                                key={textFilterResetKey}
-                                                                value={stockViewFilterDI}
-                                                                onChange={(next) => commitTextFilter(setStockViewFilterDI, next)}
-                                                                placeholder="Filter by DI Number"
-                                                                bg={inputBg}
-                                                                color={inputText}
-                                                                borderColor={borderColor}
-                                                                showAdjacentClear
-                                                                clearAriaLabel="Clear DI filter"
-                                                                pl="8"
-                                                            />
-                                                        </Box>
+                                                        {renderStockViewOptionFilter({
+                                                            value: stockViewFilterDI,
+                                                            options: diNoFilterOptions,
+                                                            placeholder: "Filter by DI Number",
+                                                            setter: setStockViewFilterDI,
+                                                            queryKey: "q_di_no",
+                                                        })}
 
                                                         {/* Via HUB 1 Filter */}
                                                         <Box w="220px" minW="200px">
@@ -6039,35 +6065,21 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                             </HStack>
                                                         </Box>
                                                         {/* Req No Filter */}
-                                                        <Box w="220px" minW="200px">
-                                                            <DebouncedTextFilterInput
-                                                                key={textFilterResetKey}
-                                                                value={stockViewFilterReqNo}
-                                                                onChange={(next) => commitTextFilter(setStockViewFilterReqNo, next)}
-                                                                placeholder="Filter by Req No..."
-                                                                bg={inputBg}
-                                                                color={inputText}
-                                                                borderColor={borderColor}
-                                                                showAdjacentClear
-                                                                clearAriaLabel="Clear Req No filter"
-                                                                pl="8"
-                                                            />
-                                                        </Box>
+                                                        {renderStockViewOptionFilter({
+                                                            value: stockViewFilterReqNo,
+                                                            options: reqNoFilterOptions,
+                                                            placeholder: "Filter by Req No...",
+                                                            setter: setStockViewFilterReqNo,
+                                                            queryKey: "q_req_no",
+                                                        })}
                                                         {/* PO Number Filter */}
-                                                        <Box w="220px" minW="200px">
-                                                            <DebouncedTextFilterInput
-                                                                key={textFilterResetKey}
-                                                                value={stockViewFilterPO}
-                                                                onChange={(next) => commitTextFilter(setStockViewFilterPO, next)}
-                                                                placeholder="Filter by PO number..."
-                                                                bg={inputBg}
-                                                                color={inputText}
-                                                                borderColor={borderColor}
-                                                                showAdjacentClear
-                                                                clearAriaLabel="Clear PO number filter"
-                                                                pl="8"
-                                                            />
-                                                        </Box>
+                                                        {renderStockViewOptionFilter({
+                                                            value: stockViewFilterPO,
+                                                            options: poTextFilterOptions,
+                                                            placeholder: "Filter by PO number...",
+                                                            setter: setStockViewFilterPO,
+                                                            queryKey: "q_po_text",
+                                                        })}
                                                         {/* Has Destination Filter */}
                                                         <Box w="220px" minW="200px" display="flex" alignItems="center">
                                                             <Checkbox

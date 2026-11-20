@@ -3,9 +3,24 @@ import { getApiEndpoint } from "../config/api";
 import api from "./axios";
 import { sanitizeStockCreateLine } from "../utils/stockCreatePayload";
 import { isStockEmptyPresence, STOCK_EMPTY_FILTER_PARAMS } from "../utils/stockListFetchParams";
+import { buildStockListOptionsFilterParams } from "../utils/stockListOptionFilters";
 
 // Import the global modal system
 import { showApiModal } from "../components/ApiModal";
+
+// Search params for the option lists added to POST /api/stock/list/options
+const STOCK_OPTION_SEARCH_PARAMS = [
+  "q_client",
+  "q_vessel",
+  "q_so",
+  "q_si_number",
+  "q_si_combined",
+  "q_di_no",
+  "q_po_text",
+  "q_req_no",
+  "q_stock_item_id",
+  "q_warehouse",
+];
 
 // Helper function to handle API errors and show modals
 const handleApiError = (error, operation) => {
@@ -61,7 +76,12 @@ export const getStockListOptionsApi = async (params = {}) => {
       page_size = 50,
     } = params;
 
-    const payload = { page, page_size };
+    // Selected filters (same names as /api/stock/list) narrow every option list; q_* searches one list.
+    const payload = { page, page_size, ...buildStockListOptionsFilterParams(params) };
+    STOCK_OPTION_SEARCH_PARAMS.forEach((key) => {
+      const text = params[key] != null ? String(params[key]).trim() : "";
+      if (text) payload[key] = text;
+    });
     const destQ =
       q_destination != null && String(q_destination).trim() !== ""
         ? String(q_destination).trim()
@@ -129,6 +149,16 @@ export const getStockListOptionsApi = async (params = {}) => {
       origin_text_options: Array.isArray(source.origin_text_options) ? source.origin_text_options : [],
       origin_text_total_count: source.origin_text_total_count ?? 0,
       origin_text_total_pages: source.origin_text_total_pages ?? 0,
+      client_options: Array.isArray(source.client_options) ? source.client_options : [],
+      vessel_options: Array.isArray(source.vessel_options) ? source.vessel_options : [],
+      so_options: Array.isArray(source.so_options) ? source.so_options : [],
+      si_number_options: Array.isArray(source.si_number_options) ? source.si_number_options : [],
+      si_combined_options: Array.isArray(source.si_combined_options) ? source.si_combined_options : [],
+      di_no_options: Array.isArray(source.di_no_options) ? source.di_no_options : [],
+      po_text_options: Array.isArray(source.po_text_options) ? source.po_text_options : [],
+      req_no_options: Array.isArray(source.req_no_options) ? source.req_no_options : [],
+      stock_item_id_options: Array.isArray(source.stock_item_id_options) ? source.stock_item_id_options : [],
+      warehouse_options: Array.isArray(source.warehouse_options) ? source.warehouse_options : [],
       page: source.page ?? page,
       page_size: source.page_size ?? page_size,
     };
