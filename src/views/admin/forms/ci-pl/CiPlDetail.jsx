@@ -120,7 +120,7 @@ import {
   recalcCiplLineConvertedValues,
   syncCiplStockLineSummaryFields,
 } from "../../../../utils/ciPlStockLineEntries";
-import { formatDateTimeDMYFull } from "utils/dateFormat";
+import { formatDateDMY, formatDateTimeDMYFull } from "utils/dateFormat";
 
 const normalizeCurrencyMasterOptions = (rawList) => {
   if (!Array.isArray(rawList)) return [];
@@ -2435,8 +2435,8 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
     if (isCiPlPdf) {
       const pdfDate =
         formData.date != null && String(formData.date).trim() !== ""
-          ? String(formData.date)
-          : todayIso;
+          ? formatDateDMY(formData.date)
+          : formatDateDMY(todayIso);
       const leftColWidth = 250;
       const gapBetweenCols = 16;
       const rightColWidth = 260;

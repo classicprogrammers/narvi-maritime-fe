@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { formatDateDMY } from "utils/dateFormat";
 
 const FIELD_LABELS = {
   id: "ID",
@@ -28,6 +29,7 @@ const FIELD_LABELS = {
 };
 
 const RATE_TYPE_LABELS = { general: "General", client_specific: "Client Specific" };
+const DATE_FIELDS = new Set(["valid_until", "last_update"]);
 const BOOLEAN_FIELDS = new Set(["incl_in_tariff", "active"]);
 
 // Same field shown twice when the API returns both a code and its label.
@@ -46,6 +48,7 @@ function formatExcelValue(key, value) {
     return "-";
   }
   if (value === false || value == null || String(value).trim() === "") return "-";
+  if (DATE_FIELDS.has(key)) return formatDateDMY(value);
   if (key === "rate_type") return RATE_TYPE_LABELS[String(value).trim()] || String(value);
   if (Array.isArray(value)) {
     return value.map((entry) => entry?.name ?? entry?.display_name ?? String(entry)).join(", ");

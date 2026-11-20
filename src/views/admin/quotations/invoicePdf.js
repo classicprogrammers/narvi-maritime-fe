@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import narviLetterheadPrint from "../../../assets/letterHead/NarviLetterhead.jpeg";
+import { formatDateDMY } from "utils/dateFormat";
 
 const CONTENT_LEFT = 30;
 const CONTENT_TOP = 160;
@@ -55,7 +56,7 @@ export function buildTaxInvoiceSnapshot(formState) {
   return {
     billTo: display(formState.billTo),
     invoiceAddress: display(formState.invoiceAddress),
-    date: display(formState.date),
+    date: display(formatDateDMY(formState.date)),
     pageNo: display(formState.pageNo) || "1 OF 1",
     taxInvoiceNumber: display(formState.taxInvoiceNumber),
     attention: display(formState.attention),

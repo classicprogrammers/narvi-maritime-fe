@@ -74,7 +74,7 @@ import {
 } from "../../../../utils/shippingFormAutosave";
 import { getWarehouseDisplayText, normalizeWarehousesFromStock } from "../../../../utils/stockUpdatePayload";
 import { formatApiNumericDisplay } from "../../../../utils/formatApiNumericDisplay";
-import { formatDateTimeDMYFull } from "utils/dateFormat";
+import { formatDateDMY, formatDateTimeDMYFull } from "utils/dateFormat";
 
 const resolveApiText = (value) => {
   if (value == null || value === false) return "";
@@ -2286,7 +2286,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         ["JOB NO", formData.jobNo || "-"],
         ["AWB NO", formData.shippedBy || "-"],
         ["TRANSPORT DETAILS", formData.transportDetails || "-"],
-        ["ETA", formData.deadline || "-"],
+        ["ETA", formatDateDMY(formData.deadline) || "-"],
         ["FROM", formData.from || "-"],
         ["DESTINATION", formData.to || "-"],
       ]
@@ -2296,7 +2296,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           ["SO NO", deliverySoNumberDisplay || "-"],
           ["VESSEL", getVesselDisplayName()],
           ["PIC", getPicDisplayName() || "-"],
-          ["DELIVERY DATE", formData.deadline || "-"],
+          ["DELIVERY DATE", formatDateDMY(formData.deadline) || "-"],
           ["LOCATION", formData.to || "-"],
         ]
         : isDeliveryForm
@@ -2305,7 +2305,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             ["SO NO", deliverySoNumberDisplay || "-"],
             ["VESSEL", getVesselDisplayName()],
             ["PIC", getPicDisplayName() || "-"],
-            ["DEADLINE", formData.deadline || "-"],
+            ["DEADLINE", formatDateDMY(formData.deadline) || "-"],
             ["LOCATION", formData.to || "-"],
           ]
           : [
@@ -2314,7 +2314,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             ["TO BE SHIPPED BY", formData.shippedBy || "-"],
             ["FROM", formData.from || "-"],
             ["TO", formData.to || "-"],
-            ["DEADLINE", formData.deadline || "-"],
+            ["DEADLINE", formatDateDMY(formData.deadline) || "-"],
             ["PIC", picLabel || "-"],
           ];
 
