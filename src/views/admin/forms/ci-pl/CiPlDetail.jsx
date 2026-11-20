@@ -403,7 +403,6 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
     onOpen: onArchiveModalOpen,
     onClose: onArchiveModalClose,
   } = useDisclosure();
-  const [archiveResponse, setArchiveResponse] = useState(null);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
   const [isPdfPreviewLoading, setIsPdfPreviewLoading] = useState(false);
   const pdfPreviewBlobUrlRef = useRef(null);
@@ -2158,7 +2157,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       const archivePayload =
         currentId != null && currentId !== "" ? { id: Number(currentId) } : {};
 
-      const result = await archiveForm(archivePayload);
+      await archiveForm(archivePayload);
 
       headerUserEditedRef.current = false;
       consignBlockUserEditedRef.current = false;
@@ -2170,12 +2169,14 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         applySiFormResponse(nextDraft);
       }
 
-      setArchiveResponse({
-        ...result,
-        draftForm: nextDraft ?? result.draftForm,
+      onArchiveModalClose();
+      toast({
+        title: "CI PL archived",
+        description: "The form was saved to Archived CI PL and has been reset.",
+        status: "success",
+        duration: 4000,
+        isClosable: true,
       });
-
-      onArchiveModalOpen();
     } catch (e) {
       console.error("Failed to archive CI PL form:", e);
       showFormSaveError(toast, e, "Failed to archive form");
@@ -3099,7 +3100,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                       variant="outline"
                       size="sm"
                       isLoading={isSiFormLoading}
-                      onClick={handleArchiveCiPlDraft}
+                      onClick={onArchiveModalOpen}
                     >
                       Archive
                     </Button>
@@ -4756,50 +4757,32 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
           </ModalFooter>
         </ModalContent>
       </Modal>
-      <Modal isOpen={isArchiveModalOpen} onClose={onArchiveModalClose} size="lg" scrollBehavior="inside">
+      <Modal
+        isOpen={isArchiveModalOpen}
+        onClose={isSiFormLoading ? () => {} : onArchiveModalClose}
+        size="md"
+        isCentered
+      >
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>CI PL Archived</ModalHeader>
-          <ModalCloseButton />
+          <ModalHeader>Archive CI PL?</ModalHeader>
+          <ModalCloseButton isDisabled={isSiFormLoading} />
           <ModalBody>
-            <VStack align="stretch" spacing={3}>
-              <Text>
-                The current form has been archived. A new empty draft is ready for the next entry.
-              </Text>
-              {archiveResponse?.archivedForm?.id != null ? (
-                <Text fontSize="sm">
-                  <strong>Archived record:</strong> ID #{archiveResponse.archivedForm.id}
-                  {archiveResponse.archivedForm.state ? ` (${archiveResponse.archivedForm.state})` : ""}
-                  {archiveResponse.archivedForm.archived_at
-                    ? ` — archived at ${new Date(archiveResponse.archivedForm.archived_at).toLocaleString()}`
-                    : ""}
-                </Text>
-              ) : null}
-              {archiveResponse?.draftForm?.id != null ? (
-                <Text fontSize="sm">
-                  <strong>New draft:</strong> ID #{archiveResponse.draftForm.id}
-                  {archiveResponse.draftForm.state ? ` (${archiveResponse.draftForm.state})` : ""}
-                </Text>
-              ) : null}
-              <Box
-                as="pre"
-                p={3}
-                bg="gray.50"
-                borderRadius="md"
-                fontSize="xs"
-                overflowX="auto"
-                maxH="320px"
-                overflowY="auto"
-                whiteSpace="pre-wrap"
-                wordBreak="break-word"
-              >
-                {JSON.stringify(archiveResponse?.raw ?? archiveResponse, null, 2)}
-              </Box>
-            </VStack>
+            <Text>
+              Are you sure you want to archive this form? The current data will be saved in the
+              Archived CI PL list and the form will be reset.
+            </Text>
           </ModalBody>
-          <ModalFooter>
-            <Button colorScheme="orange" onClick={onArchiveModalClose}>
-              Continue with new draft
+          <ModalFooter gap={2}>
+            <Button variant="outline" onClick={onArchiveModalClose} isDisabled={isSiFormLoading}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="orange"
+              onClick={handleArchiveCiPlDraft}
+              isLoading={isSiFormLoading}
+            >
+              Confirm Archive
             </Button>
           </ModalFooter>
         </ModalContent>
