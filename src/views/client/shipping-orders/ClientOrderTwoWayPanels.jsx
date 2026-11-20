@@ -24,6 +24,7 @@ import {
   buildClientOrderUpdatePayload,
   validateClientOrderDates,
 } from "utils/clientOrderUpdates";
+import DateField from "components/forms/DateField";
 
 /** Shared submit: builds the changed-keys payload, posts it and reports the backend message as is. */
 function useClientOrderSubmit(order, onSaved) {
@@ -106,7 +107,7 @@ export function ClientOrderEditForm({ order, onSaved, onCancel }) {
             <Text {...FIELD_LABEL_PROPS} color={muted}>
               {label}
             </Text>
-            <Input size="sm" h="40px" type="date" value={form[key]} onChange={setField(key)} />
+            <DateField size="sm" h="40px" value={form[key]} onChange={setField(key)} />
           </GridItem>
         ))}
         <GridItem colSpan={{ base: 1, md: 3 }}>

@@ -19,6 +19,7 @@ import {
   GST_OUTPUT_OPTIONS,
   validateInvoiceForm,
 } from "./ledgerInvoiceUtils";
+import DateField from "components/forms/DateField";
 
 const FORM_PATH = "/admin/ledger/invoice/form";
 
@@ -79,9 +80,8 @@ function DueCell({ values, isDisabled, onPatch }) {
       warning={unreadable ? describeDueRule(preview.data) : ""}
       onUseAutomatic={() => onPatch(applyDueDateInput(""))}
     >
-      <Input
+      <DateField
         size="sm"
-        type="date"
         bg={inputBg}
         aria-label="Due"
         isDisabled={isDisabled}

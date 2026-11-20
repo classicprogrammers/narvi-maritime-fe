@@ -53,6 +53,7 @@ import {
   formatShippingOrderStatusColor,
   formatShippingOrderStatusLabel,
 } from "./shippingOrderUtils";
+import { formatDateDMY } from "utils/dateFormat";
 
 const PAGE_SIZE = 30;
 
@@ -401,7 +402,7 @@ export default function MsoTab() {
                       <Td>{mso.vessel_name || "—"}</Td>
                       <Td>{clientLabel(mso)}</Td>
                       <Td>{formatShippingOrderDestinationDisplay(mso) || "—"}</Td>
-                      <Td whiteSpace="nowrap">{mso.date_order ? new Date(mso.date_order).toLocaleDateString() : "—"}</Td>
+                      <Td whiteSpace="nowrap">{mso.date_order ? formatDateDMY(mso.date_order) : "—"}</Td>
                       <Td textAlign="right">
                         <HStack spacing={1} justify="flex-end">
                           <Button size="xs" variant="outline" leftIcon={<Icon as={MdAdd} />} onClick={() => openLinkModal(mso)}>

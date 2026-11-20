@@ -51,6 +51,7 @@ import {
   quotationVesselName,
 } from "./quotationUtils";
 import { createLatestGuard } from "../../../utils/searchableSelect";
+import DateField from "components/forms/DateField";
 
 const DEFAULT_FILTERS = {
   client_id: "",
@@ -571,9 +572,8 @@ export default function Quotations() {
                     <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                       Valid Date
                     </Text>
-                    <Input
+                    <DateField
                       {...filterInputProps}
-                      type="date"
                       value={filters.validity_date}
                       onChange={(e) => handleFilterChange("validity_date", e.target.value)}
                     />

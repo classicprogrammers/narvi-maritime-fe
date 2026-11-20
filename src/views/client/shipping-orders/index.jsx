@@ -61,6 +61,7 @@ import {
   ClientOrderRemarks,
   ClientOrderSyncStatus,
 } from "views/client/shipping-orders/ClientOrderTwoWayPanels";
+import { formatDateDMY, formatDateTimeDMYFull } from "utils/dateFormat";
 
 const tagFilesWithKind = (files, kind) =>
   (Array.isArray(files) ? files : [])
@@ -94,17 +95,14 @@ const formatDate = (value) => {
     const dateOnly = toDateOnly(String(value));
     return dateOnly || "-";
   }
-  return date.toLocaleDateString();
+  return formatDateDMY(date);
 };
 
 const formatDateTime = (value) => {
   if (!value || value === false) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
-  return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  })}`;
+  return formatDateTimeDMYFull(date);
 };
 
 const formatStatusLabel = (done) => {

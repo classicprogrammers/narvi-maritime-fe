@@ -20,6 +20,7 @@ import ShippingOrderAttachmentsField from "../../../components/shipping-order/Sh
 import ShippingOrderCiplFilesField from "../../../components/shipping-order/ShippingOrderCiplFilesField";
 import { useClientVesselFilterOptions } from "../../../hooks/useClientVesselFilterOptions";
 import { isDeliveryViaServiceBoat, resolveRelationId } from "./shippingOrderUtils";
+import DateField from "components/forms/DateField";
 
 const DESTINATION_TYPE_OPTIONS = [
   { id: "port_country", name: "Port Name + Country" },
@@ -122,8 +123,7 @@ export default function ShippingOrderFormFields({
           )}
           <FormControl flex="1" minW="220px">
             <FormLabel>Date Created</FormLabel>
-            <Input
-              type="date"
+            <DateField
               value={formData.date_created || ""}
               isReadOnly={!!isEditMode}
               bg={editFieldBg}
@@ -390,8 +390,7 @@ export default function ShippingOrderFormFields({
         <Flex gap="4" flexWrap="wrap">
           <FormControl flex="1" minW="180px">
             <FormLabel>Next Action</FormLabel>
-            <Input
-              type="date"
+            <DateField
               value={nextActionVal}
               bg={editFieldBg}
               color={inputText}
@@ -412,8 +411,7 @@ export default function ShippingOrderFormFields({
         <Flex gap="4" flexWrap="wrap">
           <FormControl flex="1" minW="180px">
             <FormLabel>ETA</FormLabel>
-            <Input
-              type="date"
+            <DateField
               value={etaDateVal}
               bg={editFieldBg}
               color={inputText}
@@ -428,8 +426,7 @@ export default function ShippingOrderFormFields({
           </FormControl>
           <FormControl flex="1" minW="180px">
             <FormLabel>ETB</FormLabel>
-            <Input
-              type="date"
+            <DateField
               value={etbVal}
               bg={editFieldBg}
               color={inputText}
@@ -441,8 +438,7 @@ export default function ShippingOrderFormFields({
           </FormControl>
           <FormControl flex="1" minW="180px">
             <FormLabel>ETD</FormLabel>
-            <Input
-              type="date"
+            <DateField
               value={etdVal}
               bg={editFieldBg}
               color={inputText}
@@ -620,8 +616,7 @@ export default function ShippingOrderFormFields({
           </FormControl>
           <FormControl flex="1" minW="260px">
             <FormLabel>SO Case Closed Date</FormLabel>
-            <Input
-              type="date"
+            <DateField
               value={soDeliveryDateVal}
               bg={editFieldBg}
               color={inputText}

@@ -97,6 +97,7 @@ import {
     createSaveRowBeforeStockReportPdf,
     createStockPdfRowHelpers,
 } from "../../../utils/stockReportPdf";
+import DateField from "components/forms/DateField";
 
 function withUnlockedStockReport(row, patch = {}) {
     return { ...(row || {}), ...patch, stockReportLocked: false };
@@ -2181,8 +2182,7 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Input
-                                            type="date"
+                                        <DateField
                                             value={row.expReadyInStock || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "expReadyInStock", e.target.value)}
                                             size="sm"

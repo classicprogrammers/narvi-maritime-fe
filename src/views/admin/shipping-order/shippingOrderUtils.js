@@ -2,6 +2,7 @@
  * Shared utilities for shipping order list and edit page.
  */
 import { mapExistingAttachmentsFromOrder, mapExistingCiplFilesFromOrder } from "../../../utils/shippingOrderAttachments";
+import { formatDateDMY } from "utils/dateFormat";
 
 export function toDateOnly(dateStr) {
   if (!dateStr) return "";
@@ -236,20 +237,12 @@ export function formatShippingOrderDisplayDate(value) {
     const [, year, month, day] = match;
     const localDate = new Date(Number(year), Number(month) - 1, Number(day));
     if (!Number.isNaN(localDate.getTime())) {
-      return localDate.toLocaleDateString("en-GB", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      });
+      return formatDateDMY(localDate);
     }
   }
   const date = new Date(str);
   if (Number.isNaN(date.getTime())) return str.split(" ")[0] || str;
-  return date.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  return formatDateDMY(date);
 }
 
 export function getServiceBoatFormPayload(data) {

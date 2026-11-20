@@ -68,6 +68,7 @@ import {
   removeRatesFromSelection,
 } from "../../../utils/rateListState";
 import EditModeNotice, { useEditModeColors } from "../../../components/forms/EditModeNotice";
+import DateField from "components/forms/DateField";
 
 const RATE_TYPE_OPTIONS = [
   { id: "general", name: "General" },
@@ -1481,8 +1482,7 @@ export default function RateListForm() {
                       {assignCell(
                         index,
                         "valid_until",
-                        <Input
-                          type="date"
+                        <DateField
                           value={toDateInputValue(row.valid_until)}
                           onChange={(e) => updateRow(index, "valid_until", e.target.value)}
                           {...cellInputProps}
@@ -1494,8 +1494,7 @@ export default function RateListForm() {
                       {assignCell(
                         index,
                         "last_update",
-                        <Input
-                          type="date"
+                        <DateField
                           value={toDateInputValue(row.last_update)}
                           onChange={(e) => updateRow(index, "last_update", e.target.value)}
                           {...cellInputProps}

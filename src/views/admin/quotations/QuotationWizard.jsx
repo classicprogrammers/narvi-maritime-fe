@@ -53,6 +53,7 @@ import {
   selectedRateCount,
   selectedRatesPayload,
 } from "./quotationUtils";
+import DateField from "components/forms/DateField";
 
 const STEPS = ["Origin + Agent", "Rate type", "Select rates", "Review & save"];
 
@@ -749,9 +750,8 @@ export default function QuotationWizard() {
                 />
               </Field>
               <Field label="Validity">
-                <Input
+                <DateField
                   size="sm"
-                  type="date"
                   bg={inputBg}
                   value={validityDate}
                   onChange={(event) => setValidityDate(event.target.value)}

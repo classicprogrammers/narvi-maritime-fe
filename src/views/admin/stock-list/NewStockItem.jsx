@@ -108,6 +108,7 @@ import {
     createSaveRowBeforeStockReportPdf,
     createStockPdfRowHelpers,
 } from "../../../utils/stockReportPdf";
+import DateField from "components/forms/DateField";
 
 function withUnlockedStockReport(row, patch = {}) {
     return { ...(row || {}), ...patch, stockReportLocked: false };
@@ -2993,8 +2994,7 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} overflow="visible">
                                             {assignCell(rowIndex, "expReadyInStock",
-                                                <Input
-                                                    type="date"
+                                                <DateField
                                                     value={row.expReadyInStock || ""}
                                                     onChange={(e) => handleInputChange(rowIndex, "expReadyInStock", e.target.value)}
                                                     size="sm"
@@ -3024,8 +3024,7 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} overflow="visible">
                                             {assignCell(rowIndex, "dateOnStock",
-                                                <Input
-                                                    type="date"
+                                                <DateField
                                                     value={row.dateOnStock || ""}
                                                     max={getLocalTodayIso()}
                                                     onChange={(e) => handleInputChange(rowIndex, "dateOnStock", e.target.value)}
@@ -3041,8 +3040,7 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} overflow="visible">
                                             {assignCell(rowIndex, "shippedDate",
-                                                <Input
-                                                    type="date"
+                                                <DateField
                                                     value={row.shippedDate || ""}
                                                     onChange={(e) => handleInputChange(rowIndex, "shippedDate", e.target.value)}
                                                     size="sm"
@@ -3057,8 +3055,7 @@ export default function StockForm() {
                                         </Td>
                                         <Td {...cellProps} overflow="visible">
                                             {assignCell(rowIndex, "deliveredDate",
-                                                <Input
-                                                    type="date"
+                                                <DateField
                                                     value={row.deliveredDate || ""}
                                                     onChange={(e) => handleInputChange(rowIndex, "deliveredDate", e.target.value)}
                                                     size="sm"

@@ -29,6 +29,8 @@ import {
   isShippingStatusOrder,
   validateCostForm,
 } from "./ledgerCostUtils";
+import { formatDateDMY } from "utils/dateFormat";
+import DateField from "components/forms/DateField";
 
 const SO_PAGE_SIZE = 50;
 const FORM_PATH = "/admin/ledger/cost/form";
@@ -47,7 +49,7 @@ const prettyDate = (iso) => {
   if (parts.length !== 3) return iso || "";
   const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
   if (Number.isNaN(dt.getTime())) return iso;
-  return dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return formatDateDMY(dt);
 };
 
 // Compact ROE cell: input + small auto/manual tag, notes in the tag tooltip
@@ -124,8 +126,7 @@ function DueCell({ values, onPatch, controlProps, isDisabled }) {
       error={!manual && preview.error ? "Could not work out the due date. You can enter it manually." : ""}
       onUseAutomatic={() => onPatch(dueInputPatch(""))}
     >
-      <Input
-        type="date"
+      <DateField
         aria-label="Due"
         value={display || ""}
         isDisabled={isDisabled}

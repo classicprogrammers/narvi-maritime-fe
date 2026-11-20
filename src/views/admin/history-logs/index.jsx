@@ -16,6 +16,7 @@ import {
 import { SearchIcon } from "@chakra-ui/icons";
 import { fetchTrackingLogs, fetchTrackingLogOptions } from "../../../api/trackingLogs";
 import { useUser } from "../../../redux/hooks/useUser";
+import DateField from "components/forms/DateField";
 
 const EMPTY_FILTERS = {
     search: "",
@@ -317,9 +318,8 @@ const HistoryLogs = () => {
                     <Text fontSize="xs" color="gray.500" mb={1}>
                         From
                     </Text>
-                    <Input
+                    <DateField
                         {...inputProps}
-                        type="date"
                         value={filters.date_from}
                         max={filters.date_to || undefined}
                         onChange={(e) => updateFilter("date_from", e.target.value)}
@@ -329,9 +329,8 @@ const HistoryLogs = () => {
                     <Text fontSize="xs" color="gray.500" mb={1}>
                         To
                     </Text>
-                    <Input
+                    <DateField
                         {...inputProps}
-                        type="date"
                         value={filters.date_to}
                         min={filters.date_from || undefined}
                         onChange={(e) => updateFilter("date_to", e.target.value)}

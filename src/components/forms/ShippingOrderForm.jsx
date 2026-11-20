@@ -32,6 +32,7 @@ import { useUser } from '../../redux/hooks/useUser';
 import { createNewShippingOrder, updateExistingShippingOrder } from '../../redux/slices/shippingOrdersSlice';
 import SearchableSelect from './SearchableSelect';
 import { getVesselsForClient, mergeSelectedVesselOption } from '../../views/admin/shipping-order/shippingOrderUtils';
+import DateField from "components/forms/DateField";
 
 const ShippingOrderForm = ({
     isOpen,
@@ -479,8 +480,7 @@ const ShippingOrderForm = ({
                                 <GridItem>
                                     <FormControl>
                                         <FormLabel fontSize="sm" color="gray.600">ETA Date</FormLabel>
-                                        <Input
-                                            type="date"
+                                        <DateField
                                             value={formData.eta_date}
                                             onChange={(e) => handleInputChange('eta_date', e.target.value)}
                                             size="md"
@@ -491,8 +491,7 @@ const ShippingOrderForm = ({
                                 <GridItem>
                                     <FormControl>
                                         <FormLabel fontSize="sm" color="gray.600">Next Action</FormLabel>
-                                        <Input
-                                            type="date"
+                                        <DateField
                                             value={formData.next_action || ""}
                                             onChange={(e) => handleInputChange('next_action', e.target.value)}
                                             placeholder="Select next action date"

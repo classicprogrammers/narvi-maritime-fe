@@ -56,6 +56,7 @@ import { useResumeDraft } from "hooks/useResumeDraft";
 import { makeDraftId } from "utils/drafts";
 import { resolveDraftSource } from "utils/draftSource";
 import { applyRegistrationDraft } from "utils/registrationDraft";
+import { formatDateDMY } from "utils/dateFormat";
 
 
 const isValidUrl = (string) => {
@@ -966,11 +967,7 @@ function CustomerRegistration() {
                     vessel_type3: formData.vessel_type3,
                     remarks: formData.remarks,
                     status: "Active",
-                    joinDate: new Date().toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "2-digit",
-                    }),
+                    joinDate: formatDateDMY(new Date()),
                 };
 
                 addCustomerToRedux(newClient);

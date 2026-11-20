@@ -1,3 +1,4 @@
+import { formatDateDMY } from "utils/dateFormat";
 export const CHAT_MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 export const CHAT_MAX_BODY_LENGTH = 5000;
 export const CHAT_POLL_INTERVAL_MS = 4000;
@@ -67,7 +68,7 @@ export const formatChatDay = (value, now = new Date()) => {
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
   if (dayKey(d) === dayKey(yesterday)) return "Yesterday";
-  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  return formatDateDMY(d);
 };
 
 // Items for rendering: day separators interleaved with messages

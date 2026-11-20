@@ -90,6 +90,7 @@ import {
   PAYMENT_STATUS_OPTIONS,
   paymentStatusDisplay,
 } from "./ledgerInvoiceUtils";
+import { formatDateDMY } from "utils/dateFormat";
 
 const INVOICE_LIST_STORAGE_KEY = "narvi_invoice_list_state";
 const SELECT_COL_W = 44;
@@ -143,7 +144,7 @@ function prettyInvoiceDate(value) {
   if (parts.length !== 3) return raw;
   const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
   if (Number.isNaN(dt.getTime())) return raw;
-  return dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return formatDateDMY(dt);
 }
 
 function TruncatedText({ value, maxW = "160px", fontWeight, color, fontSize = "sm" }) {

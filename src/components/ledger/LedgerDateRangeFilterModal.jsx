@@ -20,6 +20,7 @@ import {
   useColorModeValue,
 } from "@chakra-ui/react";
 import { validateDateRanges } from "utils/ledgerListQuery";
+import DateField from "components/forms/DateField";
 
 // fields: [{ key, label }]; value: { <key>_from, <key>_to }
 // onApply(ranges), onClear(); error = server message shown inside the modal
@@ -73,8 +74,7 @@ const LedgerDateRangeFilterModal = ({
                   {["from", "to"].map((side) => (
                     <HStack key={side} flex="1" spacing="2">
                       <Text fontSize="xs" color={muted} w="8">{side === "from" ? "From" : "To"}</Text>
-                      <Input
-                        type="date"
+                      <DateField
                         size="sm"
                         bg={inputBg}
                         borderColor={borderColor}

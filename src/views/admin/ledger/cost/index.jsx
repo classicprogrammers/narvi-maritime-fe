@@ -103,6 +103,7 @@ import {
   isProbablyUrl,
   normalizeBizCategory,
 } from "./ledgerCostUtils";
+import { formatDateDMY } from "utils/dateFormat";
 
 const COST_LIST_STORAGE_KEY = "narvi_cost_list_state";
 
@@ -158,7 +159,7 @@ function prettyCostDate(value) {
   if (parts.length !== 3) return raw;
   const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
   if (Number.isNaN(dt.getTime())) return raw;
-  return dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return formatDateDMY(dt);
 }
 
 function isDueOverdue(row) {

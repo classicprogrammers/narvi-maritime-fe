@@ -1,4 +1,5 @@
 import { describeDraftError } from "./drafts";
+import { formatDateTimeDMYFull } from "utils/dateFormat";
 
 /**
  * Runs `draft.requests` one after another through `moduleDef.apis`.
@@ -40,5 +41,5 @@ export function applyRetryFailure(draft, outcome, now = new Date()) {
 export function formatDraftDate(iso) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  return formatDateTimeDMYFull(date);
 }

@@ -94,6 +94,8 @@ import { getRowClientName } from "utils/portalClients";
 import { usePortalClient } from "views/client/PortalClientContext";
 import { clearClientNavigationState } from "views/client/dashboard/clientDashboardNavigation";
 import * as XLSX from "xlsx";
+import DateField from "components/forms/DateField";
+import { formatDateDMY, formatDateTimeDMYFull } from "utils/dateFormat";
 const toClientStockDisplay = (value) => {
   if (value == null || value === false || value === "") return "-";
   if (typeof value === "object") {
@@ -141,12 +143,12 @@ const mapClientStockRows =(stockList, clientName = "") =>
       latestReport: reportEntries[0]?.att ?? null,
       previousReportEntries: reportEntries.slice(1),
       client: toClientStockDisplay(getRowClientName(item) || clientName),
-      dateOnStock: toClientStockDisplay(item.date_on_stock || item.first_entry_date),
+      dateOnStock: toClientStockDisplay(formatDateDMY(item.date_on_stock || item.first_entry_date)),
       daysOnStock: toClientStockDisplay(item.days_on_stock),
       warehouseId: toClientStockDisplay(
         getWarehouseDisplayText(item) || item.warehouse
       ),
-      firstEntryDate: toClientStockDisplay(item.first_entry_date || item.date_on_stock),
+      firstEntryDate: toClientStockDisplay(formatDateDMY(item.first_entry_date || item.date_on_stock)),
       vessel: toClientStockDisplay(item.vessel?.name || item.vessel),
       warning: toClientStockDisplay(item.warning),
       stockNumber: toClientStockDisplay(item.stock_number || item.stock_item_id),
@@ -184,8 +186,8 @@ const mapClientStockRows =(stockList, clientName = "") =>
       deliveryIrregularities: toClientStockDisplay(item.delivery_irregularities),
       remarks: toClientStockDisplay(item.remarks),
       poRemarks: toClientStockDisplay(item.po_remarks),
-      createDate: toClientStockDisplay(item.create_date),
-      writeDate: toClientStockDisplay(item.write_date),
+      createDate: toClientStockDisplay(formatDateTimeDMYFull(item.create_date)),
+      writeDate: toClientStockDisplay(formatDateTimeDMYFull(item.write_date)),
       locationHistory: Array.isArray(item.location_history) ? item.location_history : [],
       pcsLines: Array.isArray(item.pcs?.lines)
         ? item.pcs.lines
@@ -1241,8 +1243,8 @@ function ClientStockReportView() {
           <GridItem colSpan={{ base: 1, md: 2, xl: 2 }}>
             <Text fontSize="xs" mb={1} color={muted}>Date Range</Text>
             <Flex gap={2} direction={{ base: "column", sm: "row" }}>
-              <Input size="sm" type="date" p="20px 12px" minW={0} value={filters.fromDate} onChange={(e) => handleFilterChange("fromDate", e.target.value)} />
-              <Input size="sm" type="date" p="20px 12px" minW={0} value={filters.toDate} onChange={(e) => handleFilterChange("toDate", e.target.value)} />
+              <DateField size="sm" p="20px 12px" minW={0} value={filters.fromDate} onChange={(e) => handleFilterChange("fromDate", e.target.value)} />
+              <DateField size="sm" p="20px 12px" minW={0} value={filters.toDate} onChange={(e) => handleFilterChange("toDate", e.target.value)} />
             </Flex>
           </GridItem>
           <GridItem>

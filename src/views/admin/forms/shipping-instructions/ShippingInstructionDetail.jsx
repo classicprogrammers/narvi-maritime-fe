@@ -74,6 +74,7 @@ import {
 } from "../../../../utils/shippingFormAutosave";
 import { getWarehouseDisplayText, normalizeWarehousesFromStock } from "../../../../utils/stockUpdatePayload";
 import { formatApiNumericDisplay } from "../../../../utils/formatApiNumericDisplay";
+import { formatDateTimeDMYFull } from "utils/dateFormat";
 
 const resolveApiText = (value) => {
   if (value == null || value === false) return "";
@@ -2232,7 +2233,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     doc.setFontSize(12);
     doc.text(docTitle, contentLeft, contentTop);
     doc.setFontSize(9);
-    doc.text(`Date: ${new Date().toLocaleString()}`, contentLeft, contentTop + 14);
+    doc.text(`Date: ${formatDateTimeDMYFull(new Date())}`, contentLeft, contentTop + 14);
 
     const consignLines = String(formData.consignBlock || "")
       .split("\n")

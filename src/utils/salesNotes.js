@@ -64,13 +64,13 @@ export const DEFAULT_SALES_SORT = { sortBy: "entry_date", sortOrder: "desc" };
 
 export const DEFAULT_SALES_PAGE_SIZE = 50;
 
-// "2026-11-18" or "2026-11-18T10:00:00" -> "18/11/26"; anything else -> ""
+// "2026-11-18" or "2026-11-18T10:00:00" -> "18/11/2026"; anything else -> ""
 export const formatIsoToDdMmYy = (iso) => {
   if (iso == null || iso === false) return "";
   const date = String(iso).trim().slice(0, 10);
   if (!isValidIsoDate(date)) return "";
   const [year, month, day] = date.split("-");
-  return `${day}/${month}/${year.slice(2)}`;
+  return `${day}/${month}/${year}`;
 };
 
 // state: { page, pageSize, search, dateRanges, sort: { sortBy, sortOrder } }

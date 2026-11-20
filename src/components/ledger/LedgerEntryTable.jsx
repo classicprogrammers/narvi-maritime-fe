@@ -25,6 +25,7 @@ import {
 } from "@chakra-ui/react";
 import { MdAdd, MdCheck, MdDelete } from "react-icons/md";
 import { Link as RouterLink } from "react-router-dom";
+import DateField from "components/forms/DateField";
 
 const STATUS_BADGES = {
   draft: { label: "Draft", colorScheme: "gray" },
@@ -121,7 +122,7 @@ const LedgerEntryTable = ({
       case "number":
         return <Input {...common} type="number" step="any" value={value ?? ""} onChange={(e) => onChange(e.target.value)} />;
       case "date":
-        return <Input {...common} type="date" value={value ?? ""} onChange={(e) => onChange(e.target.value)} />;
+        return <DateField {...common} value={value ?? ""} onChange={(e) => onChange(e.target.value)} />;
       case "select":
       case "gst":
         return (

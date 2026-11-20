@@ -11,8 +11,8 @@ import {
 
 describe("formatIsoToDdMmYy", () => {
   it("formats ISO dates and datetimes", () => {
-    expect(formatIsoToDdMmYy("2026-11-18")).toBe("18/11/26");
-    expect(formatIsoToDdMmYy("2026-11-18T10:30:00Z")).toBe("18/11/26");
+    expect(formatIsoToDdMmYy("2026-11-18")).toBe("18/11/2026");
+    expect(formatIsoToDdMmYy("2026-11-18T10:30:00Z")).toBe("18/11/2026");
   });
   it("returns empty string for empty or invalid values", () => {
     [null, undefined, false, "", "abc", "2026-02-31"].forEach((v) =>

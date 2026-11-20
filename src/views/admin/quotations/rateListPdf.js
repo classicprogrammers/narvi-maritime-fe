@@ -2,6 +2,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import narviLetterheadPrint from "../../../assets/letterHead/NarviLetterhead.jpeg";
 import { chargeCategoryLabel } from "../../../utils/rateListForm";
+import { formatDateTimeDMYFull } from "utils/dateFormat";
 
 const CONTENT_LEFT = 30;
 const CONTENT_TOP = 160;
@@ -87,7 +88,7 @@ export function buildPdfModel({
     filenameSuffix,
     currencyLabel,
     tariffHeader,
-    generatedAt: new Date().toLocaleString(),
+    generatedAt: formatDateTimeDMYFull(new Date()),
     rowCount: sections.reduce((total, section) => total + section.body.length, 0),
   };
 }

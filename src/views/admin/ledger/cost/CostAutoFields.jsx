@@ -4,13 +4,15 @@ import LedgerAutoTag from "components/ledger/LedgerAutoTag";
 import { useLedgerDueDatePreview, useLedgerRoePreview } from "hooks/useLedgerPreviews";
 import { describeDueRule } from "utils/ledgerAutoFields";
 import { dueInputPatch, roeInputPatch } from "./ledgerCostUtils";
+import { formatDateDMY } from "utils/dateFormat";
+import DateField from "components/forms/DateField";
 
 const prettyDate = (iso) => {
   const parts = String(iso || "").split("-");
   if (parts.length !== 3) return iso || "";
   const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
   if (Number.isNaN(dt.getTime())) return iso;
-  return dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return formatDateDMY(dt);
 };
 
 // Label (optional) + tag + input + notes. `values` is a form-shaped object, `onPatch(patch)` merges into it.
@@ -152,8 +154,7 @@ export function CostDueField({
         />
       }
     >
-      <Input
-        type="date"
+      <DateField
         value={display}
         isDisabled={isDisabled}
         onChange={(e) => onPatch(dueInputPatch(e.target.value))}

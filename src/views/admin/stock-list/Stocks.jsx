@@ -87,6 +87,8 @@ import {
     mapStockSortOptionToApiSortBy,
 } from "../../../utils/stockSortOptions";
 import { useClientVesselFilterOptions } from "../../../hooks/useClientVesselFilterOptions";
+import { formatDateDMY, formatDateTimeDMYFull } from "utils/dateFormat";
+import DateField from "components/forms/DateField";
 
 function mapStockSoFieldToOrder(soField) {
     if (!soField || typeof soField !== "object" || soField.id == null) return null;
@@ -3014,7 +3016,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
             console.error("Failed to load stocklist letterhead image for PDF:", e);
         }
 
-        const generatedAt = new Date().toLocaleString();
+        const generatedAt = formatDateTimeDMYFull(new Date());
         const recordCount = rows.length;
 
         doc.setFontSize(12);
@@ -3991,16 +3993,12 @@ export default function Stocks({ variant = "stocks" } = {}) {
 
 
     // Format date for display
-    const formatDate = (dateString) => {
-        if (!dateString) return "-";
-        const parsed = new Date(dateString);
-        return Number.isNaN(parsed.getTime()) ? dateString : parsed.toLocaleDateString();
-    };
+    const formatDate = (dateString) => (dateString ? formatDateDMY(dateString) : "-");
 
     const formatDateTime = (value) => {
         if (!value) return "-";
         const parsed = new Date(value);
-        return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+        return Number.isNaN(parsed.getTime()) ? value : formatDateTimeDMYFull(parsed);
     };
 
     const renderText = (value) => {
@@ -4412,8 +4410,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
                 const isDateOnStock = field === "date_on_stock";
                 const todayIso = getLocalTodayIso();
                 return wrapAssign(
-                    <Input
-                        type="date"
+                    <DateField
                         size="sm"
                         value={currentValue ? new Date(currentValue).toISOString().split('T')[0] : ""}
                         max={isDateOnStock ? todayIso : undefined}
@@ -7538,8 +7535,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
                             <HStack spacing={3}>
                                 <Box flex="1">
                                     <Text fontSize="sm" mb={1}>Start date</Text>
-                                    <Input
-                                        type="date"
+                                    <DateField
                                         size="sm"
                                         value={createDateFrom}
                                         onChange={(e) => setCreateDateFrom(e.target.value)}
@@ -7550,8 +7546,7 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                 </Box>
                                 <Box flex="1">
                                     <Text fontSize="sm" mb={1}>End date</Text>
-                                    <Input
-                                        type="date"
+                                    <DateField
                                         size="sm"
                                         value={createDateTo}
                                         onChange={(e) => setCreateDateTo(e.target.value)}

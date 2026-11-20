@@ -99,12 +99,14 @@ import {
   SHIPPING_ORDER_STATUS_FILTER_OPTIONS,
   writePersistedShippingOrderListState,
 } from "../../../utils/shippingOrderListState";
+import { formatDateDMY } from "utils/dateFormat";
+import DateField from "components/forms/DateField";
 
 const prettyTableDate = (value) => {
   if (!value || value === false) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return formatDateDMY(date);
 };
 
 /** Date Created: API `date_order` date only, e.g. "2026-10-01 00:00:00" → "01 Oct 2026". */
@@ -118,11 +120,7 @@ const getDateOrderDisplay = (order) => {
   const [, year, month, day] = match;
   const localDate = new Date(Number(year), Number(month) - 1, Number(day));
   if (Number.isNaN(localDate.getTime())) return `${day} ${month} ${year}`;
-  return localDate.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  return formatDateDMY(localDate);
 };
 
 const TruncatedText = ({ value, maxW = "160px", fontWeight, fontSize = "sm", onClick, cursor }) => {
@@ -159,7 +157,7 @@ const formatDate = (value) => {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString();
+  return formatDateDMY(date);
 };
 
 const formatCurrency = (value) => {
@@ -2030,9 +2028,8 @@ const SoNumberTab = () => {
                   <FormLabel fontSize="xs" mb="1" color={textColor}>
                     Edited by client since (optional)
                   </FormLabel>
-                  <Input
+                  <DateField
                     size="sm"
-                    type="date"
                     value={clientUpdatedSince}
                     onChange={(e) => {
                       setClientUpdatedSince(e.target.value);

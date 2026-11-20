@@ -10,6 +10,7 @@ import {
   toNumberOrNull,
   toNumericOrEmpty,
 } from "../cost/ledgerCostUtils";
+import { formatDateDMY } from "utils/dateFormat";
 
 export {
   formatCostDate,
@@ -107,7 +108,7 @@ export const prettySoDate = (value) => {
   if (parts.length !== 3) return raw;
   const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
   if (Number.isNaN(dt.getTime())) return raw;
-  return dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return formatDateDMY(dt);
 };
 
 export const displayOrDash = (value) => readApiText(value) || "—";

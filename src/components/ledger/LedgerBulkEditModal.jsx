@@ -24,6 +24,7 @@ import {
 } from "@chakra-ui/react";
 import { MdCheck } from "react-icons/md";
 import { BULK_MAX_IDS } from "utils/ledgerBulkEdit";
+import DateField from "components/forms/DateField";
 
 // fields: COST_BULK_FIELDS / INVOICE_BULK_FIELDS. onSubmit(enabledValues) where enabledValues is
 // { [key]: value | { auto: true } } for ticked fields only (pass to buildBulkUpdatePayload).
@@ -110,7 +111,7 @@ const LedgerBulkEditModal = ({
           renderAgentPicker(v, (next) => setValue(field.key, next), disabled)
         ) : null;
       case "date":
-        return <Input {...common} type="date" value={v} onChange={(e) => setValue(field.key, e.target.value)} />;
+        return <DateField {...common} value={v} onChange={(e) => setValue(field.key, e.target.value)} />;
       case "number":
         return (
           <Input {...common} type="number" step="any" value={v} onChange={(e) => setValue(field.key, e.target.value)} />

@@ -7,6 +7,7 @@ import {
   buildStockSoIdM2O,
   getShippingOrderDisplayLabel,
 } from "./shippingOrderListState";
+import { formatDateDMY, formatDateTimeDMYFull } from "utils/dateFormat";
 
 async function loadLetterheadOnPdf(doc) {
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -277,8 +278,8 @@ export async function buildStockReportPdfDocument(row) {
 
     const vesselPart = row.vessel && row.vessel !== "-" ? row.vessel : "-";
     const clientPart = row.client && row.client !== "-" ? row.client : "-";
-    const generatedAt = row.createDate && row.createDate !== "-" ? row.createDate : new Date().toLocaleString();
-    const statusUpdatedAt = row.writeDate && row.writeDate !== "-" ? row.writeDate : generatedAt;
+    const generatedAt = row.createDate && row.createDate !== "-" ? formatDateTimeDMYFull(row.createDate) : formatDateTimeDMYFull(new Date());
+    const statusUpdatedAt = row.writeDate && row.writeDate !== "-" ? formatDateTimeDMYFull(row.writeDate) : generatedAt;
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
@@ -518,15 +519,7 @@ export function createStockPdfRowHelpers({
             : ensureSoPrefix(soNumber);
     };
 
-    const formatDate = (dateString) => {
-        if (!dateString) return "-";
-        const isoDate = String(dateString).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
-        if (isoDate) return `${isoDate[3]}/${isoDate[2]}/${isoDate[1]}`;
-        const parsed = new Date(dateString);
-        return Number.isNaN(parsed.getTime())
-            ? String(dateString)
-            : parsed.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
-    };
+    const formatDate = (dateString) => (dateString ? formatDateDMY(dateString) : "-");
 
     const getStatusLabel = (status) => formatStatusForPdf(status);
 
@@ -1054,7 +1047,7 @@ export function createManualStockReportGenerator({
 export async function buildStockReportPdfAttachmentForItem(adminItem, helpers, meta = {}) {
     const itemForPdf = { ...adminItem };
     if (meta.changedByName) {
-        const statusChangeTime = new Date().toLocaleString();
+        const statusChangeTime = formatDateTimeDMYFull(new Date());
         itemForPdf.write_date = statusChangeTime;
     }
     const pdfRow = mapAdminStockItemToPdfRow(itemForPdf, helpers);

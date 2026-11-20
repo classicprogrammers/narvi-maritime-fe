@@ -1,6 +1,7 @@
 import React from "react";
 import { Box, Input, IconButton, Icon } from "@chakra-ui/react";
 import { MdCalendarToday } from "react-icons/md";
+import { maskDmyTyping, dmyToIsoStrict } from "utils/dateFormat";
 
 /** Local calendar date as YYYY-MM-DD (not UTC). */
 export const getLocalTodayIso = () => {
@@ -38,8 +39,6 @@ export const formatDateForApi = (value) => normalizeToIsoDate(value);
 
 export const formatIsoToDisplayDate = (value) => {
   if (value == null || value === false) return "";
-  // Keep raw text (including spaces) while typing free-form deadlines/notes.
-  // Only normalize when the value is a complete date.
   const text = String(value);
   const trimmed = text.trim();
   if (!trimmed) return text;
@@ -57,25 +56,51 @@ export const formatIsoToDisplayDate = (value) => {
   return text;
 };
 
+/**
+ * The one date field for the whole app. Shows and accepts DD/MM/YYYY only:
+ * digits with auto slashes, day 01-31, month 01-12, real calendar dates, plus a calendar picker.
+ * `value` may be YYYY-MM-DD or DD/MM/YYYY; `onChange` receives DD/MM/YYYY (or "" when cleared).
+ * Incomplete or impossible text stays local (red border) and is dropped on blur.
+ */
 export default function DmyDateInput({
   id,
   value,
   onChange,
+  onBlur,
   placeholder = "dd/mm/yyyy",
   iconColor = "whiteAlpha.900",
   max,
   ...inputProps
 }) {
   const pickerRef = React.useRef(null);
-  const displayValue = formatIsoToDisplayDate(value);
+  const [draft, setDraft] = React.useState(null);
+  const displayValue = draft != null ? draft : formatIsoToDisplayDate(value);
   const pickerValue = normalizeToIsoDate(value);
-  const emitChange = (next) => {
-    const iso = normalizeToIsoDate(next);
-    if (max && /^\d{4}-\d{2}-\d{2}$/.test(iso) && iso > max) {
+  const invalid = draft != null && draft.length === 10;
+
+  const commit = (iso, display) => {
+    setDraft(null);
+    if (max && iso > max) {
       onChange(max);
       return;
     }
-    onChange(next);
+    onChange(display);
+  };
+
+  const handleTyping = (text) => {
+    const raw = String(text ?? "");
+    if (raw.trim() === "") {
+      setDraft(null);
+      onChange("");
+      return;
+    }
+    const masked = maskDmyTyping(raw);
+    const iso = dmyToIsoStrict(masked);
+    if (iso) {
+      commit(iso, masked);
+      return;
+    }
+    setDraft(masked);
   };
 
   const openPicker = () => {
@@ -94,10 +119,18 @@ export default function DmyDateInput({
       <Input
         id={id}
         type="text"
+        inputMode="numeric"
+        maxLength={10}
+        autoComplete="off"
         value={displayValue}
-        onChange={(e) => emitChange(e.target.value)}
+        onChange={(e) => handleTyping(e.target.value)}
+        onBlur={(e) => {
+          setDraft(null);
+          if (onBlur) onBlur(e);
+        }}
         placeholder={placeholder}
         pr="28px"
+        isInvalid={invalid || inputProps.isInvalid}
         _placeholder={{ color: "whiteAlpha.800" }}
         {...inputProps}
       />
@@ -106,7 +139,15 @@ export default function DmyDateInput({
         type="date"
         value={pickerValue}
         max={max}
-        onChange={(e) => emitChange(formatIsoToDisplayDate(e.target.value))}
+        onChange={(e) => {
+          const iso = e.target.value;
+          if (!iso) {
+            setDraft(null);
+            onChange("");
+            return;
+          }
+          commit(iso, formatIsoToDisplayDate(iso));
+        }}
         position="absolute"
         opacity={0}
         pointerEvents="none"

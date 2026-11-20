@@ -73,6 +73,7 @@ import {
   recordToForm,
   validateCostForm,
 } from "./ledgerCostUtils";
+import DateField from "components/forms/DateField";
 
 const SO_PAGE_SIZE = 50;
 const LIST_PATH = "/admin/ledger/cost";
@@ -1039,8 +1040,7 @@ export default function CostFormPage() {
 
                 <FormControl>
                   <FormLabel {...fieldLabelProps}>Date Agent Invoice</FormLabel>
-                  <Input
-                    type="date"
+                  <DateField
                     value={form.date_agent_invoice}
                     onChange={(e) => setField("date_agent_invoice", e.target.value)}
                     {...controlProps}
@@ -1059,8 +1059,7 @@ export default function CostFormPage() {
 
                 <FormControl>
                   <FormLabel {...fieldLabelProps}>Date Agent Paid</FormLabel>
-                  <Input
-                    type="date"
+                  <DateField
                     value={form.date_agent_paid}
                     onChange={(e) => setField("date_agent_paid", e.target.value)}
                     {...controlProps}

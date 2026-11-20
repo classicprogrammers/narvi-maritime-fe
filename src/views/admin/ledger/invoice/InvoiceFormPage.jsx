@@ -72,6 +72,8 @@ import {
   recordToForm,
   validateInvoiceForm,
 } from "./ledgerInvoiceUtils";
+import { formatDateDMY } from "utils/dateFormat";
+import DateField from "components/forms/DateField";
 
 const SO_PAGE_SIZE = 50;
 const LIST_PATH = "/admin/ledger/invoice";
@@ -83,7 +85,7 @@ const formatRateDate = (iso) => {
   if (parts.length !== 3) return "";
   const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
   if (Number.isNaN(dt.getTime())) return "";
-  return dt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return formatDateDMY(dt);
 };
 
 function InvoiceAutosaveBadge({ mode, savedCaption, pulse }) {
@@ -881,8 +883,7 @@ export default function InvoiceFormPage() {
 
                 <FormControl>
                   <FormLabel {...fieldLabelProps}>Date Sales Invoice</FormLabel>
-                  <Input
-                    type="date"
+                  <DateField
                     value={form.date_sales_invoice}
                     onChange={(e) => setField("date_sales_invoice", e.target.value)}
                     {...controlProps}
@@ -981,8 +982,7 @@ export default function InvoiceFormPage() {
                       />
                     ) : null}
                   </FormLabel>
-                  <Input
-                    type="date"
+                  <DateField
                     value={dueShown || ""}
                     onChange={(e) => setForm((prev) => ({ ...prev, ...applyDueDateInput(e.target.value) }))}
                     {...controlProps}
@@ -1006,8 +1006,7 @@ export default function InvoiceFormPage() {
 
                 <FormControl>
                   <FormLabel {...fieldLabelProps}>Date Paid</FormLabel>
-                  <Input
-                    type="date"
+                  <DateField
                     value={form.date_paid}
                     onChange={(e) => setField("date_paid", e.target.value)}
                     {...controlProps}

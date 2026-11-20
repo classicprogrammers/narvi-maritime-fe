@@ -44,6 +44,7 @@ import {
 } from "../../../utils/stockLocationOptions";
 import { formatStockValueDisplay } from "../../../utils/stockValue";
 import { formatVolumeCbm } from "../../../utils/stockVolume";
+import { formatDateDMY } from "utils/dateFormat";
 
 export {
     STATUS_CONFIG,
@@ -179,9 +180,7 @@ export function getSoNumberNameFromNumber(soNumber, shippingOrders = []) {
 }
 
 export function formatDate(dateString) {
-    if (!dateString) return "-";
-    const parsed = new Date(dateString);
-    return Number.isNaN(parsed.getTime()) ? dateString : parsed.toLocaleDateString();
+    return dateString ? formatDateDMY(dateString) : "-";
 }
 
 export function renderText(value) {

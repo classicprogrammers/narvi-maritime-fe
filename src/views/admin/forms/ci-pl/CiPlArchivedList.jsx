@@ -21,11 +21,12 @@ import {
   listCiplSimpleArchivedFormsApi,
   postCiplSimpleFormDeleteApi,
 } from "../../../../api/cipl";
+import { formatDateTimeDMYFull } from "utils/dateFormat";
 
 const formatDateTime = (value) => {
   if (!value) return "-";
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
+  return Number.isNaN(parsed.getTime()) ? String(value) : formatDateTimeDMYFull(parsed);
 };
 
 const resolveLabel = (field) => {
