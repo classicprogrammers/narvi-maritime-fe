@@ -254,9 +254,6 @@ export default function CostFormPage() {
       if (field === "currency_amount") {
         next.usd_cost = "";
       }
-      if (field === "currency_amount" || field === "gst_input_tax") {
-        next.gst_in_amount = "";
-      }
       return next;
     });
   }, []);
@@ -782,9 +779,9 @@ export default function CostFormPage() {
                 rowGap={3}
                 alignItems="start"
               >
-                <FormControl gridColumn={{ md: "span 2" }}>
-                  <FormLabel {...fieldLabelProps}>Invoices</FormLabel>
-                  <Textarea
+                <FormControl>
+                  <FormLabel {...fieldLabelProps}>Invoice Number</FormLabel>
+                  <Input
                     ref={invoicesRef}
                     value={form.invoices}
                     onChange={(e) => setField("invoices", e.target.value)}
@@ -795,9 +792,7 @@ export default function CostFormPage() {
                       if (isOtherAgentPending) setIsOtherAgentOpen(true);
                       else runOtherAgentCheck(form);
                     }}
-                    bg={inputBg}
-                    minH="80px"
-                    rows={3}
+                    {...controlProps}
                   />
                   {isChecking ? (
                     <Flex align="center" gap={2} mt={1}>
@@ -811,6 +806,17 @@ export default function CostFormPage() {
                       Could not check for duplicates. The server will check when you save.
                     </Text>
                   ) : null}
+                </FormControl>
+
+                <FormControl gridColumn={{ md: "span 2" }}>
+                  <FormLabel {...fieldLabelProps}>Internal Remarks</FormLabel>
+                  <Textarea
+                    value={form.internal_remarks}
+                    onChange={(e) => setField("internal_remarks", e.target.value)}
+                    bg={inputBg}
+                    minH="120px"
+                    rows={5}
+                  />
                 </FormControl>
 
                 <FormControl isRequired>
@@ -1017,24 +1023,14 @@ export default function CostFormPage() {
                 </FormControl>
 
                 <FormControl>
-                  <FormLabel {...fieldLabelProps}>GST Input Tax (%)</FormLabel>
+                  <FormLabel {...fieldLabelProps}>GST in Amount</FormLabel>
                   <Input
                     type="number"
                     step="any"
-                    value={form.gst_input_tax}
-                    onChange={(e) => setField("gst_input_tax", e.target.value)}
+                    value={form.gst_in_amount}
+                    onChange={(e) => setField("gst_in_amount", e.target.value)}
+                    placeholder="Only if applicable"
                     {...controlProps}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel {...fieldLabelProps}>GST in Amount</FormLabel>
-                  <Input
-                    isReadOnly
-                    value={form.gst_in_amount === "" ? "" : formatCostNumber(form.gst_in_amount, 4)}
-                    placeholder="Filled by server"
-                    {...controlProps}
-                    bg={readonlyBg}
                   />
                 </FormControl>
 
@@ -1103,7 +1099,7 @@ export default function CostFormPage() {
               <Text fontSize="xs" color="gray.500" mt={5}>
                 Required to create: SO Number, Agent and Currency Amount. The rate of exchange and due date
                 are filled automatically unless you type them. After that, changes save automatically. USD
-                Cost, GST in Amount, client, vessel, destination, SO dates/status, and currency code are
+                Cost, client, vessel, destination, SO dates/status, and currency code are
                 filled by the server after save.
               </Text>
             </>

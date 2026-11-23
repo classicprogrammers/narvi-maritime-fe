@@ -142,6 +142,20 @@ export const checkLedgerCostInvoices = async ({ agent_id, invoices, exclude_id }
   return { has_duplicates: Boolean(payload.has_duplicates) || duplicates.length > 0, duplicates };
 };
 
+// Totals for the ticked cost rows, one line per currency (cancelled rows are skipped by the server)
+export const getLedgerCostSummary = async (ids) => {
+  const response = await api.post("/api/ledger/cost/summary", { ids });
+  const data = response.data || response;
+  unwrapError(data, "Failed to load the selection totals");
+  const payload = data?.result && data.result.by_currency != null ? data.result : data;
+  return {
+    count: Number(payload.count) || 0,
+    by_currency: Array.isArray(payload.by_currency) ? payload.by_currency : [],
+    total_usd_cost: Number(payload.total_usd_cost) || 0,
+    mixed_currencies: Boolean(payload.mixed_currencies),
+  };
+};
+
 // Invoice numbers already booked under another agent (agents sometimes reuse a number, so this only warns)
 export const findCostInvoicesUnderOtherAgents = async ({ invoices, agent_id, exclude_id }) => {
   const numbers = splitInvoiceNumbers(invoices).slice(0, 10);
@@ -163,5 +177,6 @@ export default {
   cancelLedgerCost,
   bulkUpdateLedgerCosts,
   checkLedgerCostInvoices,
+  getLedgerCostSummary,
   findCostInvoicesUnderOtherAgents,
 };

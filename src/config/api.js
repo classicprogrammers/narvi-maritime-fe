@@ -59,6 +59,7 @@ export const API_CONFIG = {
     LEDGER_AGENT_OPTIONS: "/api/ledger/agent/options",
     LEDGER_COST_BULK_UPDATE: "/api/ledger/cost/bulk-update",
     LEDGER_COST_CHECK_INVOICE: "/api/ledger/cost/check-invoice",
+    LEDGER_COST_SUMMARY: "/api/ledger/cost/summary",
     LEDGER_INVOICE_BULK_UPDATE: "/api/ledger/invoice/bulk-update",
     LEDGER_SO: "/api/ledger/so",
     LEDGER_SO_CREATE: "/api/ledger/so/create",

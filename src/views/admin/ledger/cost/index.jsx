@@ -66,6 +66,7 @@ import { getCached, MASTER_KEYS } from "utils/masterDataCache";
 import SearchableSelect from "components/forms/SearchableSelect";
 import LedgerAutoTag from "components/ledger/LedgerAutoTag";
 import LedgerBulkEditModal from "components/ledger/LedgerBulkEditModal";
+import CostSelectionSummary from "./CostSelectionSummary";
 import LedgerDateRangeFilterModal from "components/ledger/LedgerDateRangeFilterModal";
 import LedgerRecordViewModal from "components/ledger/LedgerRecordViewModal";
 import LedgerSortableHeader from "components/ledger/LedgerSortableHeader";
@@ -802,7 +803,6 @@ export default function LedgerCost() {
             {formatCostNumber(row.usd_cost, 4)}
           </Text>
         );
-      case "gst_input_tax":
       case "gst_in_amount":
         return (
           <Text sx={{ fontVariantNumeric: "tabular-nums" }} whiteSpace="nowrap">
@@ -857,7 +857,7 @@ export default function LedgerCost() {
         );
       }
       default:
-        // longtext (client case ref, invoices)
+        // text / longtext (client case ref, invoice number, internal remarks)
         return <TruncatedText value={row[col.key]} maxW="200px" />;
     }
   };
@@ -895,7 +895,7 @@ export default function LedgerCost() {
                   <MdSearch color={searchIconColor} />
                 </InputLeftElement>
                 <Input
-                  placeholder="Search SO, invoices, destination, agent, agent code, company, client, client case ref..."
+                  placeholder="Search SO, invoice number, destination, agent, agent code, company, client, client case ref..."
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
                   autoComplete="off"
@@ -1161,6 +1161,7 @@ export default function LedgerCost() {
               )}
             </Flex>
           )}
+          <CostSelectionSummary ids={selectedIds} borderColor={tableBorderColor} />
           {isLoading && records.length === 0 ? (
             <Flex justify="center" align="center" py={16}>
               <Spinner />

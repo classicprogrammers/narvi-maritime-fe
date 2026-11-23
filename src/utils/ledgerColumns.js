@@ -17,9 +17,9 @@ export const COST_COLUMNS = [
   { key: "currency_amount", label: "Amount", sortKey: "currency_amount", type: "number", minW: "120px" },
   { key: "roe_invoice_date", label: "ROE", sortKey: "roe_invoice_date", type: "roe", minW: "110px", covers: ["roe_manual", "roe_date"] },
   { key: "usd_cost", label: "USD Cost", sortKey: "usd_cost", type: "number", minW: "110px" },
-  { key: "gst_input_tax", label: "GST Input Tax %", type: "number", minW: "110px" },
   { key: "gst_in_amount", label: "GST In Amount", type: "number", minW: "110px" },
-  { key: "invoices", label: "Invoices", sortKey: "invoices", type: "longtext", minW: "160px" },
+  { key: "invoice_number", label: "Invoice Number", sortKey: "invoices", type: "text", minW: "140px", covers: ["invoices"] },
+  { key: "internal_remarks", label: "Internal Remarks", type: "longtext", minW: "200px" },
   { key: "date_agent_invoice", label: "Invoice Date", sortKey: "date_agent_invoice", type: "date", minW: "110px" },
   { key: "date_due_agent", label: "Due", sortKey: "date_due_agent", type: "due", minW: "110px", covers: ["date_due_manual"] },
   { key: "date_agent_paid", label: "Paid", sortKey: "date_agent_paid", type: "date", minW: "110px" },
@@ -54,6 +54,7 @@ export const INVOICE_COLUMNS = [
   { key: "customer_billing_remarks", label: "Customer Billing Remarks", type: "longtext", minW: "180px" },
   { key: "payment_remark", label: "Payment Remark", type: "longtext", minW: "160px" },
   { key: "so_remark", label: "SO Remark", type: "longtext", minW: "160px" },
+  { key: "internal_remarks", label: "Internal Remarks", type: "longtext", minW: "200px" },
 ];
 
 // Table-view entry columns = writable fields, in form order.
@@ -68,8 +69,9 @@ export const COST_TABLE_ENTRY_COLUMNS = [
   { key: "currency_id", label: "Currency", type: "currency", minW: "110px" },
   { key: "currency_amount", label: "Amount", type: "number", minW: "120px", required: true },
   { key: "roe_invoice_date", label: "ROE", type: "roe", minW: "130px" },
-  { key: "gst_input_tax", label: "GST Input Tax %", type: "number", minW: "110px" },
-  { key: "invoices", label: "Invoices", type: "textarea", minW: "180px" },
+  { key: "gst_in_amount", label: "GST In Amount", type: "number", minW: "110px" },
+  { key: "invoices", label: "Invoice Number", type: "text", minW: "140px" },
+  { key: "internal_remarks", label: "Internal Remarks", type: "textarea", minW: "220px" },
   { key: "date_agent_invoice", label: "Invoice Date", type: "date", minW: "140px" },
   { key: "date_due_agent", label: "Due", type: "due", minW: "140px" },
   { key: "date_agent_paid", label: "Paid", type: "date", minW: "140px" },
@@ -95,4 +97,5 @@ export const INVOICE_TABLE_ENTRY_COLUMNS = [
   { key: "customer_billing_remarks", label: "Customer Billing Remarks", type: "textarea", minW: "180px" },
   { key: "payment_remark", label: "Payment Remark", type: "textarea", minW: "160px" },
   { key: "so_remark", label: "SO Remark", type: "textarea", minW: "160px" },
+  { key: "internal_remarks", label: "Internal Remarks", type: "textarea", minW: "220px" },
 ];

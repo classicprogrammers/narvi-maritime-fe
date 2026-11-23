@@ -37,8 +37,8 @@ export const emptyCostForm = () => ({
   roe_invoice_date: "",
   roe_manual: false,
   roe_date: "",
-  gst_input_tax: "",
   invoices: "",
+  internal_remarks: "",
   date_agent_invoice: "",
   date_due_agent: "",
   date_due_manual: false,
@@ -217,11 +217,9 @@ export const recordToForm = (record) => {
     roe_invoice_date: roe.value,
     roe_manual: roe.manual,
     roe_date: toDateOnly(record.roe_date),
-    gst_input_tax: toNumericOrEmpty(record.gst_input_tax),
-    invoices:
-      record.invoices && record.invoices !== false
-        ? String(record.invoices)
-        : "",
+    // invoice_number replaces invoices; the old key is still read as a fallback
+    invoices: textOrEmpty(record.invoice_number) || textOrEmpty(record.invoices),
+    internal_remarks: textOrEmpty(record.internal_remarks),
     date_agent_invoice: toDateOnly(record.date_agent_invoice),
     date_due_agent: dueDate,
     date_due_manual: dueManual,
@@ -301,9 +299,10 @@ export const buildCreatePayload = (form) => {
   if (roe != null) payload.roe_invoice_date = roe;
   const currencyId = toIdOrNull(form.currency_id);
   if (currencyId != null) payload.currency_id = currencyId;
-  const gst = toNumberOrNull(form.gst_input_tax);
-  if (gst != null) payload.gst_input_tax = gst;
-  if (form.invoices) payload.invoices = form.invoices;
+  const gstIn = toNumberOrNull(form.gst_in_amount);
+  if (gstIn != null) payload.gst_in_amount = gstIn;
+  if (form.invoices) payload.invoice_number = form.invoices;
+  if (form.internal_remarks) payload.internal_remarks = form.internal_remarks;
   if (form.date_agent_invoice)
     payload.date_agent_invoice = form.date_agent_invoice;
   const due = writableAutoValue(form, "date_due_agent", "date_due_manual");
@@ -330,11 +329,14 @@ export const buildUpdatePayload = (form, originalForm, recordId) => {
   }
   const roeDiff = diffAutoNumber(form, originalForm, "roe_invoice_date", "roe_manual");
   if (roeDiff !== undefined) payload.roe_invoice_date = roeDiff;
-  if (!sameNumber(form.gst_input_tax, originalForm.gst_input_tax)) {
-    payload.gst_input_tax = toNumberOrNull(form.gst_input_tax);
+  if (!sameNumber(form.gst_in_amount, originalForm.gst_in_amount)) {
+    payload.gst_in_amount = toNumberOrNull(form.gst_in_amount);
   }
   if (!sameValue(form.invoices, originalForm.invoices)) {
-    payload.invoices = form.invoices || false;
+    payload.invoice_number = form.invoices || false;
+  }
+  if (!sameValue(form.internal_remarks, originalForm.internal_remarks)) {
+    payload.internal_remarks = form.internal_remarks || false;
   }
   if (!sameValue(form.date_agent_invoice, originalForm.date_agent_invoice)) {
     payload.date_agent_invoice = form.date_agent_invoice || false;
@@ -374,8 +376,9 @@ export const getWritableCostFields = (form) => ({
   roe_invoice_date:
     toNumberOrNull(writableAutoValue(form, "roe_invoice_date", "roe_manual")) ?? "",
   roe_manual: Boolean(form?.roe_manual),
-  gst_input_tax: toNumberOrNull(form?.gst_input_tax) ?? "",
+  gst_in_amount: toNumberOrNull(form?.gst_in_amount) ?? "",
   invoices: String(form?.invoices || "").trim(),
+  internal_remarks: String(form?.internal_remarks || "").trim(),
   date_agent_invoice: form?.date_agent_invoice || "",
   date_due_agent: writableAutoValue(form, "date_due_agent", "date_due_manual") || "",
   date_due_manual: Boolean(form?.date_due_manual),
@@ -419,7 +422,6 @@ export const applyComputedFromRecord = (form, record) => {
     agent_detail: fromApi.agent_detail,
     currency_code: fromApi.currency_code,
     usd_cost: fromApi.usd_cost,
-    gst_in_amount: fromApi.gst_in_amount,
   };
 };
 

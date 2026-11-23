@@ -17,7 +17,8 @@ export const COST_BULK_FIELDS = [
   { key: "agent_id", label: "Agent", type: "agent" },
   { key: "currency_id", label: "Currency", type: "currency" },
   { key: "roe_invoice_date", label: "ROE on Invoice Date", type: "number", auto: true },
-  { key: "gst_input_tax", label: "GST Input Tax %", type: "number" },
+  { key: "gst_in_amount", label: "GST In Amount", type: "number" },
+  { key: "internal_remarks", label: "Internal Remarks", type: "textarea" },
   { key: "date_agent_invoice", label: "Agent Invoice Date", type: "date" },
   { key: "date_due_agent", label: "Due Date", type: "date", auto: true },
   { key: "date_agent_paid", label: "Agent Paid Date", type: "date" },
@@ -34,6 +35,7 @@ export const INVOICE_BULK_FIELDS = [
   { key: "customer_billing_remarks", label: "Customer Billing Remarks", type: "textarea" },
   { key: "payment_remark", label: "Payment Remark", type: "textarea" },
   { key: "so_remark", label: "SO Remark", type: "textarea" },
+  { key: "internal_remarks", label: "Internal Remarks", type: "textarea" },
 ];
 
 const FIELD_LOOKUP = [...COST_BULK_FIELDS, ...INVOICE_BULK_FIELDS].reduce((acc, f) => {

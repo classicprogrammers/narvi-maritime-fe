@@ -106,3 +106,25 @@ describe("ledgerCostUtils auto fields", () => {
     expect(fillCostFromShippingOrder(null).client_case_invoice_ref).toBe("");
   });
 });
+
+describe("cost payload: invoice number, internal remarks, GST in amount", () => {
+  const { buildCreatePayload, buildUpdatePayload, recordToForm, emptyCostForm } = require("./ledgerCostUtils");
+
+  test("create sends invoice_number, internal_remarks and gst_in_amount, never gst_input_tax", () => {
+    const form = { ...emptyCostForm(), sale_order_id: 1, agent_id: 2, currency_amount: "10", invoices: "INV-1", internal_remarks: "note", gst_in_amount: "7.5" };
+    const payload = buildCreatePayload(form);
+    expect(payload).toMatchObject({ invoice_number: "INV-1", internal_remarks: "note", gst_in_amount: 7.5 });
+    expect(payload).not.toHaveProperty("invoices");
+    expect(payload).not.toHaveProperty("gst_input_tax");
+  });
+
+  test("update sends only changed fields and clears gst_in_amount with null", () => {
+    const original = recordToForm({ id: 1, invoice_number: "A", internal_remarks: "x", gst_in_amount: 5 });
+    const payload = buildUpdatePayload({ ...original, gst_in_amount: "", invoices: "B" }, original, 1);
+    expect(payload).toEqual({ id: 1, gst_in_amount: null, invoice_number: "B" });
+  });
+
+  test("recordToForm falls back to the old invoices key", () => {
+    expect(recordToForm({ invoices: "OLD" }).invoices).toBe("OLD");
+  });
+});

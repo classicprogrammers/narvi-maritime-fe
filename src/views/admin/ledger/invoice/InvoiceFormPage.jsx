@@ -1152,6 +1152,17 @@ export default function InvoiceFormPage() {
                   />
                 </FormControl>
 
+                <FormControl gridColumn={{ md: "span 2" }}>
+                  <FormLabel {...fieldLabelProps}>Internal Remarks</FormLabel>
+                  <Textarea
+                    value={form.internal_remarks}
+                    onChange={(e) => setField("internal_remarks", e.target.value)}
+                    bg={inputBg}
+                    minH="120px"
+                    rows={5}
+                  />
+                </FormControl>
+
                 <LedgerInvoiceFilesField
                   labelProps={fieldLabelProps}
                   files={invoiceFilesOf(editingRecord)}

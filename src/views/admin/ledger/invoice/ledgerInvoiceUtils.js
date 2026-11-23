@@ -64,6 +64,7 @@ export const emptyInvoiceForm = () => ({
   customer_billing_remarks: "",
   payment_remark: "",
   so_remark: "",
+  internal_remarks: "",
   so_number: "",
   so_create_date: "",
   so_status: "",
@@ -228,6 +229,8 @@ export const recordToForm = (record) => {
     payment_remark:
       record.payment_remark && record.payment_remark !== false ? String(record.payment_remark) : "",
     so_remark: record.so_remark && record.so_remark !== false ? String(record.so_remark) : "",
+    internal_remarks:
+      record.internal_remarks && record.internal_remarks !== false ? String(record.internal_remarks) : "",
     so_number: record.so_number && record.so_number !== false ? String(record.so_number) : "",
     so_create_date: toDateOnly(record.so_create_date),
     so_status: record.so_status && record.so_status !== false ? String(record.so_status) : "",
@@ -311,6 +314,7 @@ export const buildCreatePayload = (form) => {
   if (form.customer_billing_remarks) payload.customer_billing_remarks = form.customer_billing_remarks;
   if (form.payment_remark) payload.payment_remark = form.payment_remark;
   if (form.so_remark) payload.so_remark = form.so_remark;
+  if (form.internal_remarks) payload.internal_remarks = form.internal_remarks;
   return payload;
 };
 
@@ -362,6 +366,9 @@ export const buildUpdatePayload = (form, originalForm, recordId) => {
   if (!sameValue(form.so_remark, originalForm.so_remark)) {
     payload.so_remark = form.so_remark || false;
   }
+  if (!sameValue(form.internal_remarks, originalForm.internal_remarks)) {
+    payload.internal_remarks = form.internal_remarks || false;
+  }
   return payload;
 };
 
@@ -397,6 +404,7 @@ export const getWritableInvoiceFields = (form) => ({
   customer_billing_remarks: String(form?.customer_billing_remarks || "").trim(),
   payment_remark: String(form?.payment_remark || "").trim(),
   so_remark: String(form?.so_remark || "").trim(),
+  internal_remarks: String(form?.internal_remarks || "").trim(),
 });
 
 export const getWritableInvoiceSignature = (form) => JSON.stringify(getWritableInvoiceFields(form));

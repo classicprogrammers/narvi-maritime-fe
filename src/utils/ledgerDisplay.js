@@ -47,11 +47,11 @@ const relationName = (v) => {
   return clean(v);
 };
 
-const viewNumber = (v) => {
+const viewNumber = (v, maxDigits = 2) => {
   const text = clean(v);
   if (!text) return "";
   const n = Number(text);
-  return Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : text;
+  return Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: maxDigits }) : text;
 };
 
 const viewDate = (v) => clean(v).split(" ")[0].slice(0, 10);
@@ -66,7 +66,7 @@ export const ledgerViewValue = (column, record) => {
     case "number":
       return viewNumber(row[key]);
     case "roe": {
-      const roe = viewNumber(row[key]);
+      const roe = viewNumber(row[key], 6);
       return roe ? `${roe} (${row.roe_manual ? "manual" : "auto"})` : "";
     }
     case "due": {

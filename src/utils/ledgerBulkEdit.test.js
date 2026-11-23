@@ -30,7 +30,7 @@ describe("ledgerBulkEdit", () => {
       roe_invoice_date: { auto: true },
       date_due_agent: { auto: true },
       date_agent_paid: "",
-      gst_input_tax: "",
+      gst_in_amount: "",
       agent_id: "",
       biz_category: "",
     });
@@ -38,7 +38,7 @@ describe("ledgerBulkEdit", () => {
       roe_invoice_date: null,
       date_due_agent: false,
       date_agent_paid: false,
-      gst_input_tax: null,
+      gst_in_amount: null,
       agent_id: null,
       biz_category: false,
     });

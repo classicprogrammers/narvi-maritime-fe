@@ -68,3 +68,23 @@ describe("ledgerCost api", () => {
     });
   });
 });
+
+describe("ledgerCost summary api", () => {
+  test("posts ids and normalises the response", async () => {
+    api.post.mockResolvedValue({
+      data: {
+        status: "success",
+        count: 2,
+        by_currency: [{ currency: "SGD", count: 2, currency_amount: 1500, usd_cost: 1174.87, gst_in_amount: 105 }],
+        total_usd_cost: 1174.87,
+        mixed_currencies: false,
+      },
+    });
+    const { getLedgerCostSummary } = require("./ledgerCost");
+    const res = await getLedgerCostSummary([12, 15]);
+    expect(api.post).toHaveBeenCalledWith("/api/ledger/cost/summary", { ids: [12, 15] });
+    expect(res.total_usd_cost).toBe(1174.87);
+    expect(res.by_currency).toHaveLength(1);
+    expect(res.mixed_currencies).toBe(false);
+  });
+});
