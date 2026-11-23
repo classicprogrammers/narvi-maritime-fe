@@ -849,14 +849,6 @@ export default function Stocks({ variant = "stocks" } = {}) {
         originTextOptions: stockOriginTextOptions,
         clientFilterOptions,
         vesselFilterOptions,
-        soFilterOptions,
-        siNumberFilterOptions,
-        siCombinedFilterOptions,
-        diNoFilterOptions,
-        poTextFilterOptions,
-        reqNoFilterOptions,
-        stockItemIdFilterOptions,
-        warehouseFilterOptions,
         isLoading: isLoadingDestinationOptions,
         setQDestination,
         setQViaHub1,
@@ -1044,25 +1036,20 @@ export default function Stocks({ variant = "stocks" } = {}) {
         setApiFetchTrigger((t) => t + 1);
     });
 
-    // Server-searched dropdown for text-valued Stock View filters (SO, SI, DI, PO, Req No, ...).
-    // Options come from POST /api/stock/list/options and follow the other selected filters.
-    const renderStockViewOptionFilter = ({ value, options, placeholder, setter, queryKey }) => (
+    // Free-text (partial match) input for text-valued Stock View filters (SO, SI, DI, PO, Req No, ...).
+    const renderStockViewTextFilter = ({ value, placeholder, setter }) => (
         <Box w="220px" minW="200px">
-            <SearchableSelect
-                value={value ? String(value) : ""}
-                onChange={(next) => commitTextFilter(setter, next ? String(next) : "")}
-                onSearchChange={(text) => setExtraQuery(queryKey, text)}
-                serverSideSearch
-                options={options}
+            <DebouncedTextFilterInput
+                key={textFilterResetKey}
+                value={value}
+                onChange={(next) => commitTextFilter(setter, next)}
                 placeholder={placeholder}
-                displayKey="name"
-                valueKey="value"
-                formatOption={(option) => option.name || String(option.value ?? "")}
-                fallbackDisplay={value ? String(value) : ""}
-                isLoading={isLoadingDestinationOptions}
                 bg={inputBg}
                 color={inputText}
                 borderColor={borderColor}
+                showAdjacentClear
+                clearAriaLabel={`Clear ${placeholder} filter`}
+                pl="8"
             />
         </Box>
     );
@@ -5711,12 +5698,10 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                     </HStack>
                                                     <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
                                                         {/* Stock Item ID Filter */}
-                                                        {renderStockViewOptionFilter({
+                                                        {renderStockViewTextFilter({
                                                             value: stockViewStockItemId,
-                                                            options: stockItemIdFilterOptions,
                                                             placeholder: "Filter by Stock Item ID",
                                                             setter: setStockViewStockItemId,
-                                                            queryKey: "q_stock_item_id",
                                                         })}
 
                                                         {/* Client Filter */}
@@ -5861,48 +5846,38 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                         </Box>
 
                                                         {/* Warehouse ID Filter */}
-                                                        {renderStockViewOptionFilter({
+                                                        {renderStockViewTextFilter({
                                                             value: stockViewFilterWarehouseNew,
-                                                            options: warehouseFilterOptions,
                                                             placeholder: "Filter by Warehouse ID",
                                                             setter: setStockViewFilterWarehouseNew,
-                                                            queryKey: "q_warehouse",
                                                         })}
 
                                                         {/* SO Number Filter */}
-                                                        {renderStockViewOptionFilter({
+                                                        {renderStockViewTextFilter({
                                                             value: stockViewFilterSO,
-                                                            options: soFilterOptions,
                                                             placeholder: "Filter by SO Number",
                                                             setter: setStockViewFilterSO,
-                                                            queryKey: "q_so",
                                                         })}
 
                                                         {/* SI Number Filter */}
-                                                        {renderStockViewOptionFilter({
+                                                        {renderStockViewTextFilter({
                                                             value: stockViewFilterSI,
-                                                            options: siNumberFilterOptions,
                                                             placeholder: "Filter by SI Number",
                                                             setter: setStockViewFilterSI,
-                                                            queryKey: "q_si_number",
                                                         })}
 
                                                         {/* SI Combined Filter */}
-                                                        {renderStockViewOptionFilter({
+                                                        {renderStockViewTextFilter({
                                                             value: stockViewFilterSICombined,
-                                                            options: siCombinedFilterOptions,
                                                             placeholder: "Filter by SI Combined",
                                                             setter: setStockViewFilterSICombined,
-                                                            queryKey: "q_si_combined",
                                                         })}
 
                                                         {/* DI Number Filter */}
-                                                        {renderStockViewOptionFilter({
+                                                        {renderStockViewTextFilter({
                                                             value: stockViewFilterDI,
-                                                            options: diNoFilterOptions,
                                                             placeholder: "Filter by DI Number",
                                                             setter: setStockViewFilterDI,
-                                                            queryKey: "q_di_no",
                                                         })}
 
                                                         {/* Via HUB 1 Filter */}
@@ -6065,20 +6040,16 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                             </HStack>
                                                         </Box>
                                                         {/* Req No Filter */}
-                                                        {renderStockViewOptionFilter({
+                                                        {renderStockViewTextFilter({
                                                             value: stockViewFilterReqNo,
-                                                            options: reqNoFilterOptions,
                                                             placeholder: "Filter by Req No...",
                                                             setter: setStockViewFilterReqNo,
-                                                            queryKey: "q_req_no",
                                                         })}
                                                         {/* PO Number Filter */}
-                                                        {renderStockViewOptionFilter({
+                                                        {renderStockViewTextFilter({
                                                             value: stockViewFilterPO,
-                                                            options: poTextFilterOptions,
                                                             placeholder: "Filter by PO number...",
                                                             setter: setStockViewFilterPO,
-                                                            queryKey: "q_po_text",
                                                         })}
                                                         {/* Has Destination Filter */}
                                                         <Box w="220px" minW="200px" display="flex" alignItems="center">
