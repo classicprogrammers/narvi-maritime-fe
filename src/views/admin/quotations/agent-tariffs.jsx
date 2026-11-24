@@ -26,7 +26,8 @@ import {
   writePersistedAgentTariffState,
 } from "../../../utils/agentTariffState";
 import FetchAllSwitch from "./FetchAllSwitch";
-import { buildPdfModel } from "./rateListPdf";
+import { exportScopeProblem } from "../../../utils/clientTariffSections";
+import { buildTypeTariffPdfModel, loadConsigneeText, PDF_TYPE_LABELS } from "./typeTariffPdf";
 import { downloadSheetAsExcel } from "./rateListExcel";
 import usePdfPreview from "./usePdfPreview";
 import TariffTable from "./TariffTable";
@@ -182,30 +183,46 @@ export default function AgentTariffs() {
 
   // Exports always cover every matching record, whatever the page / fetch all setting.
   const handleExport = async (kind) => {
+    // A PDF is for one agent in one location, so the group order of that agent / location applies.
+    if (kind !== "excel") {
+      const problem = exportScopeProblem(filters);
+      if (problem) {
+        toast({ title: "Cannot export", description: problem, status: "warning", duration: 3500, isClosable: true });
+        return;
+      }
+    }
     setExporting(kind);
     try {
       const result = await getAgentRateTariffsApi({
         ...optionsPayload,
         ...AGENT_TARIFF_EXPORT_SORT,
+        // The Export / Import + DOB PDFs name their own type.
+        ...(PDF_TYPE_LABELS[kind] ? { shipment_type: kind } : {}),
         search: debouncedSearch || undefined,
         active: filters.active === "" ? undefined : filters.active === "true",
         fetch_all: true,
       });
       const all = Array.isArray(result.data) ? result.data : [];
       if (!all.length) {
-        toast({ title: "No tariffs to export", status: "info", duration: 3000, isClosable: true });
+        toast({
+          title: PDF_TYPE_LABELS[kind] ? `No ${PDF_TYPE_LABELS[kind]} tariffs to export` : "No tariffs to export",
+          status: "info",
+          duration: 3000,
+          isClosable: true,
+        });
         return;
       }
-      if (kind === "pdf") {
-        const head = COLUMNS.map((column) => column.label);
-        const body = toTableRows(COLUMNS, all);
-        const scope = [pins.agent_id?.name, filters.location, filters.import_group].filter(Boolean).join(" · ");
+      if (kind !== "excel") {
+        // Export and Import + DOB are two separate PDFs: Standard charges first, then If Apply charges.
+        const consignee = await loadConsigneeText(filters.agent_id);
         await openPdf(
-          buildPdfModel({
-            title: "Agent Tariff",
-            scopeLabel: scope,
-            sections: [{ head, body }],
-            filenameSuffix: "agent-tariff",
+          buildTypeTariffPdfModel({
+            shipmentType: kind,
+            rows: all,
+            location: filters.location,
+            scopeLabel: pins.agent_id?.name || "",
+            consignee,
+            filenameSuffix: `agent-tariff-${kind.replace("_", "-")}`,
           })
         );
       } else {
@@ -309,12 +326,24 @@ export default function AgentTariffs() {
             size="sm"
             colorScheme="blue"
             leftIcon={<Icon as={MdPictureAsPdf} />}
-            onClick={() => handleExport("pdf")}
-            isLoading={exporting === "pdf"}
+            onClick={() => handleExport("export")}
+            isLoading={exporting === "export"}
             loadingText="Generating..."
             isDisabled={meta.totalCount === 0}
           >
             Export PDF
+          </Button>
+          <Button
+            size="sm"
+            colorScheme="blue"
+            variant="outline"
+            leftIcon={<Icon as={MdPictureAsPdf} />}
+            onClick={() => handleExport("import_dob")}
+            isLoading={exporting === "import_dob"}
+            loadingText="Generating..."
+            isDisabled={meta.totalCount === 0}
+          >
+            Import + DOB PDF
           </Button>
           <Button
             size="sm"

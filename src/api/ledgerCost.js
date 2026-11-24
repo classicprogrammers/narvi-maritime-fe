@@ -77,6 +77,11 @@ export const getLedgerCosts = async (params = {}) => {
   return {
     status: data.status || "success",
     data: list,
+    columns: Array.isArray(data.columns)
+      ? data.columns
+      : Array.isArray(data?.result?.columns)
+        ? data.result.columns
+        : null,
     count: data.count ?? list.length,
     total_count: data.total_count ?? list.length,
     page: data.page ?? page,

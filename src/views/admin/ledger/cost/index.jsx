@@ -70,7 +70,7 @@ import CostSelectionSummary from "./CostSelectionSummary";
 import LedgerDateRangeFilterModal from "components/ledger/LedgerDateRangeFilterModal";
 import LedgerRecordViewModal from "components/ledger/LedgerRecordViewModal";
 import LedgerSortableHeader from "components/ledger/LedgerSortableHeader";
-import { COST_COLUMNS } from "utils/ledgerColumns";
+import { COST_COLUMNS, mergeServerColumns } from "utils/ledgerColumns";
 import {
   BULK_MAX_IDS,
   COST_BULK_FIELDS,
@@ -81,6 +81,7 @@ import {
   agentOptionLabel,
   agentOptionSecondary,
   isLedgerCancelled,
+  ledgerAgentLabel,
   SO_DONE_STATUS_OPTIONS,
   soDoneStatusColor,
   soDoneStatusLabel,
@@ -205,6 +206,7 @@ export default function LedgerCost() {
   const [destinations, setDestinations] = useState(() => getCached(MASTER_KEYS.DESTINATIONS) ?? []);
   const [currencies, setCurrencies] = useState(() => getCached(MASTER_KEYS.CURRENCIES) ?? []);
   const [records, setRecords] = useState([]);
+  const [serverColumns, setServerColumns] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [searchValue, setSearchValue] = useState(savedState.searchValue);
@@ -284,6 +286,7 @@ export default function LedgerCost() {
         ...buildDateRangeParams(dateRanges, COST_DATE_FILTER_FIELDS),
       });
       setRecords(Array.isArray(data.data) ? data.data : []);
+      if (Array.isArray(data.columns) && data.columns.length) setServerColumns(data.columns);
       setTotalCount(data.total_count || 0);
       setTotalPages(data.total_pages || 0);
       setHasNext(Boolean(data.has_next));
@@ -741,8 +744,9 @@ export default function LedgerCost() {
             {soDoneStatusLabel(row)}
           </Badge>
         );
-      case "agent": {
-        const name = row.agent || row.agent_detail?.name || getMany2oneName(row.agent_id) || "";
+      case "agent":
+      case "agent_label": {
+        const name = ledgerAgentLabel(row) || getMany2oneName(row.agent_id) || "";
         const second = agentOptionSecondary(row.agent_detail);
         return (
           <>
@@ -863,10 +867,12 @@ export default function LedgerCost() {
   };
 
   const isNumericCol = (col) => col.type === "number" || col.type === "roe";
-  const listColumns = COST_COLUMNS.filter((col) => col.key !== "so_number");
-  const soColumn = COST_COLUMNS.find((col) => col.key === "so_number");
+  // Grid order and labels come from the server `columns`; SO Number stays the sticky first column
+  const costColumns = mergeServerColumns(serverColumns, COST_COLUMNS);
+  const listColumns = costColumns.filter((col) => col.key !== "so_number");
+  const soColumn = costColumns.find((col) => col.key === "so_number") || COST_COLUMNS[0];
   const tableMinW = `${
-    COST_COLUMNS.reduce((sum, col) => sum + parseInt(col.minW, 10), 0) + 160
+    [soColumn, ...listColumns].reduce((sum, col) => sum + parseInt(col.minW, 10), 0) + 160
   }px`;
 
   return (
@@ -1437,7 +1443,7 @@ export default function LedgerCost() {
         onClose={() => setViewRow(null)}
         title={viewRow ? `Cost ${displaySo(viewRow)}` : "Cost"}
         record={viewRow}
-        columns={COST_COLUMNS}
+        columns={costColumns}
         onEdit={() => {
           const row = viewRow;
           setViewRow(null);

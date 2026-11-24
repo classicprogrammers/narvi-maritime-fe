@@ -68,6 +68,8 @@ import {
     showStockBulkSaveToasts,
 } from "../../../utils/stockBulkSaveResult";
 import { useHistory, useLocation } from "react-router-dom";
+import StockMergePdfModal from "../../../components/stock-list/StockMergePdfModal";
+import { validateMergeIds } from "../../../utils/mergePdf";
 import api from "../../../api/axios";
 import {
     buildStockSoIdM2O,
@@ -607,6 +609,8 @@ export default function Stocks({ variant = "stocks" } = {}) {
     const history = useHistory();
     const location = useLocation();
     const [selectedRows, setSelectedRows] = useState(new Set());
+    // Merged PDF of the selected rows: { preset: "cipl" | "all", ids } while the modal is open
+    const [mergePdfRequest, setMergePdfRequest] = useState(null);
     const [savedState] = useState(() => {
         const fromUrl = getStockViewFiltersFromSearch(location.search);
         if (fromUrl) {
@@ -3442,6 +3446,16 @@ export default function Stocks({ variant = "stocks" } = {}) {
         await downloadPdfFile(selectedItems, "stocklist-view-edit", "all", buildPdfExportData);
     };
 
+    const openMergePdf = (preset) => {
+        const ids = Array.from(selectedRows);
+        const problem = validateMergeIds(ids);
+        if (problem) {
+            toast({ title: "Merge PDF", description: problem, status: "warning", duration: 3000, isClosable: true });
+            return;
+        }
+        setMergePdfRequest({ preset, ids });
+    };
+
     const handleExportStockViewSelectedExcel = () => {
         if (selectedRows.size === 0) {
             toast({ title: "No selection", description: "Select one or more rows first.", status: "warning", duration: 2000, isClosable: true });
@@ -6217,6 +6231,24 @@ export default function Stocks({ variant = "stocks" } = {}) {
                                                 Export Excel
                                             </Button>
                                             <Button
+                                                leftIcon={<Icon as={MdPictureAsPdf} />}
+                                                colorScheme="blue"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => openMergePdf("all")}
+                                            >
+                                                Merge PDF
+                                            </Button>
+                                            <Button
+                                                leftIcon={<Icon as={MdPictureAsPdf} />}
+                                                colorScheme="blue"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => openMergePdf("cipl")}
+                                            >
+                                                CIPL PDF
+                                            </Button>
+                                            <Button
                                                 size="sm"
                                                 variant="ghost"
                                                 onClick={() => {
@@ -7660,6 +7692,15 @@ export default function Stocks({ variant = "stocks" } = {}) {
             />
 
             {galleryModal}
+            {mergePdfRequest && (
+                <StockMergePdfModal
+                    isOpen
+                    onClose={() => setMergePdfRequest(null)}
+                    ids={mergePdfRequest.ids}
+                    preset={mergePdfRequest.preset}
+                    title={mergePdfRequest.preset === "cipl" ? "CIPL PDF" : "Merge PDF"}
+                />
+            )}
 
             <Modal isOpen={isPdfPreviewOpen} onClose={handleClosePdfPreview} size="full" scrollBehavior="inside">
                 <ModalOverlay />

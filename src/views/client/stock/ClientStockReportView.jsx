@@ -58,6 +58,8 @@ import {
   resolveStockListActiveParam,
 } from "constants/stockStatus";
 import { getAttachmentEntriesNewestFirst } from "utils/stockReportAttachmentsUi";
+import { getClientStockListMergePdf } from "api/mergePdf";
+import { mergeFilename, validateMergeIds } from "utils/mergePdf";
 import { normalizeLegacyStockReportFilename } from "utils/stockReportPdf";
 import { getWarehouseDisplayText } from "utils/stockUpdatePayload";
 import StockListAttachmentsCell from "components/stock-list/StockListAttachmentsCell";
@@ -1066,6 +1068,39 @@ function ClientStockReportView() {
     }
   };
 
+  // ONE merged PDF of all selected items (their PDFs except MSDS, in the order selected, built by the server)
+  const handleDownloadClientPdf = async () => {
+    const selectedRows = pagedRows.filter((row) => selectedRowIds.includes(row.id));
+    const ids = selectedRows.map((row) => row.stockRecordId ?? row.stockItemId);
+    const problem = validateMergeIds(ids);
+    if (problem) {
+      toast({ title: "Client PDF", description: problem, status: "info", duration: 3000, isClosable: true });
+      return;
+    }
+    setIsBulkReportLoading(true);
+    try {
+      const { blob, itemsWithoutPdf, notAvailable } = await getClientStockListMergePdf(ids);
+      const url = URL.createObjectURL(blob);
+      triggerBrowserDownload(url, mergeFilename("stock"));
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      const left = [
+        itemsWithoutPdf ? `${itemsWithoutPdf} item(s) have no PDF` : "",
+        notAvailable ? `${notAvailable} item(s) not available` : "",
+      ].filter(Boolean);
+      toast({
+        title: "Download started",
+        description: left.length ? `Merged PDF downloaded. ${left.join(", ")}.` : "Merged PDF downloaded.",
+        status: left.length ? "warning" : "success",
+        duration: left.length ? 4000 : 2500,
+        isClosable: true,
+      });
+    } catch (e) {
+      toast({ title: "No PDF to download", description: e?.message || "Failed to build the PDF.", status: "warning", duration: 4000, isClosable: true });
+    } finally {
+      setIsBulkReportLoading(false);
+    }
+  };
+
   const handleDownloadSelectedReports = async () => {
     const selectedRows = pagedRows.filter((row) => selectedRowIds.includes(row.id));
     if (!selectedRows.length) {
@@ -1436,6 +1471,13 @@ function ClientStockReportView() {
                   isDisabled={isBulkReportLoading}
                 >
                   Download reports of the selected stock
+                </MenuItem>
+                <MenuItem
+                  icon={<Icon as={MdPictureAsPdf} color="blue.500" />}
+                  onClick={handleDownloadClientPdf}
+                  isDisabled={isBulkReportLoading}
+                >
+                  Download client PDF of the selected stock
                 </MenuItem>
                 <MenuItem icon={<Icon as={MdTableChart} color="green.500" />} onClick={handleDownloadExcel}>
                   {selectedRowIds.length

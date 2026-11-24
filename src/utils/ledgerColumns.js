@@ -8,7 +8,7 @@ export const COST_COLUMNS = [
   { key: "so_create_date", label: "SO Create Date", sortKey: "so_create_date", type: "date", minW: "120px" },
   { key: "so_done_status", label: "SO Status", sortKey: "so_done_status", type: "badge", minW: "130px", covers: ["so_status", "so_status_label", "so_done_status_label"] },
   { key: "client_case_invoice_ref", label: "Client Case / Invoice Ref", type: "longtext", minW: "170px" },
-  { key: "agent", label: "Agent", sortKey: "agent", type: "text", minW: "160px", covers: ["agent_id", "agent_detail"] },
+  { key: "agent_label", label: "Agent", sortKey: "agent", type: "text", minW: "160px", covers: ["agent_id", "agent_detail"] },
   { key: "client", label: "Client", sortKey: "client", type: "text", minW: "160px" },
   { key: "vessel_name", label: "Vessel", sortKey: "vessel_name", type: "text", minW: "140px" },
   { key: "destination", label: "Destination", sortKey: "destination", type: "text", minW: "160px", covers: ["destination_type", "destination_type_label", "destination_name", "destination_country"] },
@@ -25,6 +25,24 @@ export const COST_COLUMNS = [
   { key: "date_agent_paid", label: "Paid", sortKey: "date_agent_paid", type: "date", minW: "110px" },
   { key: "invoice_link", label: "Invoice Link", type: "invoiceLink", minW: "90px" },
 ];
+
+// Order and labels come from the server `columns` array ([{ key, label }], already in the client's order).
+// Local entries supply sortKey / type / minW; unknown keys render as plain text.
+// With no server columns the local list is used as is.
+export const mergeServerColumns = (serverColumns, localColumns) => {
+  if (!Array.isArray(serverColumns) || serverColumns.length === 0) return localColumns;
+  const local = new Map(localColumns.map((col) => [col.key, col]));
+  const seen = new Set();
+  const merged = [];
+  serverColumns.forEach((col) => {
+    const key = col?.key == null ? "" : String(col.key);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    const base = local.get(key) || { type: "text", minW: "140px" };
+    merged.push({ ...base, key, label: col.label || base.label || key });
+  });
+  return merged.length ? merged : localColumns;
+};
 
 export const INVOICE_COLUMNS = [
   { key: "so_number", label: "SO Number", sortKey: "so_number", type: "text", minW: "120px", covers: ["sale_order_id"] },

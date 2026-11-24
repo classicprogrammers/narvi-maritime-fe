@@ -27,19 +27,25 @@ export const destinationParts = (record) => ({
   country: clean(record?.destination_country),
 });
 
-// Plain string for the select (filtering and selected label): the agent name
+// Plain string for the select (filtering and selected label): the Agent ID (`label` from the options API)
 export const agentOptionLabel = (opt) =>
-  clean(opt?.name) || (opt?.id != null ? `Agent ${opt.id}` : "");
+  clean(opt?.label) ||
+  clean(opt?.agent_label) ||
+  clean(opt?.name) ||
+  (opt?.id != null ? `Agent ${opt.id}` : "");
 
-// Smaller second line: "agent_code · company"
+// Smaller second line: the agent code when it differs from the label (company name is not shown)
 export const agentOptionSecondary = (opt) => {
-  const label = agentOptionLabel(opt);
-  const parts = [];
-  [clean(opt?.agent_code), clean(opt?.company)].forEach((p) => {
-    if (p && p !== label && !parts.includes(p)) parts.push(p);
-  });
-  return parts.join(" · ");
+  const code = clean(opt?.agent_code);
+  return code && code !== agentOptionLabel(opt) ? code : "";
 };
+
+// Agent shown for a Cost record: agent_label (Agent ID), falling back to the older name fields
+export const ledgerAgentLabel = (record) =>
+  clean(record?.agent_label) ||
+  clean(record?.agent) ||
+  clean(record?.agent_detail?.name) ||
+  (Array.isArray(record?.agent_id) ? clean(record.agent_id[1]) : "");
 
 const relationName = (v) => {
   if (Array.isArray(v)) return clean(v[1]);
@@ -87,7 +93,8 @@ export const ledgerViewValue = (column, record) => {
     case "so_number":
       return relationName(row.sale_order_id) || clean(row.so_number);
     case "agent":
-      return clean(row.agent) || relationName(row.agent_detail) || relationName(row.agent_id);
+    case "agent_label":
+      return clean(row.agent_label) || clean(row.agent) || relationName(row.agent_detail) || relationName(row.agent_id);
     case "client":
       return clean(row.client) || relationName(row.client_id);
     case "vessel_name":

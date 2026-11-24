@@ -43,6 +43,7 @@ import { getCached, MASTER_KEYS } from "utils/masterDataCache";
 import {
   agentOptionLabel,
   agentOptionSecondary,
+  ledgerAgentLabel,
   destinationParts,
   isLedgerCancelled,
   soDoneStatusColor,
@@ -310,9 +311,8 @@ export default function CostFormPage() {
         const detail = record.agent_detail || {};
         pinAgent({
           id: nextForm.agent_id,
-          name: record.agent || detail.name || getMany2oneName(record.agent_id),
+          label: ledgerAgentLabel(record) || getMany2oneName(record.agent_id),
           agent_code: detail.agent_code,
-          company: detail.company,
         });
       }
       fetchShippingOrders("");
@@ -547,10 +547,7 @@ export default function CostFormPage() {
       (editingRecord.so_number ? `SO-${editingRecord.so_number}` : "")
     : "";
   const selectedAgentFallback = editingRecord
-    ? editingRecord.agent ||
-      editingRecord.agent_detail?.name ||
-      getMany2oneName(editingRecord.agent_id) ||
-      ""
+    ? ledgerAgentLabel(editingRecord) || getMany2oneName(editingRecord.agent_id) || ""
     : "";
   const selectedCurrencyFallback = editingRecord
     ? getMany2oneName(editingRecord.currency_id) || editingRecord.currency_code || ""
