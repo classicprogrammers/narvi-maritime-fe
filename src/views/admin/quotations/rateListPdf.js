@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import { autoTableCjk as autoTable } from "utils/pdfCjkText"; // autoTable that can print Chinese/Japanese/Korean text
+import { autoTableCjk as autoTable, hasCjk, textCjk, wrapTextLines } from "utils/pdfCjkText"; // autoTable that can print Chinese/Japanese/Korean text
 import narviLetterheadPrint from "../../../assets/letterHead/NarviLetterhead.jpeg";
 import { chargeCategoryLabel } from "../../../utils/rateListForm";
 import { formatDateTimeDMYFull } from "utils/dateFormat";
@@ -260,14 +260,24 @@ export async function buildRateListPdf(model) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   model.footerBlocks.forEach((block) => {
-    const lines = doc.splitTextToSize(String(block), tableWidth);
+    const text = String(block);
+    // Chinese / Japanese / Korean text (e.g. in the remarks) cannot be printed with the built-in font: wrap it
+    // by hand (a CJK character is one em wide) and draw each line with textCjk.
+    const cjk = hasCjk(text);
+    const fontSize = doc.getFontSize();
+    const measure = (value) =>
+      Array.from(value).reduce((width, char) => width + (hasCjk(char) ? fontSize : doc.getTextWidth(char)), 0);
+    const lines = cjk
+      ? text.split(/\r?\n/).flatMap((line) => wrapTextLines(line, tableWidth, measure))
+      : doc.splitTextToSize(text, tableWidth);
     const blockHeight = lines.length * 11 + 10;
     if (nextY + blockHeight > pageHeight - 40) {
       doc.addPage();
       drawLetterhead();
       nextY = tableStartY;
     }
-    doc.text(lines, CONTENT_LEFT, nextY);
+    if (cjk) lines.forEach((line, index) => textCjk(doc, line, CONTENT_LEFT, nextY + index * 11));
+    else doc.text(lines, CONTENT_LEFT, nextY);
     nextY += blockHeight;
   });
 
@@ -281,3 +291,4 @@ export function getRateListPdfFilename(model) {
     : "";
   return `rate-list-${model.filenameSuffix}${scopePart}-${dateTag}.pdf`;
 }
+
