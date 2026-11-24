@@ -144,7 +144,7 @@ import {
 import narviLetterheadPrint from "../../../assets/letterHead/NarviLetterhead.jpeg";
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import { autoTableCjk as autoTable } from "utils/pdfCjkText"; // autoTable that can print Chinese/Japanese/Korean text
 import {
     ARCHIVE_STOCK_STATUSES,
     getStatusOptionsForActiveFilter,

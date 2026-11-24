@@ -64,7 +64,7 @@ import {
   postDeliveryConfirmationFormUpdateApi,
 } from "../../../../api/deliveryConfirmation";
 import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import { autoTableCjk as autoTable, textCjk } from "utils/pdfCjkText"; // autoTable that can print Chinese/Japanese/Korean text
 import {
   snapshotValue,
   pickChangedFields,
@@ -2231,7 +2231,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           ? `POD / DELIVERY NOTE FOR MV ${getVesselDisplayName()}`
           : `Shipping Instruction - ${getVesselDisplayName()}`;
     doc.setFontSize(12);
-    doc.text(docTitle, contentLeft, contentTop);
+    textCjk(doc, docTitle, contentLeft, contentTop);
     doc.setFontSize(9);
     doc.text(`Date: ${formatDateTimeDMYFull(new Date())}`, contentLeft, contentTop + 14);
 
@@ -2247,7 +2247,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       doc.setFontSize(10);
       doc.setTextColor(33, 51, 91);
       doc.setFont(undefined, "bold");
-      doc.text(deliveryToAtText, contentLeft, twoColStartY);
+      textCjk(doc, deliveryToAtText, contentLeft, twoColStartY, { bold: true, color: [33, 51, 91] });
       doc.setFont(undefined, "normal");
       doc.setTextColor(0, 0, 0);
       twoColStartY += 16; // keep clearer gap before IN LIASON WITH block

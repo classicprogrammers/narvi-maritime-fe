@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import { autoTableCjk as autoTable } from "utils/pdfCjkText"; // autoTable that can print Chinese/Japanese/Korean text
 import { downloadSheetAsExcel } from "./rateListExcel";
 import narviLetterheadPrint from "../../../assets/letterHead/NarviLetterhead.jpeg";
 import { apiString, detailSections, isLineSelected, lineDisplayName, m2oName, quotationReference, quotationVesselName } from "./quotationUtils";
