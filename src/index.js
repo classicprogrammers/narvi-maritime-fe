@@ -25,17 +25,13 @@ root.render(
           <StagingBanner />
           <AppWrapper>
             <Box pt={isStagingEnvironment ? STAGING_BANNER_HEIGHT : 0}>
-            <Switch>
-              <Route exact path="/" render={() => <Redirect to="/auth/sign-in" />} />
-              <Route path={`/auth`} component={AuthLayout} />
-              <ProtectedRoute path={`/admin`} component={AdminLayout} />
-              <Route exact path="/Client/login" component={ClientLogin} />
-              <ProtectedRoute
-                path={`/Client`}
-                component={ClientLayout}
-                redirectPath="/Client/login"
-              />
-            </Switch>
+              <Switch>
+                <Route exact path="/" render={() => <Redirect to="/auth/sign-in" />} />
+                <Route path={`/auth`} component={AuthLayout} />
+                <ProtectedRoute path={`/admin`} component={AdminLayout} />
+                <Route exact path="/Client/login" component={ClientLogin} />
+                <ProtectedRoute path={`/Client`} component={ClientLayout} redirectPath="/Client/login" />
+              </Switch>
             </Box>
           </AppWrapper>
         </BrowserRouter>
