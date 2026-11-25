@@ -267,6 +267,7 @@ const INITIAL_FORM_DATA = {
   siNumber: "",
   siNumberId: null,
   soNumberId: null,
+  clientCaseInvoiceRef: "",
   shippedBy: "",
   shippedById: null,
   from: "",
@@ -411,6 +412,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     packed: {},
   });
   const lastDeliveryHeaderRef = useRef({ siNumber: "", soNumber: "" });
+  // DI option id -> { soId, soName } from form options, so the SO shows as soon as a DI is picked.
+  const diSoMapRef = useRef(new Map());
 
   // Color mode values
   const textColor = useColorModeValue("gray.700", "white");
@@ -1316,6 +1319,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         })
         : prev.soNo,
       soNumberId: isDeliveryLike ? toIdOrNull(form.so_number_id) : prev.soNumberId,
+      clientCaseInvoiceRef: isDeliveryLike
+        ? resolveApiText(form.client_case_invoice_ref)
+        : prev.clientCaseInvoiceRef,
       siNumber: isDeliveryLike
         ? resolveDeliveryHeaderText({
           form,
@@ -1775,6 +1781,14 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           return uniq;
         };
 
+        if (isDeliveryLike) {
+          diNos.forEach((x) => {
+            if (!x || x.id == null) return;
+            const soName = resolveApiText(x.so_number) || resolveApiText(x.so_number_id?.name);
+            const soId = toIdOrNull(x.so_number_id?.id ?? x.so_number_id);
+            diSoMapRef.current.set(Number(x.id), { soId, soName });
+          });
+        }
         const normalizedDiNos = normalizeOptions(diNos);
         const normalizedSiNos = normalizeOptions(siNos);
         const normalizedSoNos = normalizeOptions(soNos);
@@ -2470,6 +2484,21 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     });
     const cargoTableEndY = doc.lastAutoTable?.finalY || (twoColEndY + 14);
     let deliveryFooterStartY = cargoTableEndY + 14;
+    const clientCaseInvoiceRefText = resolveApiText(formData.clientCaseInvoiceRef);
+    if (isDeliveryLike && clientCaseInvoiceRefText) {
+      // Stand-out line above the POD / DELIVERY NOTE text (which starts with the AWB).
+      const refLines = doc.splitTextToSize(
+        `CLIENT'S CASE / INVOICE REF: ${clientCaseInvoiceRefText}`,
+        pageWidth - (contentLeft + 24)
+      );
+      doc.setFontSize(10);
+      doc.setFont(undefined, "bold");
+      doc.setTextColor(33, 51, 91);
+      doc.text(refLines, contentLeft, deliveryFooterStartY + 8);
+      doc.setFont(undefined, "normal");
+      doc.setTextColor(0, 0, 0);
+      deliveryFooterStartY += refLines.length * 12 + 10;
+    }
     if (isDeliveryLike && formData.showPodDeliveryNote) {
       const podDeliveryLines = String(formData.podDeliveryNote || "")
         .split("\n")
@@ -3272,6 +3301,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                             setSelectedSiName(selectedName);
                             setQSi(selectedName);
                             if (v === "") return;
+                            const pickedSo = diSoMapRef.current.get(Number(v));
+                            if (pickedSo) {
+                              handleInputChange("soNo", pickedSo.soName);
+                              handleInputChange("soNumberId", pickedSo.soId);
+                            }
                             packedTotalsUserEditedRef.current = false;
                             try {
                               setIsSiFormLoading(true);
