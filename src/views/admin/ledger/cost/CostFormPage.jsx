@@ -771,41 +771,12 @@ export default function CostFormPage() {
           ) : (
             <>
               <SimpleGrid
-                columns={{ base: 1, md: 2 }}
+                columns={{ base: 1, md: 2, xl: 12 }}
                 columnGap={{ base: 0, md: 5 }}
                 rowGap={3}
                 alignItems="start"
               >
-                <FormControl>
-                  <FormLabel {...fieldLabelProps}>Invoice Number</FormLabel>
-                  <Input
-                    ref={invoicesRef}
-                    value={form.invoices}
-                    onChange={(e) => setField("invoices", e.target.value)}
-                    onBlur={async () => {
-                      if (isDuplicateBlocked) return;
-                      if (await runInvoicePrecheck(form)) return;
-                      // Still pending: ask again, so the operator can accept it ("Use it anyway")
-                      if (isOtherAgentPending) setIsOtherAgentOpen(true);
-                      else runOtherAgentCheck(form);
-                    }}
-                    {...controlProps}
-                  />
-                  {isChecking ? (
-                    <Flex align="center" gap={2} mt={1}>
-                      <Spinner size="xs" />
-                      <Text fontSize="xs" color={mutedColor}>
-                        Checking invoice numbers...
-                      </Text>
-                    </Flex>
-                  ) : precheckFailed ? (
-                    <Text fontSize="xs" color={mutedColor} mt={1}>
-                      Could not check for duplicates. The server will check when you save.
-                    </Text>
-                  ) : null}
-                </FormControl>
-
-                <FormControl gridColumn={{ md: "span 2" }}>
+                <FormControl gridColumn={{ md: "span 2", xl: "span 12" }}>
                   <FormLabel {...fieldLabelProps}>Internal Remarks</FormLabel>
                   <Textarea
                     value={form.internal_remarks}
@@ -816,7 +787,7 @@ export default function CostFormPage() {
                   />
                 </FormControl>
 
-                <FormControl isRequired>
+                <FormControl gridColumn={{ xl: "span 4" }} isRequired>
                   <FormLabel {...fieldLabelProps}>SO Number</FormLabel>
                   <SearchableSelect
                     value={form.sale_order_id === "" ? "" : String(form.sale_order_id)}
@@ -830,7 +801,185 @@ export default function CostFormPage() {
                   />
                 </FormControl>
 
-                <FormControl isRequired>
+                <FormControl gridColumn={{ xl: "span 4" }}>
+                  <FormLabel {...fieldLabelProps}>SO Create Date</FormLabel>
+                  <Input
+                    isReadOnly
+                    value={form.so_create_date}
+                    placeholder="Filled by server"
+                    {...controlProps}
+                    bg={readonlyBg}
+                  />
+                </FormControl>
+
+                <FormControl gridColumn={{ xl: "span 4" }}>
+                  <FormLabel {...fieldLabelProps}>SO Status</FormLabel>
+                  <Flex align="center" h="40px">
+                    {soStatusText === "-" ? (
+                      <Text color={mutedColor}>-</Text>
+                    ) : (
+                      <Badge colorScheme={soDoneStatusColor(form.so_done_status)} whiteSpace="nowrap">
+                        {soStatusText}
+                      </Badge>
+                    )}
+                  </Flex>
+                </FormControl>
+
+                <FormControl gridColumn={{ xl: "span 4" }}>
+                  <FormLabel {...fieldLabelProps}>Client Case / Invoice Ref</FormLabel>
+                  <Input
+                    isReadOnly
+                    value={form.client_case_invoice_ref}
+                    placeholder="Filled by server"
+                    title={form.client_case_invoice_ref}
+                    {...controlProps}
+                    bg={readonlyBg}
+                  />
+                </FormControl>
+
+                <FormControl gridColumn={{ xl: "span 4" }}>
+                  <FormLabel {...fieldLabelProps}>Client</FormLabel>
+                  <Input
+                    isReadOnly
+                    value={form.client}
+                    placeholder="Filled by server"
+                    {...controlProps}
+                    bg={readonlyBg}
+                  />
+                </FormControl>
+
+                <FormControl gridColumn={{ xl: "span 4" }}>
+                  <FormLabel {...fieldLabelProps}>Vessel</FormLabel>
+                  <Input
+                    isReadOnly
+                    value={form.vessel_name}
+                    placeholder="Filled by server"
+                    {...controlProps}
+                    bg={readonlyBg}
+                  />
+                </FormControl>
+
+                <FormControl gridColumn={{ xl: "span 3" }}>
+                  <FormLabel {...fieldLabelProps}>Destination Type</FormLabel>
+                  <Input
+                    isReadOnly
+                    value={destinationInfo.type}
+                    placeholder="-"
+                    title={destinationInfo.type}
+                    {...controlProps}
+                    bg={readonlyBg}
+                  />
+                </FormControl>
+
+                <FormControl gridColumn={{ xl: "span 3" }}>
+                  <FormLabel {...fieldLabelProps}>Destination</FormLabel>
+                  <Input
+                    isReadOnly
+                    value={destinationInfo.name || form.destination}
+                    placeholder="Filled by server"
+                    title={destinationInfo.name || form.destination}
+                    {...controlProps}
+                    bg={readonlyBg}
+                  />
+                </FormControl>
+
+                <FormControl gridColumn={{ xl: "span 3" }}>
+                  <FormLabel {...fieldLabelProps}>Country</FormLabel>
+                  <Input
+                    isReadOnly
+                    value={destinationInfo.country}
+                    placeholder="-"
+                    title={destinationInfo.country}
+                    {...controlProps}
+                    bg={readonlyBg}
+                  />
+                </FormControl>
+
+                <FormControl gridColumn={{ xl: "span 3" }}>
+                  <FormLabel {...fieldLabelProps}>Biz Category</FormLabel>
+                  <Select
+                    value={form.biz_category}
+                    onChange={(e) => setField("biz_category", e.target.value)}
+                    placeholder="Select category"
+                    {...controlProps}
+                  >
+                    {BIZ_CATEGORY_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <FormControl gridColumn={{ xl: "span 3" }}>
+                  <FormLabel {...fieldLabelProps}>Currency</FormLabel>
+                  <SearchableSelect
+                    value={form.currency_id === "" ? "" : String(form.currency_id)}
+                    onChange={handleCurrencyChange}
+                    options={currencies}
+                    placeholder="Select currency..."
+                    fallbackDisplay={selectedCurrencyFallback}
+                    {...selectControlProps}
+                  />
+                </FormControl>
+
+                <FormControl gridColumn={{ xl: "span 3" }}>
+                  <FormLabel {...fieldLabelProps}>Currency Code</FormLabel>
+                  <Input
+                    isReadOnly
+                    value={form.currency_code}
+                    placeholder="Filled by server"
+                    {...controlProps}
+                    bg={readonlyBg}
+                  />
+                </FormControl>
+
+                <FormControl gridColumn={{ xl: "span 3" }} isRequired>
+                  <FormLabel {...fieldLabelProps}>Currency Amount</FormLabel>
+                  <Input
+                    type="number"
+                    step="any"
+                    value={form.currency_amount}
+                    onChange={(e) => setField("currency_amount", e.target.value)}
+                    {...controlProps}
+                  />
+                </FormControl>
+
+                <FormControl gridColumn={{ xl: "span 3" }}>
+                  <CostRoeField
+                    values={form}
+                    onPatch={patchForm}
+                    currencyLabel={selectedCurrencyLabel}
+                    label="Rate of Exchange on Invoice Date"
+                    labelProps={fieldLabelProps}
+                    controlProps={controlProps}
+                  />
+                </FormControl>
+
+                <FormControl gridColumn={{ xl: "span 4" }}>
+                  <FormLabel {...fieldLabelProps}>USD Cost</FormLabel>
+                  <Input
+                    isReadOnly
+                    value={form.usd_cost === "" ? "" : formatCostNumber(form.usd_cost, 4)}
+                    placeholder="Filled by server"
+                    {...controlProps}
+                    bg={readonlyBg}
+                  />
+                </FormControl>
+
+                <FormControl gridColumn={{ xl: "span 4" }}>
+                  <FormLabel {...fieldLabelProps}>GST in Amount</FormLabel>
+                  <Input
+                    type="number"
+                    step="any"
+                    value={form.gst_in_amount}
+                    onChange={(e) => setField("gst_in_amount", e.target.value)}
+                    placeholder="Only if applicable"
+                    {...controlProps}
+                  />
+                </FormControl>
+
+                <FormControl gridColumn={{ xl: "span 4" }} isRequired>
                   <FormLabel {...fieldLabelProps}>Agent</FormLabel>
                   <SearchableSelect
                     value={form.agent_id === "" ? "" : String(form.agent_id)}
@@ -869,169 +1018,36 @@ export default function CostFormPage() {
                   ) : null}
                 </FormControl>
 
-                <FormControl>
-                  <FormLabel {...fieldLabelProps}>Currency</FormLabel>
-                  <SearchableSelect
-                    value={form.currency_id === "" ? "" : String(form.currency_id)}
-                    onChange={handleCurrencyChange}
-                    options={currencies}
-                    placeholder="Select currency..."
-                    fallbackDisplay={selectedCurrencyFallback}
-                    {...selectControlProps}
-                  />
-                </FormControl>
-
-                <FormControl isRequired>
-                  <FormLabel {...fieldLabelProps}>Currency Amount</FormLabel>
+                <FormControl gridColumn={{ xl: "span 4" }}>
+                  <FormLabel {...fieldLabelProps}>Invoice Number</FormLabel>
                   <Input
-                    type="number"
-                    step="any"
-                    value={form.currency_amount}
-                    onChange={(e) => setField("currency_amount", e.target.value)}
+                    ref={invoicesRef}
+                    value={form.invoices}
+                    onChange={(e) => setField("invoices", e.target.value)}
+                    onBlur={async () => {
+                      if (isDuplicateBlocked) return;
+                      if (await runInvoicePrecheck(form)) return;
+                      // Still pending: ask again, so the operator can accept it ("Use it anyway")
+                      if (isOtherAgentPending) setIsOtherAgentOpen(true);
+                      else runOtherAgentCheck(form);
+                    }}
                     {...controlProps}
                   />
+                  {isChecking ? (
+                    <Flex align="center" gap={2} mt={1}>
+                      <Spinner size="xs" />
+                      <Text fontSize="xs" color={mutedColor}>
+                        Checking invoice numbers...
+                      </Text>
+                    </Flex>
+                  ) : precheckFailed ? (
+                    <Text fontSize="xs" color={mutedColor} mt={1}>
+                      Could not check for duplicates. The server will check when you save.
+                    </Text>
+                  ) : null}
                 </FormControl>
 
-                <FormControl>
-                  <CostRoeField
-                    values={form}
-                    onPatch={patchForm}
-                    currencyLabel={selectedCurrencyLabel}
-                    label="Rate of Exchange on Invoice Date"
-                    labelProps={fieldLabelProps}
-                    controlProps={controlProps}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel {...fieldLabelProps}>USD Cost</FormLabel>
-                  <Input
-                    isReadOnly
-                    value={form.usd_cost === "" ? "" : formatCostNumber(form.usd_cost, 4)}
-                    placeholder="Filled by server"
-                    {...controlProps}
-                    bg={readonlyBg}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel {...fieldLabelProps}>Client</FormLabel>
-                  <Input
-                    isReadOnly
-                    value={form.client}
-                    placeholder="Filled by server"
-                    {...controlProps}
-                    bg={readonlyBg}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel {...fieldLabelProps}>Vessel</FormLabel>
-                  <Input
-                    isReadOnly
-                    value={form.vessel_name}
-                    placeholder="Filled by server"
-                    {...controlProps}
-                    bg={readonlyBg}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel {...fieldLabelProps}>Destination Type</FormLabel>
-                  <Input
-                    isReadOnly
-                    value={destinationInfo.type}
-                    placeholder="-"
-                    title={destinationInfo.type}
-                    {...controlProps}
-                    bg={readonlyBg}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel {...fieldLabelProps}>Destination</FormLabel>
-                  <Input
-                    isReadOnly
-                    value={destinationInfo.name || form.destination}
-                    placeholder="Filled by server"
-                    title={destinationInfo.name || form.destination}
-                    {...controlProps}
-                    bg={readonlyBg}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel {...fieldLabelProps}>Country</FormLabel>
-                  <Input
-                    isReadOnly
-                    value={destinationInfo.country}
-                    placeholder="-"
-                    title={destinationInfo.country}
-                    {...controlProps}
-                    bg={readonlyBg}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel {...fieldLabelProps}>SO Create Date</FormLabel>
-                  <Input
-                    isReadOnly
-                    value={form.so_create_date}
-                    placeholder="Filled by server"
-                    {...controlProps}
-                    bg={readonlyBg}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel {...fieldLabelProps}>SO Status</FormLabel>
-                  <Flex align="center" h="40px">
-                    {soStatusText === "-" ? (
-                      <Text color={mutedColor}>-</Text>
-                    ) : (
-                      <Badge colorScheme={soDoneStatusColor(form.so_done_status)} whiteSpace="nowrap">
-                        {soStatusText}
-                      </Badge>
-                    )}
-                  </Flex>
-                </FormControl>
-
-                <FormControl gridColumn={{ md: "span 2" }}>
-                  <FormLabel {...fieldLabelProps}>Client Case / Invoice Ref</FormLabel>
-                  <Input
-                    isReadOnly
-                    value={form.client_case_invoice_ref}
-                    placeholder="Filled by server"
-                    title={form.client_case_invoice_ref}
-                    {...controlProps}
-                    bg={readonlyBg}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel {...fieldLabelProps}>Currency Code</FormLabel>
-                  <Input
-                    isReadOnly
-                    value={form.currency_code}
-                    placeholder="Filled by server"
-                    {...controlProps}
-                    bg={readonlyBg}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel {...fieldLabelProps}>GST in Amount</FormLabel>
-                  <Input
-                    type="number"
-                    step="any"
-                    value={form.gst_in_amount}
-                    onChange={(e) => setField("gst_in_amount", e.target.value)}
-                    placeholder="Only if applicable"
-                    {...controlProps}
-                  />
-                </FormControl>
-
-                <FormControl>
+                <FormControl gridColumn={{ xl: "span 4" }}>
                   <FormLabel {...fieldLabelProps}>Date Agent Invoice</FormLabel>
                   <DateField
                     value={form.date_agent_invoice}
@@ -1040,7 +1056,7 @@ export default function CostFormPage() {
                   />
                 </FormControl>
 
-                <FormControl>
+                <FormControl gridColumn={{ xl: "span 4" }}>
                   <CostDueField
                     values={form}
                     onPatch={patchForm}
@@ -1050,7 +1066,7 @@ export default function CostFormPage() {
                   />
                 </FormControl>
 
-                <FormControl>
+                <FormControl gridColumn={{ xl: "span 4" }}>
                   <FormLabel {...fieldLabelProps}>Date Agent Paid</FormLabel>
                   <DateField
                     value={form.date_agent_paid}
@@ -1059,23 +1075,7 @@ export default function CostFormPage() {
                   />
                 </FormControl>
 
-                <FormControl>
-                  <FormLabel {...fieldLabelProps}>Biz Category</FormLabel>
-                  <Select
-                    value={form.biz_category}
-                    onChange={(e) => setField("biz_category", e.target.value)}
-                    placeholder="Select category"
-                    {...controlProps}
-                  >
-                    {BIZ_CATEGORY_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </Select>
-                </FormControl>
-
-                <FormControl gridColumn={{ md: "span 2" }}>
+                <FormControl gridColumn={{ md: "span 2", xl: "span 8" }}>
                   <FormLabel {...fieldLabelProps}>Invoice Link</FormLabel>
                   <Flex gap={2} align="center">
                     <Input
