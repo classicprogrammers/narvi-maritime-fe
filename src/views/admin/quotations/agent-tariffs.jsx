@@ -31,6 +31,8 @@ import { buildTypeTariffPdfModel, loadConsigneeText, PDF_TYPE_LABELS } from "./t
 import { downloadSheetAsExcel } from "./rateListExcel";
 import usePdfPreview from "./usePdfPreview";
 import TariffTable from "./TariffTable";
+import { LAST_UPDATED_COLUMN } from "./TariffLastUpdated";
+import TariffStaleBanner from "./TariffStaleBanner";
 import useTariffOptions from "./useTariffOptions";
 import {
   formatAgentOption,
@@ -68,6 +70,9 @@ const COLUMNS = [
   { key: "sales", label: "Sales", isNumeric: true },
 ];
 
+// Last Updated is on screen only; COLUMNS feeds the exports, which must not change.
+const SCREEN_COLUMNS = [...COLUMNS, LAST_UPDATED_COLUMN];
+
 // The Excel export leaves out Rate Text and Sales.
 const EXCEL_COLUMNS = COLUMNS.filter((column) => !["rate_text", "sales"].includes(column.key));
 
@@ -100,7 +105,13 @@ export default function AgentTariffs() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState("");
-  const [meta, setMeta] = useState({ totalCount: 0, totalPages: 1, hasNext: false, hasPrevious: false });
+  const [meta, setMeta] = useState({
+    totalCount: 0,
+    totalPages: 1,
+    hasNext: false,
+    hasPrevious: false,
+    oldestLastUpdate: false,
+  });
 
   const lastSearchRef = useRef(saved.search.trim());
   useEffect(() => {
@@ -161,10 +172,11 @@ export default function AgentTariffs() {
         totalPages: result.total_pages || 1,
         hasNext: Boolean(result.has_next),
         hasPrevious: Boolean(result.has_previous),
+        oldestLastUpdate: result.oldest_last_update ?? false,
       });
     } catch (error) {
       setRows([]);
-      setMeta({ totalCount: 0, totalPages: 1, hasNext: false, hasPrevious: false });
+      setMeta({ totalCount: 0, totalPages: 1, hasNext: false, hasPrevious: false, oldestLastUpdate: false });
       toast({
         title: "Error",
         description: tariffErrorMessage(error, "Failed to load agent tariffs."),
@@ -422,8 +434,10 @@ export default function AgentTariffs() {
         )}
       </SimpleGrid>
 
+      {meta.totalCount > 0 && <TariffStaleBanner oldestLastUpdate={meta.oldestLastUpdate} />}
+
       <TariffTable
-        columns={COLUMNS}
+        columns={SCREEN_COLUMNS}
         rows={rows}
         loading={loading}
         emptyText="No agent tariffs found. Try changing or clearing the filters."

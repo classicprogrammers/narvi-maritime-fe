@@ -22,7 +22,9 @@ import { displayTariffValue } from "./tariffScreenUtils";
 
 /**
  * Paginated table shared by the Agent Tariffs and Client Tariffs screens.
- * columns: [{ key, label, isNumeric?, render?(row) }]
+ * columns: [{ key, label, isNumeric?, render?(row), renderCell?(row) }]
+ * render(row) returns a raw value that is passed through displayTariffValue.
+ * renderCell(row) returns a React node that is rendered as-is (takes precedence over render).
  * onDelete?(row): when given, each row gets a delete button.
  * selectedIds? + onSelectionChange?(ids): when both are given, rows get checkboxes.
  */
@@ -144,7 +146,7 @@ export default function TariffTable({
                           fontWeight={column.isNumeric ? "700" : undefined}
                           wordBreak="break-word"
                         >
-                          {displayTariffValue(value)}
+                          {column.renderCell ? column.renderCell(row) : displayTariffValue(value)}
                         </Td>
                       );
                     })}

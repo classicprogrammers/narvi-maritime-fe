@@ -45,6 +45,12 @@ Spec: `docs/specs/001-drafts.md`. When a create/update call fails, the user's in
   3. For A/C, read the draft with `useResumeDraft` / `useResumeModalDraft` after the screen's data is ready and overlay it on the form; pass `sourceDraftId`.
   4. Never put files or passwords in `formState`/`requests` (the sanitizer is a safety net, not a design tool). Extend `draftModules.test.js` coverage if needed.
 
+## Tariff rate age (frontend only)
+- **Logic:** `src/utils/tariffRateAge.js` (+ `.test.js`): `TARIFF_RATE_MAX_AGE_MONTHS = 12` (the only place the threshold lives), `getRateAgeStatus` (`ok` | `old` | `unknown`), `isRateOld`, `formatLastUpdate`. `false`/missing/invalid dates are `unknown`, never old.
+- **Screens:** `agent-tariffs.jsx` and `client-tariffs.jsx` (`src/views/admin/quotations/`) keep `meta.oldestLastUpdate` (from `result.oldest_last_update`) and render `TariffStaleBanner` above the table when `meta.totalCount > 0`; it covers the whole filtered set, stays visible while paging and hides on error.
+- **Column:** `TariffLastUpdated.jsx` exports the cell and `LAST_UPDATED_COLUMN`, added only to the screens' `SCREEN_COLUMNS`. `COLUMNS` still feeds the Excel/PDF exports, so exports do not get the column.
+- **`TariffTable`:** columns may now define `renderCell(row)` (returns a React node, bypasses `displayTariffValue`); `render` columns are unchanged.
+
 ## Tooling gaps
 - ESLint plugin is disabled in `start`/`build`; use `npm run lint:changed`.
 - Few tests exist (`authStorage`, `portalClientSelection`, `portalClients`, `store`). See docs/TESTING.md.

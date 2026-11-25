@@ -22,6 +22,13 @@ _TODO (Phase 0): fill from `src/api/*` and the payload builders in `src/utils/*P
 - `POST /api/currency/roe` `{from_currency_id, to_currency_id, date}` -> `{roe|null, roe_date}` (preview only).
 - Per-unit CIPL and invoice/manifest forms do not support this yet.
 
+### Agent / client tariffs: rate age (`src/api/rate.js`)
+- `GET /api/agent/rate/tariff` and `GET /api/client/rate/tariff` (read by `agent-tariffs.jsx` / `client-tariffs.jsx` as `result.data`, `result.total_count`, `result.total_pages`):
+  - each row has `last_update`: `"YYYY-MM-DD"`, or `false` when unknown (some older rates have no date). `false` is "unknown", never "old".
+  - the list response has `oldest_last_update`: the oldest `last_update` across ALL rows matching the current filters/search/active, same on any page and with or without `fetch_all`; `false` if no matching row has a date.
+  - per the backend team, `last_update` changes only when a rate, sales rate, calculation or currency changes (not remarks, status or sort order).
+- The frontend decides "old" (more than 12 months, all charge types) in `src/utils/tariffRateAge.js`; the backend sends dates only.
+
 ## Error handling
 Form API errors are mapped by `src/utils/formApiErrors.js`. _TODO: document the backend error shape._
 

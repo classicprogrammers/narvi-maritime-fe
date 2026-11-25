@@ -57,6 +57,8 @@ import { buildTypeSections, exportScopeProblem, sectionsToSheetRows, uniqueCurre
 import CopyTariffModal from "./CopyTariffModal";
 import FetchAllSwitch from "./FetchAllSwitch";
 import TariffTable from "./TariffTable";
+import { LAST_UPDATED_COLUMN } from "./TariffLastUpdated";
+import TariffStaleBanner from "./TariffStaleBanner";
 import useTariffOptions from "./useTariffOptions";
 import { buildPdfModel } from "./rateListPdf";
 import usePdfPreview from "./usePdfPreview";
@@ -96,6 +98,7 @@ const SCREEN_COLUMNS = [
     label: "Shipment Type",
     render: (row) => shipmentTypeLabel(row.shipment_type, row.shipment_type_label),
   },
+  LAST_UPDATED_COLUMN,
 ];
 
 // The PDF / Excel exports list Standard rows first, then the groups in the order set in Rate Items (the backend
@@ -155,7 +158,13 @@ export default function ClientTariffs() {
   const [remarks, setRemarks] = useState(saved.remarks);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [meta, setMeta] = useState({ totalCount: 0, totalPages: 1, hasNext: false, hasPrevious: false });
+  const [meta, setMeta] = useState({
+    totalCount: 0,
+    totalPages: 1,
+    hasNext: false,
+    hasPrevious: false,
+    oldestLastUpdate: false,
+  });
   const [isPdfLoading, setIsPdfLoading] = useState(false);
   const [isExcelLoading, setIsExcelLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -228,11 +237,12 @@ export default function ClientTariffs() {
         totalPages: result.total_pages || 1,
         hasNext: Boolean(result.has_next),
         hasPrevious: Boolean(result.has_previous),
+        oldestLastUpdate: result.oldest_last_update ?? false,
       });
     } catch (error) {
       setRows([]);
       setSelectedIds([]);
-      setMeta({ totalCount: 0, totalPages: 1, hasNext: false, hasPrevious: false });
+      setMeta({ totalCount: 0, totalPages: 1, hasNext: false, hasPrevious: false, oldestLastUpdate: false });
       toast({
         title: "Error",
         description: tariffErrorMessage(error, "Failed to load client tariffs."),
@@ -693,6 +703,8 @@ export default function ClientTariffs() {
           onChange={(e) => setRemarks(e.target.value)}
         />
       </FormControl>
+
+      {meta.totalCount > 0 && <TariffStaleBanner oldestLastUpdate={meta.oldestLastUpdate} />}
 
       <TariffTable
         columns={SCREEN_COLUMNS}
