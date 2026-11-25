@@ -33,6 +33,7 @@ import {
   MdAccountBalance,
   MdCategory,
   MdDrafts,
+  MdInsertChart,
 } from "react-icons/md";
 
 // Admin Imports
@@ -118,6 +119,7 @@ import LedgerInvoice from "views/admin/ledger/invoice";
 import InvoiceFormPage from "views/admin/ledger/invoice/InvoiceFormPage";
 import LedgerSo from "views/admin/ledger/so";
 import SoLedgerFormPage from "views/admin/ledger/so/SoLedgerFormPage";
+import LedgerDashboards from "views/admin/ledger/dashboards";
 
 const routes = [
   {
@@ -248,6 +250,15 @@ const routes = [
       <Icon as={MdAccountBalance} width="20px" height="20px" color="inherit" />
     ),
     submenu: [
+      {
+        name: "Dashboards",
+        path: "/ledger/dashboards",
+        icon: (
+          <Icon as={MdInsertChart} width="20px" height="20px" color="inherit" />
+        ),
+        component: LedgerDashboards,
+        exact: true,
+      },
       {
         name: "Cost DB",
         path: "/ledger/cost",

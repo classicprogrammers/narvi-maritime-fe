@@ -65,6 +65,13 @@ export const API_CONFIG = {
     LEDGER_SO_CREATE: "/api/ledger/so/create",
     LEDGER_SO_UPDATE: "/api/ledger/so/update",
     LEDGER_SO_DELETE: "/api/ledger/so/delete",
+    // Master Ledger — Dashboards (contract confirmed by backend, implementation pending)
+    LEDGER_DASHBOARD_CASH: "/api/ledger/dashboard/cash",
+    LEDGER_DASHBOARD_CLIENT_STATS: "/api/ledger/dashboard/client-stats",
+    LEDGER_DASHBOARD_DESTINATIONS: "/api/ledger/dashboard/destinations",
+    LEDGER_DASHBOARD_TURNOVER: "/api/ledger/dashboard/turnover",
+    LEDGER_DASHBOARD_REGION_SALES: "/api/ledger/dashboard/region-sales",
+    LEDGER_DASHBOARD_CLIENT_TURNOVER: "/api/ledger/dashboard/client-turnover",
     CLIENT_SALES: "/api/client/sales",
     CLIENT_SALES_CREATE: "/api/client/sales/create",
     CLIENT_SALES_UPDATE: "/api/client/sales/update",
