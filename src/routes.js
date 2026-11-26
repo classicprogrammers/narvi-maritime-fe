@@ -120,6 +120,7 @@ import InvoiceFormPage from "views/admin/ledger/invoice/InvoiceFormPage";
 import LedgerSo from "views/admin/ledger/so";
 import SoLedgerFormPage from "views/admin/ledger/so/SoLedgerFormPage";
 import LedgerDashboards from "views/admin/ledger/dashboards";
+import LedgerSoa from "views/admin/ledger/soa";
 
 const routes = [
   {
@@ -275,6 +276,15 @@ const routes = [
           <Icon as={MdDescription} width="20px" height="20px" color="inherit" />
         ),
         component: LedgerInvoice,
+        exact: true,
+      },
+      {
+        name: "SOA",
+        path: "/ledger/soa",
+        icon: (
+          <Icon as={MdReceipt} width="20px" height="20px" color="inherit" />
+        ),
+        component: LedgerSoa,
         exact: true,
       },
       {

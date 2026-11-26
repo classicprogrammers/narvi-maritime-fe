@@ -120,7 +120,7 @@ export function buildRateListPdfModel({ items = [], scopeLabel = "" } = {}) {
 let letterheadCache = null;
 
 /** Loads the letterhead once per session, retrying a failed image load so a PDF never goes out without it. */
-async function loadLetterheadDataUrl() {
+export async function loadLetterheadDataUrl() {
   if (letterheadCache) return letterheadCache;
   let lastError;
   for (let attempt = 0; attempt < 3; attempt += 1) {

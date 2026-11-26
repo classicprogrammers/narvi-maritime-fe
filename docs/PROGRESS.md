@@ -47,6 +47,9 @@ Architect writes docs/specs/004-ledger-dashboards.md incl. proposed backend cont
 - Phase: WAITING AT CP4.
 - Next action: user approves CP4 (ideally after a browser walk with a login), then prepare PR into `staging` (no push without explicit OK) and run /update-docs.
 
+## Feature 006-soa (client answer received)
+Master Ledger > SOA (`/admin/ledger/soa`). Built from GET /api/ledger/invoice (no new endpoint): SOA date (as-at, invoices dated <= date) + optional client, then one currency; rows = non-cancelled invoices with balance > 0; columns Client, Currency, Date Invoice, Invoice Number, Customer Billing Ref (client_case_invoice_ref), Vessel, Date Due, Invoice Amount (currency_amount), Account Balance (invoice_balance), Grand Total. PDF (letterhead + bank details) and Excel export. Files: src/utils/soaReport.js(+test), src/views/admin/ledger/soa/{index.jsx,soaExport.js}. Unit tests pass, build ok; browser unverified (needs login). Open for client: balance is the current balance, not historic as-at; bank details/account no. are USD-specific constants in soaReport.js.
+
 ## Previous features (archived summary)
 - 001-drafts: frontend draft-on-failure; T1-T16 done (docs/specs/001-drafts.md).
 - 002-sales-notes: Sales Notes + follow-up filters; verified PASS by verifier, browser flows unverified (docs/specs/002-sales-notes.md).
