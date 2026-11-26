@@ -97,7 +97,7 @@ export default function DestinationsTab({ period, interval }) {
     { key: "cost", label: "Cost USD", value: totals?.cost_usd, type: "usd", negativeRed: false },
     { key: "profit", label: "Profit USD", value: totals?.profit_usd, type: "usd" },
     { key: "margin", label: "Margin", value: totals?.margin, type: "percent" },
-    { key: "invoices", label: "Invoices", value: totals?.invoice_count, type: "count" },
+    { key: "invoices", label: "Agent invoices", value: totals?.invoice_count, type: "count" },
     { key: "agents", label: "Agents", value: totals?.agent_count, type: "count" },
   ];
 
@@ -165,7 +165,7 @@ export default function DestinationsTab({ period, interval }) {
                   Agents
                 </Th>
                 <Th {...thProps} isNumeric>
-                  Invoices
+                  Agent invoices
                 </Th>
                 <Th {...thProps} isNumeric>
                   Sale USD

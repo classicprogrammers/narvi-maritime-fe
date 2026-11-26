@@ -29,13 +29,19 @@ import {
 import { useHistory, useParams } from "react-router-dom";
 import SearchableSelect from "components/forms/SearchableSelect";
 import LedgerDuplicateInvoiceModal from "components/ledger/LedgerDuplicateInvoiceModal";
+import LedgerCostInvoiceFileField from "components/ledger/LedgerCostInvoiceFileField";
+import { saveDownloadedFile } from "utils/ledgerEconomy";
+import { readCostInvoiceFile, validateCostInvoiceFile } from "utils/ledgerCostInvoiceFile";
 import { getShippingOrders } from "api/shippingOrders";
 import {
   checkLedgerCostInvoices,
   createLedgerCost,
+  deleteLedgerCostInvoiceFile,
+  downloadLedgerCostInvoiceFile,
   findCostInvoicesUnderOtherAgents,
   getLedgerCostById,
   updateLedgerCost,
+  uploadLedgerCostInvoiceFile,
 } from "api/ledgerCost";
 import { useMasterData } from "hooks/useMasterData";
 import useLedgerAgentOptions from "hooks/useLedgerAgentOptions";
@@ -567,6 +573,50 @@ export default function CostFormPage() {
     [toast]
   );
 
+  // Agent invoice file: sent on its own once the cost exists; the record is reloaded to show it
+  const reloadCostRecord = useCallback(async () => {
+    const record = await getLedgerCostById(recordIdRef.current);
+    setEditingRecord(record);
+  }, []);
+
+  const handleInvoiceFileUpload = useCallback(
+    async (file) => {
+      if (!recordIdRef.current) return;
+      const problem = validateCostInvoiceFile(file);
+      if (problem) {
+        showError(problem);
+        return;
+      }
+      try {
+        await uploadLedgerCostInvoiceFile(recordIdRef.current, file);
+        await reloadCostRecord();
+      } catch (error) {
+        showError(extractApiMessage(error, "Failed to upload the invoice file."));
+      }
+    },
+    [reloadCostRecord, showError]
+  );
+
+  const handleInvoiceFileDelete = useCallback(async () => {
+    try {
+      await deleteLedgerCostInvoiceFile(recordIdRef.current);
+      await reloadCostRecord();
+    } catch (error) {
+      showError(extractApiMessage(error, "Failed to remove the invoice file."));
+    }
+  }, [reloadCostRecord, showError]);
+
+  const handleInvoiceFileDownload = useCallback(
+    async (file) => {
+      try {
+        saveDownloadedFile(await downloadLedgerCostInvoiceFile(file, recordIdRef.current), file);
+      } catch (error) {
+        showError(extractApiMessage(error, "Failed to download the invoice file."));
+      }
+    },
+    [showError]
+  );
+
   useEffect(() => {
     if (isLoadingRecord || skipAutosaveRef.current || isTableView) return;
     // Blocked by a duplicate invoice number until invoices or agent change
@@ -776,15 +826,72 @@ export default function CostFormPage() {
                 rowGap={3}
                 alignItems="start"
               >
-                <FormControl gridColumn={{ md: "span 2", xl: "span 12" }}>
-                  <FormLabel {...fieldLabelProps}>Internal Remarks</FormLabel>
-                  <Textarea
-                    value={form.internal_remarks}
-                    onChange={(e) => setField("internal_remarks", e.target.value)}
-                    bg={inputBg}
-                    minH="120px"
-                    rows={5}
+                <FormControl gridColumn={{ xl: "span 4" }}>
+                  <FormLabel {...fieldLabelProps}>Invoice Number</FormLabel>
+                  <Input
+                    ref={invoicesRef}
+                    value={form.invoices}
+                    onChange={(e) => setField("invoices", e.target.value)}
+                    onBlur={async () => {
+                      if (isDuplicateBlocked) return;
+                      if (await runInvoicePrecheck(form)) return;
+                      // Still pending: ask again, so the operator can accept it ("Use it anyway")
+                      if (isOtherAgentPending) setIsOtherAgentOpen(true);
+                      else runOtherAgentCheck(form);
+                    }}
+                    {...controlProps}
                   />
+                  {isChecking ? (
+                    <Flex align="center" gap={2} mt={1}>
+                      <Spinner size="xs" />
+                      <Text fontSize="xs" color={mutedColor}>
+                        Checking invoice numbers...
+                      </Text>
+                    </Flex>
+                  ) : precheckFailed ? (
+                    <Text fontSize="xs" color={mutedColor} mt={1}>
+                      Could not check for duplicates. The server will check when you save.
+                    </Text>
+                  ) : null}
+                </FormControl>
+
+                <FormControl gridColumn={{ xl: "span 4" }} isRequired>
+                  <FormLabel {...fieldLabelProps}>Agent</FormLabel>
+                  <SearchableSelect
+                    value={form.agent_id === "" ? "" : String(form.agent_id)}
+                    onChange={handleAgentChange}
+                    options={agentOptions}
+                    placeholder="Select agent..."
+                    serverSideSearch
+                    onSearchChange={agents.onSearchChange}
+                    isLoading={agents.isLoading}
+                    formatOption={agentOptionLabel}
+                    renderOption={(option) => (
+                      <Box>
+                        <Text fontSize="sm" fontWeight="600" color={labelColor} noOfLines={1}>
+                          {agentOptionLabel(option)}
+                        </Text>
+                        {agentOptionSecondary(option) ? (
+                          <Text fontSize="xs" color={mutedColor} noOfLines={1}>
+                            {agentOptionSecondary(option)}
+                          </Text>
+                        ) : null}
+                      </Box>
+                    )}
+                    fallbackDisplay={selectedAgentFallback}
+                    {...selectControlProps}
+                  />
+                  <Text fontSize="xs" color={mutedColor} mt={1}>
+                    Search by Agent ID, agent code or company.
+                  </Text>
+                  {agents.error ? (
+                    <Text fontSize="xs" color="red.500" mt={1}>
+                      Could not load agents.{" "}
+                      <Button variant="link" size="xs" colorScheme="blue" onClick={agents.retry}>
+                        Retry
+                      </Button>
+                    </Text>
+                  ) : null}
                 </FormControl>
 
                 <FormControl gridColumn={{ xl: "span 4" }} isRequired>
@@ -826,18 +933,6 @@ export default function CostFormPage() {
                 </FormControl>
 
                 <FormControl gridColumn={{ xl: "span 4" }}>
-                  <FormLabel {...fieldLabelProps}>Client Case / Invoice Ref</FormLabel>
-                  <Input
-                    isReadOnly
-                    value={form.client_case_invoice_ref}
-                    placeholder="Filled by server"
-                    title={form.client_case_invoice_ref}
-                    {...controlProps}
-                    bg={readonlyBg}
-                  />
-                </FormControl>
-
-                <FormControl gridColumn={{ xl: "span 4" }}>
                   <FormLabel {...fieldLabelProps}>Client</FormLabel>
                   <Input
                     isReadOnly
@@ -848,7 +943,7 @@ export default function CostFormPage() {
                   />
                 </FormControl>
 
-                <FormControl gridColumn={{ xl: "span 4" }}>
+                <FormControl gridColumn={{ xl: "span 3" }}>
                   <FormLabel {...fieldLabelProps}>Vessel</FormLabel>
                   <Input
                     isReadOnly
@@ -946,28 +1041,6 @@ export default function CostFormPage() {
                 </FormControl>
 
                 <FormControl gridColumn={{ xl: "span 3" }}>
-                  <CostRoeField
-                    values={form}
-                    onPatch={patchForm}
-                    currencyLabel={selectedCurrencyLabel}
-                    label="Rate of Exchange on Invoice Date"
-                    labelProps={fieldLabelProps}
-                    controlProps={controlProps}
-                  />
-                </FormControl>
-
-                <FormControl gridColumn={{ xl: "span 4" }}>
-                  <FormLabel {...fieldLabelProps}>USD Cost</FormLabel>
-                  <Input
-                    isReadOnly
-                    value={form.usd_cost === "" ? "" : formatCostNumber(form.usd_cost, 4)}
-                    placeholder="Filled by server"
-                    {...controlProps}
-                    bg={readonlyBg}
-                  />
-                </FormControl>
-
-                <FormControl gridColumn={{ xl: "span 4" }}>
                   <FormLabel {...fieldLabelProps}>GST in Amount</FormLabel>
                   <Input
                     type="number"
@@ -979,75 +1052,29 @@ export default function CostFormPage() {
                   />
                 </FormControl>
 
-                <FormControl gridColumn={{ xl: "span 4" }} isRequired>
-                  <FormLabel {...fieldLabelProps}>Agent</FormLabel>
-                  <SearchableSelect
-                    value={form.agent_id === "" ? "" : String(form.agent_id)}
-                    onChange={handleAgentChange}
-                    options={agentOptions}
-                    placeholder="Select agent..."
-                    serverSideSearch
-                    onSearchChange={agents.onSearchChange}
-                    isLoading={agents.isLoading}
-                    formatOption={agentOptionLabel}
-                    renderOption={(option) => (
-                      <Box>
-                        <Text fontSize="sm" fontWeight="600" color={labelColor} noOfLines={1}>
-                          {agentOptionLabel(option)}
-                        </Text>
-                        {agentOptionSecondary(option) ? (
-                          <Text fontSize="xs" color={mutedColor} noOfLines={1}>
-                            {agentOptionSecondary(option)}
-                          </Text>
-                        ) : null}
-                      </Box>
-                    )}
-                    fallbackDisplay={selectedAgentFallback}
-                    {...selectControlProps}
+                <FormControl gridColumn={{ xl: "span 3" }}>
+                  <CostRoeField
+                    values={form}
+                    onPatch={patchForm}
+                    currencyLabel={selectedCurrencyLabel}
+                    label="Rate of Exchange on Invoice Date"
+                    labelProps={fieldLabelProps}
+                    controlProps={controlProps}
                   />
-                  <Text fontSize="xs" color={mutedColor} mt={1}>
-                    Search by Agent ID, agent code or company.
-                  </Text>
-                  {agents.error ? (
-                    <Text fontSize="xs" color="red.500" mt={1}>
-                      Could not load agents.{" "}
-                      <Button variant="link" size="xs" colorScheme="blue" onClick={agents.retry}>
-                        Retry
-                      </Button>
-                    </Text>
-                  ) : null}
                 </FormControl>
 
-                <FormControl gridColumn={{ xl: "span 4" }}>
-                  <FormLabel {...fieldLabelProps}>Invoice Number</FormLabel>
+                <FormControl gridColumn={{ xl: "span 3" }}>
+                  <FormLabel {...fieldLabelProps}>USD Cost</FormLabel>
                   <Input
-                    ref={invoicesRef}
-                    value={form.invoices}
-                    onChange={(e) => setField("invoices", e.target.value)}
-                    onBlur={async () => {
-                      if (isDuplicateBlocked) return;
-                      if (await runInvoicePrecheck(form)) return;
-                      // Still pending: ask again, so the operator can accept it ("Use it anyway")
-                      if (isOtherAgentPending) setIsOtherAgentOpen(true);
-                      else runOtherAgentCheck(form);
-                    }}
+                    isReadOnly
+                    value={form.usd_cost === "" ? "" : formatCostNumber(form.usd_cost, 4)}
+                    placeholder="Filled by server"
                     {...controlProps}
+                    bg={readonlyBg}
                   />
-                  {isChecking ? (
-                    <Flex align="center" gap={2} mt={1}>
-                      <Spinner size="xs" />
-                      <Text fontSize="xs" color={mutedColor}>
-                        Checking invoice numbers...
-                      </Text>
-                    </Flex>
-                  ) : precheckFailed ? (
-                    <Text fontSize="xs" color={mutedColor} mt={1}>
-                      Could not check for duplicates. The server will check when you save.
-                    </Text>
-                  ) : null}
                 </FormControl>
 
-                <FormControl gridColumn={{ xl: "span 4" }}>
+                <FormControl gridColumn={{ xl: "span 3" }}>
                   <FormLabel {...fieldLabelProps}>Date Agent Invoice</FormLabel>
                   <DateField
                     value={form.date_agent_invoice}
@@ -1075,6 +1102,21 @@ export default function CostFormPage() {
                   />
                 </FormControl>
 
+                <LedgerCostInvoiceFileField
+                  gridColumn={{ md: "span 2", xl: "span 8" }}
+                  labelProps={fieldLabelProps}
+                  file={readCostInvoiceFile(editingRecord)}
+                  canUpload={hasSavedRecord && !isLedgerCancelled(editingRecord)}
+                  hint={
+                    hasSavedRecord
+                      ? undefined
+                      : "The cost saves automatically once the required fields are filled. Then you can add the file."
+                  }
+                  onUpload={handleInvoiceFileUpload}
+                  onDelete={handleInvoiceFileDelete}
+                  onDownload={handleInvoiceFileDownload}
+                />
+
                 <FormControl gridColumn={{ md: "span 2", xl: "span 8" }}>
                   <FormLabel {...fieldLabelProps}>Invoice Link</FormLabel>
                   <Flex gap={2} align="center">
@@ -1090,6 +1132,17 @@ export default function CostFormPage() {
                       </Link>
                     )}
                   </Flex>
+                </FormControl>
+
+                <FormControl gridColumn={{ md: "span 2", xl: "span 12" }}>
+                  <FormLabel {...fieldLabelProps}>Internal Remarks</FormLabel>
+                  <Textarea
+                    value={form.internal_remarks}
+                    onChange={(e) => setField("internal_remarks", e.target.value)}
+                    bg={inputBg}
+                    minH="120px"
+                    rows={5}
+                  />
                 </FormControl>
               </SimpleGrid>
 

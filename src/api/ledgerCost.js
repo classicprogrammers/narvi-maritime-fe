@@ -1,5 +1,7 @@
 import api from "./axios";
 import { findOtherAgentDuplicates, splitInvoiceNumbers } from "../utils/ledgerInvoiceNumbers";
+import { toRelativeApiPath } from "../utils/ledgerEconomy";
+import { parseContentDispositionFilename } from "../utils/shippingOrderAttachments";
 
 const unwrapError = (data, fallback) => {
   if (data?.result?.status === "error") {
@@ -116,6 +118,45 @@ export const updateLedgerCost = async (payload) => {
   return data;
 };
 
+// Agent invoice file: one per cost, a new upload replaces the old one. The cost must already exist.
+export const uploadLedgerCostInvoiceFile = async (id, file) => {
+  const body = new FormData();
+  body.append("file", file);
+  // The shared client defaults to JSON, which would turn the FormData into JSON
+  const response = await api.post(`/api/ledger/cost/${id}/invoice-file`, body, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  const data = response.data || response;
+  unwrapError(data, "Failed to upload the invoice file");
+  return data;
+};
+
+export const deleteLedgerCostInvoiceFile = async (id) => {
+  const response = await api.delete(`/api/ledger/cost/${id}/invoice-file`);
+  const data = response.data || response;
+  unwrapError(data, "Failed to remove the invoice file");
+  return data;
+};
+
+// GET <file.download_url> as a blob (needs the Bearer header, so a plain link cannot be used).
+// Resolves to { data: Blob, filename }.
+export const downloadLedgerCostInvoiceFile = async (file, costId) => {
+  const path =
+    toRelativeApiPath(file?.download_url) ||
+    (costId != null ? `/api/ledger/cost/${costId}/invoice-file` : null);
+  if (!path) throw new Error("This file has no download link.");
+  const response = await api.get(path, { responseType: "blob" });
+  if (response.data instanceof Blob && response.data.type === "application/json") {
+    const json = JSON.parse(await response.data.text());
+    throw new Error(json?.result?.message || json?.message || "Failed to download the invoice file");
+  }
+  return {
+    data: response.data,
+    type: response.headers["content-type"] || "application/octet-stream",
+    filename: parseContentDispositionFilename(response.headers["content-disposition"]),
+  };
+};
+
 // Submitted records are never deleted; the backend only allows cancelling them
 export const cancelLedgerCost = async (id) => {
   const response = await api.post("/api/ledger/cost/cancel", { id });
@@ -179,6 +220,9 @@ export default {
   getLedgerCostById,
   createLedgerCost,
   updateLedgerCost,
+  uploadLedgerCostInvoiceFile,
+  deleteLedgerCostInvoiceFile,
+  downloadLedgerCostInvoiceFile,
   cancelLedgerCost,
   bulkUpdateLedgerCosts,
   checkLedgerCostInvoices,
