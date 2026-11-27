@@ -22,6 +22,13 @@ _TODO (Phase 0): fill from `src/api/*` and the payload builders in `src/utils/*P
 - `POST /api/currency/roe` `{from_currency_id, to_currency_id, date}` -> `{roe|null, roe_date}` (preview only).
 - Per-unit CIPL and invoice/manifest forms do not support this yet.
 
+### CIPL Manual form (feature 009, `src/api/cipl.js`, `src/utils/ciPlManual.js`)
+- `form_type` on `POST /api/cipl/form` (list, `latest_only`, archived): omitted = Simple only, `"manual"` = Manual only, `"all"` = both. Required on `POST /api/cipl/form/create` for a Manual draft (`{form_type:"manual"}`). Load by `id` (`POST /api/cipl/form {id}`) returns any type without `form_type`. Every form response has `form_type`, `cipl_number` (read-only) and `vessel_id` (`{id, name}` or `null`; send only the id when saving).
+- Manual header: same fields as Simple plus `job_no` (typed) and `vessel_id`; no SI/SIC/DI numbers, no ship-by, `agent_cnee_id` not required.
+- `stock_list[]` on `POST /api/cipl/form/update` and archive, Manual line shapes: `{stock_list_id}` adds a stock item (`id` of the stock list record); `{description, hs_code, quantity, unit_price, box, weight}` adds a free-text line; `{id, ...changed fields}` edits (never send `stock_list_id` with `id`); `{id, delete:true}` removes. Line value = `quantity` x `unit_price`.
+- Totals come from the backend (`total_box`, `total_weight`, `total_value_in_usd`, `totals`, `packed_as {boxes, kg}`); values are strings like "125.00", zero comes back as `false`.
+- Rule: on Manual forms every update that sends `stock_list` resets `packed_as` and the packed totals to the line sums. Packed edits (`total_packed_quantity`, `total_packed_weight`, `packed_as`) must go in a SEPARATE update without `stock_list`, sent after the line save (the screen keeps the typed override and re-sends it after each line save).
+
 ### Agent / client tariffs: rate age (`src/api/rate.js`)
 - `GET /api/agent/rate/tariff` and `GET /api/client/rate/tariff` (read by `agent-tariffs.jsx` / `client-tariffs.jsx` as `result.data`, `result.total_count`, `result.total_pages`):
   - each row has `last_update`: `"YYYY-MM-DD"`, or `false` when unknown (some older rates have no date). `false` is "unknown", never "old".

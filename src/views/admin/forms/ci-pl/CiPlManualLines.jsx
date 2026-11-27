@@ -171,6 +171,21 @@ const CiPlManualLines = ({
     }
   };
 
+  // An edit committed while a line save was running is not lost: when the lock lifts, save the
+  // next dirty row (rows that already show an error are left for the user to fix).
+  useEffect(() => {
+    if (locked) return;
+    const next = rowsRef.current.find(
+      (r) =>
+        r.id != null &&
+        !rowState[r.key]?.saving &&
+        !rowState[r.key]?.error &&
+        isDirty(r, baselineRef.current.get(r.id))
+    );
+    if (next) saveRow(next.key);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locked]);
+
   const removeRow = async (row) => {
     const payload = buildManualLineDelete(row);
     if (!payload || locked) return;

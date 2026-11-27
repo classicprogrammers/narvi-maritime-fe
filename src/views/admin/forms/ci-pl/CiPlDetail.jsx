@@ -478,6 +478,12 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
   // Last manual form returned by the API (lines + totals); CiPlManualLines renders from it.
   const [manualForm, setManualForm] = useState(null);
   const [manualHasPendingLines, setManualHasPendingLines] = useState(false);
+  // True only while a manual line save runs (locks the line inputs; header autosaves do not).
+  const [manualLinesBusy, setManualLinesBusy] = useState(false);
+  // Bumped on Reset / Archive so CiPlManualLines drops unsaved new rows.
+  const [manualLinesResetKey, setManualLinesResetKey] = useState(0);
+  // Packed totals typed by the user ({boxes, kg}); re-sent after every line save (the backend resets them).
+  const manualPackedOverrideRef = useRef(null);
   // Backend requires agent_cnee_id; keep last valid id even if UI is cleared
   const [requiredAgentCneeId, setRequiredAgentCneeId] = useState(null);
   const isApplyingFormRef = useRef(false);
@@ -1634,7 +1640,14 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
     if (!id && !isShippingAdvise && !isDeliveryLike && !isCiPlArchivedView) {
       const created = await createForm({});
       id = created?.id ?? null;
-      if (created) applySiFormResponse(created);
+      if (created) {
+        applySiFormResponse(created);
+        if (isCiPlManualForm) {
+          // Keep the Job No / Vessel the user just typed (the created form is still empty).
+          const typed = { jobNo: formData.jobNo, vessel: formData.vessel, vesselId: formData.vesselId };
+          setFormData((prev) => ({ ...prev, ...typed }));
+        }
+      }
     }
     if (id) setSiFormId(id);
     return id;
@@ -1895,12 +1908,33 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
     let cancelled = false;
     setSiFormId(null);
     manualResponseRef.current = isCiPlManualTab;
+    manualPackedOverrideRef.current = null;
     if (isCiPlManualTab) setManualForm(null);
     (async () => {
       try {
         setIsSiFormLoading(true);
         const form = await loadFormLatest({ latest_only: true });
         if (cancelled) return;
+        if (!form && isCiPlManualTab) {
+          // No manual draft yet: drop what the previous (Simple) tab left on screen.
+          isApplyingFormRef.current = true;
+          setFormData((prev) => ({
+            ...prev,
+            jobNo: "",
+            vessel: "",
+            vesselId: null,
+            ciplNumber: "",
+          }));
+          setManualForm(null);
+          setCargoItems(blankCargoRows());
+          lastSavedAutosaveRef.current.header = {
+            ...lastSavedAutosaveRef.current.header,
+            ...manualHeaderSnapshot(null),
+          };
+          setTimeout(() => {
+            isApplyingFormRef.current = false;
+          }, 0);
+        }
         applySiFormResponse(form);
       } catch (e) {
         console.error("Failed to load CI PL form:", e);
@@ -2281,32 +2315,54 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
   };
 
   // Manual tab: save a stock_list change (add / edit / delete) and resolve with the returned form.
-  // Totals and packed totals come from the response (the backend resets packed totals on every stock_list update).
+  // The backend resets packed totals to the line sums on every stock_list update, so a packed
+  // override typed by the user is re-sent in a SECOND call (without stock_list) after the line save.
   const handleManualSaveLines = async (stockListPayload) => {
+    setManualLinesBusy(true);
     try {
       const currentId = await ensureFormId();
-      if (!currentId) return null;
+      if (!currentId) throw new Error("Could not create the manual draft. Please try again.");
       setIsSiFormLoading(true);
       const updated = await saveForm(
         buildSavePayloadWithId(currentId, { stock_list: stockListPayload })
       );
       if (!updated) return null;
+      const formId = updated.id ?? currentId;
       if (updated.id != null) setSiFormId(updated.id);
-      setManualForm(updated);
-      syncFormTotalsFromApi(updated);
-      syncAutosaveSnapshotsFromApi(updated);
-      const apiTotals = readManualTotals(updated);
-      lastSavedAutosaveRef.current.packed = {
-        ...lastSavedAutosaveRef.current.packed,
-        total_packed_quantity: apiTotals.packedBoxes,
-        total_packed_weight: apiTotals.packedKg,
-      };
-      packedTotalsUserEditedRef.current = apiTotals.packedBoxes !== 0 || apiTotals.packedKg !== 0;
-      setFormData((prev) => ({
-        ...prev,
-        totalPackedQuantity: apiTotals.packedBoxes,
-        totalPackedWeight: apiTotals.packedKg,
-      }));
+      const override = manualPackedOverrideRef.current;
+      let shown = updated;
+      let overrideRestored = false;
+      if (override) {
+        try {
+          const restored = await saveForm(buildManualPackedPayload(formId, override));
+          if (restored) {
+            shown = restored;
+            overrideRestored = true;
+          }
+        } catch (e) {
+          console.error("Failed to re-send manual packed totals:", e);
+          showFormSaveError(toast, e, "Failed to save packed totals");
+        }
+      }
+      setManualForm(shown);
+      syncFormTotalsFromApi(shown);
+      syncAutosaveSnapshotsFromApi(shown);
+      if (overrideRestored) {
+        // Keep the typed values in the inputs (unchanged state keeps a pending packed autosave alive).
+        const packed = buildManualPackedPayload(formId, override);
+        lastSavedAutosaveRef.current.packed = {
+          ...lastSavedAutosaveRef.current.packed,
+          total_packed_quantity: packed.total_packed_quantity,
+          total_packed_weight: packed.total_packed_weight,
+        };
+      } else {
+        const apiTotals = readManualTotals(shown);
+        setFormData((prev) => ({
+          ...prev,
+          totalPackedQuantity: apiTotals.packedBoxes,
+          totalPackedWeight: apiTotals.packedKg,
+        }));
+      }
       return updated;
     } catch (e) {
       console.error("Failed to save CIPL manual lines:", e);
@@ -2314,6 +2370,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       throw e; // CiPlManualLines shows the message under the row
     } finally {
       setIsSiFormLoading(false);
+      setManualLinesBusy(false);
     }
   };
 
@@ -2331,6 +2388,10 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
             value={formData.totalPackedQuantity}
             onChange={(e) => {
               packedTotalsUserEditedRef.current = true;
+              manualPackedOverrideRef.current = {
+                boxes: e.target.value,
+                kg: formData.totalPackedWeight,
+              };
               handleInputChange("totalPackedQuantity", e.target.value);
             }}
             size="xs"
@@ -2348,6 +2409,10 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
             value={formData.totalPackedWeight}
             onChange={(e) => {
               packedTotalsUserEditedRef.current = true;
+              manualPackedOverrideRef.current = {
+                boxes: formData.totalPackedQuantity,
+                kg: e.target.value,
+              };
               handleInputChange("totalPackedWeight", e.target.value);
             }}
             size="xs"
@@ -2405,6 +2470,8 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       headerUserEditedRef.current = false;
       consignBlockUserEditedRef.current = false;
       packedTotalsUserEditedRef.current = false;
+      manualPackedOverrideRef.current = null;
+      setManualLinesResetKey((k) => k + 1);
       setRequiredAgentCneeId(null);
 
       const nextDraft = await loadDraftForm({ latest_only: true });
@@ -2443,6 +2510,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       headerUserEditedRef.current = false;
       consignBlockUserEditedRef.current = false;
       packedTotalsUserEditedRef.current = false;
+      manualPackedOverrideRef.current = null;
       setRequiredAgentCneeId(null);
       // Ensure we have a record id to update
       let currentId = siFormId;
@@ -2600,6 +2668,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         stockLines: resetStockLinesSignature,
       };
       applySiFormResponse(updated);
+      setManualLinesResetKey((k) => k + 1); // drops unsaved new rows in CiPlManualLines
       // Prevent immediate post-reset autosave loops from stale refs.
       headerUserEditedRef.current = false;
       consignBlockUserEditedRef.current = false;
@@ -4179,12 +4248,13 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                     CARGO TO BE INCLUDED IN THIS INVOICE / PACKING LIST:
                   </Text>
                   <CiPlManualLines
+                    key={manualLinesResetKey}
                     stockList={manualForm?.stock_list}
                     form={manualForm}
                     vesselId={formData.vesselId}
                     currencyLabel={valueInCurrencyLabel.replace(/^VALUE IN /, "")}
                     isReadOnly={isCiPlArchivedView}
-                    isBusy={isSiFormLoading}
+                    isBusy={manualLinesBusy}
                     onSaveLines={handleManualSaveLines}
                     onPendingChange={setManualHasPendingLines}
                     renderFooter={renderManualFooter}

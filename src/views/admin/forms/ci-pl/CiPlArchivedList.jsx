@@ -23,7 +23,7 @@ import {
   postCiplSimpleFormDeleteApi,
 } from "../../../../api/cipl";
 import { formatDateTimeDMYFull } from "utils/dateFormat";
-import { ciplFormTypeLabel, isManualCiplForm } from "utils/ciPlManual";
+import { ciplFormTypeLabel } from "utils/ciPlManual";
 
 const formatDateTime = (value) => {
   if (!value) return "-";
@@ -164,7 +164,7 @@ export default function CiPlArchivedList() {
                   >
                     <Td>{form.id ?? "-"}</Td>
                     <Td>{ciplFormTypeLabel(form)}</Td>
-                    <Td>{isManualCiplForm(form) ? form.cipl_number || "—" : "—"}</Td>
+                    <Td>{form.cipl_number || "—"}</Td>
                     <Td>{form.state || "archived"}</Td>
                     <Td>{resolveLabel(form.agent_id)}</Td>
                     <Td>{resolveLabel(form.si_number_id)}</Td>
