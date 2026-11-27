@@ -29,6 +29,15 @@ _TODO (Phase 0): fill from `src/api/*` and the payload builders in `src/utils/*P
   - per the backend team, `last_update` changes only when a rate, sales rate, calculation or currency changes (not remarks, status or sort order).
 - The frontend decides "old" (more than 12 months, all charge types) in `src/utils/tariffRateAge.js`; the backend sends dates only.
 
+### Ledger lists: ids filter and invoice number check (`src/api/ledgerCost.js`, `src/api/ledgerInvoice.js`)
+- `GET /api/ledger/cost?ids=1,2,3` and `GET /api/ledger/invoice?ids=1,2,3` return only those records (same shape as the normal list: `data[]`, `total_count`; works with `page`/`page_size`). Unknown ids give an empty list; bad ids give 400 "ids must be a comma separated list of numbers.". The frontend sends `params.ids` (array or comma string) as comma-separated `ids`; the table edit pages load all selected records with one request (`page_size` = number of ids) and fall back to per-row `id=` loading if it fails.
+- `POST /api/ledger/invoice/check-number` `{invoice_number, exclude_id?}` -> `result {status, has_duplicates, duplicates[{invoice, record_id, so_number, booked_by, booked_on}]}` (same envelope as `POST /api/ledger/cost/check-invoice`). Used only to warn on leaving the Invoice Number field; create/update still return `status: "error"` ("Invoice number 654 was already booked on 4364 by admin on 2026-09-09.") and that error is shown as before.
+
+### Invoice "Issued By" (feature 008)
+- `POST /api/ledger/invoice/issuers` body `{}` or `{ "q": "..." }` -> `{ result: { status, issuers: [{ id, name }] } }` (empty body returns every issuer, `q` filters by name). Config key `LEDGER_INVOICE_ISSUERS`; client `getLedgerInvoiceIssuers({ q })` in `src/api/ledgerInvoice.js`.
+- `POST /api/ledger/invoice/create`: `issued_by_id` is REQUIRED. `POST /api/ledger/invoice/update`: send `issued_by_id` only when the user picked someone (id from the issuers list); an old invoice without an issuer saves without it. Never send `null`, `false` or `""`: the server answers "issued_by_id cannot be cleared; choose another person."
+- `GET /api/ledger/invoice`: rows carry `issued_by_id` and `issued_by` (name; `false`/null on old invoices); the response has a `columns` array that includes `issued_by` after `invoice_number`; filter with `?issued_by_id=`.
+
 ## Error handling
 Form API errors are mapped by `src/utils/formApiErrors.js`. _TODO: document the backend error shape._
 
