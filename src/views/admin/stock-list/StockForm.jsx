@@ -2323,6 +2323,7 @@ export default function StockForm() {
                                                                 align="center"
                                                                 justify="space-between"
                                                                 fontSize="xs"
+                                                                flexWrap="wrap"
                                                             >
                                                                 <Text isTruncated flex={1} title={att.filename}>
                                                                     {att.filename}
@@ -2332,7 +2333,8 @@ export default function StockForm() {
                                                                     onChange={(value) =>
                                                                         handleExistingTypeChange(rowIndex, att.id, value)
                                                                     }
-                                                                    w="96px"
+                                                                    w="100%"
+                                                                    order={3}
                                                                     flexShrink={0}
                                                                     ariaLabel={`Type of ${att.filename}`}
                                                                 />
@@ -2403,6 +2405,7 @@ export default function StockForm() {
                                                                 align="center"
                                                                 justify="space-between"
                                                                 fontSize="xs"
+                                                                flexWrap="wrap"
                                                             >
                                                                 <Text isTruncated flex={1} title={att.filename}>
                                                                     {att.filename}
@@ -2412,7 +2415,8 @@ export default function StockForm() {
                                                                     onChange={(value) =>
                                                                         handlePendingTypeChange(rowIndex, newIndex, value)
                                                                     }
-                                                                    w="96px"
+                                                                    w="100%"
+                                                                    order={3}
                                                                     flexShrink={0}
                                                                     ariaLabel={`Type of ${att.filename}`}
                                                                 />

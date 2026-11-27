@@ -6,6 +6,7 @@ export const DEFAULT_DOCUMENT_TYPES = [
   { value: "stock_report", label: "Stock report" },
   { value: "msds", label: "MSDS" },
   { value: "supplier_doc", label: "Supplier document" },
+  { value: "shipping_docs", label: "Shipping docs" },
   { value: "other", label: "Other" },
 ];
 

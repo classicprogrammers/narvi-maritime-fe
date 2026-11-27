@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import {
   Box,
   Button,
-  Flex,
   FormControl,
   FormLabel,
   HStack,
@@ -169,18 +168,18 @@ export default function ShippingOrderAttachmentsField({
   };
 
   const renderFileRow = (att, key, { onRemove, onTypeChange }) => (
-    <Flex key={key} align="center" justify="space-between" fontSize="sm" gap={1}>
-      <Text isTruncated flex={1} title={att.filename || att.name}>
-        {att.filename || att.name || "File"}
-      </Text>
+    <HStack key={key} spacing={2} fontSize="sm">
       <DocumentTypeSelect
         value={att.document_type}
         onChange={onTypeChange}
-        w="130px"
+        w="150px"
         flexShrink={0}
         ariaLabel={`Type of ${att.filename || att.name || "file"}`}
       />
-      <HStack spacing={0}>
+      <Text isTruncated flex={1} px={3} title={att.filename || att.name}>
+        {att.filename || att.name || "File"}
+      </Text>
+      <HStack spacing={0} flexShrink={0}>
         <IconButton
           aria-label="Download file"
           icon={<Icon as={MdDownload} />}
@@ -199,7 +198,7 @@ export default function ShippingOrderAttachmentsField({
           onClick={onRemove}
         />
       </HStack>
-    </Flex>
+    </HStack>
   );
 
   return (
