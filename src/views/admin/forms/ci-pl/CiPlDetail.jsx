@@ -121,6 +121,20 @@ import {
   syncCiplStockLineSummaryFields,
 } from "../../../../utils/ciPlStockLineEntries";
 import { formatDateDMY, formatDateTimeDMYFull } from "utils/dateFormat";
+import {
+  CIPL_FORM_TYPE,
+  buildManualHeaderFields,
+  buildManualPackedPayload,
+  buildManualPdfRows,
+  buildManualResetLines,
+  isManualCiplForm,
+  manualHeaderSnapshot,
+  parseCiplVessel,
+  parseManualLinesFromApi,
+  readManualTotals,
+} from "../../../../utils/ciPlManual";
+import CiPlManualHeaderFields from "./CiPlManualHeaderFields";
+import CiPlManualLines from "./CiPlManualLines";
 
 const normalizeCurrencyMasterOptions = (rawList) => {
   if (!Array.isArray(rawList)) return [];
@@ -198,7 +212,8 @@ const resolveStockLineSupplierName = (line) => {
 };
 
 const CI_PL_TAB_QUERY_KEY = "tab";
-const CI_PL_TAB_SLUGS = ["simple", "per-unit", "manifest"];
+const CI_PL_TAB_SLUGS = ["simple", "per-unit", "manifest", "manual"];
+const CI_PL_MANUAL_TAB_INDEX = 3;
 
 const parseCiPlFormTotalsFromApi = (form) => {
   const formTotalsSource =
@@ -380,6 +395,18 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         archiveForm: postCiplPerUnitFormArchiveApi,
       };
     }
+    if (ciPlTabIndex === CI_PL_MANUAL_TAB_INDEX && !isCiPlArchivedView) {
+      // Manual reuses the Simple endpoints; form_type tells the backend which draft to load / create.
+      return {
+        loadFormLatest: (params = {}) =>
+          postCiplSimpleFormApi({ ...params, form_type: CIPL_FORM_TYPE.MANUAL }),
+        loadOptions: getCiplSimpleFormOptionsApi,
+        saveForm: postCiplSimpleFormUpdateApi,
+        createForm: (payload = {}) =>
+          postCiplSimpleFormCreateApi({ ...payload, form_type: CIPL_FORM_TYPE.MANUAL }),
+        archiveForm: postCiplSimpleFormArchiveApi,
+      };
+    }
     return {
       loadFormLatest: postCiplSimpleFormApi,
       loadOptions: getCiplSimpleFormOptionsApi,
@@ -446,6 +473,11 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
   const [selectedSiName, setSelectedSiName] = useState("");
   const [siFormId, setSiFormId] = useState(null);
   const [ciPlFormMeta, setCiPlFormMeta] = useState({ state: null, archived_at: null });
+  // Form type of the archived record being viewed ("manual" shows the Manual layout); drafts use the tab instead.
+  const [loadedFormType, setLoadedFormType] = useState(CIPL_FORM_TYPE.SIMPLE);
+  // Last manual form returned by the API (lines + totals); CiPlManualLines renders from it.
+  const [manualForm, setManualForm] = useState(null);
+  const [manualHasPendingLines, setManualHasPendingLines] = useState(false);
   // Backend requires agent_cnee_id; keep last valid id even if UI is cleared
   const [requiredAgentCneeId, setRequiredAgentCneeId] = useState(null);
   const isApplyingFormRef = useRef(false);
@@ -454,6 +486,8 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
   const remarksUserEditedRef = useRef(false);
   const packedTotalsUserEditedRef = useRef(false);
   const isResettingRef = useRef(false);
+  // True while the loaded form is a manual one (guards the Simple stock-line autosave).
+  const manualResponseRef = useRef(false);
   // Tab whose draft is currently loaded; stops autosave posting the previous tab's form id to the new tab's endpoint.
   const loadedCiPlTabRef = useRef(0);
   const lastSubmittedHeaderRef = useRef({
@@ -478,6 +512,8 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
   // Form state
   const [formData, setFormData] = useState({
     vessel: "",
+    vesselId: null, // Manual tab only
+    ciplNumber: "", // Manual tab only, read-only
     deliveryToAt: "",
     consignBlock: "",
     siNo: "", // stores selected option id
@@ -572,8 +608,11 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
 
   const isCiPlPerUnitTab = !isShippingAdvise && !isDeliveryLike && ciPlTabIndex === 1;
   const isCiPlManifestTab = !isShippingAdvise && !isDeliveryLike && ciPlTabIndex === 2;
+  const isCiPlManualTab = isCiPlForm && !isCiPlArchivedView && ciPlTabIndex === CI_PL_MANUAL_TAB_INDEX;
+  const isCiPlManualForm =
+    isCiPlManualTab || (isCiPlArchivedView && loadedFormType === CIPL_FORM_TYPE.MANUAL);
   const isCiPlDraftTab = isCiPlForm && !isCiPlArchivedView;
-  const isCiPlEntriesTab = isCiPlForm && !isCiPlManifestTab;
+  const isCiPlEntriesTab = isCiPlForm && !isCiPlManifestTab && !isCiPlManualForm;
   // Item currency / ROE conversion is only supported by the simple CIPL form for now.
   // Temporarily disabled: not completed / not needed yet. Restore the line below to re-enable.
   // const isCiPlCurrencyTab = isCiPlForm && !isCiPlPerUnitTab && !isCiPlManifestTab;
@@ -896,6 +935,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       }),
       deadline_text: formatDateForApi(data.deadline),
       date: formatDateForApi(data.date),
+      ...(isCiPlManualForm ? buildManualHeaderFields(data) : {}),
     };
   };
   const buildHeaderSnapshotFromApi = (form) => {
@@ -956,6 +996,8 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
             ? form.header_date
             : ""
       ),
+      // Decided by the response (not the tab) so an archived manual form is diffed correctly.
+      ...(isCiPlForm && isManualCiplForm(form) ? manualHeaderSnapshot(form) : {}),
     };
   };
   const syncFormTotalsFromApi = (form) => {
@@ -1237,13 +1279,25 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         ? String(form.currency_id.name)
         : "";
 
+    // Manual forms: vessel_id is {id, name}; decided by the response so archived manual forms work too.
+    const isManualResponse = isCiPlForm && isManualCiplForm(form);
+    const manualVessel = parseCiplVessel(form);
+    manualResponseRef.current = isManualResponse;
     setFormData((prev) => ({
       ...prev,
-      vessel: Object.prototype.hasOwnProperty.call(form, "vessel_name")
+      vessel: isManualResponse
+        ? manualVessel.name ||
+          (form.vessel_name != null && form.vessel_name !== false ? String(form.vessel_name) : "")
+        : Object.prototype.hasOwnProperty.call(form, "vessel_name")
         ? form.vessel_name != null && form.vessel_name !== false
           ? String(form.vessel_name)
           : ""
         : prev.vessel,
+      vesselId: isManualResponse ? manualVessel.id : null,
+      ciplNumber:
+        isManualResponse && form.cipl_number != null && form.cipl_number !== false
+          ? String(form.cipl_number)
+          : "",
       // header card mapping by form type
       deliveryToAt:
         isDeliveryLike && form.delivery_to_at != null && form.delivery_to_at !== false
@@ -1458,7 +1512,19 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
     setSelectedSiName(siName ? String(siName) : "");
     if (consigneeId) setRequiredAgentCneeId(Number(consigneeId));
 
-    const mapped = stockList.map((it, idx) => {
+    if (isManualResponse) {
+      // Manual lines are rendered by CiPlManualLines from the response; the Simple stock-line
+      // mapping / signature (which sends stock_list_id with id) is not used.
+      setManualForm(form);
+      syncAutosaveSnapshotsFromApi(form);
+      consignBlockUserEditedRef.current = false;
+      setTimeout(() => {
+        isApplyingFormRef.current = false;
+      }, 0);
+      return;
+    }
+
+    const mapped =stockList.map((it, idx) => {
       const supplierName = resolveStockLineSupplierName(it);
       const originVal =
         it.from != null && it.from !== false
@@ -1803,6 +1869,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
           });
           return;
         }
+        setLoadedFormType(isManualCiplForm(form) ? CIPL_FORM_TYPE.MANUAL : CIPL_FORM_TYPE.SIMPLE);
         applySiFormResponse(form);
       } catch (e) {
         console.error("Failed to load archived CI PL form:", e);
@@ -1827,6 +1894,8 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
     if (!isCiPlForm || isCiPlArchivedView) return undefined;
     let cancelled = false;
     setSiFormId(null);
+    manualResponseRef.current = isCiPlManualTab;
+    if (isCiPlManualTab) setManualForm(null);
     (async () => {
       try {
         setIsSiFormLoading(true);
@@ -1850,6 +1919,8 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
   // submittedPayload: the stock_list that was sent. Lines the user kept typing in while the request was in
   // flight keep their local text (the server echo would otherwise overwrite and drop the newest characters).
   const mergeStockLinesFromServer = (updated, submittedPayload = null) => {
+    // Manual lines are owned by CiPlManualLines (server response replaces its rows).
+    if (isCiPlManualForm) return;
     if (!Array.isArray(updated?.stock_list) || updated.stock_list.length === 0) return;
     setCargoItems((prev) => {
       let hasLocalEdits = false;
@@ -1916,8 +1987,12 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
     if (isResettingRef.current) return;
     if (isApplyingFormRef.current) return;
     if (isShippingAdvise || isDeliveryLike) return;
+    // Manual lines are saved per action by CiPlManualLines, never by this full-list autosave.
+    if (isCiPlManualForm) return;
     if (!isCiPlArchivedView && loadedCiPlTabRef.current !== ciPlTabIndex) return;
     const timeoutId = setTimeout(async () => {
+      // An archived manual form may only be recognised after this effect was scheduled.
+      if (manualResponseRef.current) return;
       try {
         const currentId = await ensureFormId();
         if (!currentId) return;
@@ -2026,6 +2101,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
     formData.sicNo,
     formData.diNo,
     formData.jobNo,
+    formData.vesselId,
     formData.deliveryToAt,
     formData.shippedBy,
     formData.shippedById,
@@ -2114,6 +2190,8 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
   useEffect(() => {
     if (isResettingRef.current) return;
     if (isApplyingFormRef.current || packedTotalsUserEditedRef.current) return;
+    // Manual: packed totals come from the backend (line sums), not from cargoItems.
+    if (isCiPlManualForm) return;
     setFormData((prev) => ({
       ...prev,
       totalPackedQuantity: Number(totals.boxes || 0),
@@ -2148,19 +2226,25 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         }
 
         setIsSiFormLoading(true);
+        // Manual: separate call without stock_list (a stock_list update resets packed totals).
         const updated = await saveForm(
-          buildSavePayloadWithId(currentId, {
-            ...packedChanged,
-            ...(Object.prototype.hasOwnProperty.call(packedChanged, "total_packed_quantity") ||
-              Object.prototype.hasOwnProperty.call(packedChanged, "total_packed_weight")
-              ? {
-                packed_as: {
-                  boxes: Number(formData.totalPackedQuantity || 0),
-                  kg: Number(formData.totalPackedWeight || 0),
-                },
-              }
-              : {}),
-          })
+          isCiPlManualForm
+            ? buildManualPackedPayload(currentId, {
+              boxes: formData.totalPackedQuantity,
+              kg: formData.totalPackedWeight,
+            })
+            : buildSavePayloadWithId(currentId, {
+              ...packedChanged,
+              ...(Object.prototype.hasOwnProperty.call(packedChanged, "total_packed_quantity") ||
+                Object.prototype.hasOwnProperty.call(packedChanged, "total_packed_weight")
+                ? {
+                  packed_as: {
+                    boxes: Number(formData.totalPackedQuantity || 0),
+                    kg: Number(formData.totalPackedWeight || 0),
+                  },
+                }
+                : {}),
+            })
         );
         if (updated?.id != null) setSiFormId(updated.id);
         lastSavedAutosaveRef.current.packed = {
@@ -2178,6 +2262,128 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
     return () => clearTimeout(timeoutId);
   }, [formData.totalPackedQuantity, formData.totalPackedWeight, formData.totalPackedVw]);
 
+
+  // Manual tab: Job No / Vessel go through the normal header autosave (candidate + snapshot).
+  const handleManualHeaderChange = (patch) => {
+    headerUserEditedRef.current = true;
+    setFormData((prev) => {
+      const next = { ...prev };
+      if (Object.prototype.hasOwnProperty.call(patch, "jobNo")) next.jobNo = patch.jobNo ?? "";
+      if (Object.prototype.hasOwnProperty.call(patch, "vesselId")) {
+        next.vesselId = patch.vesselId;
+        next.vessel =
+          patch.vesselId == null
+            ? ""
+            : getOptionNameById(getMasterData(MASTER_KEYS.VESSELS), patch.vesselId);
+      }
+      return next;
+    });
+  };
+
+  // Manual tab: save a stock_list change (add / edit / delete) and resolve with the returned form.
+  // Totals and packed totals come from the response (the backend resets packed totals on every stock_list update).
+  const handleManualSaveLines = async (stockListPayload) => {
+    try {
+      const currentId = await ensureFormId();
+      if (!currentId) return null;
+      setIsSiFormLoading(true);
+      const updated = await saveForm(
+        buildSavePayloadWithId(currentId, { stock_list: stockListPayload })
+      );
+      if (!updated) return null;
+      if (updated.id != null) setSiFormId(updated.id);
+      setManualForm(updated);
+      syncFormTotalsFromApi(updated);
+      syncAutosaveSnapshotsFromApi(updated);
+      const apiTotals = readManualTotals(updated);
+      lastSavedAutosaveRef.current.packed = {
+        ...lastSavedAutosaveRef.current.packed,
+        total_packed_quantity: apiTotals.packedBoxes,
+        total_packed_weight: apiTotals.packedKg,
+      };
+      packedTotalsUserEditedRef.current = apiTotals.packedBoxes !== 0 || apiTotals.packedKg !== 0;
+      setFormData((prev) => ({
+        ...prev,
+        totalPackedQuantity: apiTotals.packedBoxes,
+        totalPackedWeight: apiTotals.packedKg,
+      }));
+      return updated;
+    } catch (e) {
+      console.error("Failed to save CIPL manual lines:", e);
+      showFormSaveError(toast, e, "Failed to save lines");
+      throw e; // CiPlManualLines shows the message under the row
+    } finally {
+      setIsSiFormLoading(false);
+    }
+  };
+
+  // PACKED AS / REMARKS rows rendered at the bottom of the manual lines table (10 columns).
+  const renderManualFooter = () => (
+    <>
+      <Tr bg="gray.50">
+        <Td colSpan={6} borderRight="1px" borderColor="gray.300" py={2} px={4} fontSize="xs" fontWeight="bold">
+          PACKED AS:
+        </Td>
+        <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100" textAlign="center">
+          <Input
+            id="totalPackedQuantity"
+            type="number"
+            value={formData.totalPackedQuantity}
+            onChange={(e) => {
+              packedTotalsUserEditedRef.current = true;
+              handleInputChange("totalPackedQuantity", e.target.value);
+            }}
+            size="xs"
+            variant="unstyled"
+            bg="transparent"
+            fontWeight="semibold"
+            textAlign="center"
+          />
+        </Td>
+        <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100" textAlign="center">
+          <Input
+            id="totalPackedWeight"
+            type="number"
+            step="0.01"
+            value={formData.totalPackedWeight}
+            onChange={(e) => {
+              packedTotalsUserEditedRef.current = true;
+              handleInputChange("totalPackedWeight", e.target.value);
+            }}
+            size="xs"
+            variant="unstyled"
+            bg="transparent"
+            fontWeight="semibold"
+            textAlign="center"
+          />
+        </Td>
+        <Td colSpan={2} py={2} px={2} fontSize="xs" />
+      </Tr>
+      <Tr bg="gray.50">
+        <Td colSpan={2} borderRight="1px" borderColor="gray.300" py={3} px={4} fontSize="xs" fontWeight="bold" verticalAlign="top">
+          REMARKS:
+        </Td>
+        <Td colSpan={8} py={2} px={2}>
+          <Textarea
+            id="ciPlRemarks"
+            value={formData.remarks}
+            onChange={(e) => {
+              remarksUserEditedRef.current = true;
+              handleInputChange("remarks", e.target.value);
+            }}
+            size="sm"
+            rows={3}
+            resize="vertical"
+            bg="white"
+            border="1px"
+            borderColor="gray.300"
+            _focus={{ borderColor: "orange.400", boxShadow: "0 0 0 1px var(--chakra-colors-orange-400)" }}
+            placeholder="Add remarks (optional) - printed under PACKED AS in the PDF"
+          />
+        </Td>
+      </Tr>
+    </>
+  );
 
   // Button handlers
   const handleArchiveCiPlDraft = async () => {
@@ -2204,6 +2410,11 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       const nextDraft = await loadDraftForm({ latest_only: true });
       if (nextDraft) {
         applySiFormResponse(nextDraft);
+      } else if (isCiPlManualForm) {
+        // No next manual draft returned: clear the archived one so its lines are not shown again.
+        setManualForm(null);
+        setSiFormId(null);
+        setFormData((prev) => ({ ...prev, jobNo: "", vessel: "", vesselId: null, ciplNumber: "" }));
       }
 
       onArchiveModalClose();
@@ -2311,8 +2522,9 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
           delivery_to_at: null,
           location_text: null,
 
-          stock_list:
-            !isShippingAdvise && !isDeliveryLike
+          stock_list: isCiPlManualForm
+            ? buildManualResetLines(parseManualLinesFromApi(manualForm?.stock_list))
+            : !isShippingAdvise && !isDeliveryLike
               ? buildCiplStockLinePayload(
                 cargoItems.map((item) => ({
                   ...item,
@@ -2363,20 +2575,22 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       setQShipBy("");
       setQFrom("");
       setQTo("");
-      const resetStockLinesSignature = JSON.stringify(
-        buildCiplStockLinePayload(
-          cargoItems.map((item) => ({
-            ...item,
-            details: null,
-            dg_un: null,
-            valueUsd: null,
-            quantity: null,
-            perUnit: null,
-            entries: [],
-          })),
-          isCiPlPerUnitTab
-        )
-      );
+      const resetStockLinesSignature = isCiPlManualForm
+        ? ""
+        : JSON.stringify(
+          buildCiplStockLinePayload(
+            cargoItems.map((item) => ({
+              ...item,
+              details: null,
+              dg_un: null,
+              valueUsd: null,
+              quantity: null,
+              perUnit: null,
+              entries: [],
+            })),
+            isCiPlPerUnitTab
+          )
+        );
       lastSubmittedCiplLinesRef.current = resetStockLinesSignature;
       lastSavedAutosaveRef.current = {
         header: {},
@@ -2496,6 +2710,21 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
           });
           return styles;
         };
+        if (isCiPlManualForm) {
+          const fixed = [
+            { index: 1, width: 52, halign: "center", valign: "middle" },
+            { index: 2, width: 30, halign: "center", valign: "middle" },
+            { index: 3, width: 42, halign: "center", valign: "middle" },
+            { index: 4, width: 30, halign: "center", valign: "middle" },
+            { index: 5, width: 38, halign: "center", valign: "middle" },
+            { index: 6, width: 48, halign: "center", valign: "middle" },
+          ];
+          const fixedSum = fixed.reduce((sum, col) => sum + col.width, 0);
+          return toStyles([
+            { index: 0, width: ciPlTableWidth - fixedSum, overflowLinebreak: true },
+            ...fixed,
+          ]);
+        }
         if (isCiPlPerUnitTab) {
           const fixed = [
             { index: 0, width: 46, halign: "center", valign: "middle" },
@@ -2628,8 +2857,18 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         });
         return rows;
       };
-      const ciPlRows = buildCiPlPdfCargoRows(cargoItems);
-      const ciPlTotalRow = isCiPlPerUnitTab
+      // Manual: rows / head / TOTAL come from the manual lines + backend totals (no Simple cargo items).
+      const manualPdfData = isCiPlManualForm
+        ? buildManualPdfRows(
+          parseManualLinesFromApi(manualForm?.stock_list),
+          manualForm ? readManualTotals(manualForm) : null,
+          { value: valueInCurrencyLabel }
+        )
+        : null;
+      const ciPlRows = isCiPlManualForm ? manualPdfData.body : buildCiPlPdfCargoRows(cargoItems);
+      const ciPlTotalRow = isCiPlManualForm
+        ? manualPdfData.total
+        : isCiPlPerUnitTab
         ? [
           "TOTAL",
           formatApiNumericDisplay(stockListTableTotals.boxes),
@@ -2658,7 +2897,17 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
             ciPlTotalDescriptionLabel,
             formatCiPlTotalValueDisplay(stockListTableTotals.valueUsd),
           ];
-      const ciPlPackedAsRow = isCiPlPerUnitTab
+      const ciPlPackedAsRow = isCiPlManualForm
+        ? [
+          "PACKED AS",
+          "",
+          "",
+          "",
+          formatApiNumericDisplay(formData.totalPackedQuantity),
+          formatApiNumericDisplay(formData.totalPackedWeight),
+          "",
+        ]
+        : isCiPlPerUnitTab
         ? [
           "PACKED AS",
           formatApiNumericDisplay(formData.totalPackedQuantity),
@@ -2730,8 +2979,9 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       const consignTableEndY = doc.lastAutoTable?.finalY || twoColStartY;
 
       const summaryRows = [
-        selectedIdentifierLabelForPdf,
+        isCiPlManualForm ? ["Invoice No", formData.ciplNumber || "-"] : selectedIdentifierLabelForPdf,
         ["JOB NO", formData.jobNo || "-"],
+        ...(isCiPlManualForm ? [["VESSEL", formData.vessel || "-"]] : []),
         ["DATE", pdfDate],
       ];
       if (isCiPlPerUnitTab) {
@@ -2757,26 +3007,29 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       doc.rect(contentLeft, consignTableTopY, leftColWidth, sharedBoxHeight);
       doc.rect(rightColLeft, consignTableTopY, rightColWidth, sharedBoxHeight);
 
-      const ciPlDescriptionColIndex = isCiPlManifestTab ? 5 : 4;
-      const ciPlLwhColIndex = isCiPlManifestTab ? 4 : 3;
-      const ciPlBoxColIndex = isCiPlManifestTab ? 2 : 1;
-      const ciPlWeightColIndex = isCiPlManifestTab ? 3 : 2;
+      // Manual columns: 0 DESCRIPTION, 1 HS CODE, 2 QTY, 3 UNIT PRICE, 4 BOX, 5 WEIGHT, 6 VALUE (no LWH / PO).
+      const ciPlDescriptionColIndex = isCiPlManualForm ? 0 : isCiPlManifestTab ? 5 : 4;
+      const ciPlLwhColIndex = isCiPlManualForm ? -1 : isCiPlManifestTab ? 4 : 3;
+      const ciPlBoxColIndex = isCiPlManualForm ? 4 : isCiPlManifestTab ? 2 : 1;
+      const ciPlWeightColIndex = isCiPlManualForm ? 5 : isCiPlManifestTab ? 3 : 2;
       const ciPlPoColIndex = 0;
-      const ciPlValueColIndex = isCiPlPerUnitTab ? 7 : isCiPlManifestTab ? 6 : 5;
+      const ciPlValueColIndex = isCiPlManualForm ? 6 : isCiPlPerUnitTab ? 7 : isCiPlManifestTab ? 6 : 5;
       const ciPlQuantityColIndex = isCiPlPerUnitTab ? 5 : null;
       const ciPlPerUnitColIndex = isCiPlPerUnitTab ? 6 : null;
-      const ciPlCenterColIndexes = [
-        ciPlPoColIndex,
-        ciPlBoxColIndex,
-        ciPlWeightColIndex,
-        ciPlLwhColIndex,
-        ciPlValueColIndex,
-        ...(isCiPlPerUnitTab ? [ciPlQuantityColIndex, ciPlPerUnitColIndex] : []),
-      ];
+      const ciPlCenterColIndexes = isCiPlManualForm
+        ? [1, 2, 3, ciPlBoxColIndex, ciPlWeightColIndex, ciPlValueColIndex]
+        : [
+          ciPlPoColIndex,
+          ciPlBoxColIndex,
+          ciPlWeightColIndex,
+          ciPlLwhColIndex,
+          ciPlValueColIndex,
+          ...(isCiPlPerUnitTab ? [ciPlQuantityColIndex, ciPlPerUnitColIndex] : []),
+        ];
 
       autoTable(doc, {
         startY: twoColEndY + 14,
-        head: [isCiPlPerUnitTab
+        head: isCiPlManualForm ? manualPdfData.head : [isCiPlPerUnitTab
           ? ["PO#", "BOX", "WEIGHT", "LWH", "DESCRIPTION", "QUANTITY / PCS", "PER UNIT", valueInCurrencyLabel]
           : isCiPlManifestTab
             ? ["PO#", "SUPPLIER", "BOX", "WEIGHT", "LWH", "DESCRIPTION", valueInCurrencyLabel]
@@ -3129,13 +3382,16 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         >
           <Flex justify="space-between" align="center" mb={4} flexWrap="wrap" gap={3}>
             <TabList>
-              <Tab fontWeight="semibold">Simple</Tab>
+              <Tab fontWeight="semibold">
+                {isCiPlArchivedView && isCiPlManualForm ? "Manual" : "Simple"}
+              </Tab>
               {!isCiPlArchivedView ? <Tab fontWeight="semibold">Per unit</Tab> : null}
               {!isCiPlArchivedView ? (
                 <Tab fontWeight="semibold" whiteSpace="nowrap">
                   Shipping invoice / Cargo Manifest
                 </Tab>
               ) : null}
+              {!isCiPlArchivedView ? <Tab fontWeight="semibold">Manual</Tab> : null}
             </TabList>
             <HStack spacing={3}>
               {isCiPlArchivedView ? (
@@ -3155,6 +3411,12 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                       variant="outline"
                       size="sm"
                       isLoading={isSiFormLoading}
+                      isDisabled={isCiPlManualForm && manualHasPendingLines}
+                      title={
+                        isCiPlManualForm && manualHasPendingLines
+                          ? "Save or discard the unsaved lines first"
+                          : undefined
+                      }
                       onClick={onArchiveModalOpen}
                     >
                       Archive
@@ -3199,7 +3461,9 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
               ? `ARCHIVED INVOICE / PACKING LIST${formData.vessel ? ` FOR ${formData.vessel}` : ""}`
               : isCiPlManifestTab
                 ? `SHIPPING INVOICE / CARGO MANIFEST${formData.vessel ? ` FOR ${formData.vessel}` : ""}`
-                : isCiPlPerUnitTab
+                : isCiPlManualTab
+                  ? `INVOICE / PACKING LIST (MANUAL)${formData.vessel ? ` FOR ${formData.vessel}` : ""}`
+                  : isCiPlPerUnitTab
                   ? `INVOICE / PACKING LIST (PER UNIT)${formData.vessel ? ` FOR ${formData.vessel}` : ""}`
                   : `INVOICE / PACKING LIST${formData.vessel ? ` FOR ${formData.vessel}` : ""}`}
           </Text>
@@ -3281,7 +3545,20 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
 
                 <Box bg="orange.400" p={3} borderRadius="md">
                   <Grid templateColumns="1fr 2fr" gap={2} fontSize="sm">
-                    {!isDeliveryLike && (
+                    {isCiPlManualForm && (
+                      <CiPlManualHeaderFields
+                        value={{
+                          jobNo: formData.jobNo,
+                          vesselId: formData.vesselId,
+                          vesselName: formData.vessel,
+                          ciplNumber: formData.ciplNumber,
+                        }}
+                        onChange={handleManualHeaderChange}
+                        isLoading={isSiFormLoading}
+                        isReadOnly={isCiPlArchivedView}
+                      />
+                    )}
+                    {!isDeliveryLike && !isCiPlManualForm && (
                       <FormControl display="contents">
                         <FormLabel
                           htmlFor={isDeliveryForm ? "jobNo-delivery" : "siNo"}
@@ -3369,7 +3646,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                       </FormControl>
                     )}
 
-                    {!isDeliveryLike && !isDeliveryForm && (
+                    {!isDeliveryLike && !isDeliveryForm && !isCiPlManualForm && (
                       <FormControl display="contents">
                         <FormLabel
                           htmlFor="sicNo"
@@ -3437,7 +3714,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                       </FormControl>
                     )}
 
-                    {!isDeliveryLike && !isDeliveryForm && (
+                    {!isDeliveryLike && !isDeliveryForm && !isCiPlManualForm && (
                       <FormControl display="contents">
                         <FormLabel
                           htmlFor="diNo"
@@ -3504,7 +3781,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                       </FormControl>
                     )}
 
-                    {!isDeliveryLike && (
+                    {!isDeliveryLike && !isCiPlManualForm && (
                       <FormControl display="contents">
                         <FormLabel
                           htmlFor={isDeliveryForm ? "siNo-delivery" : "jobNo"}
@@ -3896,6 +4173,24 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                 </Box>
               </Grid>
 
+              {isCiPlManualForm ? (
+                <Box>
+                  <Text fontSize="sm" fontWeight="bold" mb={2}>
+                    CARGO TO BE INCLUDED IN THIS INVOICE / PACKING LIST:
+                  </Text>
+                  <CiPlManualLines
+                    stockList={manualForm?.stock_list}
+                    form={manualForm}
+                    vesselId={formData.vesselId}
+                    currencyLabel={valueInCurrencyLabel.replace(/^VALUE IN /, "")}
+                    isReadOnly={isCiPlArchivedView}
+                    isBusy={isSiFormLoading}
+                    onSaveLines={handleManualSaveLines}
+                    onPendingChange={setManualHasPendingLines}
+                    renderFooter={renderManualFooter}
+                  />
+                </Box>
+              ) : (
               <Box>
                 <Text fontSize="sm" fontWeight="bold" mb={2}>
                   {isDeliveryLike
@@ -4462,6 +4757,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                   </Table>
                 </Box>
               </Box>
+              )}
             </Box>
 
             {/* Right Section: Select Consignee */}

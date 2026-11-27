@@ -67,6 +67,7 @@ const buildFormLoadPayload = ({
   si_number_id,
   sic_number_id,
   di_number_id,
+  form_type,
 } = {}) => {
   const payload = {};
   if (latest_only === true) payload.latest_only = true;
@@ -86,6 +87,8 @@ const buildFormLoadPayload = ({
   if (Object.keys(payload).length === 0) {
     throw new Error("latest_only, archived_only, id, agent_cnee_id, si_number_id, sic_number_id or di_number_id is required");
   }
+  // form_type alone never satisfies the check above; only "manual" / "all" are forwarded.
+  if (form_type === "manual" || form_type === "all") payload.form_type = form_type;
   return payload;
 };
 

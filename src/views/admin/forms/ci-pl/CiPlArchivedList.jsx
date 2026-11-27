@@ -5,6 +5,7 @@ import {
   Flex,
   Icon,
   IconButton,
+  Select,
   Spinner,
   Table,
   Tbody,
@@ -22,6 +23,7 @@ import {
   postCiplSimpleFormDeleteApi,
 } from "../../../../api/cipl";
 import { formatDateTimeDMYFull } from "utils/dateFormat";
+import { ciplFormTypeLabel, isManualCiplForm } from "utils/ciPlManual";
 
 const formatDateTime = (value) => {
   if (!value) return "-";
@@ -42,11 +44,15 @@ export default function CiPlArchivedList() {
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
+  const [typeFilter, setTypeFilter] = useState("all");
 
   const loadArchived = useCallback(async () => {
     try {
       setIsLoading(true);
-      const forms = await listCiplSimpleArchivedFormsApi({ page: 1, page_size: 80 });
+      // Backend returns Simple only when form_type is omitted.
+      const params = { page: 1, page_size: 80 };
+      if (typeFilter !== "simple") params.form_type = typeFilter;
+      const forms = await listCiplSimpleArchivedFormsApi(params);
       setItems(Array.isArray(forms) ? forms : []);
     } catch (error) {
       console.error("Failed to load archived CI PL forms:", error);
@@ -61,7 +67,7 @@ export default function CiPlArchivedList() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, typeFilter]);
 
   useEffect(() => {
     loadArchived();
@@ -108,6 +114,22 @@ export default function CiPlArchivedList() {
           Archived CI PL
         </Text>
 
+        <Flex mb={4} align="center" gap={2}>
+          <Text fontSize="sm" fontWeight="600">
+            Type
+          </Text>
+          <Select
+            size="sm"
+            w="160px"
+            value={typeFilter}
+            onChange={(event) => setTypeFilter(event.target.value)}
+          >
+            <option value="all">All</option>
+            <option value="simple">Simple</option>
+            <option value="manual">Manual</option>
+          </Select>
+        </Flex>
+
         <Box overflowX="auto" border="1px" borderColor="gray.200" borderRadius="md">
           {isLoading ? (
             <Flex justify="center" py={12}>
@@ -122,6 +144,8 @@ export default function CiPlArchivedList() {
               <Thead bg="gray.100">
                 <Tr>
                   <Th>ID</Th>
+                  <Th>TYPE</Th>
+                  <Th>CI/PL NO</Th>
                   <Th>STATE</Th>
                   <Th>AGENT</Th>
                   <Th>SI NUMBER</Th>
@@ -139,6 +163,8 @@ export default function CiPlArchivedList() {
                     onClick={() => openArchivedForm(form.id)}
                   >
                     <Td>{form.id ?? "-"}</Td>
+                    <Td>{ciplFormTypeLabel(form)}</Td>
+                    <Td>{isManualCiplForm(form) ? form.cipl_number || "—" : "—"}</Td>
                     <Td>{form.state || "archived"}</Td>
                     <Td>{resolveLabel(form.agent_id)}</Td>
                     <Td>{resolveLabel(form.si_number_id)}</Td>
