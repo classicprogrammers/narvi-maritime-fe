@@ -44,6 +44,9 @@ export const isIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(clean(value));
 
 const isCancelled = (row) => row?.is_cancelled === true || clean(row?.state) === "cancelled";
 
+// An invoice marked Paid is never outstanding, even if its balance field was not zeroed.
+const isPaid = (row) => clean(row?.payment_status).toLowerCase() === "paid";
+
 export const invoiceCurrency = (row) => clean(row?.currency_code) || nameOf(row?.currency_id);
 
 /** Sorted, unique currency codes found in the invoice rows. */
@@ -64,7 +67,7 @@ export function buildSoaRows(invoices = [], { currency, asOfDate } = {}) {
   const wanted = clean(currency);
   return invoices
     .filter((row) => {
-      if (isCancelled(row)) return false;
+      if (isCancelled(row) || isPaid(row)) return false;
       if (wanted && invoiceCurrency(row) !== wanted) return false;
       const invoiceDate = clean(row.date_sales_invoice).slice(0, 10);
       if (isIsoDate(asOfDate) && invoiceDate && invoiceDate > asOfDate) return false;

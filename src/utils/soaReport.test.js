@@ -50,10 +50,12 @@ describe("buildSoaRows", () => {
         inv({ id: 3, invoice_balance: false }),
         inv({ id: 4, state: "cancelled" }),
         inv({ id: 5, is_cancelled: true }),
+        inv({ id: 6, payment_status: "paid" }),
+        inv({ id: 7, payment_status: "open" }),
       ],
       { currency: "USD", asOfDate: "2026-12-31" }
     );
-    expect(rows.map((r) => r.id)).toEqual([1]);
+    expect(rows.map((r) => r.id)).toEqual([1, 7]);
   });
 
   it("sorts by client then invoice date and maps many2one names", () => {
