@@ -1,6 +1,7 @@
 import api from "./axios";
 import { readFileErrors, toRelativeApiPath } from "../utils/ledgerEconomy";
 import { parseContentDispositionFilename } from "../utils/shippingOrderAttachments";
+import { formatIdsParam } from "./ledgerShared";
 
 const unwrapError = (data, fallback) => {
   if (data?.result?.status === "error") {
@@ -21,9 +22,12 @@ export const getLedgerInvoices = async (params = {}) => {
         ? params.page_size
         : 50;
 
+  const idsParam = formatIdsParam(params.ids);
+
   if (params.id != null && params.id !== "") {
     requestParams.id = params.id;
   } else {
+    if (idsParam) requestParams.ids = idsParam;
     requestParams.page = page;
     requestParams.page_size = pageSize;
   }
@@ -41,6 +45,7 @@ export const getLedgerInvoices = async (params = {}) => {
     "so_done_status",
     "client_case_invoice_ref",
     "state",
+    "issued_by_id",
     "date_sales_invoice_from",
     "date_sales_invoice_to",
     "date_due_from",
@@ -86,6 +91,7 @@ export const getLedgerInvoices = async (params = {}) => {
     has_previous: data.has_previous ?? false,
     sort_by: data.sort_by ?? null,
     sort_order: data.sort_order ?? null,
+    columns: Array.isArray(data.columns) ? data.columns : [],
   };
 };
 
@@ -162,8 +168,31 @@ export const bulkUpdateLedgerInvoices = async ({ ids, values }) => {
   };
 };
 
+// Warns when an invoice number is already booked on another record (the server still refuses duplicates on save)
+export const checkLedgerInvoiceNumber = async ({ invoice_number, exclude_id }) => {
+  const body = { invoice_number };
+  if (exclude_id != null && exclude_id !== "") body.exclude_id = exclude_id;
+  const response = await api.post("/api/ledger/invoice/check-number", body);
+  const data = response.data || response;
+  unwrapError(data, "Failed to check the invoice number");
+  const payload = data?.result && data.result.has_duplicates != null ? data.result : data;
+  const duplicates = Array.isArray(payload.duplicates) ? payload.duplicates : [];
+  return { has_duplicates: Boolean(payload.has_duplicates) || duplicates.length > 0, duplicates };
+};
+
+// People who can issue an invoice; resolves to [{ id, name }], optionally filtered by name
+export const getLedgerInvoiceIssuers = async ({ q } = {}) => {
+  const term = typeof q === "string" ? q.trim() : "";
+  const response = await api.post("/api/ledger/invoice/issuers", term ? { q: term } : {});
+  const data = response.data || response;
+  unwrapError(data, "Failed to load invoice issuers");
+  const issuers = data?.result?.issuers ?? data?.issuers;
+  return Array.isArray(issuers) ? issuers : [];
+};
+
 export default {
   getLedgerInvoices,
+  getLedgerInvoiceIssuers,
   getLedgerInvoiceById,
   createLedgerInvoice,
   updateLedgerInvoice,
@@ -172,4 +201,5 @@ export default {
   deleteLedgerInvoiceFile,
   downloadLedgerInvoiceFileApi,
   bulkUpdateLedgerInvoices,
+  checkLedgerInvoiceNumber,
 };

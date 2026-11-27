@@ -52,6 +52,8 @@ describe("ledgerDisplay", () => {
     expect(ledgerViewValue({ key: "so_number", type: "text" }, { sale_order_id: [5, "SO 4349"] })).toBe("SO 4349");
     expect(ledgerViewValue({ key: "agent", type: "text" }, { agent_detail: { name: "ACS" } })).toBe("ACS");
     expect(ledgerViewValue({ key: "invoices", type: "longtext" }, { invoices: false })).toBe("");
+    expect(ledgerViewValue({ key: "invoice_file", type: "file" }, { invoice_file: { filename: "inv.pdf" } })).toBe("inv.pdf");
+    expect(ledgerViewValue({ key: "invoice_file", type: "file" }, { invoice_file: null })).toBe("-");
   });
 
   test("cancelled helpers", () => {

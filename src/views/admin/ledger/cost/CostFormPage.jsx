@@ -15,21 +15,27 @@ import {
   Select,
   SimpleGrid,
   Spinner,
+  IconButton,
   Text,
   Textarea,
+  Tooltip,
   useColorModeValue,
   useToast,
 } from "@chakra-ui/react";
 import {
   MdArrowBack,
   MdCheckCircle,
+  MdChevronLeft,
+  MdChevronRight,
   MdCloudQueue,
   MdInfoOutline,
 } from "react-icons/md";
-import { useHistory, useParams } from "react-router-dom";
+import { useHistory, useLocation, useParams } from "react-router-dom";
 import SearchableSelect from "components/forms/SearchableSelect";
 import LedgerDuplicateInvoiceModal from "components/ledger/LedgerDuplicateInvoiceModal";
 import LedgerCostInvoiceFileField from "components/ledger/LedgerCostInvoiceFileField";
+import LedgerEditViewToggle from "components/ledger/LedgerEditViewToggle";
+import { buildLedgerEditPath, parseEditIds, writeLedgerEditView } from "utils/ledgerEditNav";
 import { saveDownloadedFile } from "utils/ledgerEconomy";
 import { readCostInvoiceFile, validateCostInvoiceFile } from "utils/ledgerCostInvoiceFile";
 import { getShippingOrders } from "api/shippingOrders";
@@ -168,6 +174,7 @@ function CostAutosaveBadge({ mode, savedCaption, pulse, blockedCaption }) {
 export default function CostFormPage() {
   const { id } = useParams();
   const history = useHistory();
+  const location = useLocation();
   const toast = useToast();
   const isEditRoute = Boolean(id);
 
@@ -212,7 +219,11 @@ export default function CostFormPage() {
   // The table view is switched off in the Master Ledger; only the form view is offered
   const isTableView = false;
 
-  const pageBg = useColorModeValue("gray.50", "gray.900");
+  const { ids: editIds } = useMemo(() => parseEditIds(location.search), [location.search]);
+  const editIndex = id ? editIds.indexOf(Number(id)) : -1;
+  const showNavigator = isEditRoute && editIds.length > 1 && editIndex >= 0;
+
+  const pageBg =useColorModeValue("gray.50", "gray.900");
   const cardBg = useColorModeValue("white", "gray.800");
   const borderColor = useColorModeValue("gray.200", "gray.700");
   const inputBg = useColorModeValue("white", "gray.700");
@@ -357,6 +368,17 @@ export default function CostFormPage() {
       setIsLoadingRecord(false);
       return;
     }
+
+    // New record: drop per-record check state so a warning accepted elsewhere cannot skip it
+    setDuplicateKey("");
+    setOtherAgentPendingKey("");
+    setPrecheckFailed(false);
+    otherAgentCheckedKeyRef.current = "";
+    checkedOkKeyRef.current = "";
+    lastValidationErrorRef.current = null;
+    pinnedSoRef.current = null;
+    setShippingOrders([]);
+    setEditingRecord(null);
 
     let cancelled = false;
     setIsLoadingRecord(true);
@@ -747,6 +769,24 @@ export default function CostFormPage() {
             : "idle";
 
   const mutedColor = useColorModeValue("gray.500", "gray.400");
+  const navBarBg = useColorModeValue("gray.50", "gray.800");
+  const isSaveLocked = isSaving || saveMode === "saving" || saveMode === "pending";
+  const isNavBlocked = saveMode === "blocked";
+  const isNavLocked = isSaveLocked || isNavBlocked;
+  const navLockLabel = isNavBlocked && !isSaveLocked ? "Fix the highlighted fields first" : "Saving...";
+
+  const goToEditView = (view, targetId) => {
+    if (view === "table") writeLedgerEditView("cost", "table");
+    history.push(buildLedgerEditPath({ base: LIST_PATH, view, ids: editIds, id: targetId }));
+  };
+  const handleViewToggle = (view) => {
+    if (view === "form") {
+      // Already on the form: remember the choice, do not push the same URL
+      writeLedgerEditView("cost", "form");
+      return;
+    }
+    goToEditView(view, id);
+  };
   const destinationInfo = destinationParts(form);
   const soStatusText = soDoneStatusLabel(form);
   const selectedCurrencyLabel =
@@ -794,6 +834,17 @@ export default function CostFormPage() {
               </Text>
             </Box>
           </Flex>
+          {isEditRoute && (
+            <Tooltip label={navLockLabel} isDisabled={!isNavLocked} hasArrow>
+              <Box>
+                <LedgerEditViewToggle
+                  view="form"
+                  onChange={handleViewToggle}
+                  isDisabled={isNavLocked}
+                />
+              </Box>
+            </Tooltip>
+          )}
           {!isLoadingRecord && !isTableView && (
             <CostAutosaveBadge
               mode={saveMode}
@@ -809,6 +860,56 @@ export default function CostFormPage() {
             />
           )}
         </Flex>
+
+        {showNavigator && (
+          <Flex
+            align="center"
+            wrap="wrap"
+            gap={3}
+            mb={4}
+            px={4}
+            py={2}
+            bg={navBarBg}
+            border="1px"
+            borderColor={borderColor}
+            borderRadius="lg"
+          >
+            <HStack spacing={2}>
+              <Tooltip label={navLockLabel} isDisabled={!isNavLocked} hasArrow>
+                <Box>
+                  <IconButton
+                    size="sm"
+                    variant="outline"
+                    icon={<Icon as={MdChevronLeft} />}
+                    aria-label="Previous record"
+                    isDisabled={isNavLocked || editIndex <= 0}
+                    onClick={() => goToEditView("form", editIds[editIndex - 1])}
+                  />
+                </Box>
+              </Tooltip>
+              <Text fontWeight="600">
+                Record {editIndex + 1} of {editIds.length}
+              </Text>
+              <Tooltip label={navLockLabel} isDisabled={!isNavLocked} hasArrow>
+                <Box>
+                  <IconButton
+                    size="sm"
+                    variant="outline"
+                    icon={<Icon as={MdChevronRight} />}
+                    aria-label="Next record"
+                    isDisabled={isNavLocked || editIndex >= editIds.length - 1}
+                    onClick={() => goToEditView("form", editIds[editIndex + 1])}
+                  />
+                </Box>
+              </Tooltip>
+            </HStack>
+            {editingRecord?.so_number ? (
+              <Text fontSize="sm" color={mutedColor}>
+                SO {editingRecord.so_number}
+              </Text>
+            ) : null}
+          </Flex>
+        )}
 
         {isTableView ? (
           <CostEntryTableView currencies={currencies} />

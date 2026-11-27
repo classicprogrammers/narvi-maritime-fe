@@ -49,3 +49,13 @@ describe("ledgerShared", () => {
     await expect(previewLedgerRoe({ kind: "x", currency_id: 1 })).rejects.toThrow("Bad kind");
   });
 });
+
+describe("formatIdsParam", () => {
+  test("joins arrays and strings, drops non-numeric entries", () => {
+    const { formatIdsParam } = require("./ledgerShared");
+    expect(formatIdsParam([1, 2, "3"])).toBe("1,2,3");
+    expect(formatIdsParam(" 4, 5 ,x,")).toBe("4,5");
+    expect(formatIdsParam(undefined)).toBe("");
+    expect(formatIdsParam([])).toBe("");
+  });
+});

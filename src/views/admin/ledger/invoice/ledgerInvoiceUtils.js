@@ -19,6 +19,7 @@ import {
   readAutoField,
   writableAutoValue,
 } from "utils/ledgerAutoFields";
+import { formatDateDMY } from "utils/dateFormat";
 import { INVOICE_BULK_FIELDS } from "utils/ledgerBulkEdit";
 
 export {
@@ -47,6 +48,8 @@ export const DEFAULT_INVOICE_BIZ_CATEGORY = "Shipspares";
 export const emptyInvoiceForm = () => ({
   sale_order_id: "",
   invoice_number: "",
+  issued_by_id: "",
+  issued_by: "",
   date_sales_invoice: "",
   currency_id: "",
   currency_amount: "",
@@ -196,6 +199,12 @@ export const computeInvoicePreview = (form) => {
   };
 };
 
+// number, false or [id, name] -> string id, or "" when there is no issuer
+const issuerIdToForm = (value) => {
+  const id = getMany2oneId(value);
+  return id == null ? "" : String(id);
+};
+
 export const recordToForm = (record) => {
   if (!record) return emptyInvoiceForm();
   const roeField = readAutoField(record, "roe", "roe_manual");
@@ -207,6 +216,8 @@ export const recordToForm = (record) => {
   return {
     sale_order_id: getMany2oneId(record.sale_order_id) ?? "",
     invoice_number: record.invoice_number && record.invoice_number !== false ? String(record.invoice_number) : "",
+    issued_by_id: issuerIdToForm(record.issued_by_id),
+    issued_by: cleanText(record.issued_by) || getMany2oneName(record.issued_by_id) || "",
     date_sales_invoice: toDateOnly(record.date_sales_invoice),
     currency_id: getMany2oneId(record.currency_id) ?? "",
     currency_amount: toNumericOrEmpty(record.currency_amount),
@@ -293,6 +304,7 @@ export const buildCreatePayload = (form) => {
     sale_order_id: toIdOrNull(form.sale_order_id),
     invoice_number: String(form.invoice_number || "").trim(),
     currency_amount: toNumberOrNull(form.currency_amount),
+    issued_by_id: toIdOrNull(form.issued_by_id),
   };
   // Automatic ROE / due date are left out so the server fills them
   const roe = toNumberOrNull(writableAutoValue(form, "roe", "roe_manual"));
@@ -325,6 +337,11 @@ export const buildUpdatePayload = (form, originalForm, recordId) => {
   }
   if (!sameValue(form.invoice_number, originalForm.invoice_number)) {
     payload.invoice_number = String(form.invoice_number || "").trim() || false;
+  }
+  // Never null/false/"": the backend rejects clearing the issuer
+  const issuerId = toIdOrNull(form.issued_by_id);
+  if (issuerId != null && !sameId(form.issued_by_id, originalForm.issued_by_id)) {
+    payload.issued_by_id = issuerId;
   }
   if (!sameValue(form.date_sales_invoice, originalForm.date_sales_invoice)) {
     payload.date_sales_invoice = form.date_sales_invoice || false;
@@ -372,7 +389,7 @@ export const buildUpdatePayload = (form, originalForm, recordId) => {
   return payload;
 };
 
-export const validateInvoiceForm = (form) => {
+export const validateInvoiceForm = (form, original = null) => {
   if (toIdOrNull(form.sale_order_id) == null) {
     return "SO Number is required.";
   }
@@ -382,12 +399,19 @@ export const validateInvoiceForm = (form) => {
   if (toNumberOrNull(form.currency_amount) == null) {
     return "Currency Amount is required.";
   }
+  const hasIssuer = toIdOrNull(form.issued_by_id) != null;
+  if (original == null) {
+    if (!hasIssuer) return "Issued By is required.";
+  } else if (!hasIssuer && toIdOrNull(original.issued_by_id) != null) {
+    return "Issued By cannot be cleared.";
+  }
   return null;
 };
 
 export const getWritableInvoiceFields = (form) => ({
   sale_order_id: toIdOrNull(form?.sale_order_id) ?? "",
   invoice_number: String(form?.invoice_number || "").trim(),
+  issued_by_id: toIdOrNull(form?.issued_by_id) ?? "",
   date_sales_invoice: form?.date_sales_invoice || "",
   currency_id: toIdOrNull(form?.currency_id) ?? "",
   currency_amount: toNumberOrNull(form?.currency_amount) ?? "",
@@ -429,6 +453,8 @@ export const applyComputedFromRecord = (form, record) => {
     destination_name: fromApi.destination_name,
     destination_country: fromApi.destination_country,
     client_case_invoice_ref: fromApi.client_case_invoice_ref,
+    // issued_by_id stays as the user set it; the name is refreshed only when the server record has the same id
+    issued_by: sameId(fromApi.issued_by_id, form.issued_by_id) ? fromApi.issued_by : form.issued_by,
     // A manual value typed in the form wins over the server auto value
     roe: form.roe_manual ? form.roe : fromApi.roe,
     roe_manual: form.roe_manual ? true : fromApi.roe_manual,
@@ -455,6 +481,21 @@ export const extractLedgerInvoiceRecord = (response) => {
     }
   }
   return null;
+};
+
+// "Invoice number 654 was already booked on SO-4364 by admin on 09/09/2026"
+export const formatInvoiceNumberDuplicateMessage = (duplicate) => {
+  const d = duplicate || {};
+  const so = String(d.so_number ?? "").trim();
+  const soLabel = so ? (/^SO-/i.test(so) ? so : `SO-${so}`) : "";
+  const by = String(d.booked_by ?? "").trim();
+  const on = formatDateDMY(d.booked_on);
+  return (
+    `Invoice number ${String(d.invoice ?? "").trim()} was already booked` +
+    (soLabel ? ` on ${soLabel}` : "") +
+    (by ? ` by ${by}` : "") +
+    (on ? ` on ${on}` : "")
+  );
 };
 
 export const extractApiMessage = (error, fallback) =>

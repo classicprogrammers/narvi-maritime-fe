@@ -2,6 +2,7 @@ import api from "./axios";
 import { findOtherAgentDuplicates, splitInvoiceNumbers } from "../utils/ledgerInvoiceNumbers";
 import { toRelativeApiPath } from "../utils/ledgerEconomy";
 import { parseContentDispositionFilename } from "../utils/shippingOrderAttachments";
+import { formatIdsParam } from "./ledgerShared";
 
 const unwrapError = (data, fallback) => {
   if (data?.result?.status === "error") {
@@ -22,9 +23,12 @@ export const getLedgerCosts = async (params = {}) => {
         ? params.page_size
         : 50;
 
+  const idsParam = formatIdsParam(params.ids);
+
   if (params.id != null && params.id !== "") {
     requestParams.id = params.id;
   } else {
+    if (idsParam) requestParams.ids = idsParam;
     requestParams.page = page;
     requestParams.page_size = pageSize;
   }

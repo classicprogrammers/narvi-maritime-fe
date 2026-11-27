@@ -36,6 +36,15 @@ const STATUS_BADGES = {
   duplicate: { label: "Duplicate invoice", colorScheme: "red" },
 };
 
+// Extra statuses used by edit mode (mode="edit"); the statusBadges prop can override any entry
+const EDIT_STATUS_BADGES = {
+  no_changes: { label: "No changes", colorScheme: "gray", variant: "subtle" },
+  edited: { label: "Edited", colorScheme: "blue" },
+  check_invoice: { label: "Check invoice", colorScheme: "yellow" },
+  cancelled: { label: "Cancelled", colorScheme: "gray", variant: "subtle" },
+  load_error: { label: "Load error", colorScheme: "red", variant: "outline" },
+};
+
 // Minimum column widths (px) so inputs and pickers are never truncated, whatever the column config says
 const MIN_WIDTH_BY_TYPE = {
   so: 240,
@@ -70,6 +79,11 @@ const columnWidth = (column) => {
 // ROE / due auto cells); return undefined/null to use the default input for the column type.
 // selectOptions: { [columnKey]: [{ value, label }] } for type "select" / "gst".
 // Header, #, status and SO columns are sticky; the table scrolls horizontally and vertically.
+// Edit mode (all optional; create mode ignores them except saveLabel / pendingCount / statusBadges):
+//   mode="edit" hides Add Row / Clear, keeps saved rows editable and pins the Save bar to the bottom;
+//   statusBadges: { [status]: { label, colorScheme, variant? } } merged over the defaults;
+//   pendingCount / saveLabel: Save button count and label (edit default "Save changes (n)");
+//   renderActions(row): replaces the actions column content; isRowDisabled(row): row cells read-only.
 const LedgerEntryTable = ({
   columns,
   rows,
@@ -83,7 +97,14 @@ const LedgerEntryTable = ({
   getOpenHref,
   isSaving = false,
   isLoading = false,
+  mode = "create",
+  statusBadges,
+  pendingCount,
+  saveLabel,
+  renderActions,
+  isRowDisabled,
 }) => {
+  const isEdit = mode === "edit";
   const borderColor = useColorModeValue("gray.200", "gray.600");
   const headerBg = useColorModeValue("gray.100", "gray.700");
   const headerColor = useColorModeValue("gray.600", "gray.200");
@@ -97,6 +118,8 @@ const LedgerEntryTable = ({
   const stickyShadow = useColorModeValue("2px 0 4px -2px rgba(0,0,0,0.15)", "2px 0 4px -2px rgba(0,0,0,0.5)");
 
   const pendingRows = rows.filter((r) => r.status !== "saved");
+  const pending = pendingCount ?? pendingRows.length;
+  const badges = { ...STATUS_BADGES, ...(isEdit ? EDIT_STATUS_BADGES : {}), ...statusBadges };
   const colSpan = columns.length + 3;
   const soIndex = columns.findIndex((c) => c.type === "so");
   const statusLeft = NUM_W;
@@ -172,7 +195,7 @@ const LedgerEntryTable = ({
   };
 
   return (
-    <Box>
+    <Box {...(isEdit ? { display: "flex", flexDirection: "column" } : {})}>
       <Flex
         wrap="wrap"
         gap="2"
@@ -183,10 +206,19 @@ const LedgerEntryTable = ({
         border="1px"
         borderColor={borderColor}
         borderRadius="md"
+        // Edit mode: Save bar sits below the table (flex order) and sticks to the bottom of the viewport
+        {...(isEdit ? { order: 2, mb: 0, mt: "3", position: "sticky", bottom: 0, zIndex: 10 } : {})}
       >
-        <Button size="sm" colorScheme="blue" leftIcon={<MdAdd />} onClick={onAddRow} isDisabled={isSaving}>
-          Add Row
-        </Button>
+        {isEdit ? null : (
+          <Button size="sm" colorScheme="blue" leftIcon={<MdAdd />} onClick={onAddRow} isDisabled={isSaving}>
+            Add Row
+          </Button>
+        )}
+        {isEdit ? (
+          <Text fontSize="sm" color={muted}>
+            {pending > 0 ? `${pending} unsaved` : "No unsaved changes"}
+          </Text>
+        ) : null}
         <Button
           size="sm"
           colorScheme="green"
@@ -194,19 +226,22 @@ const LedgerEntryTable = ({
           onClick={onSaveAll}
           isLoading={isSaving}
           loadingText="Saving..."
-          isDisabled={pendingRows.length === 0}
-          title={pendingRows.length === 0 ? "Add at least one filled row" : undefined}
+          isDisabled={pending === 0}
+          title={!isEdit && pending === 0 ? "Add at least one filled row" : undefined}
+          {...(isEdit ? { ml: "auto", w: { base: "100%", sm: "auto" } } : {})}
         >
-          Save all ({pendingRows.length})
+          {saveLabel ?? (isEdit ? `Save changes (${pending})` : `Save all (${pending})`)}
         </Button>
-        {onClear ? (
+        {onClear && !isEdit ? (
           <Button size="sm" variant="outline" onClick={onClear} isDisabled={isSaving}>
             Clear
           </Button>
         ) : null}
-        <Text ml="auto" fontSize="sm" color={muted}>
-          {rows.length} row{rows.length === 1 ? "" : "s"}
-        </Text>
+        {isEdit ? null : (
+          <Text ml="auto" fontSize="sm" color={muted}>
+            {rows.length} row{rows.length === 1 ? "" : "s"}
+          </Text>
+        )}
       </Flex>
 
       <Box
@@ -251,17 +286,21 @@ const LedgerEntryTable = ({
             ) : rows.length === 0 ? (
               <Tr>
                 <Td colSpan={colSpan} textAlign="center" py="10">
-                  <Text color={muted} mb="3">No rows. Add a row to start.</Text>
-                  <Button size="sm" colorScheme="blue" leftIcon={<MdAdd />} onClick={onAddRow}>Add Row</Button>
+                  <Text color={muted} mb={isEdit ? undefined : "3"}>{isEdit ? "No rows." : "No rows. Add a row to start."}</Text>
+                  {isEdit ? null : <Button size="sm" colorScheme="blue" leftIcon={<MdAdd />} onClick={onAddRow}>Add Row</Button>}
                 </Td>
               </Tr>
             ) : (
               rows.flatMap((row, index) => {
                 const isSaved = row.status === "saved";
                 const isRowSaving = row.status === "saving";
-                const isDisabled = isSaved || isRowSaving || isSaving;
-                const badge = STATUS_BADGES[row.status] || STATUS_BADGES.draft;
-                const hasError = ["error", "missing", "duplicate"].includes(row.status) && row.message;
+                const isMuted = isSaved || (isEdit && ["cancelled", "load_error"].includes(row.status));
+                const isDisabled = isEdit
+                  ? isRowSaving || isSaving || Boolean(isRowDisabled?.(row))
+                  : isSaved || isRowSaving || isSaving;
+                const badge = badges[row.status] || badges.draft || STATUS_BADGES.draft;
+                const errorStatuses = isEdit ? ["error", "missing", "duplicate", "check_invoice", "load_error"] : ["error", "missing", "duplicate"];
+                const hasError = errorStatuses.includes(row.status) && row.message;
                 const bg = index % 2 === 1 ? stripeBg : rowBg;
                 const cellProps = {
                   bg,
@@ -273,7 +312,7 @@ const LedgerEntryTable = ({
                   _groupHover: { bg: hoverBg },
                 };
                 const cells = [
-                  <Tr key={row.key} role="group" color={isSaved ? savedColor : undefined}>
+                  <Tr key={row.key} role="group" color={isMuted ? savedColor : undefined}>
                     <Td {...cellProps} {...stickyProps(0)} zIndex={2} w={`${NUM_W}px`} minW={`${NUM_W}px`} fontWeight="600" color={muted}>
                       {index + 1}
                     </Td>
@@ -281,7 +320,7 @@ const LedgerEntryTable = ({
                       <Tooltip label={row.message || ""} isDisabled={!row.message} hasArrow>
                         <Badge
                           colorScheme={badge.colorScheme}
-                          variant={isSaved || row.status === "draft" ? "subtle" : "solid"}
+                          variant={badge.variant || (isSaved || row.status === "draft" ? "subtle" : "solid")}
                           fontSize="2xs"
                           borderRadius="md"
                           px="2"
@@ -296,7 +335,8 @@ const LedgerEntryTable = ({
                     {columns.map((column, i) => {
                       const value = row.values?.[column.key];
                       const onChange = (v) => onChangeCell(row.key, column.key, v);
-                      const custom = renderCell?.({ column, row, value, onChange, isDisabled });
+                      const cellDisabled = isDisabled || (isEdit && column.derived === true);
+                      const custom = renderCell?.({ column, row, value, onChange, isDisabled: cellDisabled });
                       const isSo = i === soIndex;
                       return (
                         <Td
@@ -306,12 +346,14 @@ const LedgerEntryTable = ({
                           minW={`${columnWidth(column)}px`}
                           w={`${columnWidth(column)}px`}
                         >
-                          {custom ?? renderDefaultCell(column, row, value, isDisabled)}
+                          {custom ?? renderDefaultCell(column, row, value, cellDisabled)}
                         </Td>
                       );
                     })}
                     <Td {...cellProps} position="sticky" right={0} zIndex={2} textAlign="center" minW={`${ACTIONS_W}px`}>
-                      {isSaved && getOpenHref?.(row) ? (
+                      {renderActions ? (
+                        renderActions(row)
+                      ) : isSaved && getOpenHref?.(row) ? (
                         <Link as={RouterLink} to={getOpenHref(row)} color="blue.500" fontSize="sm" fontWeight="600">
                           Open
                         </Link>
@@ -333,7 +375,7 @@ const LedgerEntryTable = ({
                   cells.push(
                     <Tr key={`${row.key}-msg`}>
                       <Td colSpan={colSpan} py="1" px="3" borderColor={borderColor}>
-                        <Alert status={row.status === "error" || row.status === "duplicate" ? "error" : "warning"} variant="subtle" py="1" fontSize="xs" borderRadius="md">
+                        <Alert status={["error", "duplicate", "load_error"].includes(row.status) ? "error" : "warning"} variant="subtle" py="1" fontSize="xs" borderRadius="md">
                           <AlertIcon boxSize="3" />
                           <Text wordBreak="break-word">{row.message}</Text>
                         </Alert>

@@ -52,7 +52,15 @@ import {
   MdVisibility,
 } from "react-icons/md";
 import { useHistory } from "react-router-dom";
-import { bulkUpdateLedgerCosts, cancelLedgerCost, getLedgerCosts } from "api/ledgerCost";
+import {
+  bulkUpdateLedgerCosts,
+  cancelLedgerCost,
+  deleteLedgerCostInvoiceFile,
+  downloadLedgerCostInvoiceFile,
+  getLedgerCostById,
+  getLedgerCosts,
+  uploadLedgerCostInvoiceFile,
+} from "api/ledgerCost";
 import { useMasterData } from "hooks/useMasterData";
 import { useSaveWithDraft } from "hooks/useSaveWithDraft";
 import {
@@ -71,6 +79,15 @@ import LedgerDateRangeFilterModal from "components/ledger/LedgerDateRangeFilterM
 import LedgerRecordViewModal from "components/ledger/LedgerRecordViewModal";
 import LedgerSortableHeader from "components/ledger/LedgerSortableHeader";
 import { COST_COLUMNS, mergeServerColumns } from "utils/ledgerColumns";
+import LedgerCostFileCell from "components/ledger/LedgerCostFileCell";
+import { saveDownloadedFile } from "utils/ledgerEconomy";
+import {
+  buildLedgerEditPath,
+  LEDGER_EDIT_MAX_ROWS,
+  readLedgerEditView,
+  validateEditSelection,
+} from "utils/ledgerEditNav";
+import { readCostInvoiceFile, validateCostInvoiceFile } from "utils/ledgerCostInvoiceFile";
 import {
   BULK_MAX_IDS,
   COST_BULK_FIELDS,
@@ -108,6 +125,7 @@ import {
 import { formatDateDMY } from "utils/dateFormat";
 
 const COST_LIST_STORAGE_KEY = "narvi_cost_list_state";
+const LEDGER_COST_BASE = "/admin/ledger/cost";
 
 const defaultCostListState = {
   searchValue: "",
@@ -510,7 +528,7 @@ export default function LedgerCost() {
   };
 
   const handleOpenEdit = (row) => {
-    history.push(`/admin/ledger/cost/form/${row.id}`);
+    history.push(buildLedgerEditPath({ base: LEDGER_COST_BASE, view: readLedgerEditView("cost"), id: row.id }));
   };
 
   const handleConfirmCancel = async () => {
@@ -558,6 +576,16 @@ export default function LedgerCost() {
       allOnPageSelected
         ? prev.filter((x) => !pageIds.includes(x))
         : [...prev, ...pageIds.filter((x) => !prev.includes(x))]
+    );
+  };
+
+  const editSelectionError = validateEditSelection(selectedIds);
+  const overEditLimit = selectedIds.length > LEDGER_EDIT_MAX_ROWS;
+
+  const handleEditSelected = () => {
+    if (validateEditSelection(selectedIds)) return;
+    history.push(
+      buildLedgerEditPath({ base: LEDGER_COST_BASE, view: readLedgerEditView("cost"), ids: selectedIds })
     );
   };
 
@@ -723,6 +751,52 @@ export default function LedgerCost() {
 
   const dash = <Text color="gray.400">—</Text>;
 
+  // Agent invoice file of one row: upload / replace / remove / download, then refresh just that row
+  const showFileError = (error, fallback) =>
+    toast({
+      title: "Error",
+      description: extractApiMessage(error, fallback),
+      status: "error",
+      duration: 5000,
+      isClosable: true,
+    });
+
+  const refreshRowFile = async (id) => {
+    const fresh = await getLedgerCostById(id);
+    setRecords((prev) => prev.map((r) => (r.id === id ? { ...r, invoice_file: fresh?.invoice_file ?? null } : r)));
+  };
+
+  const handleRowFileUpload = async (row, file) => {
+    const problem = validateCostInvoiceFile(file);
+    if (problem) {
+      showFileError(new Error(problem), problem);
+      return;
+    }
+    try {
+      await uploadLedgerCostInvoiceFile(row.id, file);
+      await refreshRowFile(row.id);
+    } catch (error) {
+      showFileError(error, "Failed to upload the invoice file.");
+    }
+  };
+
+  const handleRowFileDelete = async (row) => {
+    try {
+      await deleteLedgerCostInvoiceFile(row.id);
+      await refreshRowFile(row.id);
+    } catch (error) {
+      showFileError(error, "Failed to remove the invoice file.");
+    }
+  };
+
+  const handleRowFileDownload = async (row, file) => {
+    try {
+      saveDownloadedFile(await downloadLedgerCostInvoiceFile(file, row.id), file);
+    } catch (error) {
+      showFileError(error, "Failed to download the invoice file.");
+    }
+  };
+
   // Cell content for COST_COLUMNS (the SO Number column is rendered separately, it is sticky)
   const renderCell = (col, row) => {
     switch (col.key) {
@@ -837,6 +911,21 @@ export default function LedgerCost() {
           </Badge>
         ) : (
           dash
+        );
+      }
+      case "invoice_file": {
+        const file = readCostInvoiceFile(row);
+        const cancelled = isLedgerCancelled(row);
+        if (!file && cancelled) return dash;
+        return (
+          <LedgerCostFileCell
+            file={file}
+            inputId={`cost-invoice-file-${row.id}`}
+            canEdit={!cancelled}
+            onUpload={(picked) => handleRowFileUpload(row, picked)}
+            onDelete={() => handleRowFileDelete(row)}
+            onDownload={(f) => handleRowFileDownload(row, f)}
+          />
         );
       }
       case "invoice_link": {
@@ -1148,18 +1237,37 @@ export default function LedgerCost() {
               <Text fontSize="sm" fontWeight="600">
                 {selectedIds.length} item(s) selected
               </Text>
+              <Tooltip label={editSelectionError} isDisabled={!editSelectionError} hasArrow>
+                <Box as="span">
+                  <Button
+                    size="sm"
+                    colorScheme="blue"
+                    leftIcon={<Icon as={MdEdit} />}
+                    onClick={handleEditSelected}
+                    isDisabled={Boolean(editSelectionError)}
+                  >
+                    Edit selected
+                  </Button>
+                </Box>
+              </Tooltip>
               <Button
                 size="sm"
+                variant="outline"
                 colorScheme="red"
                 leftIcon={<Icon as={MdEdit} />}
                 onClick={handleOpenBulk}
                 isDisabled={Boolean(selectionError)}
               >
-                Edit selected
+                Set same value
               </Button>
               <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>
                 Clear Selection
               </Button>
+              {overEditLimit && (
+                <Text fontSize="xs" color="red.500">
+                  {editSelectionError}
+                </Text>
+              )}
               {overBulkLimit && (
                 <Text fontSize="xs" color="red.500">
                   {selectionError}

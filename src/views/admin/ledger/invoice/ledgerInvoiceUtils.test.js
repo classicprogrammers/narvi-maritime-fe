@@ -19,6 +19,7 @@ const baseForm = (over = {}) => ({
   sale_order_id: 7,
   invoice_number: "INV-1",
   currency_amount: "100",
+  issued_by_id: "3",
   ...over,
 });
 
@@ -161,6 +162,87 @@ describe("payloads", () => {
   });
 });
 
+describe("issued by", () => {
+  test("recordToForm handles number, false, pair and missing", () => {
+    expect(recordToForm({ issued_by_id: 5, issued_by: "Ann" })).toMatchObject({ issued_by_id: "5", issued_by: "Ann" });
+    expect(recordToForm({ issued_by_id: [6, "Bob"] })).toMatchObject({ issued_by_id: "6", issued_by: "Bob" });
+    expect(recordToForm({ issued_by_id: false, issued_by: false })).toMatchObject({ issued_by_id: "", issued_by: "" });
+    expect(recordToForm({}).issued_by_id).toBe("");
+    expect(emptyInvoiceForm().issued_by_id).toBe("");
+  });
+
+  test("create always sends a numeric issued_by_id", () => {
+    expect(buildCreatePayload(baseForm({ issued_by_id: "12" })).issued_by_id).toBe(12);
+  });
+
+  test("update sends issued_by_id only when changed and set", () => {
+    const original = baseForm({ issued_by_id: "3" });
+    expect(buildUpdatePayload({ ...original }, original, 9)).toEqual({ id: 9 });
+    expect(buildUpdatePayload({ ...original, issued_by_id: "4" }, original, 9)).toEqual({ id: 9, issued_by_id: 4 });
+    const old = baseForm({ issued_by_id: "" });
+    expect(buildUpdatePayload({ ...old, issued_by_id: "8" }, old, 9).issued_by_id).toBe(8);
+  });
+
+  test("update never sends issued_by_id as null, false or empty", () => {
+    const original = baseForm({ issued_by_id: "3" });
+    ["", null, false, undefined].forEach((empty) => {
+      const payload = buildUpdatePayload({ ...original, issued_by_id: empty }, original, 9);
+      expect(payload).not.toHaveProperty("issued_by_id");
+    });
+    const old = baseForm({ issued_by_id: "" });
+    expect(buildUpdatePayload({ ...old, invoice_number: "X" }, old, 9)).not.toHaveProperty("issued_by_id");
+  });
+
+  test("signature tracks issued_by_id and treats false like empty", () => {
+    const a = baseForm({ issued_by_id: "3" });
+    expect(getWritableInvoiceSignature(a)).not.toBe(getWritableInvoiceSignature({ ...a, issued_by_id: "4" }));
+    expect(getWritableInvoiceSignature({ ...a, issued_by_id: false })).toBe(
+      getWritableInvoiceSignature({ ...a, issued_by_id: "" })
+    );
+  });
+
+  test("validate: required on create", () => {
+    expect(validateInvoiceForm(baseForm({ issued_by_id: "" }))).toBe("Issued By is required.");
+    expect(validateInvoiceForm(baseForm({ issued_by_id: "" }), null)).toBe("Issued By is required.");
+    expect(validateInvoiceForm(baseForm())).toBeNull();
+  });
+
+  test("validate: old record without issuer saves without one", () => {
+    const original = baseForm({ issued_by_id: "" });
+    expect(validateInvoiceForm(baseForm({ issued_by_id: "" }), original)).toBeNull();
+  });
+
+  test("validate: an existing issuer cannot be cleared", () => {
+    const original = baseForm({ issued_by_id: "3" });
+    expect(validateInvoiceForm(baseForm({ issued_by_id: "" }), original)).toBe("Issued By cannot be cleared.");
+    expect(validateInvoiceForm(baseForm({ issued_by_id: "4" }), original)).toBeNull();
+  });
+
+  test("validate: other errors come first", () => {
+    expect(validateInvoiceForm(baseForm({ issued_by_id: "", sale_order_id: "" }))).toMatch(/SO Number/);
+  });
+
+  test("applyComputedFromRecord keeps the form issuer id and name when the record id differs", () => {
+    const out = applyComputedFromRecord(baseForm({ issued_by_id: "9", issued_by: "Zed" }), {
+      id: 1,
+      issued_by_id: 3,
+      issued_by: "Ann",
+    });
+    expect(out.issued_by_id).toBe("9");
+    expect(out.issued_by).toBe("Zed");
+  });
+
+  test("applyComputedFromRecord refreshes the issuer name when the ids match", () => {
+    const out = applyComputedFromRecord(baseForm({ issued_by_id: "3", issued_by: "" }), {
+      id: 1,
+      issued_by_id: 3,
+      issued_by: "Ann",
+    });
+    expect(out.issued_by_id).toBe("3");
+    expect(out.issued_by).toBe("Ann");
+  });
+});
+
 describe("input helpers", () => {
   test("applyRoeInput", () => {
     expect(applyRoeInput("")).toEqual({ roe: "", roe_manual: false });
@@ -252,5 +334,22 @@ describe("bulk edit fields", () => {
     expect(normalizeInvoiceBulkValues({ invoice_soa: "false" }).invoice_soa).toBe(false);
     expect(normalizeInvoiceBulkValues({ invoice_soa: false }).invoice_soa).toBe(false);
     expect(normalizeInvoiceBulkValues({ so_remark: "x" })).toEqual({ so_remark: "x" });
+  });
+});
+
+describe("formatInvoiceNumberDuplicateMessage", () => {
+  test("formats SO, user and DD/MM/YYYY date", () => {
+    const { formatInvoiceNumberDuplicateMessage } = require("./ledgerInvoiceUtils");
+    expect(
+      formatInvoiceNumberDuplicateMessage({
+        invoice: "654",
+        so_number: "4364",
+        booked_by: "admin",
+        booked_on: "2026-09-09",
+      })
+    ).toBe("Invoice number 654 was already booked on SO-4364 by admin on 09/09/2026");
+    expect(formatInvoiceNumberDuplicateMessage({ invoice: "7", so_number: "SO-12" })).toBe(
+      "Invoice number 7 was already booked on SO-12"
+    );
   });
 });

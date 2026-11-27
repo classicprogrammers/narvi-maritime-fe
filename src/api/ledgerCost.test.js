@@ -88,3 +88,16 @@ describe("ledgerCost summary api", () => {
     expect(res.mixed_currencies).toBe(false);
   });
 });
+
+describe("ledgerCost ids filter", () => {
+  afterEach(() => jest.clearAllMocks());
+
+  test("sends ids as a comma string, from an array or a string", async () => {
+    api.get.mockResolvedValue({ data: { status: "success", data: [{ id: 1 }, { id: 3 }], total_count: 2 } });
+    const res = await getLedgerCosts({ ids: [1, 2, 3], page_size: 3 });
+    expect(api.get).toHaveBeenCalledWith("/api/ledger/cost", { params: { ids: "1,2,3", page: 1, page_size: 3 } });
+    expect(res.data).toHaveLength(2);
+    await getLedgerCosts({ ids: "4, 5" });
+    expect(api.get).toHaveBeenLastCalledWith("/api/ledger/cost", { params: { ids: "4,5", page: 1, page_size: 50 } });
+  });
+});

@@ -79,6 +79,8 @@ export const ledgerViewValue = (column, record) => {
       const due = viewDate(row[key]);
       return due ? `${due} (${row.date_due_manual ? "manual" : "auto"})` : "";
     }
+    case "file":
+      return clean(row[key]?.filename) || "-";
     case "bool":
       return row[key] === true || row[key] === "true" ? "Yes" : "No";
     case "badge":

@@ -115,8 +115,10 @@ import CarbonCalculator from "views/admin/carbon-calculator";
 // Master Ledger
 import LedgerCost from "views/admin/ledger/cost";
 import CostFormPage from "views/admin/ledger/cost/CostFormPage";
+import CostEditTablePage from "views/admin/ledger/cost/CostEditTablePage";
 import LedgerInvoice from "views/admin/ledger/invoice";
 import InvoiceFormPage from "views/admin/ledger/invoice/InvoiceFormPage";
+import InvoiceEditTablePage from "views/admin/ledger/invoice/InvoiceEditTablePage";
 import LedgerSo from "views/admin/ledger/so";
 import SoLedgerFormPage from "views/admin/ledger/so/SoLedgerFormPage";
 import LedgerDashboards from "views/admin/ledger/dashboards";
@@ -681,10 +683,22 @@ const hiddenRoutes = [
     component: CostFormPage,
   },
   {
+    name: "Cost Edit Table",
+    layout: "/admin",
+    path: "/ledger/cost/edit",
+    component: CostEditTablePage,
+  },
+  {
     name: "Invoice Form",
     layout: "/admin",
     path: "/ledger/invoice/form/:id?",
     component: InvoiceFormPage,
+  },
+  {
+    name: "Invoice Edit Table",
+    layout: "/admin",
+    path: "/ledger/invoice/edit",
+    component: InvoiceEditTablePage,
   },
   {
     name: "SO Ledger Form",

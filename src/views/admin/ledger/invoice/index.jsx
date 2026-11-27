@@ -53,6 +53,7 @@ import {
 import { useHistory } from "react-router-dom";
 import { bulkUpdateLedgerInvoices, cancelLedgerInvoice, getLedgerInvoices } from "api/ledgerInvoice";
 import { useMasterData } from "hooks/useMasterData";
+import useLedgerIssuerOptions from "hooks/useLedgerIssuerOptions";
 import { useSaveWithDraft } from "hooks/useSaveWithDraft";
 import {
   buildLedgerBulkRetryRequests,
@@ -67,7 +68,13 @@ import LedgerRecordViewModal from "components/ledger/LedgerRecordViewModal";
 import LedgerDateRangeFilterModal from "components/ledger/LedgerDateRangeFilterModal";
 import LedgerSortableHeader from "components/ledger/LedgerSortableHeader";
 import { buildBulkUpdatePayload, validateBulkSelection } from "utils/ledgerBulkEdit";
-import { INVOICE_COLUMNS } from "utils/ledgerColumns";
+import {
+  buildLedgerEditPath,
+  LEDGER_EDIT_MAX_ROWS,
+  readLedgerEditView,
+  validateEditSelection,
+} from "utils/ledgerEditNav";
+import { INVOICE_COLUMNS, mergeServerColumns } from "utils/ledgerColumns";
 import { isLedgerCancelled, SO_DONE_STATUS_OPTIONS, soDoneStatusColor, soDoneStatusLabel } from "utils/ledgerDisplay";
 import {
   buildDateRangeParams,
@@ -94,12 +101,15 @@ import { formatDateDMY } from "utils/dateFormat";
 
 const INVOICE_LIST_STORAGE_KEY = "narvi_invoice_list_state";
 const SELECT_COL_W = 44;
+const LEDGER_INVOICE_BASE = "/admin/ledger/invoice";
 
 const defaultInvoiceListState = {
   searchValue: "",
   soNumber: "",
   invoiceNumber: "",
   clientId: "",
+  issuedById: "",
+  issuedByName: "",
   destination: "",
   paymentStatus: "",
   soDoneStatus: "",
@@ -177,6 +187,7 @@ export default function LedgerInvoice() {
   const [clients, setClients] = useState(() => getCached(MASTER_KEYS.CLIENTS) ?? []);
   const [destinations, setDestinations] = useState(() => getCached(MASTER_KEYS.DESTINATIONS) ?? []);
   const [records, setRecords] = useState([]);
+  const [serverColumns, setServerColumns] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [searchValue, setSearchValue] = useState(savedState.searchValue);
@@ -186,6 +197,10 @@ export default function LedgerInvoice() {
   const [invoiceNumber, setInvoiceNumber] = useState(savedState.invoiceNumber);
   const [invoiceNumberQuery, setInvoiceNumberQuery] = useState(String(savedState.invoiceNumber || "").trim());
   const [clientId, setClientId] = useState(savedState.clientId);
+  const [issuedById, setIssuedById] = useState(savedState.issuedById);
+  const [issuedByName, setIssuedByName] = useState(savedState.issuedByName);
+  const issuers = useLedgerIssuerOptions();
+  const pinIssuer = issuers.pin;
   const [destination, setDestination] = useState(savedState.destination);
   const [destinationQuery, setDestinationQuery] = useState(String(savedState.destination || "").trim());
   const [paymentStatus, setPaymentStatus] = useState(savedState.paymentStatus);
@@ -241,6 +256,7 @@ export default function LedgerInvoice() {
         so_number: soNumberQuery,
         invoice_number: invoiceNumberQuery,
         client_id: clientId,
+        issued_by_id: issuedById,
         destination: destinationQuery,
         payment_status: paymentStatus,
         so_done_status: soDoneStatus,
@@ -251,6 +267,7 @@ export default function LedgerInvoice() {
         ...buildDateRangeParams(dateRanges, INVOICE_DATE_FILTER_FIELDS),
       });
       setRecords(Array.isArray(data.data) ? data.data : []);
+      if (Array.isArray(data.columns) && data.columns.length) setServerColumns(data.columns);
       setTotalCount(data.total_count || 0);
       setTotalPages(data.total_pages || 0);
       setHasNext(Boolean(data.has_next));
@@ -303,6 +320,7 @@ export default function LedgerInvoice() {
     soNumberQuery,
     invoiceNumberQuery,
     clientId,
+    issuedById,
     destinationQuery,
     paymentStatus,
     soDoneStatus,
@@ -342,6 +360,8 @@ export default function LedgerInvoice() {
       soNumber,
       invoiceNumber,
       clientId,
+      issuedById,
+      issuedByName,
       destination,
       paymentStatus,
       soDoneStatus,
@@ -358,6 +378,8 @@ export default function LedgerInvoice() {
     soNumber,
     invoiceNumber,
     clientId,
+    issuedById,
+    issuedByName,
     destination,
     paymentStatus,
     soDoneStatus,
@@ -379,6 +401,7 @@ export default function LedgerInvoice() {
     soNumberQuery,
     invoiceNumberQuery,
     clientId,
+    issuedById,
     destinationQuery,
     paymentStatus,
     soDoneStatus,
@@ -418,6 +441,8 @@ export default function LedgerInvoice() {
     setInvoiceNumber("");
     setInvoiceNumberQuery("");
     setClientId("");
+    setIssuedById("");
+    setIssuedByName("");
     setDestination("");
     setDestinationQuery("");
     setPaymentStatus("");
@@ -427,6 +452,13 @@ export default function LedgerInvoice() {
     setDateRanges({});
     setPage(1);
   };
+
+  // Keep the saved issuer visible in the picker after a reload
+  useEffect(() => {
+    if (savedState.issuedById && savedState.issuedByName) {
+      pinIssuer({ id: savedState.issuedById, name: savedState.issuedByName });
+    }
+  }, [savedState, pinIssuer]);
 
   const handleSort = (key) => {
     if (isLoading || isBulkOpen || !isSortableKey("invoice", key)) return;
@@ -533,7 +565,17 @@ export default function LedgerInvoice() {
   };
 
   const handleOpenEdit = (row) => {
-    history.push(`/admin/ledger/invoice/form/${row.id}`);
+    history.push(buildLedgerEditPath({ base: LEDGER_INVOICE_BASE, view: readLedgerEditView("invoice"), id: row.id }));
+  };
+
+  const editSelectionError = validateEditSelection(selectedIds);
+  const overEditLimit = selectedIds.length > LEDGER_EDIT_MAX_ROWS;
+
+  const handleEditSelected = () => {
+    if (validateEditSelection(selectedIds)) return;
+    history.push(
+      buildLedgerEditPath({ base: LEDGER_INVOICE_BASE, view: readLedgerEditView("invoice"), ids: selectedIds })
+    );
   };
 
   const handleConfirmCancel = async () => {
@@ -575,7 +617,7 @@ export default function LedgerInvoice() {
 
   const activeDateCount = countActiveDateRanges(dateRanges, INVOICE_DATE_FILTER_FIELDS);
   const advancedFilterCount =
-    [soNumber, invoiceNumber, clientId, destination, paymentStatus, soDoneStatus, clientCaseRef].filter(
+    [soNumber, invoiceNumber, clientId, issuedById, destination, paymentStatus, soDoneStatus, clientCaseRef].filter(
       (value) => value != null && String(value).trim() !== ""
     ).length + activeDateCount;
   const hasAdvancedFilters = advancedFilterCount > 0;
@@ -627,8 +669,10 @@ export default function LedgerInvoice() {
     return "-";
   };
 
+  // Grid order and labels come from the server `columns`; SO Number stays the sticky column
+  const invoiceColumns = mergeServerColumns(serverColumns, INVOICE_COLUMNS);
   const tableMinW =
-    SELECT_COL_W + 108 + INVOICE_COLUMNS.reduce((sum, column) => sum + (parseInt(column.minW, 10) || 120), 0);
+    SELECT_COL_W + 108 + invoiceColumns.reduce((sum, column) => sum + (parseInt(column.minW, 10) || 120), 0);
 
   const renderCell = (column, row) => {
     const value = row[column.key];
@@ -669,6 +713,8 @@ export default function LedgerInvoice() {
         return <TruncatedText value={row.vessel_name || getMany2oneName(row.vessel_id)} maxW="150px" />;
       case "biz_category":
         return <TruncatedText value={bizCategoryDisplay(row.biz_category, row.biz_category_label)} maxW="130px" />;
+      case "issued_by":
+        return <TruncatedText value={row.issued_by} maxW="160px" />;
       case "invoice_number":
         return <TruncatedText value={value} maxW="160px" fontWeight="600" />;
       case "currency_code":
@@ -905,6 +951,36 @@ export default function LedgerInvoice() {
                   />
                 </FormControl>
                 <FormControl>
+                  <FormLabel {...filterLabelProps}>Issued By</FormLabel>
+                  <SearchableSelect
+                    value={issuedById}
+                    onChange={(value, option) => {
+                      const picked = option || issuers.options.find((o) => String(o.id) === String(value));
+                      setIssuedById(value || "");
+                      setIssuedByName(value && picked ? picked.name || "" : "");
+                      if (value && picked) issuers.pin(picked);
+                      setPage(1);
+                    }}
+                    options={issuers.options}
+                    serverSideSearch
+                    onSearchChange={issuers.onSearchChange}
+                    isLoading={issuers.isLoading}
+                    fallbackDisplay={issuedByName}
+                    placeholder="All issuers"
+                    {...controlProps}
+                  />
+                  {issuers.error && (
+                    <Flex mt={1} align="center" gap={2}>
+                      <Text fontSize="xs" color="red.500">
+                        Could not load issuers.
+                      </Text>
+                      <Button size="xs" variant="link" colorScheme="blue" onClick={issuers.retry}>
+                        Retry
+                      </Button>
+                    </Flex>
+                  )}
+                </FormControl>
+                <FormControl>
                   <FormLabel {...filterLabelProps}>Destination</FormLabel>
                   <SearchableSelect
                     value={destination}
@@ -1011,18 +1087,37 @@ export default function LedgerInvoice() {
                   <Text fontSize="sm" fontWeight="600">
                     {selectedIds.length} item(s) selected
                   </Text>
+                  <Tooltip label={editSelectionError} isDisabled={!editSelectionError} hasArrow>
+                    <Box as="span">
+                      <Button
+                        size="sm"
+                        colorScheme="blue"
+                        leftIcon={<Icon as={MdEdit} />}
+                        onClick={handleEditSelected}
+                        isDisabled={Boolean(editSelectionError)}
+                      >
+                        Edit selected
+                      </Button>
+                    </Box>
+                  </Tooltip>
                   <Button
                     size="sm"
+                    variant="outline"
                     colorScheme="red"
                     leftIcon={<Icon as={MdEdit} />}
                     onClick={handleOpenBulk}
                     isDisabled={isOverBulkLimit}
                   >
-                    Edit selected
+                    Set same value
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>
                     Clear Selection
                   </Button>
+                  {overEditLimit && (
+                    <Text fontSize="xs" color="red.500">
+                      {editSelectionError}
+                    </Text>
+                  )}
                   {isOverBulkLimit && (
                     <Text fontSize="xs" color="red.500">
                       {selectionError}
@@ -1058,7 +1153,7 @@ export default function LedgerInvoice() {
                           aria-label="Select all rows on this page"
                         />
                       </Th>
-                      {INVOICE_COLUMNS.map((column) => {
+                      {invoiceColumns.map((column) => {
                         const isSo = column.key === "so_number";
                         const colProps = {
                           ...thProps,
@@ -1113,7 +1208,7 @@ export default function LedgerInvoice() {
                               aria-label={`Select row ${displaySo(row)}`}
                             />
                           </Td>
-                          {INVOICE_COLUMNS.map((column) => {
+                          {invoiceColumns.map((column) => {
                             const isSo = column.key === "so_number";
                             return (
                               <Td
@@ -1301,7 +1396,7 @@ export default function LedgerInvoice() {
         onClose={() => setViewRow(null)}
         title={viewRow ? `Invoice ${viewRow.invoice_number || ""}`.trim() : "Invoice"}
         record={viewRow}
-        columns={INVOICE_COLUMNS}
+        columns={invoiceColumns}
         onEdit={() => {
           const row = viewRow;
           setViewRow(null);

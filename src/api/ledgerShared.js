@@ -9,6 +9,15 @@ const unwrapError = (data, fallback) => {
   }
 };
 
+// ids filter for the ledger lists: array or comma string -> "1,2,3" (numbers only), "" when none
+export const formatIdsParam = (ids) => {
+  const list = Array.isArray(ids) ? ids : String(ids ?? "").split(",");
+  return list
+    .map((value) => String(value).trim())
+    .filter((value) => /^\d+$/.test(value))
+    .join(",");
+};
+
 // Payload can sit in data, data.result, data.data or data.result.data
 const pickPayload = (data) => {
   const candidates = [data?.result?.data, data?.data, data?.result, data];

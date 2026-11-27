@@ -53,13 +53,13 @@ const prettyDate = (iso) => {
 };
 
 // Compact ROE cell: input + small auto/manual tag, notes in the tag tooltip
-function RoeCell({ values, onPatch, currencyLabel, controlProps, isDisabled }) {
+export function RoeCell({ values, onPatch, currencyLabel, controlProps, isDisabled, previewEnabled = true }) {
   const manual = Boolean(values.roe_manual);
   const preview = useLedgerRoePreview({
     kind: "cost",
     currencyId: values.currency_id,
     date: values.date_agent_invoice,
-    enabled: !manual,
+    enabled: !manual && previewEnabled,
   });
   const previewRoe = preview.data ? preview.data.roe : undefined;
   const display = manual
@@ -99,12 +99,12 @@ function RoeCell({ values, onPatch, currencyLabel, controlProps, isDisabled }) {
 }
 
 // Compact due date cell
-function DueCell({ values, onPatch, controlProps, isDisabled }) {
+export function DueCell({ values, onPatch, controlProps, isDisabled, previewEnabled = true }) {
   const manual = Boolean(values.date_due_manual);
   const preview = useLedgerDueDatePreview({
     partnerId: values.agent_id,
     date: values.date_agent_invoice,
-    enabled: !manual,
+    enabled: !manual && previewEnabled,
   });
   const display = manual
     ? values.date_due_agent

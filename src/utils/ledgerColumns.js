@@ -3,6 +3,9 @@
 // type: text | longtext | number | date | badge | roe | due | bool | link | invoiceLink
 // covers: form state keys this column represents (used by the parity test).
 
+// Agent invoice file of a cost (the cell uploads / downloads it). The server sends this column after Invoice Number.
+export const COST_FILE_COLUMN = { key: "invoice_file", label: "Invoice File", type: "file", minW: "200px" };
+
 export const COST_COLUMNS = [
   { key: "so_number", label: "SO Number", sortKey: "so_number", type: "text", minW: "120px", covers: ["sale_order_id"] },
   { key: "so_create_date", label: "SO Create Date", sortKey: "so_create_date", type: "date", minW: "120px" },
@@ -19,6 +22,7 @@ export const COST_COLUMNS = [
   { key: "usd_cost", label: "USD Cost", sortKey: "usd_cost", type: "number", minW: "110px" },
   { key: "gst_in_amount", label: "GST In Amount", type: "number", minW: "110px" },
   { key: "invoice_number", label: "Invoice Number", sortKey: "invoices", type: "text", minW: "140px", covers: ["invoices"] },
+  COST_FILE_COLUMN,
   { key: "internal_remarks", label: "Internal Remarks", type: "longtext", minW: "200px" },
   { key: "date_agent_invoice", label: "Invoice Date", sortKey: "date_agent_invoice", type: "date", minW: "110px" },
   { key: "date_due_agent", label: "Due", sortKey: "date_due_agent", type: "due", minW: "110px", covers: ["date_due_manual"] },
@@ -54,6 +58,7 @@ export const INVOICE_COLUMNS = [
   { key: "destination", label: "Destination", sortKey: "destination", type: "text", minW: "160px", covers: ["destination_type", "destination_type_label", "destination_name", "destination_country"] },
   { key: "biz_category", label: "Biz Category", sortKey: "biz_category", type: "text", minW: "120px", covers: ["biz_category_label"] },
   { key: "invoice_number", label: "Invoice Number", sortKey: "invoice_number", type: "text", minW: "130px" },
+  { key: "issued_by", label: "Issued By", type: "text", minW: "150px", covers: ["issued_by_id"] },
   { key: "currency_code", label: "Currency", sortKey: "currency_code", type: "text", minW: "90px", covers: ["currency_id"] },
   { key: "currency_amount", label: "Amount", sortKey: "currency_amount", type: "number", minW: "120px" },
   { key: "roe", label: "ROE", sortKey: "roe", type: "roe", minW: "110px", covers: ["roe_manual", "roe_date"] },
@@ -117,3 +122,33 @@ export const INVOICE_TABLE_ENTRY_COLUMNS = [
   { key: "so_remark", label: "SO Remark", type: "textarea", minW: "160px" },
   { key: "internal_remarks", label: "Internal Remarks", type: "textarea", minW: "220px" },
 ];
+
+// Edit-table columns: the entry columns with SO Number / Invoice Number read-only (still editable in Form view),
+// plus read-only derived columns shown from the saved record.
+const READ_ONLY_KEYS = { cost: ["sale_order_id", "invoices"], invoice: ["sale_order_id", "invoice_number"] };
+
+const toEditColumns = (entryColumns, readOnlyKeys, extrasAfter) =>
+  entryColumns.flatMap((col) => {
+    const base = readOnlyKeys.includes(col.key) ? { ...col, derived: true, required: undefined } : col;
+    return [base, ...(extrasAfter[col.key] || [])];
+  });
+
+export const COST_TABLE_EDIT_COLUMNS = toEditColumns(COST_TABLE_ENTRY_COLUMNS, READ_ONLY_KEYS.cost, {
+  client_case_invoice_ref: [
+    { key: "client", label: "Client", derived: true, minW: "160px" },
+    { key: "vessel_name", label: "Vessel", derived: true, minW: "140px" },
+  ],
+  roe_invoice_date: [{ key: "usd_cost", label: "USD Cost", derived: true, minW: "110px" }],
+  invoices: [{ ...COST_FILE_COLUMN, derived: true }],
+});
+
+export const INVOICE_TABLE_EDIT_COLUMNS = toEditColumns(INVOICE_TABLE_ENTRY_COLUMNS, READ_ONLY_KEYS.invoice, {
+  client_case_invoice_ref: [
+    { key: "client", label: "Client", derived: true, minW: "160px" },
+    { key: "vessel_name", label: "Vessel", derived: true, minW: "140px" },
+  ],
+  invoice_number: [{ key: "issued_by_id", label: "Issued By", type: "issuer", minW: "200px" }],
+  roe: [{ key: "usd_amount", label: "USD Amount", derived: true, minW: "110px" }],
+  client_amount_paid: [{ key: "invoice_balance", label: "Invoice Balance", derived: true, minW: "120px" }],
+  bank_change_usd: [{ key: "payment_status", label: "Payment Status", derived: true, minW: "110px" }],
+});

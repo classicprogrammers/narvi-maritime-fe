@@ -54,6 +54,8 @@ export const API_CONFIG = {
     LEDGER_INVOICE_CREATE: "/api/ledger/invoice/create",
     LEDGER_INVOICE_UPDATE: "/api/ledger/invoice/update",
     LEDGER_INVOICE_CANCEL: "/api/ledger/invoice/cancel",
+    LEDGER_INVOICE_CHECK_NUMBER: "/api/ledger/invoice/check-number",
+    LEDGER_INVOICE_ISSUERS: "/api/ledger/invoice/issuers",
     LEDGER_ROE_PREVIEW: "/api/ledger/roe/preview",
     LEDGER_DUE_DATE_PREVIEW: "/api/ledger/due-date/preview",
     LEDGER_AGENT_OPTIONS: "/api/ledger/agent/options",

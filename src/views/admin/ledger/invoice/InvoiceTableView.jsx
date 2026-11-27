@@ -26,13 +26,13 @@ const FORM_PATH = "/admin/ledger/invoice/form";
 const newRow = (key) => ({ key, values: emptyInvoiceForm(), status: "draft", message: "", savedId: null, soLabel: "" });
 
 // ROE cell: shows the previewed automatic rate until the user types one
-function RoeCell({ values, isDisabled, onPatch }) {
+export function RoeCell({ values, isDisabled, onPatch, previewEnabled = true }) {
   const isManual = Boolean(values.roe_manual);
   const preview = useLedgerRoePreview({
     kind: "invoice",
     currencyId: values.currency_id,
     date: values.date_sales_invoice,
-    enabled: !isManual && !isDisabled,
+    enabled: !isManual && !isDisabled && previewEnabled,
   });
   const inputBg = useColorModeValue("white", "gray.700");
   const autoRoe = preview.data ? preview.data.roe : null;
@@ -62,12 +62,12 @@ function RoeCell({ values, isDisabled, onPatch }) {
 }
 
 // Due date cell: automatic from the client's payment terms until a date is typed
-function DueCell({ values, isDisabled, onPatch }) {
+export function DueCell({ values, isDisabled, onPatch, previewEnabled = true }) {
   const isManual = Boolean(values.date_due_manual);
   const preview = useLedgerDueDatePreview({
     partnerId: values.client_id,
     date: values.date_sales_invoice,
-    enabled: !isManual && !isDisabled,
+    enabled: !isManual && !isDisabled && previewEnabled,
   });
   const inputBg = useColorModeValue("white", "gray.700");
   const shown = isManual ? values.date_due : preview.data ? preview.data.due_date || "" : values.date_due;

@@ -6,10 +6,12 @@ import {
   Checkbox,
   Flex,
   FormControl,
+  FormHelperText,
   FormLabel,
   Heading,
   HStack,
   Icon,
+  IconButton,
   Input,
   ScaleFade,
   Select,
@@ -17,17 +19,22 @@ import {
   Spinner,
   Text,
   Textarea,
+  Tooltip,
   useColorModeValue,
   useToast,
 } from "@chakra-ui/react";
 import {
   MdArrowBack,
   MdCheckCircle,
+  MdChevronLeft,
+  MdChevronRight,
   MdCloudQueue,
   MdInfoOutline,
 } from "react-icons/md";
-import { useHistory, useParams } from "react-router-dom";
+import { useHistory, useLocation, useParams } from "react-router-dom";
 import SearchableSelect from "components/forms/SearchableSelect";
+import LedgerEditViewToggle from "components/ledger/LedgerEditViewToggle";
+import { buildLedgerEditPath, parseEditIds, writeLedgerEditView } from "utils/ledgerEditNav";
 import LedgerAutoTag from "components/ledger/LedgerAutoTag";
 import { getShippingOrders } from "api/shippingOrders";
 import { getLedgerCosts } from "api/ledgerCost";
@@ -36,11 +43,13 @@ import {
   createLedgerInvoice,
   deleteLedgerInvoiceFile,
   downloadLedgerInvoiceFileApi,
+  checkLedgerInvoiceNumber,
   getLedgerInvoiceById,
   updateLedgerInvoice,
   uploadLedgerInvoiceFiles,
 } from "api/ledgerInvoice";
 import { useMasterData } from "hooks/useMasterData";
+import useLedgerIssuerOptions from "hooks/useLedgerIssuerOptions";
 import { useLedgerDueDatePreview, useLedgerRoePreview } from "hooks/useLedgerPreviews";
 import { getCached, MASTER_KEYS } from "utils/masterDataCache";
 import { describeDueRule } from "utils/ledgerAutoFields";
@@ -61,6 +70,7 @@ import {
   extractLedgerInvoiceRecord,
   fillFromShippingOrder,
   formatCostNumber,
+  formatInvoiceNumberDuplicateMessage,
   formatSoLabel,
   getMany2oneName,
   bizCategoryDisplay,
@@ -168,6 +178,7 @@ const displayComputed = (previewValue, apiValue, digits = 4) => {
 export default function InvoiceFormPage() {
   const { id } = useParams();
   const history = useHistory();
+  const location = useLocation();
   const toast = useToast();
   const isEditRoute = Boolean(id);
 
@@ -179,6 +190,8 @@ export default function InvoiceFormPage() {
   const [savePulse, setSavePulse] = useState(0);
   const [savedCaption, setSavedCaption] = useState("All changes saved");
 
+  const issuers = useLedgerIssuerOptions();
+  const pinIssuer = issuers.pin;
   const [roeServerError, setRoeServerError] = useState(null);
   const roeInputRef = useRef(null);
   const [form, setForm] = useState(emptyInvoiceForm());
@@ -190,6 +203,8 @@ export default function InvoiceFormPage() {
   const soSearchTimerRef = useRef(null);
   const soBizRequestGenRef = useRef(0);
   const recordIdRef = useRef(null);
+  const [invoiceNumberWarning, setInvoiceNumberWarning] = useState("");
+  const invoiceNumberCheckGenRef = useRef(0);
   const originalFormRef = useRef(originalForm);
   const lastSavedSignatureRef = useRef("");
   const skipAutosaveRef = useRef(true);
@@ -197,7 +212,13 @@ export default function InvoiceFormPage() {
   const lastValidationErrorRef = useRef(null);
   const firstSaveToastShownRef = useRef(false);
 
+  const { ids: editIds } = useMemo(() => parseEditIds(location.search), [location.search]);
+  const editIndex = id ? editIds.indexOf(Number(id)) : -1;
+  const showNavigator = isEditRoute && editIds.length > 1 && editIndex >= 0;
+
   const pageBg = useColorModeValue("gray.50", "gray.900");
+  const navBarBg = useColorModeValue("gray.50", "gray.800");
+  const mutedColor = useColorModeValue("gray.500", "gray.400");
   const cardBg = useColorModeValue("white", "gray.800");
   const borderColor = useColorModeValue("gray.200", "gray.700");
   const inputBg = useColorModeValue("white", "gray.700");
@@ -282,9 +303,12 @@ export default function InvoiceFormPage() {
       } else {
         pinnedSoRef.current = null;
       }
+      if (record && nextForm.issued_by_id !== "" && nextForm.issued_by) {
+        pinIssuer({ id: nextForm.issued_by_id, name: nextForm.issued_by });
+      }
       fetchShippingOrders("");
     },
-    [fetchShippingOrders]
+    [fetchShippingOrders, pinIssuer]
   );
 
   useEffect(() => {
@@ -316,6 +340,10 @@ export default function InvoiceFormPage() {
       setIsLoadingRecord(false);
       return;
     }
+
+    // New record: drop the previous record's duplicate warning and invalidate in-flight checks
+    invoiceNumberCheckGenRef.current += 1;
+    setInvoiceNumberWarning("");
 
     let cancelled = false;
     setIsLoadingRecord(true);
@@ -431,6 +459,37 @@ export default function InvoiceFormPage() {
       applyBizCategoryFromCostDb(value);
     },
     [applyBizCategoryFromCostDb, setField, shippingOrders]
+  );
+
+  // On leaving Invoice Number: warn (never block) if it is already booked; silent if the check fails
+  const checkInvoiceNumber = async (event) => {
+    const number = String(event.target.value ?? "").trim();
+    if (!number || number === String(originalFormRef.current.invoice_number ?? "").trim()) return;
+    const gen = (invoiceNumberCheckGenRef.current += 1);
+    try {
+      const result = await checkLedgerInvoiceNumber({
+        invoice_number: number,
+        exclude_id: recordIdRef.current || undefined,
+      });
+      if (gen !== invoiceNumberCheckGenRef.current) return;
+      setInvoiceNumberWarning(
+        result.has_duplicates ? result.duplicates.map(formatInvoiceNumberDuplicateMessage).join(" ") : ""
+      );
+    } catch {
+      // the server still refuses duplicates on save
+    }
+  };
+
+  const handleIssuerChange = useCallback(
+    (value) => {
+      if (value == null || value === "") {
+        setForm((prev) => ({ ...prev, issued_by_id: "", issued_by: "" }));
+        return;
+      }
+      const option = issuers.options.find((item) => String(item.id) === String(value));
+      setForm((prev) => ({ ...prev, issued_by_id: value, issued_by: option?.name || "" }));
+    },
+    [issuers.options]
   );
 
   const handleCurrencyChange = useCallback(
@@ -578,8 +637,8 @@ export default function InvoiceFormPage() {
     const signature = getWritableInvoiceSignature(form);
     if (signature === lastSavedSignatureRef.current) return;
 
-    const requiredError = validateInvoiceForm(form);
     const recordId = recordIdRef.current;
+    const requiredError = validateInvoiceForm(form, recordId ? originalFormRef.current : null);
 
     if (!recordId && requiredError) {
       lastValidationErrorRef.current = null;
@@ -672,7 +731,8 @@ export default function InvoiceFormPage() {
   }, [form, isLoadingRecord, history, showError, markSaved]);
 
   const hasSavedRecord = Boolean(id || editingRecord?.id);
-  const requiredError = validateInvoiceForm(form);
+  const requiredError = validateInvoiceForm(form, hasSavedRecord ? originalForm : null);
+  const issuerClearError = requiredError === "Issued By cannot be cleared." ? requiredError : "";
   const isDirty = getWritableInvoiceSignature(form) !== lastSavedSignatureRef.current;
   const saveMode = isSaving
     ? "saving"
@@ -685,6 +745,24 @@ export default function InvoiceFormPage() {
           : hasSavedRecord
             ? "saved"
             : "idle";
+
+  const isSaveLocked = isSaving || saveMode === "saving" || saveMode === "pending";
+  const isNavBlocked = saveMode === "blocked";
+  const isNavLocked = isSaveLocked || isNavBlocked;
+  const navLockLabel = isNavBlocked && !isSaveLocked ? "Fix the highlighted fields first" : "Saving...";
+
+  const goToEditView = (view, targetId) => {
+    if (view === "table") writeLedgerEditView("invoice", "table");
+    history.push(buildLedgerEditPath({ base: LIST_PATH, view, ids: editIds, id: targetId }));
+  };
+  const handleViewToggle = (view) => {
+    if (view === "form") {
+      // Already on the form: remember the choice, do not push the same URL
+      writeLedgerEditView("invoice", "form");
+      return;
+    }
+    goToEditView(view, id);
+  };
 
   const fieldLabelProps = {
     fontSize: "sm",
@@ -720,10 +798,71 @@ export default function InvoiceFormPage() {
               </Text>
             </Box>
           </Flex>
+          {isEditRoute && (
+            <Tooltip label={navLockLabel} isDisabled={!isNavLocked} hasArrow>
+              <Box>
+                <LedgerEditViewToggle
+                  view="form"
+                  onChange={handleViewToggle}
+                  isDisabled={isNavLocked}
+                />
+              </Box>
+            </Tooltip>
+          )}
           {!isLoadingRecord && !isTableView && (
             <InvoiceAutosaveBadge mode={saveMode} savedCaption={savedCaption} pulse={savePulse} />
           )}
         </Flex>
+
+        {showNavigator && (
+          <Flex
+            align="center"
+            wrap="wrap"
+            gap={3}
+            mb={4}
+            px={4}
+            py={2}
+            bg={navBarBg}
+            border="1px"
+            borderColor={borderColor}
+            borderRadius="lg"
+          >
+            <HStack spacing={2}>
+              <Tooltip label={navLockLabel} isDisabled={!isNavLocked} hasArrow>
+                <Box>
+                  <IconButton
+                    size="sm"
+                    variant="outline"
+                    icon={<Icon as={MdChevronLeft} />}
+                    aria-label="Previous record"
+                    isDisabled={isNavLocked || editIndex <= 0}
+                    onClick={() => goToEditView("form", editIds[editIndex - 1])}
+                  />
+                </Box>
+              </Tooltip>
+              <Text fontWeight="600">
+                Record {editIndex + 1} of {editIds.length}
+              </Text>
+              <Tooltip label={navLockLabel} isDisabled={!isNavLocked} hasArrow>
+                <Box>
+                  <IconButton
+                    size="sm"
+                    variant="outline"
+                    icon={<Icon as={MdChevronRight} />}
+                    aria-label="Next record"
+                    isDisabled={isNavLocked || editIndex >= editIds.length - 1}
+                    onClick={() => goToEditView("form", editIds[editIndex + 1])}
+                  />
+                </Box>
+              </Tooltip>
+            </HStack>
+            {editingRecord?.so_number ? (
+              <Text fontSize="sm" color={mutedColor}>
+                SO {editingRecord.so_number}
+              </Text>
+            ) : null}
+          </Flex>
+        )}
 
         {!isEditRoute && (
           <Box display={isTableView ? "block" : "none"}>
@@ -875,10 +1014,54 @@ export default function InvoiceFormPage() {
                   <FormLabel {...fieldLabelProps}>Invoice Number</FormLabel>
                   <Input
                     value={form.invoice_number}
-                    onChange={(e) => setField("invoice_number", e.target.value)}
+                    onChange={(e) => {
+                      invoiceNumberCheckGenRef.current += 1;
+                      setInvoiceNumberWarning("");
+                      setField("invoice_number", e.target.value);
+                    }}
+                    onBlur={checkInvoiceNumber}
                     placeholder="INV-2026-001"
                     {...controlProps}
                   />
+                  {invoiceNumberWarning ? (
+                    <FormHelperText color="orange.500" fontSize="xs">
+                      {invoiceNumberWarning}
+                    </FormHelperText>
+                  ) : null}
+                </FormControl>
+
+                <FormControl isRequired>
+                  <FormLabel {...fieldLabelProps}>Issued By</FormLabel>
+                  <SearchableSelect
+                    value={form.issued_by_id === "" ? "" : String(form.issued_by_id)}
+                    onChange={handleIssuerChange}
+                    options={issuers.options}
+                    placeholder="Select issuer..."
+                    serverSideSearch
+                    onSearchChange={issuers.onSearchChange}
+                    isLoading={issuers.isLoading}
+                    fallbackDisplay={form.issued_by}
+                    {...selectControlProps}
+                  />
+                  {issuerClearError ? (
+                    <Text fontSize="xs" color="red.500" mt={1}>
+                      {issuerClearError}
+                    </Text>
+                  ) : form.issued_by_id === "" ? (
+                    <Text fontSize="xs" color={hasSavedRecord ? "orange.500" : mutedColor} mt={1}>
+                      {hasSavedRecord
+                        ? "No issuer recorded. Please select one."
+                        : "Required before the invoice is saved."}
+                    </Text>
+                  ) : null}
+                  {issuers.error ? (
+                    <Text fontSize="xs" color="red.500" mt={1}>
+                      Could not load issuers.{" "}
+                      <Button variant="link" size="xs" colorScheme="blue" onClick={issuers.retry}>
+                        Retry
+                      </Button>
+                    </Text>
+                  ) : null}
                 </FormControl>
 
                 <FormControl>
@@ -1179,7 +1362,7 @@ export default function InvoiceFormPage() {
               </SimpleGrid>
 
               <Text fontSize="xs" color="gray.500" mt={5}>
-                Required to create: SO Number, Invoice Number, and Currency Amount. ROE and Date Due are filled
+                Required to create: SO Number, Invoice Number, Issued By, and Currency Amount. ROE and Date Due are filled
                 automatically unless you type a value. After that, changes save automatically. USD Amount,
                 balances, payment status, and SO details are calculated or filled by the server after save.
                 Payment status is never sent from the form.
